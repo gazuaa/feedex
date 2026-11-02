@@ -34,12 +34,13 @@ export class ArticleResources {
     const running = this.requests.get(key); if (running) return running as Promise<T>;
     const work = load().finally(() => this.requests.delete(key)); this.requests.set(key, work); return work;
   }
-  reader(article: ArticleItem): Promise<ArticleItem> {
-    return this.once(`reader:${article.id}`, async () => {
+  /** 리더 본문. `force`는 기기와 서버에 남은 본문을 쓰지 않고 원문에서 다시 뽑는다(기사 새로고침). */
+  reader(article: ArticleItem, force = false): Promise<ArticleItem> {
+    return this.once(`reader:${article.id}${force ? ':force' : ''}`, async () => {
       const generation = cacheGeneration.get(this.account), cached = await this.hydrate(article);
-      if (cached.full_content_html) return cached;
+      if (cached.full_content_html && !force) return cached;
       if (!this.current()) throw new Error('Session changed');
-      const result = await this.request<ReaderResult>(`/api/articles/${article.id}/reader-view`, { method: 'POST', body: '{}' });
+      const result = await this.request<ReaderResult>(`/api/articles/${article.id}/reader-view`, { method: 'POST', body: JSON.stringify(force ? { force: true } : {}) });
       const updated = { ...cached, full_content_html: result.fullContentHtml, body_deferred: false, ...(result.publishedAt ? { published_at: result.publishedAt } : {}) };
       if (this.current() && generation === cacheGeneration.get(this.account)) await writeContent(this.account, `article:${article.id}`, { id: article.id, url: article.url, content_html: updated.content_html, full_content_html: updated.full_content_html, published_at: updated.published_at, date_source: updated.date_source });
       return updated;
@@ -58,9 +59,14 @@ export class ArticleResources {
     if (!running && background) void work.catch(() => {}).finally(() => this.backgroundWeb.delete(key));
     return work;
   }
-  private loadWeb(article: ArticleItem, background: boolean): Promise<WebResult> {
-    return this.once(`web:${article.id}`, async () => {
-      const generation = cacheGeneration.get(this.account), stored = await this.cachedWeb(article);
+  /**
+   * 기사 새로고침: 저장된 사본을 쓰지 않고 다시 받는다. 원래 배치를 받으면 저장본을 바꾸고,
+   * 본문만 받았거나 실패하면 저장본은 그대로 둔다.
+   */
+  refreshWeb(article: ArticleItem): Promise<WebResult> { return this.loadWeb(article, false, true); }
+  private loadWeb(article: ArticleItem, background: boolean, fresh = false): Promise<WebResult> {
+    return this.once(`${fresh ? 'refresh' : 'web'}:${article.id}`, async () => {
+      const generation = cacheGeneration.get(this.account), stored = fresh ? undefined : await this.cachedWeb(article);
       if (stored) return stored;
       if (!this.current()) throw new Error('Session changed');
       let result: WebResult | null = null;
@@ -84,6 +90,20 @@ export class ArticleResources {
       if (!result.textOnly && this.current() && generation === cacheGeneration.get(this.account)) await writeContent(this.account, `web:${article.id}`, result);
       try { this.copyOrigins.add(new URL(article.url).origin); } catch {}
       return result;
+    });
+  }
+  /** 기사 새로고침(피드 보기): 서버에 있는 이 글의 최신 제목·피드 본문. 기기에 남긴 본문도 바꾼다. */
+  latest(article: ArticleItem): Promise<ArticleItem> {
+    return this.once(`latest:${article.id}`, async () => {
+      const generation = cacheGeneration.get(this.account);
+      if (!this.current()) throw new Error('Session changed');
+      const page = await this.request<{ articles: ArticleItem[] }>(`/api/articles?articleId=${encodeURIComponent(article.id)}`);
+      const latest = page.articles?.[0];
+      if (!latest || latest.id !== article.id) throw new Error('글을 찾을 수 없습니다.');
+      // 리더 본문은 따로 뽑은 것이므로, 서버 답에 없으면 기기에 남긴 것을 그대로 쓴다.
+      const full = latest.full_content_html || (await this.hydrate(article)).full_content_html || null;
+      if (this.current() && generation === cacheGeneration.get(this.account)) await writeContent(this.account, `article:${article.id}`, { id: article.id, url: latest.url, content_html: latest.content_html, full_content_html: full, published_at: latest.published_at, date_source: latest.date_source });
+      return { ...latest, full_content_html: full, body_deferred: false };
     });
   }
   /** 휴대폰 폭에 맞춘 사본. 데스크톱에만 맞는 저장본을 대신한다. */

@@ -67,9 +67,38 @@ try {
   assert.match(initial,/Available article 0/); assert.match(initial,/Prepared reader body/); assert.match(initial,/웹 보기 미리보기/);
   const ready=renderToStaticMarkup(React.createElement(WebLoadingPreview,{article:articles[0],isDark:false,ready:true,onReady(){},onReading(){}}));
   assert.match(ready,/웹 페이지 보기/); assert.match(ready,/Prepared reader body/,'a person reading the preview can keep their position when the website becomes ready');
+  assert.match(initial,/aria-label="기사 새로고침"/,'the article toolbar offers a refresh');
+
+  // 기사 새로고침: 저장된 사본·본문을 건너뛰고 다시 받아 바꾼다. 피드 보기는 서버의 최신 정보를 받는다.
+  const refreshCalls=[]; let copyVersion=1, readerVersion=1;
+  const refreshRequest=async(path,options={})=>{
+    refreshCalls.push(path+(options.body?' '+options.body:''));
+    if(path.endsWith('/web-copy')) return {html:page.replace('Original web layout','Web copy v'+copyVersion),url:'https://ordinary.example.test/refresh'};
+    if(path.endsWith('/reader-view')) return {fullContentHtml:'<p>Reader v'+readerVersion+'</p>'};
+    if(path.startsWith('/api/articles?articleId=')) return {articles:[{...refreshArticle,title:'Updated title',content_html:'<p>Updated feed body</p>',full_content_html:null,is_read:false}]};
+    throw new Error('unexpected '+path);
+  };
+  const refreshArticle={id:'refresh-1',feed_id:'ordinary',url:'https://ordinary.example.test/refresh',title:'Old title',feed_title:'Ordinary',content_html:'<p>Old feed body</p>',full_content_html:null,is_read:true,is_saved:false};
+  const refreshing=new ArticleResources('refresh-owner',()=>true,refreshRequest);
+  assert.match((await refreshing.web(refreshArticle)).html,/Web copy v1/);
+  assert.match((await refreshing.web(refreshArticle)).html,/Web copy v1/); assert.equal(refreshCalls.length,1,'an ordinary open uses the saved copy');
+  copyVersion=2;
+  assert.match((await refreshing.refreshWeb(refreshArticle)).html,/Web copy v2/); assert.equal(refreshCalls.length,2,'refresh skips the saved copy');
+  assert.match((await refreshing.web(refreshArticle)).html,/Web copy v2/); assert.equal(refreshCalls.length,2,'the refreshed copy replaces the saved one');
+  assert.match((await refreshing.reader(refreshArticle)).full_content_html,/Reader v1/);
+  assert.match((await refreshing.reader(refreshArticle)).full_content_html,/Reader v1/); assert.equal(refreshCalls.length,3,'the saved reader body is reused');
+  readerVersion=2;
+  assert.match((await refreshing.reader(refreshArticle,true)).full_content_html,/Reader v2/);
+  assert.equal(refreshCalls.at(-1),'/api/articles/refresh-1/reader-view {"force":true}','refresh asks the server to extract again');
+  assert.match((await refreshing.hydrate(refreshArticle)).full_content_html,/Reader v2/,'the new reader body is kept on the device');
+  const latest=await refreshing.latest(refreshArticle);
+  assert.equal(latest.title,'Updated title'); assert.match(latest.content_html,/Updated feed body/);
+  assert.match(latest.full_content_html,/Reader v2/,'the separately extracted reader body survives a feed refresh');
+  assert.match((await readContent('refresh-owner','article:refresh-1')).data.content_html,/Updated feed body/);
+  await maintainDeviceCache('refresh-owner',true);
   await maintainDeviceCache('fast-owner',true);
   await maintainDeviceCache('reader-owner',true);
-  console.log('PASS: view-aware prefetch, two web requests at once, shared foreground request, zero-network cached opening without repeated HTML parsing; live sites unchanged, other blocked origins prepared; cache-clear/account guards; immediate saved content with web still selected and explicit transition after scrolling.');
+  console.log('PASS: article refresh replacing saved web copies, reader bodies and feed details; view-aware prefetch, two web requests at once, shared foreground request, zero-network cached opening without repeated HTML parsing; live sites unchanged, other blocked origins prepared; cache-clear/account guards; immediate saved content with web still selected and explicit transition after scrolling.');
 } finally {
   globalThis.fetch=originalFetch;
   for(const [key,descriptor] of originals){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}

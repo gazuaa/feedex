@@ -1312,6 +1312,7 @@ export const App: React.FC = () => {
             onChangeViewMode={(mode) => selectedArticle && handleChangeViewMode(selectedArticle.feed_id, mode)}
             onNavigateRelative={handleNavigateRelative}
             onCopyLink={handleCopyLink}
+            onNotice={setNotice}
             hasPrev={selectedIndex > 0}
             hasNext={selectedIndex >= 0 && selectedIndex < articles.length - 1}
             isDark={isDark}

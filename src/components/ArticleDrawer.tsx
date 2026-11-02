@@ -21,6 +21,7 @@ import {
   ChevronUp,
   Share2,
   Link2,
+  RotateCw,
 } from 'lucide-react';
 import {
   apiRequest,
@@ -151,6 +152,8 @@ interface ArticleDrawerProps {
   onChangeViewMode: (mode: ViewMode) => void;
   onNavigateRelative: (direction: 'prev' | 'next') => void;
   onCopyLink: (article: ArticleItem) => void;
+  // 화면 아래에 잠깐 띄우는 안내.
+  onNotice: (message: string) => void;
   hasPrev: boolean;
   hasNext: boolean;
   isDark: boolean;
@@ -168,11 +171,16 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   onChangeViewMode,
   onNavigateRelative,
   onCopyLink,
+  onNotice,
   hasPrev,
   hasNext,
   isDark,
 }) => {
   const [readerFailedFor, setReaderFailedFor] = useState<string | null>(null);
+  // 기사 새로고침 중인지, 원본 프레임을 몇 번 다시 불러왔는지.
+  const [refreshing, setRefreshing] = useState(false);
+  const [frameReloads, setFrameReloads] = useState(0);
+  const shownArticleId = useRef(article?.id); shownArticleId.current = article?.id;
   const [frame, setFrame] = useState<{ articleId: string; embeddable: boolean; url: string; reason?: string } | null>(null);
   const [readerRetry, setReaderRetry] = useState(0);
   const mode = viewMode;
@@ -320,6 +328,46 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     <p className="text-sm">왼쪽 목록에서 글을 누르면 여기에 표시됩니다.</p>
   </div>;
 
+  // 기사 새로고침: 지금 보기에 맞게 다시 받는다. 웹 사본과 리더 본문은 기기·서버에 남은 것을 쓰지 않고,
+  // 피드 보기는 서버에 있는 최신 제목·본문을 받는다. 못 받으면 보던 내용은 그대로 둔다.
+  const refreshArticle = async () => {
+    if (refreshing) return;
+    const target = article, here = () => shownArticleId.current === target.id;
+    if (mode === 'web' && frame?.articleId === target.id && frame.embeddable) { setFrameReloads((count) => count + 1); return; }
+    setRefreshing(true);
+    let message = '기사를 새로 받았어요.';
+    try {
+      if (mode === 'web') {
+        const previous = webCopy?.articleId === target.id && webCopy.html ? webCopy : null;
+        setWebCopy(null);
+        try {
+          const copy = await (resources ? resources.refreshWeb(target) : apiRequest<{ html: string; textOnly?: boolean }>(`/api/articles/${target.id}/web-copy`));
+          // 원래 모양을 보던 중이면 본문만 받은 것으로 바꾸지 않는다.
+          if (copy.textOnly && previous && !previous.textOnly) { if (here()) setWebCopy(previous); message = '사이트가 잠시 막아 원래 모양을 새로 받지 못했어요. 보던 사본을 그대로 둘게요.'; }
+          else if (here()) setWebCopy({ articleId: target.id, html: copy.html, textOnly: copy.textOnly });
+        } catch (error) {
+          if (here()) setWebCopy(previous ?? { articleId: target.id, html: null, error: error instanceof Error ? error.message : undefined });
+          throw error;
+        }
+      } else if (mode === 'reader') {
+        const body = resources
+          ? await resources.reader(target, true).then((item) => ({ fullContentHtml: item.full_content_html, publishedAt: item.published_at }))
+          : await apiRequest<{ fullContentHtml: string; publishedAt?: string }>(`/api/articles/${target.id}/reader-view`, { method: 'POST', body: JSON.stringify({ force: true }) });
+        if (!body.fullContentHtml) throw new Error('리더 본문이 비어 있습니다.');
+        onUpdateArticleFields(target.id, { full_content_html: body.fullContentHtml, ...(body.publishedAt ? { published_at: body.publishedAt } : {}) });
+        if (here()) setReaderFailedFor((failed) => failed === target.id ? null : failed);
+      } else {
+        const latest = resources ? await resources.latest(target) : (await apiRequest<{ articles: ArticleItem[] }>(`/api/articles?articleId=${encodeURIComponent(target.id)}`)).articles[0];
+        if (!latest) throw new Error('글을 찾을 수 없습니다.');
+        // 읽음·저장 상태는 이 기기에서 바꾼 것이 더 새로우므로 그대로 둔다.
+        const { title, author, summary, content_html, full_content_html, thumbnail_url, published_at, date_source } = latest;
+        onUpdateArticleFields(target.id, { title, author, summary, content_html, full_content_html: full_content_html || target.full_content_html, thumbnail_url, published_at, date_source, body_deferred: false, body_load_error: false });
+      }
+    } catch { message = '기사를 새로 받지 못했어요. 보던 내용은 그대로 둘게요.'; }
+    finally { setRefreshing(false); }
+    if (here()) onNotice(message);
+  };
+
   const showWebCopy = () => {
     setFrame({ articleId: article.id, embeddable: false, url: article.url }); setWebCopy(null);
     void (resources ? resources.web(article) : apiRequest<{ html: string; textOnly?: boolean }>(`/api/articles/${article.id}/web-copy`))
@@ -405,6 +453,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <button className="sfeed-mobile-icon" aria-label="본문 도구" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((value) => !value)}><MoreHorizontal size={22} /></button>
           {mobileToolsOpen && <div className="sfeed-mobile-reader-menu">
             <button disabled={summarizing} onClick={() => { setMobileToolsOpen(false); void handleSummarizeAI(); }}><Sparkles size={18} />AI 핵심 요약</button>
+            <button disabled={refreshing} onClick={() => { setMobileToolsOpen(false); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />기사 새로고침</button>
             <p className="sfeed-mobile-menu-label">{mode === 'web' ? '사이트 확대·축소' : '글자 크기'}</p>
             {sizeControl('sfeed-mobile-zoom')}
             <a href={article.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={18} />원문 사이트 열기</a>
@@ -598,6 +647,22 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             >
               <ExternalLink className="w-4 h-4" />
             </a>
+
+            {/* 기사 새로고침 */}
+            <button
+              type="button"
+              onClick={() => void refreshArticle()}
+              disabled={refreshing}
+              aria-label="기사 새로고침"
+              title="기사 새로고침"
+              className={`sfeed-reader-icon disabled:cursor-default ${
+                isDark
+                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
           </div>
 
           {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
@@ -668,7 +733,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 <WebPager enabled={isMobile} onBack={onClose}>
                 <div className="relative flex-1 min-h-0 overflow-hidden bg-white">
                   <iframe
-                    key={article.id}
+                    key={`${article.id}:${frameReloads}`}
                     src={frame.url}
                     title={article.title}
                     className="absolute left-0 top-0 border-0 bg-white"
