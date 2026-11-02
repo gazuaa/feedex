@@ -244,7 +244,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
                   매거진 · 카드 · 리스트 3종 뷰
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  취향에 따라 레이아웃과 다크/라이트 모드를 전환하고 단축키(J/K/M/S)로
+                  취향에 따라 레이아웃과 다크/라이트 모드를 전환하고 단축키(↑/↓/M/S)로
                   빠르게 탐색하세요.
                 </p>
               </div>

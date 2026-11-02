@@ -1009,7 +1009,7 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Global Keyboard Shortcuts (J/K/↑/↓/M/S/R/A/Q/W/C/O/ESC)
+  // Global Keyboard Shortcuts (↑/↓/M/S/R/A/Q/W/C/O/ESC)
   useEffect(() => {
     if (!user || markReadTarget) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1033,10 +1033,10 @@ export const App: React.FC = () => {
         else if (discoverOpen) setDiscoverOpen(false);
       } else if (e.metaKey || e.ctrlKey || e.altKey) {
         // Cmd/Ctrl+C, R, S, A, Q, W and the rest stay the browser's and the system's.
-      } else if (key === 'j' || key === 'ArrowDown') {
+      } else if (key === 'ArrowDown') {
         e.preventDefault();
         handleNavigateRelative('next');
-      } else if (key === 'k' || key === 'ArrowUp') {
+      } else if (key === 'ArrowUp') {
         e.preventDefault();
         handleNavigateRelative('prev');
       } else if (key === 'm' && selectedArticle) {
@@ -1280,7 +1280,7 @@ export const App: React.FC = () => {
           >
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <span>
-                <strong className="text-slate-400">K / J · ↑ / ↓</strong> 이전·다음 아티클
+                <strong className="text-slate-400">↑ / ↓</strong> 이전·다음 아티클
               </span>
               <span>
                 <strong className="text-slate-400">M</strong> 읽음/안읽음 토글

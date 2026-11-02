@@ -440,7 +440,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 disabled={!hasPrev}
                 onClick={() => onNavigateRelative('prev')}
                 aria-label="이전 아티클"
-                title="이전 아티클 (K, ↑)"
+                title="이전 아티클 (↑)"
                 className={`sfeed-reader-icon disabled:opacity-30 ${
                   isDark
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-800'
@@ -454,7 +454,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 disabled={!hasNext}
                 onClick={() => onNavigateRelative('next')}
                 aria-label="다음 아티클"
-                title="다음 아티클 (J, ↓)"
+                title="다음 아티클 (↓)"
                 className={`sfeed-reader-icon disabled:opacity-30 ${
                   isDark
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-800'
