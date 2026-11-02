@@ -6,7 +6,8 @@ import { publicDeviceArticle } from '../shared/publicWebPage';
 import { loadPublicWebCopy, PublicWebCopyError } from './publicWebCopy';
 
 type ReaderResult = { fullContentHtml: string; publishedAt?: string };
-type WebResult = { html: string; url: string; phone?: boolean };
+// textOnly: 원래 배치를 받지 못해 본문만 보여 주는 사본. 다음에 열 때 원래 배치를 다시 받도록 저장하지 않는다.
+type WebResult = { html: string; url: string; phone?: boolean; textOnly?: boolean };
 export class ArticleResources {
   private requests = new Map<string, Promise<unknown>>();
   private failures = new Map<string, number>();
@@ -15,7 +16,6 @@ export class ArticleResources {
   private webPreloads = 0;
   private webPreloadFlights = new Set<Promise<unknown>>();
   private readerPreloadFlight: Promise<unknown> | null = null;
-  private challengedPages = new Set<string>();
   private backgroundWeb = new Set<string>();
   constructor(readonly account: string, private current: () => boolean, private request = apiRequest) {}
   hydrate(article: ArticleItem) { return cachedArticle(this.account, article); }
@@ -68,18 +68,11 @@ export class ArticleResources {
       // 언론사가 서버 네트워크를 막아도 기기의 요청은 성공한다.
       // 원래 페이지 배치를 지키고 기기에 캐시한다.
       if (publicDeviceArticle(article.url)) {
-        const source = publicDeviceArticle(article.url)!;
         try {
-          result = await loadPublicWebCopy(article.url, { fresh: this.challengedPages.has(source), patient: !background });
-          this.challengedPages.delete(source);
+          result = await loadPublicWebCopy(article.url, { patient: !background });
         } catch (error) {
-          if (error instanceof PublicWebCopyError) {
-            if (error.reason !== 'challenge') throw error;
-            this.challengedPages.add(source);
-            if (this.challengedPages.size > 128) this.challengedPages.delete(this.challengedPages.values().next().value!);
-            // 이 사이트들은 원래 서버 요청을 막으므로, 보안 확인이면 서버 경로로 시간을 더 쓰지 않는다.
-            throw error;
-          }
+          // 이 사이트들은 원래 서버 요청을 막으므로, 보안 확인·로그인·유료 기사면 서버 경로로 시간을 더 쓰지 않는다.
+          if (error instanceof PublicWebCopyError) throw error;
           deviceError = error;
         }
       }
@@ -88,7 +81,7 @@ export class ArticleResources {
         try { result = await this.request<WebResult>(`/api/articles/${article.id}/web-copy`); }
         catch (error) { throw deviceError || error; }
       }
-      if (this.current() && generation === cacheGeneration.get(this.account)) await writeContent(this.account, `web:${article.id}`, result);
+      if (!result.textOnly && this.current() && generation === cacheGeneration.get(this.account)) await writeContent(this.account, `web:${article.id}`, result);
       try { this.copyOrigins.add(new URL(article.url).origin); } catch {}
       return result;
     });

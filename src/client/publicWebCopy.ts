@@ -1,4 +1,5 @@
-import { fetchPublicWebPage, preparePublicWebPage } from '../shared/publicWebPage';
+import { fetchPublicWebPage, preparePublicWebPage, type PublicContent } from '../shared/publicWebPage';
+import { markdownArticleHtml } from '../shared/markdownArticle';
 import { revealLazyImages } from '../shared/lazyImages';
 import { dropSidebars } from '../shared/sidebars';
 import { dropEmptySlots } from '../shared/emptySlots';
@@ -39,40 +40,44 @@ export function sanitizePublicWebCopy(html: string, url: string): string {
   return '<!doctype html>' + document.documentElement.outerHTML;
 }
 /**
- * 보안 확인 화면을 받은 뒤 HTML을 다시 묻기 전에 기다리는 시간(ms). 원문 사이트가 리더 서비스에
- * 거는 요청 제한(429)은 보통 몇 초~몇십 초 안에 풀리므로, 간격을 늘려 가며 몇 번만 다시 묻는다.
- * 테스트는 이 배열을 짧게 바꿔 쓴다.
+ * 본문 요청을 마친 뒤 HTML을 다시 묻기 전에 기다리는 시간(ms). 본문 요청이 그린 결과가 리더 서비스
+ * 캐시에 들어가기까지 잠깐 걸린다. 테스트는 이 배열을 짧게 바꿔 쓴다.
  */
-export const checkpointRetryDelays = [2000, 3000, 5000, 8000];
+export const checkpointRetryDelays = [1500];
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+export interface PublicWebCopy { html: string; url: string; textOnly?: boolean }
 /**
- * 공개 기사의 원래 웹 배치 사본. `patient`는 사용자가 직접 연 글이라는 뜻이다. 그때만 보안 확인
- * 화면에서 포기하지 않고, 본문 준비 요청을 함께 보내며 HTML을 다시 묻는다. 미리 받기는 한 번만 묻는다.
- * 마크다운 본문을 원래 웹사이트처럼 보여 주지는 않는다.
+ * 공개 기사의 웹 사본. 원래 배치 HTML이 기본이다. `patient`는 사용자가 직접 연 글이라는 뜻이다.
+ * 원문 사이트가 리더 서비스의 HTML 요청을 잠시 막아 보안 확인 화면이 오면, 본문 요청으로 페이지를
+ * 실제 브라우저로 그리게 한 뒤 HTML을 한 번 더 묻는다. 그래도 원래 배치가 오지 않으면 받은 본문으로
+ * 만든 "본문만 보기"(textOnly)를 돌려준다. 캐시를 건너뛰는 요청은 매번 원문 사이트에 새로 가서 다시
+ * 막히므로 쓰지 않는다. 미리 받기는 보안 확인에서 바로 포기한다.
  */
-export async function loadPublicWebCopy(url: string, options: { fresh?: boolean; patient?: boolean } = {}) {
-  const deadline = Date.now() + (options.patient ? 25000 : 20000);
+export async function loadPublicWebCopy(url: string, options: { patient?: boolean } = {}): Promise<PublicWebCopy | null> {
+  const deadline = Date.now() + 25000;
   const remaining = () => deadline - Date.now();
   const copy = (page: { html: string; url: string }) => ({ html: sanitizePublicWebCopy(page.html, page.url), url: page.url });
-  const page = await fetchPublicWebPage(url, { fresh: options.fresh, timeoutMs: remaining() });
+  const page = await fetchPublicWebPage(url, { timeoutMs: remaining() });
   if (!page) return null;
   try { return copy(page); }
   catch (error) {
     if (!(error instanceof PublicWebCopyError) || error.reason !== 'challenge' || !options.patient) throw error;
-    // 본문 요청은 페이지를 한 번 그리게 할 뿐 결과를 기다리지 않는다. 다시 묻는 HTML은 캐시를
-    // 건너뛰어(fresh), 리더 서비스가 방금 받은 보안 확인 화면을 되돌려 주지 않게 한다.
-    void preparePublicWebPage(url, { timeoutMs: remaining() }).catch(() => false);
-    for (const delay of checkpointRetryDelays) {
-      if (remaining() < delay + 1500) break;
-      await wait(delay);
-      try {
-        const retried = await fetchPublicWebPage(url, { fresh: true, timeoutMs: remaining() });
-        if (retried) return copy(retried);
-      } catch (retryError) {
-        // 로그인·유료 기사처럼 분명한 제한은 바로 알리고, 보안 확인이나 일시 오류면 다음 차례에 다시 묻는다.
-        if (retryError instanceof PublicWebCopyError && retryError.reason !== 'challenge') throw retryError;
+    let content: PublicContent | null = null;
+    try { content = await preparePublicWebPage(url, { timeoutMs: remaining() }); } catch {}
+    if (content) {
+      for (const delay of checkpointRetryDelays) {
+        if (remaining() < delay + 1500) break;
+        await wait(delay);
+        try {
+          const retried = await fetchPublicWebPage(url, { timeoutMs: remaining() });
+          if (retried) return copy(retried);
+        } catch (retryError) {
+          // 로그인·유료 기사처럼 분명한 제한은 바로 알린다. 보안 확인이나 일시 오류면 본문만 보기로 넘어간다.
+          if (retryError instanceof PublicWebCopyError && retryError.reason !== 'challenge') throw retryError;
+        }
       }
+      return { html: markdownArticleHtml(content.markdown, content.url, content.title), url: content.url, textOnly: true };
     }
     throw error;
   }
