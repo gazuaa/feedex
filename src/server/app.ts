@@ -17,6 +17,7 @@ import { normalizeFeedUrl } from '../shared/feedDiscovery';
 import { xRoutes } from './xConnection';
 import { XFeedError } from './xFeed';
 import { inheritXView, saveXView } from './xViews';
+import { fetchXThread, xStatusUrl } from './xThread';
 import { isXProfileFeed } from '../shared/xFeed';
 import { importOpmlFeed, OpmlSourceError } from './opmlImporter';
 import { clearOpmlFailure, listOpmlFailures, recordOpmlFailure } from './opmlFailures';
@@ -1144,6 +1145,8 @@ app.get('/api/articles/:id/web-copy', async (c) => {
     .bind(c.req.param('id'), c.get('user').id)
     .first<{ url: string }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  // X 글은 공개 미러의 글 페이지로 글과 댓글을 보여 준다. 받지 못하면 원래 방식으로 x.com을 그린다.
+  if (xStatusUrl(article.url)) try { return c.json(await fetchXThread(article.url)); } catch { /* 아래 원래 방식으로 넘어간다. */ }
   try {
     return c.json(await fetchWebView(article.url, c.env, c.req.query('layout') === 'phone'));
   } catch {

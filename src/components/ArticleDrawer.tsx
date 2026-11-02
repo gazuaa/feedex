@@ -196,7 +196,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 프레임을 거부하는 사이트는 서버가 받아 온 스크립트 없는 사본으로 보여 준다.
   // textOnly: 원문 사이트가 원래 배치를 잠시 막아 받은 본문만 보여 주는 사본.
   // retrying: 보안 확인으로 막혀 잠시 뒤 자동으로 다시 받는 중.
-  const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean; textOnly?: boolean; retrying?: boolean } | null>(null);
+  const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean; textOnly?: boolean; retrying?: boolean; thread?: boolean } | null>(null);
   const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html) : undefined, [webCopy?.html]);
   const [readingPreview, setReadingPreview] = useState(false);
   useEffect(() => { setReadingPreview(false); }, [article?.id, mode]);
@@ -274,13 +274,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const load = async () => {
       const cached = await resources?.cachedWeb(article);
       if (!active) return;
-      if (cached) { setFrame({ articleId: article.id, embeddable: false, url: cached.url }); setWebCopy({ articleId: article.id, html: cached.html, phone: cached.phone }); return; }
+      if (cached) { setFrame({ articleId: article.id, embeddable: false, url: cached.url }); setWebCopy({ articleId: article.id, html: cached.html, phone: cached.phone, thread: cached.thread }); return; }
       if (resources && publicDeviceArticle(article.url)) {
         setFrame({ articleId: article.id, embeddable: false, url: article.url, reason: 'framing' });
         // 원문 사이트가 리더 서비스를 잠시 막았으면, 이 글을 보고 있는 동안 자동으로 다시 받는다.
         const attempt = retryChallenged(() => resources.web(article), (error) => { if (active) setWebCopy({ articleId: article.id, html: null, error: error.message, retrying: true }); });
         retry = attempt;
-        try { const copy = await attempt.result; if (active) setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly }); }
+        try { const copy = await attempt.result; if (active) setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly, thread: copy.thread }); }
         catch (error) { if (active) setWebCopy({ articleId: article.id, html: null, error: error instanceof Error ? error.message : undefined }); }
         return;
       }
@@ -299,8 +299,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       setFrame({ articleId: article.id, ...result });
       if (result.embeddable) return;
       try {
-        const copy = await (resources ? resources.web(article) : apiRequest<{ html: string; textOnly?: boolean }>(`/api/articles/${article.id}/web-copy`));
-        if (active) setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly });
+        const copy = await (resources ? resources.web(article) : apiRequest<{ html: string; textOnly?: boolean; thread?: boolean }>(`/api/articles/${article.id}/web-copy`));
+        if (active) setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly, thread: copy.thread });
       } catch (error) { if (active) setWebCopy({ articleId: article.id, html: null, error: error instanceof Error ? error.message : undefined }); }
     };
     void load().catch(() => {});
@@ -311,7 +311,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 서버가 휴대폰 폭으로 배치한 사본으로 바꾼다.
   useEffect(() => {
     // 본문만 보기는 앱이 휴대폰 폭에 맞춰 만든 문서라 바꿀 필요가 없다.
-    if (!isMobile || !resources || !article || webCopy?.articleId !== article.id || !webCopy.html || webCopy.phone || webCopy.textOnly) return;
+    if (!isMobile || !resources || !article || webCopy?.articleId !== article.id || !webCopy.html || webCopy.phone || webCopy.textOnly || webCopy.thread) return;
     const target = article;
     const message = (event: MessageEvent) => {
       if (event.source !== copyRef.current?.contentWindow || !event.data?.sfeedSqueezed) return;
@@ -354,10 +354,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         const previous = webCopy?.articleId === target.id && webCopy.html ? webCopy : null;
         setWebCopy(null);
         try {
-          const copy = await (resources ? resources.refreshWeb(target) : apiRequest<{ html: string; textOnly?: boolean }>(`/api/articles/${target.id}/web-copy`));
+          const copy = await (resources ? resources.refreshWeb(target) : apiRequest<{ html: string; textOnly?: boolean; thread?: boolean }>(`/api/articles/${target.id}/web-copy`));
           // 원래 모양을 보던 중이면 본문만 받은 것으로 바꾸지 않는다.
           if (copy.textOnly && previous && !previous.textOnly) { if (here()) setWebCopy(previous); message = '사이트가 잠시 막아 원래 모양을 새로 받지 못했어요. 보던 사본을 그대로 둘게요.'; }
-          else if (here()) setWebCopy({ articleId: target.id, html: copy.html, textOnly: copy.textOnly });
+          else if (here()) setWebCopy({ articleId: target.id, html: copy.html, textOnly: copy.textOnly, thread: copy.thread });
         } catch (error) {
           if (here()) setWebCopy(previous ?? { articleId: target.id, html: null, error: error instanceof Error ? error.message : undefined });
           throw error;
@@ -383,8 +383,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
   const showWebCopy = () => {
     setFrame({ articleId: article.id, embeddable: false, url: article.url }); setWebCopy(null);
-    void (resources ? resources.web(article) : apiRequest<{ html: string; textOnly?: boolean }>(`/api/articles/${article.id}/web-copy`))
-      .then((copy) => setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly }))
+    void (resources ? resources.web(article) : apiRequest<{ html: string; textOnly?: boolean; thread?: boolean }>(`/api/articles/${article.id}/web-copy`))
+      .then((copy) => setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly, thread: copy.thread }))
       .catch((error) => setWebCopy({ articleId: article.id, html: null, error: error instanceof Error ? error.message : undefined }));
   };
 
@@ -771,7 +771,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'
                   }`}
                 >
-                  <span className="min-w-0">{webCopy.textOnly ? '사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.' : webCopy.fitting ? '휴대폰 화면에 맞춘 사본을 준비하고 있어요.' : '사이트가 직접 표시를 막아 사본으로 보여드려요. 동영상·댓글은 원문에서 동작해요.'}</span>
+                  <span className="min-w-0">{webCopy.thread ? '공개 미러(Nitter)에서 받은 X 글과 댓글이에요. 로그인한 상태로 보려면 X에서 여세요.' : webCopy.textOnly ? '사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.' : webCopy.fitting ? '휴대폰 화면에 맞춘 사본을 준비하고 있어요.' : '사이트가 직접 표시를 막아 사본으로 보여드려요. 동영상·댓글은 원문에서 동작해요.'}</span>
                   {webCopy.textOnly && <button type="button" onClick={showWebCopy} className="shrink-0 hover:underline">원래 모양 다시 받기</button>}
                   <a
                     href={frame.url}
@@ -779,7 +779,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     rel="noopener noreferrer"
                     className="shrink-0 inline-flex items-center gap-1 hover:underline"
                   >
-                    새 창에서 열기
+                    {webCopy.thread ? 'X에서 열기' : '새 창에서 열기'}
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>

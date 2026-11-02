@@ -73,7 +73,17 @@ try {
   assert.equal((await db.prepare("SELECT encrypted_value FROM integration_settings WHERE name='x_oauth'").first()).encrypted_value, storedSettings.encrypted_value);
   assert.equal((await putSettings({ clientId: 'client-id', clientSecret: 'server-only-secret' }, token, { ...env, OWNER_EMAIL: setupEnv.OWNER_EMAIL })).status, 400, '환경 변수로 관리하는 키를 화면에서 덮어쓰지 않는다.');
 
-  let apiCalls = [], rssCalls = [], apiMode = 'ok', rssMode = 'ok';
+  let apiCalls = [], rssCalls = [], apiMode = 'ok', rssMode = 'ok', pageMode = 'ok';
+  // 공개 미러의 글 페이지: 본문, 인용, 사진, GIF, 댓글 묶음, 더 보기. 위험한 글자와 링크를 일부러 섞는다.
+  const statusPage = (user) => `<!doctype html><html><head><title>Example | Mirror</title><script>alert(1)</script></head><body><nav><a href="/settings">Preferences</a></nav><div class="conversation"><div class="main-thread">
+    <div id="m" class="main-tweet"><div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><a class="tweet-avatar" href="/${user}"><img class="avatar round" src="/pic/profile_images%2F1%2Fme_bigger.jpg"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/${user}">Main &lt;b&gt;Name</a><a class="username" href="/${user}">@${user}</a></div><span class="tweet-date"><a href="/${user}/status/2000000000000000001#m" title="Nov 2, 2026 · 6:42 PM UTC">1h</a></span></div></div></div>
+      <div class="tweet-content media-body">Main text &lt;script&gt;x&lt;/script&gt;<br><a href="/search?q=%23tag">#tag</a> <a href="javascript:alert(1)">bad</a> <a href="https://example.test/a" onclick="x()">site</a></div>
+      <div class="attachments"><div class="gallery-row"><div class="attachment image"><a class="still-image" href="/pic/orig/media%2Fphoto.jpg"><img src="/pic/media%2Fphoto.jpg%3Fname%3Dsmall" onerror="x()"></a></div></div></div>
+      <div class="quote quote-big"><a class="quote-link" href="/quoted/status/1999#m"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/quoted">Quoted</a><a class="username" href="/quoted">@quoted</a></div></div><div class="quote-text">Quoted text</div></div>
+      <p class="tweet-published">Nov 2, 2026 · 6:42 PM UTC</p><div class="tweet-stats"><span class="tweet-stat"><div class="icon-container"><span class="icon-comment"></span> 2</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-heart"></span> 1,099</div></span></div></div></div></div></div>
+    <div id="r" class="replies"><div class="reply thread thread-line"><div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><a class="tweet-avatar" href="/fan"><img class="avatar round" src="/pic/abs.twimg.com%2Fsticky%2Fdefault.png"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/fan">Fan</a><a class="username" href="/fan">@fan</a></div><span class="tweet-date"><a href="/fan/status/2000000000000000002#m" title="t">5m</a></span></div></div></div><div class="replying-to">Replying to <a href="/${user}">@${user}</a></div><div class="tweet-content media-body">First reply</div><div class="attachments media-gif"><div class="attachment"><video class="gif" poster="/pic/tweet_video_thumb%2Fgif.jpg"><source src="/pic/video.twimg.com%2Ftweet_video%2Fgif.mp4" type="video/mp4"></video></div></div></div></div>
+      <div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/other">Other</a><a class="username" href="/other">@other</a></div><span class="tweet-date"><a href="/other/status/2000000000000000003#m">4m</a></span></div></div></div><div class="tweet-content media-body">Nested reply</div></div></div></div>
+      <div class="show-more"><a href="?cursor=abc#r">Load more</a></div></div></div></body></html>`;
   const xml = (provider, username) => `<?xml version="1.0"?><rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Example / @${username}</title><link>${provider}/${username}</link><image><url>${provider}/pic/https%3A%2F%2Fpbs.twimg.com%2Fprofile_images%2F123%2Favatar.jpg</url></image><item><guid>2000000000000000001</guid><title>A real post</title><link>${provider}/${username}/status/2000000000000000001#m</link><dc:creator>@${username}</dc:creator><pubDate>Mon, 02 Nov 2026 10:00:00 GMT</pubDate><description><![CDATA[<p>Real post body</p><img src="${provider}/pic/media%2Fphoto.jpg"/><a href="https://example.test/?a=1&amp;b=2">link</a>]]></description></item><item><title>Unsafe post</title><link>https://evil.test/a</link></item></channel></rss>`;
   globalThis.fetch = async (input, options = {}) => {
     const url = new URL(input);
@@ -101,6 +111,12 @@ try {
     rssCalls.push({ url, options });
     assert.equal(options.credentials, 'omit'); assert.equal(options.redirect, 'manual');
     assert.ok(!new Headers(options.headers).has('Authorization'));
+    if (url.pathname.includes('/status/')) {
+      if (pageMode === 'challenge' && url.hostname === 'nitter.mie.foundation') return new Response("<html><head><title>Making sure you're not a bot!</title></head><body><script>work()</script></body></html>");
+      if (pageMode === 'missing') return new Response('<html><body><div class="error-panel"><span>Tweet not found</span></div></body></html>');
+      if (pageMode === 'down') return new Response('', { status: 503 });
+      return new Response(statusPage(url.pathname.split('/')[1]));
+    }
     if (rssMode === 'limited') return new Response('', { status: 429, headers: { 'Retry-After': '60' } });
     if (rssMode === 'fallback' && url.hostname === 'nitter.mie.foundation') return new Response('', { status: 503 });
     if (rssMode === 'one-limited' && url.hostname === 'nitter.mie.foundation') return new Response('<html>Instance has been rate limited</html>', { status: 429 });
@@ -214,6 +230,33 @@ try {
   assert.deepEqual([(await views())['https://x.com/second'], (await views())['https://x.com/nasa']], ['feed', 'reader'], '빈 보기를 채우는 저장은 그 계정에만 적용된다.');
   await db.prepare("DELETE FROM subscriptions WHERE feed_id IN (?,?) OR user_id=?").bind(secondFeed, plain, otherId).run();
   await db.prepare("DELETE FROM subscriptions WHERE feed_id=(SELECT id FROM feeds WHERE xml_url='https://x.com/third')").run();
+  // X 글의 웹 보기: 공개 미러의 글 페이지로 글과 댓글을 담은 안전한 사본을 만든다.
+  const articleId = (await db.prepare("SELECT id FROM articles WHERE url='https://x.com/nasa/status/2000000000000000001'").first()).id;
+  const pageCalls = () => rssCalls.filter(({ url }) => url.pathname.includes('/status/')).length;
+  const threadCopy = await (await request(`/api/articles/${articleId}/web-copy`)).json();
+  assert.equal(threadCopy.thread, true); assert.equal(threadCopy.url, 'https://x.com/nasa/status/2000000000000000001');
+  const copyHtml = threadCopy.html;
+  for (const text of ['Main &lt;b&gt;Name', 'Main text &lt;script&gt;x&lt;/script&gt;', 'Quoted text', 'First reply', 'Nested reply', '댓글 2', '좋아요 1,099', '댓글 더 보기', 'X에서 열기']) assert.ok(copyHtml.includes(text), text);
+  for (const url of ['https://pbs.twimg.com/profile_images/1/me_bigger.jpg', 'https://pbs.twimg.com/media/photo.jpg', 'https://pbs.twimg.com/media/photo.jpg?name=small', 'https://abs.twimg.com/sticky/default.png', 'https://video.twimg.com/tweet_video/gif.mp4', 'https://pbs.twimg.com/tweet_video_thumb/gif.jpg', 'https://x.com/search?q=%23tag', 'https://x.com/quoted/status/1999', 'https://x.com/fan/status/2000000000000000002', 'https://example.test/a']) assert.ok(copyHtml.includes(`"${url}"`), url);
+  assert.doesNotMatch(copyHtml, /<script|onclick|onerror|javascript:|\/pic\/|nitter|Preferences|#m"/i, '스크립트·이벤트·미러 주소·미러 화면 요소를 남기지 않는다.');
+  assert.match(copyHtml, /<base href="https:\/\/x\.com\/nasa\/status\/2000000000000000001" target="_blank">/);
+  assert.equal(copyHtml.match(/class="post reply"/g).length, 2);
+  // 글 페이지에 봇 확인을 거는 경로는 우회하지 않고 다른 경로를 쓴 뒤 한동안 부르지 않는다.
+  pageMode = 'challenge';
+  const { fetchXThread } = await vite.ssrLoadModule('/src/server/xThread.ts');
+  let pagesBefore = pageCalls();
+  assert.equal((await fetchXThread('https://x.com/nasa/status/2000000000000000004')).thread, true);
+  assert.equal(pageCalls(), pagesBefore + 2);
+  pagesBefore = pageCalls();
+  await fetchXThread('https://x.com/nasa/status/2000000000000000005');
+  assert.deepEqual(rssCalls.slice(-1).map(({ url }) => url.hostname), ['nitter.mizuki.st']);
+  assert.equal(pageCalls(), pagesBefore + 1, '봇 확인을 건 경로의 글 페이지는 다시 부르지 않는다.');
+  pageMode = 'missing';
+  await assert.rejects(fetchXThread('https://x.com/nasa/status/2000000000000000006'));
+  pageMode = 'ok'; pagesBefore = pageCalls();
+  await fetchXThread('https://x.com/nasa/status/2000000000000000007');
+  assert.equal(pageCalls(), pagesBefore + 1, '지워진 글 안내는 그 경로를 쉬게 하지 않는다.');
+  await assert.rejects(fetchXThread('https://x.com/nasa'), /X 글 주소/);
   const { fetchAndParseFeed } = await vite.ssrLoadModule('/src/server/rssParser.ts');
   rssMode = 'fallback';
   const fallback = await fetchAndParseFeed('@fallback');
@@ -278,5 +321,5 @@ try {
   let stopped = false; runs = 0;
   outcome = await importWithinLimits(async () => { runs++; return limitedResult; }, { pause: { wait: async () => { stopped = true; }, cancel: () => {} }, stopped: () => stopped, onWait: () => {} });
   assert.deepEqual([outcome.limited, runs], [true, 1], '기다리는 중에 중단하면 다시 요청하지 않는다.');
-  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, and one shared body view for every subscribed X account.');
+  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, and safe X post copies with replies from mirror pages.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }

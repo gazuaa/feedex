@@ -22,5 +22,8 @@ export function xProfile(input: string): { username: string; url: string } | nul
 export const X_CALLBACK_QUERY = 'x_callback';
 export const xCallbackUrl = (origin: string) => `${new URL(origin).origin}/?${X_CALLBACK_QUERY}=1`;
 
+// X 글 하나의 주소. X 피드의 글 링크는 모두 이 모양으로 저장한다.
+export const isXStatusUrl = (url: string) => /^https:\/\/x\.com\/[a-z\d_]{1,15}\/status\/\d{1,20}$/i.test(url);
+
 // 구독 주소가 X 계정 프로필 그대로인 피드. X 계정들은 본문 보기를 함께 쓴다.
 export const isXProfileFeed = (url: string | null | undefined) => Boolean(url) && xProfile(url!)?.url === url!.toLowerCase();

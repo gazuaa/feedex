@@ -3,11 +3,12 @@ import { cachedArticle, readContent, writeContent } from './deviceContent';
 import { cacheGeneration } from './cachePolicy';
 import { revealCopyImages } from './articleImages';
 import { publicDeviceArticle } from '../shared/publicWebPage';
+import { isXStatusUrl } from '../shared/xFeed';
 import { loadPublicWebCopy, PublicWebCopyError } from './publicWebCopy';
 
 type ReaderResult = { fullContentHtml: string; publishedAt?: string };
 // textOnly: 원래 배치를 받지 못해 본문만 보여 주는 사본. 다음에 열 때 원래 배치를 다시 받도록 저장하지 않는다.
-type WebResult = { html: string; url: string; phone?: boolean; textOnly?: boolean };
+type WebResult = { html: string; url: string; phone?: boolean; textOnly?: boolean; thread?: boolean };
 export class ArticleResources {
   private requests = new Map<string, Promise<unknown>>();
   private failures = new Map<string, number>();
@@ -35,7 +36,8 @@ export class ArticleResources {
   }
   async cachedWeb(article: ArticleItem): Promise<WebResult | undefined> {
     const stored = await readContent(this.account, `web:${article.id}`);
-    if (!stored || !('html' in stored.data)) { this.preparedCopies.delete(article.id); return; }
+    // 예전 X 글 사본은 댓글 자리만 회색으로 남은 x.com 화면이다. 글과 댓글을 담은 사본을 새로 받게 한다.
+    if (!stored || !('html' in stored.data) || (isXStatusUrl(article.url) && !stored.data.thread)) { this.preparedCopies.delete(article.id); return; }
     try { this.copyOrigins.add(new URL(article.url).origin); } catch {}
     const prepared = this.preparedCopies.get(article.id);
     if (prepared?.source === stored.data) return prepared.result;
