@@ -15,6 +15,7 @@ const bundled = await build({
   bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022', logLevel: 'silent',
 });
 let mode = 'success';
+let failure;
 const calls = [];
 const json = (body) => new WorkerResponse(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
 const worker = new Miniflare({
@@ -24,6 +25,7 @@ const worker = new Miniflare({
     const url = new URL(request.url);
     calls.push({ origin: url.origin, path: url.pathname, query: url.searchParams, method: request.method, auth: request.headers.get('authorization'), body: await request.text() });
     assert.equal(url.origin, 'https://api.x.com', '다른 호스트로 인증정보를 보내지 않는다.');
+    if (failure) return new WorkerResponse(failure.body, { status: failure.status, headers: { 'content-type': 'application/json' } });
     if (mode === 'redirect') return new WorkerResponse('', { status: 302, headers: { location: 'https://unexpected.example.test/token' } });
     if (mode === 'malformed') return new WorkerResponse('<html>Upstream error</html>');
     if (mode === 'limited') return new WorkerResponse('not logged', { status: 429 });
@@ -62,5 +64,33 @@ try {
   const limited = await post('connect', payload);
   assert.equal(limited.status, 429); assert.match((await limited.json()).error, /요청 한도/);
   assert.equal(calls.length, beforeLimit + 1, '요청 제한 뒤 자동으로 재시도하지 않는다.');
-  console.log('PASS: the real Workers engine completes X token/profile/following requests, blocks redirects and distinguishes invalid responses and rate limits without real credentials or X API calls.');
+
+  // 결제 제한과 권한 거절을 구분하되 계정 ID 등을 포함한 외부 오류 원문은 노출하지 않는다.
+  const privateDetail = 'private-account-diagnostic';
+  for (const [status, problem, expectedCode, expectedText] of [
+    [402, { title: 'CreditsDepleted', type: 'https://api.x.com/2/problems/credits' }, 'x_credits_required', /크레딧이 부족/],
+    [402, {}, 'x_credits_required', /결제·크레딧 제한/],
+    [403, { type: 'https://api.x.com/2/problems/credits-depleted' }, 'x_credits_required', /크레딧이 부족/],
+    [403, { type: 'https://api.x.com/2/problems/client-forbidden' }, 'x_access_forbidden', /이용 권한/],
+    [403, { type: 'https://api.x.com/2/problems/usage-capped' }, 'x_usage_capped', /사용 한도/],
+    [403, { error: 'insufficient_scope' }, 'x_scope_required', /follows.read/],
+    [403, {}, 'x_access_forbidden', /이용 권한/],
+  ]) {
+    failure = { status, body: JSON.stringify({ ...problem, detail: privateDetail }) };
+    const beforeFailure = calls.length;
+    const response = await post('following', { connection: result.connection });
+    const body = await response.json();
+    assert.equal(response.status, status); assert.equal(body.code, expectedCode); assert.equal(body.upstreamStatus, status);
+    assert.match(body.error, expectedText); assert.doesNotMatch(JSON.stringify(body), new RegExp(privateDetail));
+    if (expectedCode !== 'x_credits_required') assert.doesNotMatch(body.error, /크레딧|잔액/);
+    assert.equal(calls.length, beforeFailure + 1, '외부 요청이 거절돼도 자동으로 반복하지 않는다.');
+  }
+  for (const body of ['<html>Forbidden</html>', JSON.stringify({ detail: privateDetail.repeat(1000), title: 'CreditsDepleted' })]) {
+    failure = { status: 403, body };
+    const response = await post('following', { connection: result.connection });
+    const failureResult = await response.json();
+    assert.equal(response.status, 403); assert.equal(failureResult.code, 'x_access_forbidden');
+    assert.doesNotMatch(JSON.stringify(failureResult), /private-account-diagnostic|CreditsDepleted|크레딧|잔액/);
+  }
+  console.log('PASS: the real Workers engine completes X token/profile/following requests, blocks redirects, distinguishes credit/access/scope/usage errors and hides upstream details without real credentials or X API calls.');
 } finally { await worker.dispose(); }

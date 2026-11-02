@@ -5,7 +5,7 @@ import { canManageX, readXCredentials, saveXCredentials, XSettingsError } from '
 
 type Connection = { sub: string; xId: string; token: string; expires: number };
 export class XConnectionError extends Error {
-  constructor(message: string, readonly status: 400 | 401 | 403 | 429 | 502 | 503 = 502) { super(message); }
+  constructor(message: string, readonly status: 400 | 401 | 402 | 403 | 429 | 502 | 503 = 502, readonly code?: string, readonly upstreamStatus?: number) { super(message); }
 }
 const encode = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const decode = (text: string) => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (value) => value.charCodeAt(0));
@@ -32,6 +32,29 @@ async function unseal(env: Env, sealed: unknown, userId: string): Promise<Connec
   } catch { throw new XConnectionError('X 연결이 만료됐습니다. X 계정을 다시 연결해 주세요.', 401); }
 }
 
+type XProblem = 'credits-depleted' | 'usage-capped' | 'client-forbidden' | 'client-not-enrolled' | 'insufficient-scope' | 'not-authorized-for-resource';
+async function xProblem(response: Response): Promise<XProblem | undefined> {
+  const reader = response.body?.getReader(); if (!reader) return;
+  try {
+    const chunks: Uint8Array[] = []; let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      size += value.byteLength; if (size > 16_384) return;
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size); let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const body = JSON.parse(new TextDecoder().decode(bytes));
+    // 오류 원문에는 계정 ID 등이 들어갈 수 있다. 알려진 유형만 분류하고 원문은 전달·기록하지 않는다.
+    const type = typeof body?.type === 'string' ? body.type.split('/').at(-1) : undefined;
+    if (type === 'credits' || type === 'credits-depleted' || body?.title === 'CreditsDepleted') return 'credits-depleted';
+    if (type === 'usage-capped' || body?.title === 'UsageCapExceeded') return 'usage-capped';
+    if (type === 'insufficient-scope' || body?.error === 'insufficient_scope') return 'insufficient-scope';
+    if (type === 'client-forbidden' || type === 'client-not-enrolled' || type === 'not-authorized-for-resource') return type;
+  } catch { /* JSON 오류 설명이 없어도 HTTP 상태로 분류한다. */ }
+  finally { await reader.cancel().catch(() => {}); }
+}
+
 async function xJson(path: string, init: RequestInit = {}): Promise<Record<string, any>> {
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 12_000);
   const step = path === '2/oauth2/token' ? 'token' : path === '2/users/me' ? 'profile' : 'following';
@@ -46,9 +69,19 @@ async function xJson(path: string, init: RequestInit = {}): Promise<Record<strin
       throw new XConnectionError(`${label} 중 예상하지 않은 주소 이동 응답을 받았습니다. 잠시 후 다시 연결해 주세요.`);
     }
     if (!response.ok) {
-      await response.body?.cancel();
+      const problem = await xProblem(response);
       if (response.status === 429) throw new XConnectionError('X API 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.', 429);
-      if (response.status === 402 || response.status === 403) throw new XConnectionError('X 개발자 앱의 API 이용 권한과 잔액을 확인해야 합니다.', 403);
+      if (response.status === 402 || (response.status === 403 && problem === 'credits-depleted')) {
+        const message = problem === 'credits-depleted' ? 'X API 크레딧이 부족합니다.' : 'X가 API 결제·크레딧 제한으로 요청을 거절했습니다.';
+        throw new XConnectionError(`${message} X 개발자 콘솔의 크레딧 잔액과 사용 한도를 확인해 주세요. (HTTP ${response.status})`, response.status, 'x_credits_required', response.status);
+      }
+      if (response.status === 403) {
+        const message = problem === 'usage-capped' ? 'X API 사용 한도에 도달했습니다. 개발자 콘솔의 사용 한도를 확인해 주세요.'
+          : problem === 'insufficient-scope' ? '팔로우 목록 읽기 승인이 없습니다. X 계정을 다시 연결하고 follows.read 권한을 허용해 주세요.'
+          : problem === 'client-forbidden' || problem === 'client-not-enrolled' ? '이 X 앱에는 해당 API의 이용 권한이 없습니다. 개발자 콘솔의 연결 프로젝트와 API 이용 권한을 확인해 주세요.'
+          : `${label} 요청을 X가 허용하지 않았습니다. 개발자 콘솔에서 이 앱의 API 이용 권한을 확인해 주세요.`;
+        throw new XConnectionError(`${message} (HTTP 403)`, 403, problem === 'insufficient-scope' ? 'x_scope_required' : problem === 'usage-capped' ? 'x_usage_capped' : 'x_access_forbidden', 403);
+      }
       if (response.status === 401 || response.status === 400) throw new XConnectionError('X 연결을 확인하지 못했습니다. 계정을 다시 연결해 주세요.', 401);
       throw new XConnectionError('X가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도해 주세요.');
     }
@@ -60,7 +93,7 @@ async function xJson(path: string, init: RequestInit = {}): Promise<Record<strin
     return data;
   } catch (error) {
     // 요청 내용·헤더·응답 본문에는 키와 토큰이 있으므로 기록하지 않고 실패 단계만 남긴다.
-    console.warn('X API 요청 실패', { step, status: upstreamStatus, reason: controller.signal.aborted ? 'timeout' : error instanceof SyntaxError ? 'invalid_json' : error instanceof XConnectionError ? 'response' : 'network' });
+    console.warn('X API 요청 실패', { step, status: upstreamStatus, code: error instanceof XConnectionError ? error.code : undefined, reason: controller.signal.aborted ? 'timeout' : error instanceof SyntaxError ? 'invalid_json' : error instanceof XConnectionError ? 'response' : 'network' });
     if (error instanceof XConnectionError) throw error;
     if (controller.signal.aborted) throw new XConnectionError(`${label} 응답이 늦어지고 있습니다. 잠시 후 다시 연결해 주세요.`);
     if (error instanceof SyntaxError) throw new XConnectionError(`${label} 중 X가 올바르지 않은 응답 형식을 보냈습니다. 잠시 후 다시 연결해 주세요.`);
@@ -70,7 +103,7 @@ async function xJson(path: string, init: RequestInit = {}): Promise<Record<strin
 
 export const xRoutes = new Hono<{ Bindings: Env; Variables: { user: UserRecord } }>();
 xRoutes.use('*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next(); });
-xRoutes.onError((error, c) => c.json({ error: error instanceof XConnectionError ? error.message : 'X 연결 중 오류가 발생했습니다.' }, error instanceof XConnectionError ? error.status : 502));
+xRoutes.onError((error, c) => c.json({ error: error instanceof XConnectionError ? error.message : 'X 연결 중 오류가 발생했습니다.', ...(error instanceof XConnectionError && error.code ? { code: error.code, upstreamStatus: error.upstreamStatus } : {}) }, error instanceof XConnectionError ? error.status : 502));
 
 async function clientConfig(env: Env, user: UserRecord, requestUrl: string) {
   const credentials = await readXCredentials(env);

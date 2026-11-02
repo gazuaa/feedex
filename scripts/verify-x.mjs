@@ -78,6 +78,7 @@ try {
       assert.equal(options.redirect, 'manual', '운영 Workers 엔진이 허용하는 옵션만 사용하고 인증정보를 다른 주소로 보내지 않는다.');
       if (apiMode === 'limited') return new Response('', { status: 429 });
       if (apiMode === 'billing') return new Response('', { status: 402 });
+      if (apiMode === 'forbidden') return Response.json({ type: 'https://api.x.com/2/problems/client-forbidden', detail: 'private-account-diagnostic' }, { status: 403 });
       if (url.pathname === '/2/oauth2/token') {
         const form = new URLSearchParams(options.body);
         assert.equal(form.get('redirect_uri'), 'http://localhost/?x_callback=1');
@@ -128,7 +129,17 @@ try {
   apiMode = 'limited';
   assert.equal((await request('/api/x/following', { connection: connector.connection })).status, 429);
   apiMode = 'billing';
-  assert.equal((await request('/api/x/following', { connection: connector.connection })).status, 403);
+  const billing = await request('/api/x/following', { connection: connector.connection });
+  assert.equal(billing.status, 402);
+  const billingError = await billing.json();
+  assert.equal(billingError.code, 'x_credits_required'); assert.equal(billingError.upstreamStatus, 402);
+  assert.match(billingError.error, /크레딧/);
+  apiMode = 'forbidden';
+  const forbidden = await request('/api/x/following', { connection: connector.connection });
+  assert.equal(forbidden.status, 403);
+  const forbiddenError = await forbidden.json();
+  assert.equal(forbiddenError.code, 'x_access_forbidden'); assert.equal(forbiddenError.upstreamStatus, 403);
+  assert.match(forbiddenError.error, /이용 권한/); assert.doesNotMatch(JSON.stringify(forbiddenError), /크레딧|잔액|private-account-diagnostic/);
   apiMode = 'missing-scope';
   assert.equal((await request('/api/x/connect', { code: 'code', verifier: pending.verifier })).status, 403);
   apiMode = 'ok';
