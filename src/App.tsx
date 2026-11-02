@@ -796,10 +796,16 @@ export const App: React.FC = () => {
     saveFeedViewMode(feedId, viewMode);
   };
 
+  // 안 읽음 목록이 붙잡아 두던 읽은 행을 놓는다. 열어 둔 글은 이어서 위아래로 옮겨 갈 수 있게 남긴다.
+  const releaseReadRows = useCallback(() => {
+    const open = selectedArticleId ? articleCache.current.get(selectedArticleId) : undefined;
+    unreadSessions.forEach((session) => { session.clear(); if (open) session.update(open); });
+  }, [selectedArticleId, unreadSessions]);
+
   const handleRefreshFeeds = useCallback(async () => {
     if (refreshingFeedsRef.current || !readerCache?.active) return;
     refreshingFeedsRef.current = true;
-    unreadSessions.forEach((session) => session.clear());
+    releaseReadRows();
     setRefreshingFeeds(true);
     // 위쪽의 읽은 행은 새로고침하면 목록에서 빠지므로 맨 위부터 다시 시작한다.
     articleListRef.current?.scrollTo({ top: 0 });
@@ -819,7 +825,7 @@ export const App: React.FC = () => {
       refreshingFeedsRef.current = false;
       setRefreshingFeeds(false);
     }
-  }, [readerCache, activeScope, activeFeedId, fetchBootstrap, fetchArticles, unreadSessions]);
+  }, [readerCache, activeScope, activeFeedId, fetchBootstrap, fetchArticles, releaseReadRows]);
 
   const pullDistance = usePullRefresh(isMobile && Boolean(user) && !selectedArticleId && !discoverOpen && !markReadTarget, refreshingFeeds, handleRefreshFeeds);
 
@@ -856,8 +862,12 @@ export const App: React.FC = () => {
         }),
       });
       readerCache?.touch();
+      // 방금 읽은 글이 목록에서 바로 빠지게 한다.
+      releaseReadRows();
       await Promise.all([fetchBootstrap(), fetchArticles()]);
       setMarkReadTarget(null);
+      // 다 읽었으니 새 글이 있는지 바로 확인한다(피드 새로고침과 같다).
+      void handleRefreshFeeds();
     } catch {
       setMarkReadError('읽음 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
