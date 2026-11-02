@@ -61,7 +61,13 @@ export class MobileNavigation {
     this.restore(entry.location, entry.scroll);
   }
   pop(state: unknown) {
-    const entry = this.read(state);
+    let entry = this.read(state);
+    // The library lists no articles, so the search typed in a list goes back
+    // through it to whichever list is chosen next.
+    if (entry?.location.library && entry.location.search !== this.observed.search) {
+      entry = { ...entry, location: { ...entry.location, search: this.observed.search } };
+      this.write(entry, false);
+    }
     if (entry) this.apply(entry);
     else {
       // Entries from a previous login must never reopen that account's article.

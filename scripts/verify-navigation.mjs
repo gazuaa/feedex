@@ -53,6 +53,13 @@ try {
   assert.equal(history.state.sfeedNavigation.account, 'another-account');
   assert.deepEqual(history.state.sfeedNavigation.location, library);
   back(); assert.equal(location.articleId, null); assert.equal(location.library, true);
+  // The library lists no articles, so a list's search goes back through it to the next list.
+  open({ ...list, search: 'eth' }); open({ ...location, library: true }); navigation.record(location);
+  assert.equal(location.library, true); assert.equal(location.search, 'eth', 'going back to the library keeps the search');
+  assert.equal(history.state.sfeedNavigation.location.search, 'eth');
+  open({ ...location, scope: 'feed', folderId: null, feedId: 'other', library: false });
+  back(); assert.equal(location.library, true); assert.equal(location.search, 'eth');
+  forward(); assert.equal(location.feedId, 'other'); assert.equal(location.search, 'eth');
 
   // Exercise the installed touch listeners with the same native event path.
   const doc = new EventTarget(), view = new EventTarget();
@@ -112,5 +119,5 @@ try {
   assert.equal((await get(other.token)).articles.length, 0, 'a single-article lookup still requires a subscription');
   assert.equal((await get(owner.token, '/api/articles?unreadOnly=true')).articles.length, 0, 'history restoration must not mark read articles unread');
   assert.equal((await app.request(query, {}, env)).status, 401);
-  console.log('PASS: ordinary right-swipe Back; native gesture, vertical scroll, horizontal content, controls and pinch preservation; mobile history, scroll/filter restoration, reload and account isolation.');
+  console.log('PASS: ordinary right-swipe Back; native gesture, vertical scroll, horizontal content, controls and pinch preservation; mobile history, scroll/filter restoration, searches carried through the library, reload and account isolation.');
 } finally { await vite.close(); }
