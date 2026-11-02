@@ -44,6 +44,7 @@ import { UnreadSession } from './client/unreadSession';
 import { useAutoRefresh } from './client/autoRefresh';
 import { DEFAULT_AUTO_REFRESH_MINUTES } from './shared/preferences';
 import { isXProfileFeed } from './shared/xFeed';
+import { xFolderIds } from './client/xTimeline';
 import { ReaderSync } from './client/readerSync';
 import { DesktopContextMenu, type AppContextAction, type AppContextTarget } from './components/DesktopContextMenu';
 import { ArticleResources } from './client/articleResources';
@@ -1033,6 +1034,10 @@ export const App: React.FC = () => {
     }
   }, [selectedArticle, handleUpdateArticleState]);
   const selectedSubscription = subscriptions.find((sub) => sub.feed_id === selectedArticle?.feed_id);
+  // X 폴더나 X 계정을 볼 때는 목록을 X 타임라인처럼 그린다.
+  const xFolders = useMemo(() => xFolderIds(folders, subscriptions), [folders, subscriptions]);
+  const xTimeline = activeScope === 'folder' ? Boolean(activeFolderId && xFolders.has(activeFolderId))
+    : activeScope === 'feed' && isXProfileFeed(subscriptions.find((sub) => sub.feed_id === activeFeedId)?.xml_url);
   const selectedViewMode = user && selectedArticle
     ? feedViewPreference(user.id, selectedArticle.feed_id, selectedSubscription?.view_mode) : 'feed';
   useEffect(() => {
@@ -1397,6 +1402,7 @@ export const App: React.FC = () => {
           loading={loadingArticles || loadingBootstrap}
           hasSubscriptions={subscriptions.length > 0}
           retainReadRows={retainReadRows}
+          timeline={xTimeline}
         />
         {hasMoreArticles && articles.length > 0 && !loadingArticles && !loadingBootstrap && (
           <LoadMoreArticles

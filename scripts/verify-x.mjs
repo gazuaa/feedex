@@ -84,7 +84,7 @@ try {
     <div id="r" class="replies"><div class="reply thread thread-line"><div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><a class="tweet-avatar" href="/fan"><img class="avatar round" src="/pic/abs.twimg.com%2Fsticky%2Fdefault.png"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/fan">Fan</a><a class="username" href="/fan">@fan</a></div><span class="tweet-date"><a href="/fan/status/2000000000000000002#m" title="t">5m</a></span></div></div></div><div class="replying-to">Replying to <a href="/${user}">@${user}</a></div><div class="tweet-content media-body">First reply</div><div class="attachments media-gif"><div class="attachment"><video class="gif" poster="/pic/tweet_video_thumb%2Fgif.jpg"><source src="/pic/video.twimg.com%2Ftweet_video%2Fgif.mp4" type="video/mp4"></video></div></div></div></div>
       <div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/other">Other</a><a class="username" href="/other">@other</a></div><span class="tweet-date"><a href="/other/status/2000000000000000003#m">4m</a></span></div></div></div><div class="tweet-content media-body">Nested reply</div></div></div></div>
       <div class="show-more"><a href="?cursor=abc#r">Load more</a></div></div></div></body></html>`;
-  const xml = (provider, username) => `<?xml version="1.0"?><rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Example / @${username}</title><link>${provider}/${username}</link><image><url>${provider}/pic/https%3A%2F%2Fpbs.twimg.com%2Fprofile_images%2F123%2Favatar.jpg</url></image><item><guid>2000000000000000001</guid><title>A real post</title><link>${provider}/${username}/status/2000000000000000001#m</link><dc:creator>@${username}</dc:creator><pubDate>Mon, 02 Nov 2026 10:00:00 GMT</pubDate><description><![CDATA[<p>Real post body</p><img src="${provider}/pic/media%2Fphoto.jpg"/><a href="https://example.test/?a=1&amp;b=2">link</a>]]></description></item><item><title>Unsafe post</title><link>https://evil.test/a</link></item></channel></rss>`;
+  const xml = (provider, username) => `<?xml version="1.0"?><rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Example / @${username}</title><link>${provider}/${username}</link><image><url>${provider}/pic/https%3A%2F%2Fpbs.twimg.com%2Fprofile_images%2F123%2Favatar.jpg</url></image><item><guid>2000000000000000001</guid><title>A real post</title><link>${provider}/${username}/status/2000000000000000001#m</link><dc:creator>@${username}</dc:creator><pubDate>Mon, 02 Nov 2026 10:00:00 GMT</pubDate><description><![CDATA[<p>Real post body</p><img src="${provider}/pic/media%2Fphoto.jpg"/><a href="https://example.test/?a=1&amp;b=2">link</a><cite><a href="${provider}/quoted/status/1999#m">${provider}/quoted/status/1999#m</a></cite>]]></description></item><item><title>Unsafe post</title><link>https://evil.test/a</link></item></channel></rss>`;
   globalThis.fetch = async (input, options = {}) => {
     const url = new URL(input);
     if (url.hostname === 'api.x.com') {
@@ -196,7 +196,9 @@ try {
   const row = await db.prepare('SELECT guid,url,content_html,thumbnail_url,published_at FROM articles LIMIT 1').first();
   assert.equal(row.guid, 'x:2000000000000000001');
   assert.equal(row.thumbnail_url, 'https://pbs.twimg.com/media/photo.jpg');
-  assert.ok(!row.content_html.includes('http://nitter'));
+  assert.ok(!row.content_html.includes('nitter'), '속성뿐 아니라 글자로 적힌 미러 주소도 X 주소로 바꾼다.');
+  assert.ok(row.content_html.includes('>https://x.com/quoted/status/1999<'));
+  assert.equal((await db.prepare("SELECT favicon_url FROM feeds WHERE xml_url='https://x.com/nasa'").first()).favicon_url, 'https://pbs.twimg.com/profile_images/123/avatar.jpg', 'X 계정 아이콘은 프로필 사진이다.');
   assert.ok(!row.content_html.includes('&amp;amp;'));
   const { loadStoredFeed } = await vite.ssrLoadModule('/src/server/feedLoader.ts');
   const feed = await db.prepare('SELECT id,xml_url FROM feeds LIMIT 1').first();
@@ -257,6 +259,38 @@ try {
   await fetchXThread('https://x.com/nasa/status/2000000000000000007');
   assert.equal(pageCalls(), pagesBefore + 1, '지워진 글 안내는 그 경로를 쉬게 하지 않는다.');
   await assert.rejects(fetchXThread('https://x.com/nasa'), /X 글 주소/);
+  // X 타임라인: X 폴더 판단, 실제 미러 RSS 모양의 글 해석, 목록 그리기.
+  const { DOMParser } = await import('linkedom');
+  const { xFolderIds, parseXPost, xFeedAccount, xTime } = await vite.ssrLoadModule('/src/client/xTimeline.ts');
+  const subs = [['x1', 'fx', 'https://x.com/nasa'], ['x2', 'fx', 'https://x.com/coindesk'], ['m1', 'mixed', 'https://x.com/a'], ['m2', 'mixed', 'https://news.example.test/feed'], ['n1', null, 'https://x.com/b']].map(([id, folder_id, xml_url]) => ({ id, feed_id: id, folder_id, xml_url }));
+  assert.deepEqual([...xFolderIds([{ id: 'fx' }, { id: 'mixed' }, { id: 'empty' }], subs)], ['fx'], '모든 피드가 X 계정인 폴더만 X 폴더다.');
+  assert.deepEqual(xFeedAccount({ feed_title: 'Nous Research (@NousResearch)', feed_html_url: null }), { name: 'Nous Research', handle: 'NousResearch' });
+  assert.deepEqual(xFeedAccount({ feed_title: 'NASA / @NASA', feed_html_url: 'https://x.com/nasa' }), { name: 'NASA', handle: 'NASA' });
+  const base = { id: 'a', feed_id: 'f', feed_title: 'Nous Research (@NousResearch)', feed_favicon: 'https://pbs.twimg.com/profile_images/1/me.jpg', feed_html_url: 'https://x.com/nousresearch', published_at: '2026-11-02T18:42:00Z', is_read: false, is_saved: false };
+  const parse = (fields) => parseXPost({ ...base, ...fields }, DOMParser);
+  const quoted = parse({ title: '> hermes migrate grok-bot', url: 'https://x.com/NousResearch/status/2117326444669857941', content_html: '<p>&gt; hermes migrate grok-bot</p>\n<hr/>\n<blockquote>\n<b>Elon Musk (@elonmusk)</b>\n<p>\n<p>The cost of serving Grok Bot was unsustainably high relative to revenue</p>\n\n</p>\n<footer>\n— <cite><a href="https://x.com/elonmusk/status/2116992258520064397">https://x.com/elonmusk/status/2116992258520064397</a>\n</footer>\n</blockquote>' });
+  assert.deepEqual([quoted.name, quoted.handle, quoted.avatar, quoted.text, quoted.repostedBy, quoted.media.length, quoted.card], ['Nous Research', 'NousResearch', 'https://pbs.twimg.com/profile_images/1/me.jpg', '> hermes migrate grok-bot', null, 0, null]);
+  assert.deepEqual(quoted.quote, { name: 'Elon Musk', handle: 'elonmusk', text: 'The cost of serving Grok Bot was unsustainably high relative to revenue', href: 'https://x.com/elonmusk/status/2116992258520064397' });
+  const repost = parse({ feed_title: 'NASA (@NASA)', title: 'RT by @NASA: If you are under 26', url: 'https://x.com/NASAAdmin/status/2117320385792475643', content_html: '<p>If you are under 26.<br>\n<br>\nHumanity has had a home in space. Video of it</p>\n<img src="https://pbs.twimg.com/media/HWI7q25XMAAJUFk.jpg" style="max-width:250px;" />' });
+  assert.deepEqual([repost.name, repost.handle, repost.avatar, repost.repostedBy, repost.text], ['NASAAdmin', 'NASAAdmin', null, 'NASA', 'If you are under 26.\n\nHumanity has had a home in space. Video of it'], '재게시는 원래 글쓴이로 보이고, 원본 HTML의 줄바꿈 글자는 줄을 더하지 않는다.');
+  assert.deepEqual(repost.media, [{ src: 'https://pbs.twimg.com/media/HWI7q25XMAAJUFk.jpg', video: false }], '글에 Video라는 낱말이 있어도 사진은 사진이다.');
+  const video = parse({ title: 'Happy Halloween!', url: 'https://x.com/NousResearch/status/1', content_html: '<p>Happy Halloween!</p>\n<a href="https://x.com/NousResearch/status/1">\n<br>Video<br>\n  <img src="https://pbs.twimg.com/media/thumb.jpg" style="max-width:250px;" />\n</a>' });
+  assert.deepEqual(video.media, [{ src: 'https://pbs.twimg.com/media/thumb.jpg', video: true }]);
+  const reply = parse({ title: 'R to @NousResearch: github.com/NousResearch/herm…', url: 'https://x.com/NousResearch/status/2', content_html: '<p><a href="https://github.com/NousResearch/hermes-agent/pull/147724">github.com/NousResearch/herm…</a></p>\n<hr/>\n<b>Link</b><br>\n<a href="https://github.com/NousResearch/hermes-agent/pull/147724">\n<img src="https://pbs.twimg.com/card_img/2117/aC3?format=jpg&amp;name=800x419" style="max-width:250px;" />\n<br>\n<b>Grok Bot and OpenBot users can move to Hermes</b>\n</a>\n<p>People leaving Grok Bot</p>' });
+  assert.deepEqual([reply.replyTo, reply.text, reply.media.length], ['NousResearch', 'github.com/NousResearch/herm…', 0]);
+  assert.deepEqual(reply.card, { href: 'https://github.com/NousResearch/hermes-agent/pull/147724', image: 'https://pbs.twimg.com/card_img/2117/aC3?format=jpg&name=800x419', title: 'Grok Bot and OpenBot users can move to Hermes' });
+  assert.equal(parse({ title: 'R to @someone: only the title', url: 'https://x.com/NousResearch/status/3', content_html: null }).text, 'only the title');
+  const now = Date.parse('2026-11-03T12:00:00Z');
+  assert.deepEqual(['2026-11-03T11:59:30Z', '2026-11-03T11:15:00Z', '2026-11-03T02:00:00Z', '2026-10-02T12:00:00Z', '2025-12-31T12:00:00Z'].map((value) => xTime(value, now)), ['방금', '45분', '10시간', '10월 2일', '2025년 12월 31일']);
+  const React = (await import('react')).default;
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { XTimeline } = await vite.ssrLoadModule('/src/components/XTimeline.tsx');
+  const previous = globalThis.DOMParser; globalThis.DOMParser = DOMParser;
+  try {
+    const html = renderToStaticMarkup(React.createElement(XTimeline, { articles: [{ ...base, id: 'r1', title: 'RT by @NASA: x', feed_title: 'NASA (@NASA)', url: 'https://x.com/NASAAdmin/status/1', content_html: '<p>&lt;script&gt;alert(1)&lt;/script&gt; hello</p>' }], selectedArticleId: null, onSelectArticle() {}, onToggleRead() {}, onToggleSaved() {}, isDark: true, listRef: { current: null } }));
+    for (const text of ['sfeed-list-items sfeed-x-timeline', 'data-article-id="r1"', 'NASA 님이 재게시함', '@NASAAdmin', '&lt;script&gt;alert(1)&lt;/script&gt; hello', 'aria-label="댓글 보기"', 'aria-label="X에서 열기"', 'href="https://x.com/NASAAdmin/status/1"']) assert.ok(html.includes(text), text);
+    assert.doesNotMatch(html, /<script/);
+  } finally { globalThis.DOMParser = previous; }
   const { fetchAndParseFeed } = await vite.ssrLoadModule('/src/server/rssParser.ts');
   rssMode = 'fallback';
   const fallback = await fetchAndParseFeed('@fallback');
@@ -321,5 +355,5 @@ try {
   let stopped = false; runs = 0;
   outcome = await importWithinLimits(async () => { runs++; return limitedResult; }, { pause: { wait: async () => { stopped = true; }, cancel: () => {} }, stopped: () => stopped, onWait: () => {} });
   assert.deepEqual([outcome.limited, runs], [true, 1], '기다리는 중에 중단하면 다시 요청하지 않는다.');
-  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, and safe X post copies with replies from mirror pages.');
+  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, and an X-style timeline for X folders.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }

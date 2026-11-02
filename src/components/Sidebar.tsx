@@ -18,6 +18,9 @@ import {
   Compass,
   X,
 } from 'lucide-react';
+import { xFolderIds } from '../client/xTimeline';
+import { isXProfileFeed } from '../shared/xFeed';
+import { XLogo } from './XTimeline';
 import type {
   FolderItem,
   SubscriptionItem,
@@ -109,6 +112,164 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const getFeedCount = (sub: SubscriptionItem) => libraryTab === 'saved' ? sub.saved_count : libraryTab === 'unread' ? sub.unread_count : sub.total_count;
   const libraryCount = libraryTab === 'saved' ? counts.savedCount : libraryTab === 'unread' ? counts.totalUnread : counts.totalArticles;
   const isAllArticlesActive = activeScope === 'all' || activeScope === 'saved';
+  // 안의 피드가 모두 X 계정인 폴더는 일반 폴더와 떼어 X 구역에 둔다.
+  const xFolders = xFolderIds(folders, subscriptions);
+  const regularFolders = visibleFolders.filter((folder) => !xFolders.has(folder.id));
+  const xVisibleFolders = visibleFolders.filter((folder) => xFolders.has(folder.id));
+
+  // 폴더 한 칸과 그 안의 피드. 일반 폴더와 X 폴더가 함께 쓴다.
+  const folderBlock = (folder: FolderItem) => {
+    const folderSubs = visibleSubscriptions.filter(
+      (s) => s.folder_id === folder.id
+    );
+    const folderCount = folderSubs.reduce(
+      (sum, s) => sum + getFeedCount(s),
+      0
+    );
+    const isCollapsed = Boolean(collapsedFolders[folder.id]);
+    const isFolderActive =
+      activeScope === 'folder' && activeFolderId === folder.id;
+
+    return (
+      <div key={folder.id} data-folder-id={folder.id} className="space-y-0.5">
+        <div
+          onClick={() => {
+            onSelectScope('folder', folder.id, null);
+            onCloseMobile();
+          }}
+          className={`group flex items-center justify-between px-2.5 py-1.5 rounded-xl text-sm transition cursor-pointer ${
+            isFolderActive
+              ? 'bg-emerald-500/15 text-emerald-400 font-semibold'
+              : isDark
+              ? 'text-slate-300 hover:bg-slate-800/70'
+              : 'text-slate-700 hover:bg-slate-200/70'
+          }`}
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            <button
+              type="button"
+              onClick={(e) => toggleFolderCollapse(folder.id, e)}
+              aria-label={`${folder.name} ${isCollapsed ? '펼치기' : '접기'}`}
+              aria-expanded={!isCollapsed}
+              className="p-0.5 rounded hover:bg-slate-700/40 text-slate-400 cursor-pointer"
+            >
+              {isCollapsed ? (
+                <ChevronRight className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+            </button>
+            {xFolders.has(folder.id) ? (
+              <XLogo className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-white' : 'text-slate-900'}`} />
+            ) : isCollapsed ? (
+              <Folder className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <FolderOpen className="w-4 h-4 text-emerald-400 shrink-0" />
+            )}
+            <span className="truncate">{folder.name}</span>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {folderCount > 0 && (
+              <span className="text-[11px] text-slate-400 font-medium">
+                {folderCount}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteFolder(folder.id);
+              }}
+              title="폴더 삭제"
+              className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-500 hover:text-rose-400 transition cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {!isCollapsed && (
+          <div className="pl-5 space-y-0.5">
+            {folderSubs.length === 0 ? (
+              <div className="px-3 py-1 text-[11px] text-slate-500">
+                비어 있는 폴더
+              </div>
+            ) : (
+              folderSubs.map((sub) => {
+                const isFeedActive =
+                  activeScope === 'feed' && activeFeedId === sub.feed_id;
+                return (
+                  <div
+                    key={sub.id}
+                    data-feed-id={sub.feed_id}
+                    onClick={() => {
+                      onSelectScope('feed', null, sub.feed_id);
+                      onCloseMobile();
+                    }}
+                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                      isFeedActive
+                        ? 'bg-emerald-500/15 text-emerald-400 font-semibold'
+                        : isDark
+                        ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                        : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {sub.favicon_url ? (
+                        <img
+                          src={sub.favicon_url}
+                          alt=""
+                          className={`w-3.5 h-3.5 shrink-0 ${isXProfileFeed(sub.xml_url) ? 'rounded-full' : 'rounded-sm'}`}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.display =
+                              'none';
+                          }}
+                        />
+                      ) : (
+                        <Rss className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      )}
+                      <span className={`truncate ${sub.paused_at ? 'opacity-60' : ''}`}>{sub.title}</span>
+                      {sub.paused_at && <Pause role="img" aria-label="업데이트 중지됨" className="w-3 h-3 shrink-0 text-slate-500" />}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {getFeedCount(sub) > 0 && (
+                        <span className="text-[11px] text-slate-500">
+                          {getFeedCount(sub)}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleUpdates(sub);
+                        }}
+                        title={sub.paused_at ? '업데이트 다시 받기' : '업데이트 중지'}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-emerald-400 transition cursor-pointer"
+                      >
+                        {sub.paused_at ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUnsubscribe(sub.id, sub.title);
+                        }}
+                        title="구독 취소"
+                        className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-rose-400 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -198,6 +359,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* 스크롤되는 내비게이션 트리 */}
         <div aria-label="구독 피드 채널" role="navigation" tabIndex={0} className="sfeed-channel-list flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 space-y-5 pb-4">
+          {/* X 구역: X 계정만 담은 폴더 */}
+          {xVisibleFolders.length > 0 && (
+            <section aria-label="X 계정">
+              <div className="flex items-center gap-1.5 px-2 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <XLogo className="w-3 h-3" />
+                <span>X 계정 ({subscriptions.filter((sub) => sub.folder_id && xFolders.has(sub.folder_id)).length})</span>
+              </div>
+              <div className="space-y-1.5">{xVisibleFolders.map(folderBlock)}</div>
+            </section>
+          )}
+
           {/* 폴더와 피드 영역 */}
           <div>
             <div className="flex items-center justify-between px-2 mb-2">
@@ -241,156 +413,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
 
             <div className="space-y-1.5">
-              {visibleFolders.map((folder) => {
-                const folderSubs = visibleSubscriptions.filter(
-                  (s) => s.folder_id === folder.id
-                );
-                const folderCount = folderSubs.reduce(
-                  (sum, s) => sum + getFeedCount(s),
-                  0
-                );
-                const isCollapsed = Boolean(collapsedFolders[folder.id]);
-                const isFolderActive =
-                  activeScope === 'folder' && activeFolderId === folder.id;
-
-                return (
-                  <div key={folder.id} data-folder-id={folder.id} className="space-y-0.5">
-                    <div
-                      onClick={() => {
-                        onSelectScope('folder', folder.id, null);
-                        onCloseMobile();
-                      }}
-                      className={`group flex items-center justify-between px-2.5 py-1.5 rounded-xl text-sm transition cursor-pointer ${
-                        isFolderActive
-                          ? 'bg-emerald-500/15 text-emerald-400 font-semibold'
-                          : isDark
-                          ? 'text-slate-300 hover:bg-slate-800/70'
-                          : 'text-slate-700 hover:bg-slate-200/70'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <button
-                          type="button"
-                          onClick={(e) => toggleFolderCollapse(folder.id, e)}
-                          aria-label={`${folder.name} ${isCollapsed ? '펼치기' : '접기'}`}
-                          aria-expanded={!isCollapsed}
-                          className="p-0.5 rounded hover:bg-slate-700/40 text-slate-400 cursor-pointer"
-                        >
-                          {isCollapsed ? (
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                        {isCollapsed ? (
-                          <Folder className="w-4 h-4 text-emerald-400 shrink-0" />
-                        ) : (
-                          <FolderOpen className="w-4 h-4 text-emerald-400 shrink-0" />
-                        )}
-                        <span className="truncate">{folder.name}</span>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        {folderCount > 0 && (
-                          <span className="text-[11px] text-slate-400 font-medium">
-                            {folderCount}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteFolder(folder.id);
-                          }}
-                          title="폴더 삭제"
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-500 hover:text-rose-400 transition cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {!isCollapsed && (
-                      <div className="pl-5 space-y-0.5">
-                        {folderSubs.length === 0 ? (
-                          <div className="px-3 py-1 text-[11px] text-slate-500">
-                            비어 있는 폴더
-                          </div>
-                        ) : (
-                          folderSubs.map((sub) => {
-                            const isFeedActive =
-                              activeScope === 'feed' && activeFeedId === sub.feed_id;
-                            return (
-                              <div
-                                key={sub.id}
-                                data-feed-id={sub.feed_id}
-                                onClick={() => {
-                                  onSelectScope('feed', null, sub.feed_id);
-                                  onCloseMobile();
-                                }}
-                                className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
-                                  isFeedActive
-                                    ? 'bg-emerald-500/15 text-emerald-400 font-semibold'
-                                    : isDark
-                                    ? 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                                    : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  {sub.favicon_url ? (
-                                    <img
-                                      src={sub.favicon_url}
-                                      alt=""
-                                      className="w-3.5 h-3.5 rounded-sm shrink-0"
-                                      onError={(e) => {
-                                        (e.currentTarget as HTMLImageElement).style.display =
-                                          'none';
-                                      }}
-                                    />
-                                  ) : (
-                                    <Rss className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                  )}
-                                  <span className={`truncate ${sub.paused_at ? 'opacity-60' : ''}`}>{sub.title}</span>
-                                  {sub.paused_at && <Pause role="img" aria-label="업데이트 중지됨" className="w-3 h-3 shrink-0 text-slate-500" />}
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  {getFeedCount(sub) > 0 && (
-                                    <span className="text-[11px] text-slate-500">
-                                      {getFeedCount(sub)}
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onToggleUpdates(sub);
-                                    }}
-                                    title={sub.paused_at ? '업데이트 다시 받기' : '업데이트 중지'}
-                                    className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-emerald-400 transition cursor-pointer"
-                                  >
-                                    {sub.paused_at ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onUnsubscribe(sub.id, sub.title);
-                                    }}
-                                    title="구독 취소"
-                                    className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-rose-400 transition cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {regularFolders.map(folderBlock)}
 
               {/* 미분류 구독 */}
               {uncategorizedSubs.length > 0 && (
@@ -422,7 +445,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <img
                               src={sub.favicon_url}
                               alt=""
-                              className="w-3.5 h-3.5 rounded-sm shrink-0"
+                              className={`w-3.5 h-3.5 shrink-0 ${isXProfileFeed(sub.xml_url) ? 'rounded-full' : 'rounded-sm'}`}
                             />
                           ) : (
                             <Rss className="w-3.5 h-3.5 text-emerald-500 shrink-0" />

@@ -206,6 +206,11 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .sfeed-mobile-folder-feeds { padding: 0 6px 4px 26px; }
   .sfeed-mobile-folder-feeds .sfeed-mobile-library-row { min-height: 44px; border-radius: 10px; padding: 4px 8px; font-size: calc(14px * var(--sfeed-text-scale)); }
   .sfeed-mobile-feed-row img { flex-shrink: 0; width: 22px; height: 22px; object-fit: contain; border-radius: 5px; }
+  /* X 계정 아이콘은 프로필 사진이라 둥글게, X 표시는 글자색으로 그린다. */
+  .sfeed-mobile-feed-row img[data-x-avatar] { object-fit: cover; border-radius: 50%; }
+  .sfeed-mobile-library-row > svg.sfeed-mobile-x-logo:first-child { width: 21px; height: 21px; padding: 2px; color: inherit; }
+  .sfeed-mobile-x-title { justify-content: flex-start; gap: 6px; }
+  .sfeed-mobile-x-title .sfeed-mobile-x-logo { width: 12px; height: 12px; }
   .sfeed-mobile-row-wrap { display: flex; align-items: center; }
   .sfeed-mobile-row-wrap > .sfeed-mobile-library-row { min-width: 0; flex: 1; }
   .sfeed-mobile-delete { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; margin-right: 6px; border-radius: 12px; color: #f43f5e; cursor: pointer; }
@@ -426,3 +431,7 @@ html:not(.dark) .sfeed-login .text-white, html:not(.dark) .sfeed-login .text-sla
 html:not(.dark) .sfeed-login .text-slate-400 { color: var(--sfeed-muted); }
 html:not(.dark) .sfeed-login [class*="bg-slate-9"] { background-color: var(--sfeed-background); }
 html:not(.dark) .sfeed-login [class*="border-slate-8"] { border-color: var(--sfeed-border); }
+
+/* X 타임라인은 줄이 가장자리까지 닿는다. 일반 목록의 안쪽 여백을 쓰지 않는다. */
+.sfeed-list-items.sfeed-x-timeline, .sfeed-feed-list .sfeed-list-items.sfeed-x-timeline { padding: 0; }
+.sfeed-x-post .sfeed-x-text { font-size: calc(15px * var(--sfeed-text-scale, 1)); }

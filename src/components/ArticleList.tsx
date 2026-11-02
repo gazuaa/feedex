@@ -15,6 +15,7 @@ import {
   type LayoutMode,
 } from '../client/api';
 import { useArticleThumbnail } from '../client/thumbnails';
+import { XTimeline } from './XTimeline';
 // 가까운 글의 이미지를 찾는 동안에는 사이트 로고를 보여 준다.
 export function FeedLogo({ article }: { article: ArticleItem }) {
   const [failed, setFailed] = useState(0);
@@ -48,6 +49,8 @@ interface ArticleListProps {
   loading: boolean;
   hasSubscriptions: boolean;
   retainReadRows?: boolean;
+  /** X 폴더·X 계정을 볼 때는 보기 설정과 상관없이 X 타임라인 모양으로 그린다. */
+  timeline?: boolean;
 }
 
 export const ArticleList: React.FC<ArticleListProps> = ({
@@ -65,6 +68,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   loading,
   hasSubscriptions,
   retainReadRows = false,
+  timeline = false,
 }) => {
   const listRef = useRef<HTMLDivElement>(null), latestArticles = useRef(articles);
   latestArticles.current = articles;
@@ -86,7 +90,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     }, { rootMargin: '150px 0px' });
     listRef.current.querySelectorAll('[data-article-id]').forEach((row) => observer.observe(row));
     return () => { active = false; observer.disconnect(); };
-  }, [onPrepareArticle, preparationIds, layout, loading]);
+  }, [onPrepareArticle, preparationIds, layout, loading, timeline]);
   if (loading) {
     return (
       <div className="p-6 lg:p-8 space-y-4 max-w-5xl mx-auto">
@@ -139,6 +143,8 @@ export const ArticleList: React.FC<ArticleListProps> = ({
       </div>
     );
   }
+
+  if (timeline) return <XTimeline articles={articles} selectedArticleId={selectedArticleId} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} retainReadRows={retainReadRows} listRef={listRef} />;
 
   // 1. 간단한 목록 보기 (Feedly 제목만 보기)
   if (layout === 'list') {

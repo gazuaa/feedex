@@ -60,6 +60,13 @@ export function originalUrl(value: string, provider: string, hosts: ReadonlySet<
   } catch { return value; }
 }
 
+function profileImage(xml: string, provider: string, hosts: ReadonlySet<string>): string | null {
+  const image = /<image>[\s\S]*?<url>\s*([^<\s]+)\s*<\/url>/i.exec(xml)?.[1];
+  if (!image) return null;
+  const url = originalUrl(image.replace(/&amp;/g, '&'), provider, hosts);
+  return /^https:\/\/pbs\.twimg\.com\/profile_images\//.test(url) ? url : null;
+}
+
 export async function fetchXFeed(input: string, parse: (xml: string, url: string) => ParsedFeed): Promise<ParsedFeed> {
   const profile = xProfile(input);
   if (!profile) throw new XFeedError('X 계정의 프로필 주소를 입력해 주세요.');
@@ -102,13 +109,16 @@ export async function fetchXFeed(input: string, parse: (xml: string, url: string
         const feed: ParsedFeed = {
           ...parsed, xmlUrl: profile.url, htmlUrl: profile.url,
           description: `@${profile.username}의 공개 X 게시물`,
-          faviconUrl: parsed.faviconUrl ? originalUrl(parsed.faviconUrl, provider, hosts) : 'https://abs.twimg.com/favicons/twitter.3.ico',
+          // 채널 이미지는 계정의 프로필 사진이다. 목록과 X 타임라인의 얼굴로 쓴다.
+          faviconUrl: profileImage(xml, provider, hosts) || 'https://abs.twimg.com/favicons/twitter.3.ico',
           articles: parsed.articles.flatMap((article) => {
             const url = originalUrl(article.url, provider, hosts);
             if (!/^https:\/\/x\.com\/[a-z\d_]{1,15}\/status\/\d+$/i.test(url)) return [];
             return [{ ...article, guid: `x:${url.split('/').at(-1)}`, url,
               thumbnailUrl: article.thumbnailUrl ? originalUrl(article.thumbnailUrl, provider, hosts) : null,
-              contentHtml: article.contentHtml?.replace(/((?:href|src)=["'])([^"']+)(["'])/gi, (_all, before, value, after) => `${before}${originalUrl(value.replace(/&amp;/gi, '&'), provider, hosts).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}${after}`) || null,
+              contentHtml: article.contentHtml?.replace(/((?:href|src)=["'])([^"']+)(["'])/gi, (_all, before, value, after) => `${before}${originalUrl(value.replace(/&amp;/gi, '&'), provider, hosts).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}${after}`)
+                // 인용 글 링크처럼 글자로 적힌 미러 주소도 X 주소로 바꾼다.
+                .replace(/https?:\/\/([a-z\d.-]+)(\/[^\s<>"']*)?/gi, (all, host) => hosts.has(host.toLowerCase()) ? originalUrl(all, provider, hosts).replace(/#m$/, '') : all) || null,
             }];
           }),
         };
