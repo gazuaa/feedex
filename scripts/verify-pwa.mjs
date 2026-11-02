@@ -175,5 +175,47 @@ try {
     assert.match(renderToStaticMarkup(createElement(InstallAppButton)), /Safari로 열기/);
     assert.ok(!braveHelp.includes('Chrome·Edge의 주소창'), 'iOS Brave must not get desktop install instructions');
   } finally { if (previousAgent) Object.defineProperty(navigator, 'userAgent', previousAgent); else delete navigator.userAgent; }
-  console.log('PASS: install manifest, iPhone/iPad browser detection, Safari handoff before losing the tap, copy/navigation failures and fallback, native prompt lifecycle, safe public-only offline caching and deployment headers.');
+  // 열어 둔 탭·홈 화면 앱은 다시 나타날 때 새 배포를 확인하고, 읽던 자리를 남긴 뒤 새로 고친다.
+  const { shellBundle, runningBundle, AppVersionWatch, keepResumePoint, takeResumePoint } = await vite.ssrLoadModule('/src/client/appVersion.ts');
+  const built = readFileSync('dist/index.html', 'utf8'), builtBundle = shellBundle(built);
+  assert.match(builtBundle, /^\/assets\/index-[\w-]+\.js$/, 'the built shell names its entry bundle');
+  assert.equal(shellBundle('<script type="module" src="/src/main.tsx"></script>'), null, 'the dev server has no bundle to compare');
+  assert.equal(shellBundle('<script src="https://accounts.google.com/gsi/client" async></script><script type="module" crossorigin src="/assets/index-NEW.js"></script>'), '/assets/index-NEW.js');
+  assert.equal(runningBundle({ querySelectorAll: () => [{ getAttribute: () => '/assets/index-OLD.js' }] }), '/assets/index-OLD.js');
+  const memory = () => { const values = new Map(); return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) }; };
+  const versionCase = (shell, overrides = {}) => {
+    const log = { shells: 0, swaps: 0, kept: 0 }; let clock = 1_000_000, swappable = true;
+    const storage = overrides.storage ?? memory();
+    const watch = new AppVersionWatch({ current: '/assets/index-OLD.js', storage, now: () => clock, canSwap: () => swappable,
+      loadShell: async () => { log.shells++; if (shell instanceof Error) throw shell; return shell; },
+      beforeSwap: () => log.kept++, reload: () => log.swaps++ });
+    return { watch, log, storage, advance: (ms) => { clock += ms; }, setSwappable: (value) => { swappable = value; } };
+  };
+  const same = versionCase('<script type="module" src="/assets/index-OLD.js"></script>');
+  await same.watch.check(); await same.watch.check();
+  assert.deepEqual(same.log, { shells: 1, swaps: 0, kept: 0 }, 'an unchanged deploy is asked about at most once a minute and never reloads');
+  same.advance(61_000); await same.watch.check(); assert.equal(same.log.shells, 2);
+  const offlineShell = versionCase(new Error('offline')); await offlineShell.watch.check();
+  assert.deepEqual(offlineShell.log, { shells: 1, swaps: 0, kept: 0 }, 'no connection leaves the running app alone');
+  const fresh = versionCase('<script type="module" crossorigin src="/assets/index-NEW.js"></script>');
+  fresh.setSwappable(false); await fresh.watch.check();
+  assert.deepEqual(fresh.log, { shells: 1, swaps: 0, kept: 0 }, 'typing, a dialog or a pending save postpones the swap');
+  fresh.setSwappable(true); await fresh.watch.check();
+  assert.deepEqual(fresh.log, { shells: 1, swaps: 1, kept: 1 }, 'the postponed swap happens on the next appearance without asking again, after keeping the place');
+  const repeat = versionCase('<script type="module" src="/assets/index-NEW.js"></script>', { storage: fresh.storage });
+  await repeat.watch.check();
+  assert.equal(repeat.log.swaps, 0, 'if the reload still came back old (deploy spreading), it does not loop');
+  repeat.advance(11 * 60_000); await repeat.watch.check(); assert.equal(repeat.log.swaps, 1, 'it tries again after a while');
+  const place = memory(), now = 5_000_000;
+  const point = { account: 'reader', at: now, scope: 'feed', folderId: null, feedId: 'feed-1', search: 'bitcoin', saved: false, articleId: 'art-1', listScroll: 640, readerScroll: 1200 };
+  keepResumePoint(point, place);
+  assert.equal(takeResumePoint('someone-else', now + 1000, place), null, 'another account never gets the place');
+  keepResumePoint(point, place);
+  assert.deepEqual(takeResumePoint('reader', now + 3000, place), point);
+  assert.equal(takeResumePoint('reader', now + 3000, place), null, 'the place is used once');
+  keepResumePoint(point, place); assert.equal(takeResumePoint('reader', now + 3 * 60_000, place), null, 'an old place is ignored');
+  keepResumePoint({ ...point, scope: 'admin', articleId: { id: 1 } }, place); assert.equal(takeResumePoint('reader', now + 1000, place), null, 'malformed places are ignored');
+  keepResumePoint({ ...point, listScroll: -5, readerScroll: 'x' }, place);
+  assert.deepEqual(takeResumePoint('reader', now + 1000, place), { ...point, listScroll: 0, readerScroll: 0 });
+  console.log('PASS: install manifest, iPhone/iPad browser detection, Safari handoff before losing the tap, copy/navigation failures and fallback, native prompt lifecycle, open tabs swapping to a new deploy when they reappear while keeping the reading place, safe public-only offline caching and deployment headers.');
 } finally { delete globalThis.window; await vite.close(); }

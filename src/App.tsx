@@ -37,6 +37,7 @@ import { MobileLibrary } from './components/MobileLibrary';
 import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type ArticlePage } from './client/readerCache';
 import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './client/readerPreload';
 import { usePullRefresh } from './client/pullRefresh';
+import { keepResumePoint, takeResumePoint, watchAppVersion } from './client/appVersion';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { UnreadSession } from './client/unreadSession';
@@ -179,6 +180,23 @@ export const App: React.FC = () => {
   const markingAllReadRef = useRef(false);
   const [markReadError, setMarkReadError] = useState<string | null>(null);
 
+  // 열어 둔 탭과 홈 화면 앱도 다시 화면에 나타날 때 새 배포로 바꾼다(appVersion.ts).
+  // 바꾸기 직전에 지금 보던 목록과 글, 스크롤 위치를 남긴다.
+  const resumeSource = useRef({ account: '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId });
+  resumeSource.current = { account: user?.id ?? '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId };
+  useEffect(() => watchAppVersion({
+    canSwap: () => {
+      const focused = document.activeElement;
+      const typing = focused instanceof HTMLTextAreaElement || (focused instanceof HTMLElement && focused.isContentEditable)
+        || (focused instanceof HTMLInputElement && /^(?:text|search|url|email|password|number|tel)$/.test(focused.type));
+      return !typing && !document.querySelector('dialog[open], [aria-modal="true"]') && !stateWrites.current.size && !markingAllReadRef.current;
+    },
+    beforeSwap: () => {
+      const source = resumeSource.current; if (!source.account) return;
+      keepResumePoint({ ...source, at: Date.now(), listScroll: articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.sfeed-reader-content')?.scrollTop ?? 0 });
+    },
+  }), []);
+
   useEffect(() => {
     if (pendingScroll.current === null) articleListRef.current?.scrollTo({ top: 0 });
   }, [activeScope, activeFolderId, activeFeedId, unreadOnly, savedOnly, searchQuery, articleSort]);
@@ -218,6 +236,37 @@ export const App: React.FC = () => {
     if (!user) return;
     applyUser(user);
   }, [user?.id, isMobile]);
+  // 새 버전으로 바꾸느라 새로 고쳤으면 읽던 목록과 글을 되살린다. 휴대폰은 브라우저 기록(MobileNavigation)이
+  // 목록과 글을 되살리므로 글 안 위치만 맞춘다.
+  const [resumePlace, setResumePlace] = useState<{ articleId: string | null; list: number; reader: number } | null>(null);
+  const resumeChecked = useRef(false);
+  useEffect(() => {
+    if (!user || authChecking || resumeChecked.current) return;
+    resumeChecked.current = true;
+    const point = takeResumePoint(user.id); if (!point) return;
+    if (!isMobile) {
+      setActiveScope(point.scope); setActiveFolderId(point.folderId); setActiveFeedId(point.feedId);
+      setSearchQuery(point.search); setSavedOnly(point.saved); setSelectedArticleId(point.articleId);
+    }
+    setResumePlace({ articleId: point.articleId, list: isMobile ? 0 : point.listScroll, reader: point.articleId ? point.readerScroll : 0 });
+  }, [user?.id, authChecking]);
+  // 목록과 본문은 따로 받아 차례로 그려진다. 그 위치까지 내려갈 수 있을 만큼 길어지면 맞추고,
+  // 5초가 지나면 그만둔다.
+  useEffect(() => {
+    if (!resumePlace || (resumePlace.articleId && resumePlace.articleId !== selectedArticleId)) return;
+    const want = { ...resumePlace }; let tries = 0;
+    const reach = (element: HTMLElement | null | undefined, top: number) => {
+      if (!top) return true;
+      if (!element || element.scrollHeight - element.clientHeight < top) return false;
+      element.scrollTo({ top }); return true;
+    };
+    const timer = setInterval(() => {
+      if (reach(articleListRef.current, want.list)) want.list = 0;
+      if (reach(document.querySelector<HTMLElement>('.sfeed-reader-content'), want.reader)) want.reader = 0;
+      if ((!want.list && !want.reader) || ++tries >= 50) { clearInterval(timer); setResumePlace(null); }
+    }, 100);
+    return () => clearInterval(timer);
+  }, [resumePlace, selectedArticleId]);
   useEffect(() => {
     if (!readerCache) return;
     const account = readerCache.account;
