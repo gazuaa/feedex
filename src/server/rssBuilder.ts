@@ -224,10 +224,11 @@ export async function renderPage(url: string, env: Pick<Env, 'BROWSER'>, content
         if (['image', 'font', 'media'].includes(request.resourceType())) void request.abort(); else void request.continue();
       } catch { void request.abort(); }
     });
-    const response = await page.goto(publicPageUrl(url), { waitUntil: 'networkidle2', timeout: 20000 });
+    // Article copies need readable paragraphs, not finished ad/analytics traffic.
+    const response = await page.goto(publicPageUrl(url), { waitUntil: content === 'article' ? 'domcontentloaded' : 'networkidle2', timeout: 20000 });
     if (response && !response.ok()) throw new Error(`사이트 응답 오류 (HTTP ${response.status()})`);
     await page.waitForFunction(content === 'article'
-      ? '(document.querySelector("article, [itemprop=articleBody], main")?.innerText || "").trim().length > 120'
+      ? 'Array.from(document.querySelector("article, [itemprop=articleBody], main")?.querySelectorAll("p") || []).reduce((length, p) => length + (p.innerText || "").trim().length, 0) > 120'
       : 'document.querySelectorAll("a[href]").length >= 5', { timeout: content === 'article' ? 10000 : 5000 }).catch(() => {});
     return { html: (await page.content()).slice(0, 2_000_000), url: publicPageUrl(page.url()) };
   } finally { await browser.close(); }

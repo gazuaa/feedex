@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Bookmark,
@@ -72,6 +72,24 @@ function ArticleBody({ html, base, title, className, style }: { html: string; ba
     return bindArticleImages(ref.current, base);
   }, [html, base, title]);
   return <div ref={ref} style={style} className={className} dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/** Keep the web tab selected while its page loads, using content already on this device. */
+export function WebLoadingPreview({ article, isDark, ready = false, onReady, onReading }: { article: ArticleItem; isDark: boolean; ready?: boolean; onReady: () => void; onReading: () => void }) {
+  const html = article.full_content_html || article.content_html;
+  return <div className="flex-1 min-h-0 flex flex-col">
+    <div role="status" className={`shrink-0 px-4 py-2 border-b text-xs flex items-center gap-2 ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
+      {!ready && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />}
+      <span className="flex-1">{ready ? '웹 페이지가 준비됐어요.' : '웹 페이지를 준비하는 동안 먼저 받은 내용을 보여드려요.'}</span>
+      {ready && <button type="button" className="shrink-0 font-semibold text-emerald-500" onClick={onReady}>웹 페이지 보기</button>}
+      <a href={article.url} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1">원문 열기<ExternalLink className="w-3 h-3" /></a>
+    </div>
+    <section aria-label="웹 보기 미리보기" tabIndex={0} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-5" onScroll={(event) => { if (event.currentTarget.scrollTop > 24) onReading(); }}>
+      <p className="text-sm font-medium text-emerald-500">{article.feed_title}</p>
+      <h1 className="text-2xl sm:text-3xl font-bold leading-snug">{article.title}</h1>
+      {html ? <ArticleBody html={html} base={article.url} title={article.title} style={{ fontSize: 'var(--sfeed-article-font)' }} className={`sfeed-article-content ${isDark ? 'text-slate-300' : 'text-slate-700'}`} /> : article.summary ? <p className="text-base leading-relaxed">{article.summary}</p> : null}
+    </section>
+  </div>;
 }
 
 /**
@@ -165,6 +183,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [sizeToolsOpen, setSizeToolsOpen] = useState(false);
   // Sites that refuse to be framed get a script-free copy fetched by the server.
   const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean } | null>(null);
+  const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html) : undefined, [webCopy?.html]);
+  const [readingPreview, setReadingPreview] = useState(false);
+  useEffect(() => { setReadingPreview(false); }, [article?.id, mode]);
   const [shareNotice, setShareNotice] = useState('');
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const isMobile = useMobileViewport();
@@ -232,7 +253,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   useEffect(() => {
     if (!article || mode !== 'web') return;
     let active = true;
-    setFrame({ articleId: article.id, embeddable: true, url: article.url.replace(/^http:/, 'https:') });
+    setFrame({ articleId: article.id, embeddable: !publicDeviceArticle(article.url), url: article.url.replace(/^http:/, 'https:') });
     const load = async () => {
       const cached = await resources?.cachedWeb(article);
       if (!active) return;
@@ -596,10 +617,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         {mode === 'web' ? (
           <div className="sfeed-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
             {!frame || frame.articleId !== article.id ? (
-              <div className="flex-1 flex items-center justify-center gap-2 text-sm text-slate-400">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>원본 사이트를 여는 중…</span>
-              </div>
+              <WebLoadingPreview article={article} isDark={isDark} onReady={() => setReadingPreview(false)} onReading={() => setReadingPreview(true)} />
             ) : frame.embeddable ? (
               <>
                 <div
@@ -640,7 +658,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 </div>
                 </WebPager>
               </>
-            ) : webCopy?.articleId === article.id && webCopy.html ? (
+            ) : webCopy?.articleId === article.id && webCopy.html && !readingPreview ? (
               <>
                 <div
                   className={`px-4 py-1.5 border-b text-[11px] flex items-center justify-between gap-2 shrink-0 ${
@@ -665,7 +683,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                   <iframe
                     ref={copyRef}
                     key={`copy-${article.id}`}
-                    srcDoc={framedCopy(webCopy.html)}
+                    srcDoc={copyHtml}
                     title={article.title}
                     className="absolute left-0 top-0 border-0 bg-white"
                     style={{
@@ -680,11 +698,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 </div>
                 </WebPager>
               </>
-            ) : webCopy?.articleId !== article.id ? (
-              <div className="flex-1 flex items-center justify-center gap-2 text-sm text-slate-400">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>사이트가 직접 표시를 막아 사본을 불러오는 중…</span>
-              </div>
+            ) : webCopy?.articleId !== article.id || (webCopy.html && readingPreview) ? (
+              <WebLoadingPreview article={article} isDark={isDark} ready={Boolean(webCopy?.articleId === article.id && webCopy.html)} onReady={() => setReadingPreview(false)} onReading={() => setReadingPreview(true)} />
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
                 <Globe className="w-9 h-9 text-slate-400" aria-hidden="true" />

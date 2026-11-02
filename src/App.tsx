@@ -457,15 +457,26 @@ export const App: React.FC = () => {
     return () => { active = false; };
   }, [user?.id, selectedArticleId, selectedBody?.body_deferred, selectedBody?.body_load_error, readerCache, articleResources, unreadSessions]);
 
-  const preloadArticleIds = articles.slice(0, 5).map((article) => article.id).join(':');
+  const preloadModes = useMemo(() => new Map(subscriptions.map((sub) => [sub.feed_id, user ? feedViewPreference(user.id, sub.feed_id, sub.view_mode) : 'feed'])), [subscriptions, user?.id, isMobile]);
+  const preloadModesRef = useRef(preloadModes); preloadModesRef.current = preloadModes;
+  const handlePrepareArticle = useCallback((article: ArticleItem, nearby: () => boolean) => {
+    if (!articleResources || selectedArticleId || mobileSidebarOpen || (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return;
+    void articleResources.preload([article], () => document.visibilityState === 'visible' && nearby(), (row) => preloadModesRef.current.get(row.feed_id) || 'feed');
+  }, [articleResources, selectedArticleId, mobileSidebarOpen]);
+  const preloadStart = selectedArticleId ? articles.findIndex((article) => article.id === selectedArticleId) + 1 : 0;
+  const preloadRows = selectedArticleId ? articles.slice(preloadStart, preloadStart + 2) : articles.slice(0, 5);
+  const preloadArticleIds = preloadRows.map((article) => `${article.id}:${preloadModes.get(article.feed_id)}`).join(':');
   useEffect(() => {
-    if (!articleResources || loadingArticles || loadingBootstrap || refreshingFeeds || mobileSidebarOpen || selectedArticleId) return;
+    if (!articleResources || loadingArticles || loadingBootstrap || refreshingFeeds || mobileSidebarOpen) return;
     if ((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return;
     let active = true;
     const current = () => active && document.visibilityState === 'visible';
-    const generation = readerCache?.revision;
-    const timer = setTimeout(() => void articleResources.preload(articles, () => current() && readerCache?.revision === generation), 800);
-    return () => { active = false; clearTimeout(timer); };
+    // Thumbnail/state writes do not invalidate prepared bodies. The account,
+    // list/view selection and cache generation provide the cancellation scope.
+    const start = () => { if (current()) void articleResources.preload(preloadRows, current, (article) => preloadModes.get(article.feed_id) || 'feed'); };
+    const timer = setTimeout(start, selectedArticleId ? 200 : 500);
+    document.addEventListener('visibilitychange', start);
+    return () => { active = false; clearTimeout(timer); document.removeEventListener('visibilitychange', start); };
   }, [articleResources, preloadArticleIds, loadingArticles, loadingBootstrap, refreshingFeeds, mobileSidebarOpen, selectedArticleId]);
 
   const loadMoreArticles = useCallback(async () => {
@@ -1276,6 +1287,7 @@ export const App: React.FC = () => {
         <ArticleList
           accountId={user.id}
           onUpdateArticleFields={handleUpdateArticleFields}
+          onPrepareArticle={handlePrepareArticle}
           articles={articles}
           layout={layout}
           selectedArticleId={selectedArticleId}

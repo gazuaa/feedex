@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Bookmark,
   CheckCircle2,
@@ -36,6 +36,7 @@ const MagazineThumbnail = Thumbnail;
 interface ArticleListProps {
   accountId?: string;
   onUpdateArticleFields?: (id: string, fields: Partial<ArticleItem>) => void;
+  onPrepareArticle?: (article: ArticleItem, current: () => boolean) => void;
   articles: ArticleItem[];
   layout: LayoutMode;
   selectedArticleId: string | null;
@@ -52,6 +53,7 @@ interface ArticleListProps {
 export const ArticleList: React.FC<ArticleListProps> = ({
   accountId = '',
   onUpdateArticleFields,
+  onPrepareArticle,
   articles,
   layout,
   selectedArticleId,
@@ -64,6 +66,27 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   hasSubscriptions,
   retainReadRows = false,
 }) => {
+  const listRef = useRef<HTMLDivElement>(null), latestArticles = useRef(articles);
+  latestArticles.current = articles;
+  const preparationIds = articles.map((article) => article.id).join(':');
+  useEffect(() => {
+    if (!onPrepareArticle || !listRef.current || typeof IntersectionObserver === 'undefined') return;
+    let active = true;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        const id = (entry.target as HTMLElement).dataset.articleId;
+        const article = latestArticles.current.find((row) => row.id === id);
+        if (article) onPrepareArticle(article, () => {
+          const box = entry.target.getBoundingClientRect();
+          return active && box.bottom >= 0 && box.top <= window.innerHeight + 150;
+        });
+      }
+    }, { rootMargin: '150px 0px' });
+    listRef.current.querySelectorAll('[data-article-id]').forEach((row) => observer.observe(row));
+    return () => { active = false; observer.disconnect(); };
+  }, [onPrepareArticle, preparationIds, layout, loading]);
   if (loading) {
     return (
       <div className="p-6 lg:p-8 space-y-4 max-w-5xl mx-auto">
@@ -120,7 +143,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   // 1. COMPACT LIST VIEW (Feedly Title-Only View)
   if (layout === 'list') {
     return (
-      <div className="sfeed-list-items p-4 lg:p-8 max-w-6xl mx-auto" data-retain-read={retainReadRows || undefined}>
+      <div ref={listRef} className="sfeed-list-items p-4 lg:p-8 max-w-6xl mx-auto" data-retain-read={retainReadRows || undefined}>
         <div
           className={`rounded-2xl border overflow-hidden divide-y ${
             isDark
@@ -250,7 +273,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   // 2. CARDS VIEW (Grid Layout)
   if (layout === 'cards') {
     return (
-      <div className="sfeed-list-items sfeed-article-cards p-4 lg:p-8 max-w-7xl mx-auto grid grid-cols-1 gap-5" data-retain-read={retainReadRows || undefined}>
+      <div ref={listRef} className="sfeed-list-items sfeed-article-cards p-4 lg:p-8 max-w-7xl mx-auto grid grid-cols-1 gap-5" data-retain-read={retainReadRows || undefined}>
         {articles.map((article) => {
           const isSelected = selectedArticleId === article.id;
           return (
@@ -387,7 +410,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
 
   // 3. MAGAZINE VIEW (Default Feedly Classic Layout)
   return (
-    <div className="sfeed-list-items p-3 lg:p-4 max-w-5xl mx-auto space-y-2" data-retain-read={retainReadRows || undefined}>
+    <div ref={listRef} className="sfeed-list-items p-3 lg:p-4 max-w-5xl mx-auto space-y-2" data-retain-read={retainReadRows || undefined}>
       {articles.map((article) => {
         const isSelected = selectedArticleId === article.id;
         return (
