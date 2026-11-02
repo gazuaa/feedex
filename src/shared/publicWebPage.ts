@@ -1,7 +1,8 @@
 // Only public article pages of publishers that turn server requests away can
 // use the device renderer. Never forward account URLs, tokens or cookies.
 const DEVICE_SITES = [
-  { host: 'www.coindesk.com', hosts: ['www.coindesk.com', 'coindesk.com'], path: /^\/(?:markets|business|tech|technology|policy|opinion|finance|consensus-magazine|coindesk-indices|daybook-us|learn|research)\/\d{4}\/\d{2}\/\d{2}\/[a-z0-9][a-z0-9-]*\/?$/i },
+  // /markets/2026/10/26/slug, /news-analysis/2026/11/01/slug 등 분류 하나 뒤에 날짜가 붙은 기사 주소.
+  { host: 'www.coindesk.com', hosts: ['www.coindesk.com', 'coindesk.com'], path: /^\/[a-z0-9][a-z0-9-]*\/\d{4}\/\d{2}\/\d{2}\/[a-z0-9][a-z0-9-]*\/?$/i },
   { host: 'www.theblock.co', hosts: ['www.theblock.co', 'theblock.co'], path: /^\/(?:news\/[a-z0-9-]+\/\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*|post\/\d+(?:\/[a-z0-9][a-z0-9-]*)?)\/?$/i },
 ];
 function publicArticle(value: string, sites = DEVICE_SITES): string | null {

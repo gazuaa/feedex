@@ -16,6 +16,7 @@ export class ArticleResources {
   private webPreloadFlights = new Set<Promise<unknown>>();
   private readerPreloadFlight: Promise<unknown> | null = null;
   private challengedPages = new Set<string>();
+  private backgroundWeb = new Set<string>();
   constructor(readonly account: string, private current: () => boolean, private request = apiRequest) {}
   hydrate(article: ArticleItem) { return cachedArticle(this.account, article); }
   async cachedWeb(article: ArticleItem): Promise<WebResult | undefined> {
@@ -44,7 +45,20 @@ export class ArticleResources {
       return updated;
     });
   }
-  web(article: ArticleItem): Promise<WebResult> {
+  /**
+   * 웹 사본. `background`는 미리 받기다. 미리 받기는 보안 확인 화면에서 한 번만 묻고 포기한다.
+   * 그사이 사용자가 그 글을 열면 미리 받기가 끝나기를 기다렸다가, 실패했으면 끈기 있게 다시 받는다.
+   */
+  web(article: ArticleItem, background = false): Promise<WebResult> {
+    const key = `web:${article.id}`;
+    const running = this.requests.get(key) as Promise<WebResult> | undefined;
+    if (running && !background && this.backgroundWeb.has(key)) return running.catch(() => this.web(article));
+    if (!running && background) this.backgroundWeb.add(key);
+    const work = this.loadWeb(article, background);
+    if (!running && background) void work.catch(() => {}).finally(() => this.backgroundWeb.delete(key));
+    return work;
+  }
+  private loadWeb(article: ArticleItem, background: boolean): Promise<WebResult> {
     return this.once(`web:${article.id}`, async () => {
       const generation = cacheGeneration.get(this.account), stored = await this.cachedWeb(article);
       if (stored) return stored;
@@ -56,13 +70,15 @@ export class ArticleResources {
       if (publicDeviceArticle(article.url)) {
         const source = publicDeviceArticle(article.url)!;
         try {
-          result = await loadPublicWebCopy(article.url, { fresh: this.challengedPages.has(source) });
+          result = await loadPublicWebCopy(article.url, { fresh: this.challengedPages.has(source), patient: !background });
           this.challengedPages.delete(source);
         } catch (error) {
           if (error instanceof PublicWebCopyError) {
             if (error.reason !== 'challenge') throw error;
             this.challengedPages.add(source);
             if (this.challengedPages.size > 128) this.challengedPages.delete(this.challengedPages.values().next().value!);
+            // 이 사이트들은 원래 서버 요청을 막으므로, 보안 확인이면 서버 경로로 시간을 더 쓰지 않는다.
+            throw error;
           }
           deviceError = error;
         }
@@ -106,7 +122,7 @@ export class ArticleResources {
       while (web.length && active()) {
         if (this.webPreloads >= 2) { await Promise.race(this.webPreloadFlights).catch(() => {}); continue; }
         const article = web.shift()!; this.webPreloads++;
-        const work = this.web(article); this.webPreloadFlights.add(work);
+        const work = this.web(article, true); this.webPreloadFlights.add(work);
         try { await work; }
         catch { this.failures.set(`web:${article.id}`, Date.now() + 60_000); }
         finally { this.webPreloads--; this.webPreloadFlights.delete(work); }

@@ -38,23 +38,41 @@ export function sanitizePublicWebCopy(html: string, url: string): string {
   document.head.prepend(charset, base);
   return '<!doctype html>' + document.documentElement.outerHTML;
 }
-export async function loadPublicWebCopy(url: string, options: { fresh?: boolean } = {}) {
-  const deadline = Date.now() + 20000;
+/**
+ * 보안 확인 화면을 받은 뒤 HTML을 다시 묻기 전에 기다리는 시간(ms). 원문 사이트가 리더 서비스에
+ * 거는 요청 제한(429)은 보통 몇 초~몇십 초 안에 풀리므로, 간격을 늘려 가며 몇 번만 다시 묻는다.
+ * 테스트는 이 배열을 짧게 바꿔 쓴다.
+ */
+export const checkpointRetryDelays = [2000, 3000, 5000, 8000];
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * 공개 기사의 원래 웹 배치 사본. `patient`는 사용자가 직접 연 글이라는 뜻이다. 그때만 보안 확인
+ * 화면에서 포기하지 않고, 본문 준비 요청을 함께 보내며 HTML을 다시 묻는다. 미리 받기는 한 번만 묻는다.
+ * 마크다운 본문을 원래 웹사이트처럼 보여 주지는 않는다.
+ */
+export async function loadPublicWebCopy(url: string, options: { fresh?: boolean; patient?: boolean } = {}) {
+  const deadline = Date.now() + (options.patient ? 25000 : 20000);
   const remaining = () => deadline - Date.now();
-  const page = await fetchPublicWebPage(url, { ...options, timeoutMs: remaining() });
+  const copy = (page: { html: string; url: string }) => ({ html: sanitizePublicWebCopy(page.html, page.url), url: page.url });
+  const page = await fetchPublicWebPage(url, { fresh: options.fresh, timeoutMs: remaining() });
   if (!page) return null;
-  try { return { html: sanitizePublicWebCopy(page.html, page.url), url: page.url }; }
+  try { return copy(page); }
   catch (error) {
-    if (!(error instanceof PublicWebCopyError) || error.reason !== 'challenge') throw error;
-    // Keep the original web layout: prepare the public content snapshot, then
-    // ask for its HTML again. Never display markdown as an original website.
-    try {
-      if (remaining() > 0 && await preparePublicWebPage(url, { timeoutMs: remaining() })) {
-        const rendered = await fetchPublicWebPage(url, { timeoutMs: remaining() });
-        if (rendered) return { html: sanitizePublicWebCopy(rendered.html, rendered.url), url: rendered.url };
+    if (!(error instanceof PublicWebCopyError) || error.reason !== 'challenge' || !options.patient) throw error;
+    // 본문 요청은 페이지를 한 번 그리게 할 뿐 결과를 기다리지 않는다. 다시 묻는 HTML은 캐시를
+    // 건너뛰어(fresh), 리더 서비스가 방금 받은 보안 확인 화면을 되돌려 주지 않게 한다.
+    void preparePublicWebPage(url, { timeoutMs: remaining() }).catch(() => false);
+    for (const delay of checkpointRetryDelays) {
+      if (remaining() < delay + 1500) break;
+      await wait(delay);
+      try {
+        const retried = await fetchPublicWebPage(url, { fresh: true, timeoutMs: remaining() });
+        if (retried) return copy(retried);
+      } catch (retryError) {
+        // 로그인·유료 기사처럼 분명한 제한은 바로 알리고, 보안 확인이나 일시 오류면 다음 차례에 다시 묻는다.
+        if (retryError instanceof PublicWebCopyError && retryError.reason !== 'challenge') throw retryError;
       }
-    } catch (recoveryError) {
-      if (recoveryError instanceof PublicWebCopyError && recoveryError.reason !== 'challenge') throw recoveryError;
     }
     throw error;
   }
