@@ -264,10 +264,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   }, [article?.id, article?.body_deferred, mode, readerRetry]);
 
   // 사이트를 바로 보여 준다. 캐시된 사본은 서버 확인 없이 그린다.
+  // 원문을 프레임에 넣어도 되는지 알기 전에는 띄우지 않는다. 막는 사이트는 브라우저가 앱이 알아챌 수 없는
+  // 오류 화면을 그리고, 판단이 늦거나 실패하면 그 화면에 머문다. 이미 판단한 사이트는 바로 정한다.
   useEffect(() => {
     if (!article || mode !== 'web') return;
     let active = true, retry: { stop: () => void } | undefined;
-    setFrame({ articleId: article.id, embeddable: !publicDeviceArticle(article.url), url: article.url.replace(/^http:/, 'https:') });
+    const known = publicDeviceArticle(article.url) ? undefined : resources?.knownFrame(article.url);
+    setFrame(known ? { articleId: article.id, ...known } : null);
     const load = async () => {
       const cached = await resources?.cachedWeb(article);
       if (!active) return;
@@ -281,7 +284,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         catch (error) { if (active) setWebCopy({ articleId: article.id, html: null, error: error instanceof Error ? error.message : undefined }); }
         return;
       }
-      const result = await apiRequest<{ embeddable: boolean; url: string; reason?: string }>(`/api/articles/${article.id}/embeddable`);
+      // 프레임을 거부한다고 이미 알게 된 사이트는 다시 묻지 않고 바로 사본을 받는다.
+      let result = known && !known.embeddable ? known : undefined;
+      if (!result) {
+        try {
+          result = await apiRequest<{ embeddable: boolean; url: string; reason?: string }>(`/api/articles/${article.id}/embeddable`);
+          resources?.rememberFrame(article.url, result);
+        } catch {
+          // 판단하지 못했으면 사본부터 받아 본다. 사본도 안 되면 "원본 다시 표시"로 프레임을 띄울 수 있다.
+          result = { embeddable: false, url: article.url.replace(/^http:/, 'https:') };
+        }
+      }
       if (!active) return;
       setFrame({ articleId: article.id, ...result });
       if (result.embeddable) return;

@@ -96,9 +96,19 @@ try {
   assert.match(latest.full_content_html,/Reader v2/,'the separately extracted reader body survives a feed refresh');
   assert.match((await readContent('refresh-owner','article:refresh-1')).data.content_html,/Updated feed body/);
   await maintainDeviceCache('refresh-owner',true);
+
+  // 사이트별 프레임 판단: 프레임 거부와 허용은 기억하고, 보안 확인·HTTP 오류처럼 잠깐인 결과는 기억하지 않는다.
+  const frames=new ArticleResources('frame-owner',()=>true,async()=>({}));
+  assert.equal(frames.knownFrame('https://decrypt.co/1/a'),undefined,'an unseen site is checked first');
+  frames.rememberFrame('https://decrypt.co/1/a',{embeddable:false,reason:'framing'});
+  assert.deepEqual(frames.knownFrame('https://decrypt.co/2/b'),{embeddable:false,url:'https://decrypt.co/2/b',reason:'framing'},'another article of a site that refuses frames goes straight to the copy');
+  frames.rememberFrame('http://open.example.test/a',{embeddable:true});
+  assert.deepEqual(frames.knownFrame('http://open.example.test/b'),{embeddable:true,url:'https://open.example.test/b'});
+  for(const reason of ['challenge','http','mixed-content']) frames.rememberFrame('https://flaky.example.test/a',{embeddable:false,reason});
+  assert.equal(frames.knownFrame('https://flaky.example.test/b'),undefined,'passing failures are asked again');
   await maintainDeviceCache('fast-owner',true);
   await maintainDeviceCache('reader-owner',true);
-  console.log('PASS: article refresh replacing saved web copies, reader bodies and feed details; view-aware prefetch, two web requests at once, shared foreground request, zero-network cached opening without repeated HTML parsing; live sites unchanged, other blocked origins prepared; cache-clear/account guards; immediate saved content with web still selected and explicit transition after scrolling.');
+  console.log('PASS: per-site frame decisions; article refresh replacing saved web copies, reader bodies and feed details; view-aware prefetch, two web requests at once, shared foreground request, zero-network cached opening without repeated HTML parsing; live sites unchanged, other blocked origins prepared; cache-clear/account guards; immediate saved content with web still selected and explicit transition after scrolling.');
 } finally {
   globalThis.fetch=originalFetch;
   for(const [key,descriptor] of originals){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}
