@@ -400,6 +400,19 @@ export function parseXmlFeedContent(xmlText: string, xmlUrl: string): ParsedFeed
   return parsed;
 }
 
+// 웹페이지와 흔한 피드 경로를 모두 서버 요청에서 보안 확인으로 막지만 공식 피드는 열어 둔 사이트.
+// 그 사이트 주소(홈, /feed, 기사 주소 등)를 넣으면 공식 피드로 받는다. `keep`은 이미 피드인 경로.
+const PUBLISHER_FEEDS = [
+  { hosts: ['www.coindesk.com', 'coindesk.com'], xmlUrl: 'https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml', keep: /^\/arc\/outboundfeeds\// },
+];
+function publisherFeed(url: string): string | null {
+  try {
+    const { hostname, pathname } = new URL(url);
+    const site = PUBLISHER_FEEDS.find((item) => item.hosts.includes(hostname.toLowerCase()));
+    return site && !site.keep.test(pathname) ? site.xmlUrl : null;
+  } catch { return null; }
+}
+
 export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
   if (xProfile(inputUrl)) return fetchXFeed(inputUrl, parseXmlFeedContent);
   if (/^(?:https?:\/\/)?(?:(?:www|mobile|m)\.)?(?:x|twitter)\.com(?:[/?#]|$)/i.test(inputUrl.trim())) return fetchXFeed(inputUrl, parseXmlFeedContent);
@@ -416,6 +429,7 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
   if (matchedCurated) {
     normalizedUrl = matchedCurated.xmlUrl;
   }
+  normalizedUrl = publisherFeed(normalizedUrl) ?? normalizedUrl;
 
   const headers = {
     'User-Agent':
@@ -426,6 +440,25 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 7000);
+  // 같은 사이트의 흔한 피드 경로를 차례로 찾아본다.
+  const commonFeed = async () => {
+    const commonPaths = ['/feed', '/rss.xml', '/feed.xml', '/atom.xml', '/rss'];
+    const origin = new URL(normalizedUrl).origin;
+    for (const suffix of commonPaths) {
+      const candidateUrl = `${origin}${suffix}`;
+      if (candidateUrl === normalizedUrl) continue;
+      try {
+        const res = await fetch(candidateUrl, { headers, redirect: 'follow', signal: controller.signal });
+        if (res.ok) {
+          const xml = await res.text();
+          return parseXmlFeedContent(xml, candidateUrl);
+        }
+      } catch {
+        // 계속 시도한다
+      }
+    }
+    return null;
+  };
   try {
     const response = await fetch(normalizedUrl, {
       headers,
@@ -434,6 +467,12 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
     });
 
     if (!response.ok) {
+      // 웹페이지는 서버 요청을 막아도(403·429) 피드 경로는 열어 둔 사이트가 있다(The Block 등).
+      if (response.status === 403 || response.status === 429) {
+        await response.body?.cancel();
+        const found = await commonFeed();
+        if (found) return found;
+      }
       throw new Error(`HTTP ${response.status}`);
     }
 
@@ -460,20 +499,8 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
       }
 
       // 흔한 접미 경로를 시도한다
-      const commonPaths = ['/feed', '/rss.xml', '/feed.xml', '/atom.xml', '/rss'];
-      const origin = new URL(normalizedUrl).origin;
-      for (const suffix of commonPaths) {
-        try {
-          const candidateUrl = `${origin}${suffix}`;
-          const res = await fetch(candidateUrl, { headers, redirect: 'follow', signal: controller.signal });
-          if (res.ok) {
-            const xml = await res.text();
-            return parseXmlFeedContent(xml, candidateUrl);
-          }
-        } catch {
-          // 계속 시도한다
-        }
-      }
+      const found = await commonFeed();
+      if (found) return found;
     }
 
     return parseXmlFeedContent(text, normalizedUrl);
