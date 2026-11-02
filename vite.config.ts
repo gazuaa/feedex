@@ -34,6 +34,8 @@ function sfeedApiPlugin(): Plugin {
         GOOGLE_CLIENT_SECRET:
           devVars.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET,
         JWT_SECRET: devVars.JWT_SECRET || process.env.JWT_SECRET || 'dev-secret',
+        X_CLIENT_ID: devVars.X_CLIENT_ID || process.env.X_CLIENT_ID,
+        X_CLIENT_SECRET: devVars.X_CLIENT_SECRET || process.env.X_CLIENT_SECRET,
         AI_MODEL:
           devVars.AI_MODEL ||
           process.env.AI_MODEL ||

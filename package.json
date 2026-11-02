@@ -31,6 +31,7 @@
     "test:scroll-read": "node scripts/verify-scroll-read.mjs",
     "test:desktop-settings": "node scripts/verify-desktop-settings.mjs",
     "test:discovery": "node scripts/verify-discovery.mjs",
+    "test:x": "node scripts/verify-x.mjs",
     "test:panels": "node scripts/verify-panel-widths.mjs",
     "test:builder": "node scripts/verify-rss-builder.mjs",
     "test:reader": "node scripts/verify-reader.mjs",

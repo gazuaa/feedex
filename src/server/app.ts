@@ -14,6 +14,8 @@ import type {
 import { CURATED_FEEDS } from './curatedFeeds';
 import type { OpmlFeed } from '../shared/opml';
 import { normalizeFeedUrl } from '../shared/feedDiscovery';
+import { xRoutes } from './xConnection';
+import { XFeedError } from './xFeed';
 import { importOpmlFeed, OpmlSourceError } from './opmlImporter';
 import { clearOpmlFailure, listOpmlFailures, recordOpmlFailure } from './opmlFailures';
 import { fetchAndParseFeed, parseOpml, generateOpml, type ParsedFeed } from './rssParser';
@@ -425,6 +427,8 @@ app.get('/api/bootstrap', async (c) => {
   });
 });
 
+app.route('/api/x', xRoutes);
+
 function feedPreviewResponse(parsed: ParsedFeed) {
   return {
     feed: { title: parsed.title, xmlUrl: parsed.xmlUrl, htmlUrl: parsed.htmlUrl && /^https?:\/\//i.test(parsed.htmlUrl) ? parsed.htmlUrl : null, description: parsed.description },
@@ -443,7 +447,8 @@ app.post('/api/discover/preview', async (c) => {
   if (!url) return c.json({ error: '올바른 RSS 또는 웹사이트 주소를 입력해 주세요.' }, 400);
   try {
     return c.json(feedPreviewResponse(await fetchAndParseFeed(url)));
-  } catch {
+  } catch (error) {
+    if (error instanceof XFeedError) return c.json({ error: error.message }, 502);
     return c.json({ error: '피드를 찾지 못했습니다. RSS 주소와 연결 상태를 확인한 뒤 다시 시도해 주세요.' }, 502);
   }
 });

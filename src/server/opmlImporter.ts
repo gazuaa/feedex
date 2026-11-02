@@ -2,13 +2,15 @@ import type { OpmlFeed, OpmlImportResult } from '../shared/opml';
 import type { D1DatabaseLike } from './types';
 import { fetchAndParseFeed } from './rssParser';
 import { generateId, upsertFeedAndArticles } from './seedService';
+import { XFeedError } from './xFeed';
 
 export class OpmlSourceError extends Error {
   constructor(error: unknown) {
     const message = error instanceof Error ? error.message : '';
     const status = message.match(/^HTTP (\d{3})$/)?.[1];
     let reason = '원본 피드 서버에 연결하거나 응답을 읽지 못했습니다.';
-    if (status === '403') reason = '원본 사이트가 서버의 접근을 거부했습니다 (HTTP 403).';
+    if (error instanceof XFeedError) reason = error.message;
+    else if (status === '403') reason = '원본 사이트가 서버의 접근을 거부했습니다 (HTTP 403).';
     else if (status === '404' || status === '410') reason = `RSS 주소를 찾을 수 없습니다 (HTTP ${status}). 주소가 변경되었거나 폐쇄됐을 수 있습니다.`;
     else if (status === '429') reason = '원본 사이트의 요청 제한에 걸렸습니다 (HTTP 429). 잠시 후 다시 시도해 주세요.';
     else if (status) reason = `원본 사이트가 오류를 반환했습니다 (HTTP ${status}).`;

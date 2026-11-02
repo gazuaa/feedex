@@ -10,12 +10,15 @@ import {
   Loader2,
   Eye,
   Rss,
+  Users,
 } from 'lucide-react';
 import { FeedPreview } from './FeedPreview';
 import { OpmlImporter } from './OpmlImporter';
+import { XFollowingImporter } from './XFollowingImporter';
 import { RssBuilder } from './RssBuilder';
 import { SubscribeFolderStep, type FolderChoice } from './SubscribeFolderStep';
 import { matchesFeedSearch, normalizeFeedUrl } from '../shared/feedDiscovery';
+import { xProfile } from '../shared/xFeed';
 import type { BuilderSite } from '../shared/rssBuilder';
 import {
   apiRequest,
@@ -28,7 +31,7 @@ import {
 
 interface DiscoverModalProps {
   isOpen: boolean;
-  initialTab: 'curated' | 'opml';
+  initialTab: 'curated' | 'opml' | 'x';
   onClose: () => void;
   curatedFeeds: CuratedFeedItem[];
   folders: FolderItem[];
@@ -47,7 +50,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
   onSubscribed,
   isDark,
 }) => {
-  const [tab, setTab] = useState<'curated' | 'opml'>(initialTab);
+  const [tab, setTab] = useState<'curated' | 'opml' | 'x'>(initialTab);
   const [selectedCategory, setSelectedCategory] = useState<string>('전체');
   const [previewFeed, setPreviewFeed] = useState<CuratedFeedItem | null>(null);
   const bodyRef = React.useRef<HTMLDivElement>(null);
@@ -64,7 +67,8 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
   const [subscribeTarget, setSubscribeTarget] = useState<CuratedFeedItem | null>(null);
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
   const [opmlImporting, setOpmlImporting] = useState(false);
-  const modalBusy = opmlImporting || builderBusy;
+  const [xImporting, setXImporting] = useState(false);
+  const modalBusy = opmlImporting || builderBusy || xImporting;
   const [feedback, setFeedback] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -105,7 +109,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
   }, [query, previewUrl, previewRetry, isOpen, tab, builderOpen]);
 
   // 만들기 도구는 웹사이트를 대상으로 한다. 피드 주소면 그 사이트 페이지를 쓴다.
-  const builderUrl = urlPreview?.feed.htmlUrl && normalizeFeedUrl(urlPreview.feed.xmlUrl) === previewUrl
+  const builderUrl = previewUrl && xProfile(previewUrl) ? null : urlPreview?.feed.htmlUrl && normalizeFeedUrl(urlPreview.feed.xmlUrl) === previewUrl
     ? normalizeFeedUrl(urlPreview.feed.htmlUrl) || previewUrl
     : previewUrl;
   React.useEffect(() => {
@@ -321,7 +325,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
 
         {/* 창 탭 */}
         <div
-          className={`px-4 sm:px-6 pt-3 shrink-0 border-b flex items-center gap-2 ${
+          className={`px-4 sm:px-6 pt-3 shrink-0 border-b flex items-center gap-2 overflow-x-auto ${
             isDark ? 'border-slate-800' : 'border-slate-200'
           }`}
         >
@@ -352,6 +356,9 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             <FileCode2 className="w-4 h-4" />
             <span>OPML<span className="hidden sm:inline"> 가져오기 / 내보내기</span></span>
           </button>
+          <button type="button" disabled={modalBusy} onClick={() => setTab('x')} className={`px-3 sm:px-4 py-2.5 shrink-0 whitespace-nowrap text-xs font-semibold border-b-2 flex items-center gap-1.5 cursor-pointer ${tab === 'x' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400'}`}>
+            <Users className="w-4 h-4" /><span>X 팔로우</span>
+          </button>
         </div>
 
         {/* 안내 띠 */}
@@ -374,7 +381,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             <label htmlFor="feed-discovery-search" className="sr-only">피드 이름 또는 RSS·웹사이트 주소</label>
             <div className="relative">
               <Search aria-hidden="true" className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input id="feed-discovery-search" type="search" value={query} disabled={busyUrl !== null || builderBusy} onChange={(event) => { setQuery(event.target.value); setBuilderOpen(false); setUrlFeedOpen(false); setSubscribeTarget(null); setPreviewFeed(null); setUrlPreview(null); setPreviewError(null); setFeedback(null); }} placeholder="피드 이름 또는 웹사이트·RSS 주소" autoComplete="off" className={`w-full pl-10 pr-4 py-3 rounded-xl text-sm border focus:outline-none focus:border-emerald-500 ${isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`} />
+              <input id="feed-discovery-search" type="search" value={query} disabled={busyUrl !== null || builderBusy} onChange={(event) => { setQuery(event.target.value); setBuilderOpen(false); setUrlFeedOpen(false); setSubscribeTarget(null); setPreviewFeed(null); setUrlPreview(null); setPreviewError(null); setFeedback(null); }} placeholder="피드 이름, 웹사이트·RSS 주소 또는 @X계정" autoComplete="off" className={`w-full pl-10 pr-4 py-3 rounded-xl text-sm border focus:outline-none focus:border-emerald-500 ${isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`} />
             </div>
             <p className="text-[11px] text-slate-400 mt-2">이름으로 추천 피드를 찾거나, 주소를 입력해 최근 글을 미리보세요.</p>
           </form>}
@@ -404,7 +411,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             ) : previewUrl ? (
               <div aria-live="polite" aria-busy={previewLoading} className="space-y-5">
                 {previewLoading ? (
-                  <p role="status" className="py-6 flex items-center justify-center gap-2 text-sm text-slate-400"><Loader2 className="w-5 h-5 animate-spin" />이 주소에서 RSS 피드를 찾는 중입니다…</p>
+                  <p role="status" className="py-6 flex items-center justify-center gap-2 text-sm text-slate-400"><Loader2 className="w-5 h-5 animate-spin" />{xProfile(previewUrl) ? 'X 공개 게시물을 불러오는 중입니다…' : '이 주소에서 RSS 피드를 찾는 중입니다…'}</p>
                 ) : resolvedFeed ? (
                   <section aria-label="찾은 피드" className="space-y-2">
                     <h3 className="text-xs font-semibold text-slate-400">찾은 피드</h3>
@@ -446,7 +453,9 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             </div>
           )}
 
-          {/* 탭 3: OPML 가져오기 / 내보내기 */}
+          {tab === 'x' && <XFollowingImporter isDark={isDark} subscriptions={subscriptions} onBusyChange={setXImporting} onSubscribed={onSubscribed} />}
+
+          {/* OPML 가져오기 / 내보내기 */}
           <div className={tab === 'opml' ? 'space-y-6' : 'hidden'}>
               {/* 내보내기 카드 */}
               <div

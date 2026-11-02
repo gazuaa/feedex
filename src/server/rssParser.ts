@@ -2,6 +2,8 @@ import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import type { OpmlFeed } from '../shared/opml';
 import { CURATED_FEEDS } from './curatedFeeds';
 import { extractOriginalPublishedAt, extractSummaryPublishedAt, parsePublicationDate } from './publicationDate';
+import { xProfile } from '../shared/xFeed';
+import { fetchXFeed } from './xFeed';
 
 export interface ParsedArticle {
   guid: string;
@@ -399,6 +401,8 @@ export function parseXmlFeedContent(xmlText: string, xmlUrl: string): ParsedFeed
 }
 
 export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
+  if (xProfile(inputUrl)) return fetchXFeed(inputUrl, parseXmlFeedContent);
+  if (/^(?:https?:\/\/)?(?:(?:www|mobile|m)\.)?(?:x|twitter)\.com(?:[/?#]|$)/i.test(inputUrl.trim())) return fetchXFeed(inputUrl, parseXmlFeedContent);
   let normalizedUrl = inputUrl.trim();
   if (!/^https?:\/\//i.test(normalizedUrl)) {
     normalizedUrl = `https://${normalizedUrl}`;

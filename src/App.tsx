@@ -139,9 +139,9 @@ export const App: React.FC = () => {
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
   // 대화상자와 모바일 사이드바
-  const [discoverOpen, setDiscoverOpen] = useState(false);
-  const [discoverTab, setDiscoverTab] = useState<'curated' | 'opml'>(
-    'curated'
+  const [discoverOpen, setDiscoverOpen] = useState(() => new URLSearchParams(window.location.search).has('x_callback'));
+  const [discoverTab, setDiscoverTab] = useState<'curated' | 'opml' | 'x'>(
+    new URLSearchParams(window.location.search).has('x_callback') ? 'x' : 'curated'
   );
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
   const isMobile = useMobileViewport();

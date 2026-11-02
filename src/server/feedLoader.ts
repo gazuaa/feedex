@@ -2,6 +2,7 @@ import type { Env } from './types';
 import { fetchAndParseFeed } from './rssParser';
 import { analyseBuilderPage, builderParsedFeed } from './rssBuilder';
 import { upsertFeedAndArticles } from './seedService';
+import { xProfile } from '../shared/xFeed';
 
 export interface StoredFeed { id: string; xml_url: string; builder_source_url: string | null; builder_selector: string | null; builder_title: string | null }
 export const storedFeedColumns = 'f.id, f.xml_url, b.source_url AS builder_source_url, b.selector AS builder_selector, b.title AS builder_title';
@@ -19,8 +20,12 @@ export async function refreshStoredFeeds(env: Env, feeds: StoredFeed[]): Promise
     try { const result = await upsertFeedAndArticles(env.DB, await loadStoredFeed(env, feed)); inserted += result.insertedCount; }
     catch (error) { await env.DB.prepare('UPDATE feeds SET last_error = ?, last_fetched_at = ? WHERE id = ?').bind(error instanceof Error ? error.message : 'Refresh failed', new Date().toISOString(), feed.id).run(); }
   };
+  const xFeeds = feeds.filter((feed) => !feed.builder_source_url && xProfile(feed.xml_url));
+  let nextX = 0;
+  const refreshX = async () => { while (nextX < xFeeds.length) await refresh(xFeeds[nextX++]); };
   await Promise.all([
-    ...feeds.filter((feed) => !feed.builder_source_url).map(refresh),
+    ...feeds.filter((feed) => !feed.builder_source_url && !xProfile(feed.xml_url)).map(refresh),
+    refreshX(), refreshX(),
     (async () => { for (const feed of feeds.filter((item) => item.builder_source_url)) await refresh(feed); })(),
   ]);
   return inserted;

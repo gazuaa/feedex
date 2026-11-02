@@ -1,4 +1,8 @@
+import { xProfile } from './xFeed';
+
 export function normalizeFeedUrl(input: string): string | null {
+  const profile = xProfile(input);
+  if (profile) return profile.url;
   const value = input.trim();
   if (!value || /\s/.test(value)) return null;
   const hasProtocol = /^[a-z][a-z\d+.-]*:/i.test(value);
