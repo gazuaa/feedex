@@ -12,7 +12,7 @@ for (const [key, value] of Object.entries({ DOMParser, indexedDB, IDBKeyRange })
 try {
   const { publicCoinDeskArticle, publicDeviceArticle, fetchPublicWebPage } = await vite.ssrLoadModule('/src/shared/publicWebPage.ts');
   const { ArticleResources } = await vite.ssrLoadModule('/src/client/articleResources.ts');
-  const { sanitizePublicWebCopy } = await vite.ssrLoadModule('/src/client/publicWebCopy.ts');
+  const { sanitizePublicWebCopy, PublicWebCopyError } = await vite.ssrLoadModule('/src/client/publicWebCopy.ts');
   const { readContent, maintainDeviceCache } = await vite.ssrLoadModule('/src/client/deviceContent.ts');
   const url = 'https://www.coindesk.com/tech/2026/10/28/public-article';
   assert.equal(publicCoinDeskArticle(url + '?utm_source=feed&token=private#fragment'), url);
@@ -27,6 +27,8 @@ try {
     if (external === 'limited') return new Response('Rate limited', { status: 429 });
     if (external === 'network') throw new TypeError('Load failed');
     if (external === 'challenge') return new Response(html.replace('Public CoinDesk article', 'Vercel Security Checkpoint'));
+    if (external === 'challenge-until-fresh' && new Headers(options.headers).get('X-No-Cache') !== 'true') return new Response('<html><head><title>Vercel Security Checkpoint</title></head><body><main>We are verifying your browser.</main></body></html>');
+    if (external === 'login') return new Response(html.replace('Public CoinDesk article', 'Sign in'));
     if (external === 'paywall') return new Response(html.replace('</head>', '<script type="application/ld+json">{"isAccessibleForFree":false}</script></head>'));
     if (external === 'text') return new Response('Title: Article\nMarkdown Content: not the original web page');
     if (external === 'large') return new Response('<html>' + 'x'.repeat(2_000_001) + '</html>');
@@ -46,11 +48,23 @@ try {
   calls = []; const reused = await new ArticleResources('owner', () => true, server).web(article);
   assert.match(reused.html, /real public article/); assert.ok(reused.html.includes(`href="${url}"`)); assert.equal(calls.length, 0); assert.equal(serverCalls, 0, 'reopening reuses the device cache without any server request');
   assert.equal(await readContent('other', 'web:coindesk'), undefined);
-  for (const [failure, message] of [['challenge', /공개 기사 본문/], ['paywall', /공개 기사 본문/], ['text', /HTML 형식/], ['large', /너무 큽니다/], ['limited', /HTTP 429/], ['network', /연결하지 못했습니다/]]) {
+  for (const [failure, message] of [['challenge', /사이트의 보안 확인/], ['paywall', /구독 권한/], ['login', /로그인이 필요한/], ['text', /HTML 형식/], ['large', /너무 큽니다/], ['limited', /HTTP 429/], ['network', /연결하지 못했습니다/]]) {
     external = failure;
     await assert.rejects(() => new ArticleResources('owner', () => true, server).web({ ...article, id: failure }), message, 'the device failure remains available when the server fallback also fails');
     assert.equal(await readContent('owner', 'web:' + failure), undefined, 'failed or restricted pages are never cached');
   }
+  const challenge = '<html><head><title>Vercel Security Checkpoint</title></head><body><main>We are verifying your browser.</main></body></html>';
+  assert.throws(() => sanitizePublicWebCopy(challenge, url), error => error instanceof PublicWebCopyError && error.reason === 'challenge' && /보안 확인/.test(error.message));
+  external = 'challenge-until-fresh'; calls = [];
+  const retried = new ArticleResources('owner', () => true, server), retryArticle = { ...article, id: 'fresh-retry' };
+  await assert.rejects(() => retried.web(retryArticle), /사이트의 보안 확인/);
+  assert.equal(await readContent('owner', 'web:fresh-retry'), undefined);
+  assert.match((await retried.web(retryArticle)).html, /real public article/);
+  assert.equal(new Headers(calls[0].options.headers).get('X-No-Cache'), null);
+  assert.equal(new Headers(calls[1].options.headers).get('X-No-Cache'), 'true', 'retry after a checkpoint requests a fresh external copy');
+  external = 'paywall'; let restrictedFallbacks = 0;
+  await assert.rejects(() => new ArticleResources('owner', () => true, async () => { restrictedFallbacks++; return { html, url }; }).web({ ...article, id: 'restricted-no-fallback' }), /구독 권한/);
+  assert.equal(restrictedFallbacks, 0, 'an explicit access restriction is not retried through another extraction path');
   calls = [];
   const normalServer = async () => ({ html: '<html>Normal server copy</html>', url: 'https://other.example.test/article' });
   external = 'limited';

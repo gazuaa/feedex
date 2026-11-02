@@ -19,7 +19,7 @@ export const publicDeviceArticle = (value: string) => publicArticle(value);
 export const publicCoinDeskArticle = (value: string) => publicArticle(value, DEVICE_SITES.slice(0, 1));
 export interface PublicPage { html: string; url: string }
 const MAX_HTML_BYTES = 2_000_000;
-export async function fetchPublicWebPage(value: string): Promise<PublicPage | null> {
+export async function fetchPublicWebPage(value: string, options: { fresh?: boolean } = {}): Promise<PublicPage | null> {
   const url = publicDeviceArticle(value); if (!url) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
@@ -28,7 +28,7 @@ export async function fetchPublicWebPage(value: string): Promise<PublicPage | nu
       redirect: 'manual', credentials: 'omit', signal: controller.signal,
       // The renderer can report an intermediate 302 even after rendering the
       // complete article. Validate the returned HTML instead of asserting 200.
-      headers: { Accept: 'text/plain', 'X-Return-Format': 'html', 'X-Timeout': '15' },
+      headers: { Accept: 'text/plain', 'X-Return-Format': 'html', 'X-Timeout': '15', ...(options.fresh ? { 'X-No-Cache': 'true' } : {}) },
     });
     if (!response.ok) { await response.body?.cancel(); throw new Error(`공개 웹 사본 응답 오류 (HTTP ${response.status})`); }
     const reader = response.body?.getReader(); if (!reader) throw new Error('공개 웹 사본이 비어 있습니다.');

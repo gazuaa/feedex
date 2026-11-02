@@ -3,7 +3,7 @@ import { cachedArticle, readContent, writeContent } from './deviceContent';
 import { cacheGeneration } from './cachePolicy';
 import { revealCopyImages } from './articleImages';
 import { publicDeviceArticle } from '../shared/publicWebPage';
-import { loadPublicWebCopy } from './publicWebCopy';
+import { loadPublicWebCopy, PublicWebCopyError } from './publicWebCopy';
 
 type ReaderResult = { fullContentHtml: string; publishedAt?: string };
 type WebResult = { html: string; url: string; phone?: boolean };
@@ -15,6 +15,7 @@ export class ArticleResources {
   private webPreloads = 0;
   private webPreloadFlights = new Set<Promise<unknown>>();
   private readerPreloadFlight: Promise<unknown> | null = null;
+  private challengedPages = new Set<string>();
   constructor(readonly account: string, private current: () => boolean, private request = apiRequest) {}
   hydrate(article: ArticleItem) { return cachedArticle(this.account, article); }
   async cachedWeb(article: ArticleItem): Promise<WebResult | undefined> {
@@ -53,7 +54,18 @@ export class ArticleResources {
       // The device's request succeeds even when the publisher blocks the
       // server network. Keep the original page layout and cache it locally.
       if (publicDeviceArticle(article.url)) {
-        try { result = await loadPublicWebCopy(article.url); } catch (error) { deviceError = error; }
+        const source = publicDeviceArticle(article.url)!;
+        try {
+          result = await loadPublicWebCopy(article.url, { fresh: this.challengedPages.has(source) });
+          this.challengedPages.delete(source);
+        } catch (error) {
+          if (error instanceof PublicWebCopyError) {
+            if (error.reason !== 'challenge') throw error;
+            this.challengedPages.add(source);
+            if (this.challengedPages.size > 128) this.challengedPages.delete(this.challengedPages.values().next().value!);
+          }
+          deviceError = error;
+        }
       }
       if (!this.current()) throw new Error('Session changed');
       if (!result) {

@@ -5,9 +5,15 @@ import { dropEmptySlots } from '../shared/emptySlots';
 import { plainCopyStyles } from '../shared/copyStyles';
 import { dropConsentBanners } from '../shared/consentBanners';
 
+export class PublicWebCopyError extends Error {
+  constructor(readonly reason: 'challenge' | 'login' | 'restricted', message: string) { super(message); }
+}
+
 export function sanitizePublicWebCopy(html: string, url: string): string {
   const document = new DOMParser().parseFromString(html, 'text/html');
-  if (/security checkpoint|just a moment|verify you are human|access denied|sign in|log in/i.test(document.title) || /"isAccessibleForFree"\s*:\s*false/.test(html)) throw new Error('공개 기사 본문이 아닙니다.');
+  if (/security checkpoint|just a moment|verify you are human|access denied/i.test(document.title)) throw new PublicWebCopyError('challenge', '사이트의 보안 확인으로 웹 사본을 불러오지 못했습니다. 원문을 새 창에서 열어 주세요.');
+  if (/sign in|log in/i.test(document.title)) throw new PublicWebCopyError('login', '원문 사이트에서 로그인이 필요한 페이지입니다.');
+  if (/"isAccessibleForFree"\s*:\s*false/.test(html)) throw new PublicWebCopyError('restricted', '원문 사이트의 구독 권한이 필요한 기사입니다.');
   const article = document.querySelector('article,main,[itemprop="articleBody"]');
   if (((article ? article.textContent : document.body?.textContent) || '').trim().length < 120) throw new Error('웹 사본의 본문이 비어 있습니다.');
   document.querySelectorAll('script,noscript,iframe,frame,frameset,object,embed,applet,template,base,meta[http-equiv],link[rel~="preload"],link[rel~="modulepreload"],link[rel~="prefetch"]').forEach((node) => node.remove());
@@ -32,7 +38,7 @@ export function sanitizePublicWebCopy(html: string, url: string): string {
   document.head.prepend(charset, base);
   return '<!doctype html>' + document.documentElement.outerHTML;
 }
-export async function loadPublicWebCopy(url: string) {
-  const page = await fetchPublicWebPage(url);
+export async function loadPublicWebCopy(url: string, options: { fresh?: boolean } = {}) {
+  const page = await fetchPublicWebPage(url, options);
   return page ? { html: sanitizePublicWebCopy(page.html, page.url), url: page.url } : null;
 }
