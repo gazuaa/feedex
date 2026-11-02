@@ -60,7 +60,7 @@ try {
   await noisy(posts('later', 1, 0));
   assert.equal((await listed(owner, 'scope=all&unreadOnly=true')).filter((article) => article.title.startsWith('later')).length, 1, 'new articles arrive again once resumed');
 
-  // A deploy can reach a database before migrations/0004 is applied.
+  // migrations/0004가 적용되기 전의 데이터베이스에 배포가 닿을 수 있다.
   const legacy = new LocalD1Database(':memory:', 'migrations/0001_schema.sql');
   await legacy.exec('ALTER TABLE subscriptions DROP COLUMN paused_at');
   const legacyEnv = { DB: legacy, ALLOW_QUICK_LOGIN: 'true' };

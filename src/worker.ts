@@ -28,8 +28,8 @@ export default {
           headers,
         });
       }
-      // Vite includes a content hash in these filenames. Keep them on the
-      // device across launches; fresh HTML selects the next deployed version.
+      // Vite는 이 파일 이름에 내용 해시를 넣는다. 앱을 다시 켜도 기기에 남겨 두고,
+      // 새 HTML이 다음 배포 버전을 고른다.
       if (/^\/assets\/[^/]+-[\w-]{8,}\.(?:js|css)$/.test(url.pathname) && assetResponse.ok && /javascript|^text\/css/i.test(assetResponse.headers.get('Content-Type') || '')) {
         const headers = new Headers(assetResponse.headers);
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');

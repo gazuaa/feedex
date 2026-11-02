@@ -43,8 +43,8 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
       JOIN subscriptions s ON s.feed_id=c.feed_id AND s.user_id=?
       WHERE c.owner_id='' AND c.version>? AND c.version<=?
     ORDER BY version LIMIT 201`).bind(userId, cursor.sequence, head.sequence, userId, cursor.sequence, head.sequence).all<Change>()).results;
-  // Long-offline/import bursts use one current snapshot instead of replaying
-  // thousands of historical changes that the device does not need to retain.
+  // 오래 오프라인이었거나 한꺼번에 가져왔을 때는 기기가 남길 필요 없는 수천 개의 과거
+  // 변경을 되풀이하지 않고 현재 스냅숏 하나를 쓴다.
   if (changes.length > 200) return { ...emptyDelta(nextCursor), reset: true };
   const affected = new Set<string>(), articleIds = new Set<string>(), removed = new Set<string>();
   const articleChanged = new Set<string>();
@@ -61,7 +61,7 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
     }
   }
   if (now >= cursor.nextBoundary) {
-    // Indexed, narrow date ranges find only feeds whose 24h/30d counts expired.
+    // 인덱스를 탄 좁은 날짜 범위로 24시간·30일 개수가 만료된 피드만 찾는다.
     const crossed = await db.prepare(`SELECT DISTINCT a.feed_id FROM articles a JOIN subscriptions s ON s.feed_id=a.feed_id
       WHERE s.user_id=? AND a.published_at>=? AND a.published_at<?
       UNION SELECT DISTINCT a.feed_id FROM articles a JOIN subscriptions s ON s.feed_id=a.feed_id
@@ -71,7 +71,7 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
   }
   const delta = emptyDelta(nextCursor);
   delta.changed = changes.length > 0 || affected.size > 0;
-  // Articles a paused feed hides are not found below, so devices drop them.
+  // 멈춘 피드가 숨기는 글은 아래에서 찾지 못하므로 기기가 지운다.
   const paused = await pauseSupported(db), shown = shownToSubscriber(paused);
   const ids = [...articleIds].filter((id) => !removed.has(id));
   for (let at = 0; at < ids.length; at += 40) {

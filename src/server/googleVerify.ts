@@ -1,10 +1,10 @@
-// Google ID Token RS256 Verification (ported from MUUSED src/user-data.js)
-// Verifies Google Identity Services (GIS) JWT credentials against Google's public JWK certs
+// Google ID 토큰 RS256 검증 (MUUSED src/user-data.js에서 옮겨 옴)
+// Google Identity Services(GIS) JWT credential을 Google 공개 JWK 인증서로 검증한다
 
 const CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
 const ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
 
-// "Sfeed Web" OAuth client in the SFeed Google Cloud project
+// SFeed Google Cloud 프로젝트의 "Sfeed Web" OAuth 클라이언트
 export const DEFAULT_GOOGLE_CLIENT_ID =
   '649668487161-f4hutlff1sc7klvplnrm3dki5u3oh3ht.apps.googleusercontent.com';
 

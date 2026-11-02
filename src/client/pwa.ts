@@ -7,8 +7,8 @@ export function installPlatform(userAgent: string, maxTouchPoints = 0): 'ios' | 
   return 'desktop';
 }
 
-// Only transfer the public app address to another browser, never login tokens
-// or private route/query information from the current page.
+// 다른 브라우저로는 공개 앱 주소만 넘긴다. 로그인 토큰이나 지금 페이지의
+// 비공개 경로·쿼리 정보는 절대 넘기지 않는다.
 export const installAddress = (address: string) => new URL('/', address).href;
 
 export function isIOSSafari(browser: { userAgent: string; maxTouchPoints?: number; standalone?: boolean; brave?: unknown }): boolean {
@@ -16,20 +16,20 @@ export function isIOSSafari(browser: { userAgent: string; maxTouchPoints?: numbe
   return installPlatform(browser.userAgent, browser.maxTouchPoints) === 'ios' && typeof browser.standalone !== 'undefined' && !named && !browser.brave;
 }
 
-// Same handoff as MUUSED: start copying before navigating synchronously, so
-// the Safari scheme retains the user's tap. A browser switch is not guaranteed;
-// only show the manual fallback when no page-leave event was observed.
+// MUUSED와 같은 넘기기 방식: 동기적으로 이동하기 전에 복사를 시작해서
+// Safari 스킴이 사용자의 탭을 유지하게 한다. 브라우저 전환이 보장되지는 않으므로
+// 페이지를 떠나는 이벤트가 없을 때만 직접 하는 방법을 보여 준다.
 export function openInSafari(onStuck: (copied: boolean) => void): () => void {
   const address = installAddress(window.location.href);
   let copied = false;
   let left = false;
   const markLeft = () => { left = true; };
-  try { void navigator.clipboard?.writeText(address).then(() => { copied = true; }).catch(() => {}); } catch { /* manual copying remains available */ }
+  try { void navigator.clipboard?.writeText(address).then(() => { copied = true; }).catch(() => {}); } catch { /* 직접 복사하는 방법은 그대로 쓸 수 있다 */ }
   document.addEventListener('visibilitychange', markLeft, { once: true });
   window.addEventListener('pagehide', markLeft, { once: true });
   const cleanup = () => { document.removeEventListener('visibilitychange', markLeft); window.removeEventListener('pagehide', markLeft); clearTimeout(timer); };
   const timer = setTimeout(() => { cleanup(); if (!left) onStuck(copied); }, 1400);
-  try { window.location.href = `x-safari-${address}`; } catch { /* unsupported schemes use the timed fallback */ }
+  try { window.location.href = `x-safari-${address}`; } catch { /* 지원하지 않는 스킴은 시간이 지나면 대체 안내를 쓴다 */ }
   return cleanup;
 }
 

@@ -12,9 +12,9 @@ const FIELD_HINTS: Record<PickField, string> = {
   image: '글 카드 안의 대표 이미지를 누르세요.',
   date: '글 카드 안의 날짜를 누르세요.',
 };
-// Same colors the picker paints inside the page copy.
+// 고르기 도구가 페이지 사본 안에 칠하는 색과 같다.
 const FIELD_DOTS: Record<PickField, string> = { title: 'bg-emerald-500', summary: 'bg-blue-500', image: 'bg-amber-500', date: 'bg-purple-500' };
-// A <time datetime> value reads better as a date; other text is shown as the page prints it.
+// <time datetime> 값은 날짜로 보여 주는 편이 읽기 좋다. 다른 글자는 페이지에 찍힌 그대로 보여 준다.
 const shownDate = (value: string) => {
   const date = /^\d{4}-\d{2}-\d{2}T/.test(value) ? new Date(value) : null;
   return date && !Number.isNaN(date.getTime()) ? date.toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }) : value;
@@ -30,7 +30,7 @@ export function RssBuilder({ url, folders, isDark, onBack, onSubscribed, onBusyC
   const [analysis, setAnalysis] = useState<BuilderAnalysis | null>(null);
   const [selected, setSelected] = useState(0);
   const [title, setTitle] = useState('');
-  // Picking the list, then the same folder step as any other subscription.
+  // 목록을 고른 뒤에는 다른 구독과 똑같이 폴더 고르기 단계를 거친다.
   const [step, setStep] = useState<'pick' | 'folder'>('pick');
   const [createError, setCreateError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,7 +65,7 @@ export function RssBuilder({ url, folders, isDark, onBack, onSubscribed, onBusyC
   const sendToPicker = (message: Record<string, unknown>) => frameRef.current?.contentWindow?.postMessage({ source: 'sfeed-app', ...message }, '*');
 
   useEffect(() => {
-    // The page copy runs in an opaque origin; trust only messages from our frame.
+    // 페이지 사본은 불투명한 출처에서 돈다. 우리 프레임에서 온 메시지만 믿는다.
     const onMessage = (event: MessageEvent) => {
       const data = event.data;
       if (event.source !== frameRef.current?.contentWindow || data?.source !== 'sfeed-picker') return;
@@ -108,7 +108,7 @@ export function RssBuilder({ url, folders, isDark, onBack, onSubscribed, onBusyC
   const choosingFolder = step === 'folder' && Boolean(analysis) && !created;
   return <>
   {choosingFolder && <SubscribeFolderStep feedTitle={title} siteUrl={analysis!.sourceUrl} folders={folders} isDark={isDark} busy={creating} error={createError} confirmLabel="피드 만들고 구독" onBack={() => setStep('pick')} onConfirm={create} />}
-  {/* Hidden, not unmounted, while choosing a folder: the page copy keeps the picked list. */}
+  {/* 폴더를 고르는 동안에는 언마운트하지 않고 숨긴다. 페이지 사본이 고른 목록을 지키게 한다. */}
   <section aria-label="RSS 빌더" className={choosingFolder ? 'hidden' : 'space-y-5'}>
     <button type="button" disabled={creating} onClick={onBack} className="inline-flex items-center gap-1.5 text-xs text-emerald-500 cursor-pointer"><ArrowLeft size={14} />검색 결과로</button>
     <div><h3 className="flex items-center gap-2 text-base font-bold"><Rss size={18} className="text-emerald-500" />RSS 빌더</h3><p className="mt-2 text-xs leading-relaxed text-slate-400">RSS가 없어도 웹사이트의 글 목록으로 피드를 만들 수 있습니다. 페이지에서 수집할 글을 직접 골라 보세요.</p><a href={url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-500 break-all">{url}<ExternalLink size={12} className="shrink-0" /></a></div>

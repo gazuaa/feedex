@@ -16,9 +16,9 @@ export interface BuilderAnalysis {
   title: string;
   groups: BuilderGroup[];
   rendered: boolean;
-  /** Built from the site's sitemap because the page itself could not be read. */
+  /** 페이지 자체를 읽지 못해서 사이트의 사이트맵으로 만들었다. */
   fromSitemap?: boolean;
-  /** Static copy of the page for point-and-click selection (first look only). */
+  /** 클릭으로 고르기용 페이지의 정적 사본 (첫 보기에만). */
   snapshot?: string;
 }
 export interface BuilderSite {

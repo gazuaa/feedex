@@ -7,11 +7,11 @@ import { useScrollChrome } from '../client/mobile';
 
 export function MobileLibrary({ user, folders, subscriptions, counts, countTab, visible = true, onChangeCountTab, onSelectTab, onSelectFolder, onSelectFeed, onAdd, onRefresh, refreshing, syncing, onCreateFolder, onDeleteFolder, onUnsubscribe, onToggleUpdates, onLogout, ...settings }: MobileSettingsProps & {
   user: UserProfile; folders: FolderItem[]; subscriptions: SubscriptionItem[]; counts: BootstrapResponse['counts'];
-  /** Which count each folder and feed shows; the dock tabs switch it in place. */
+  /** 폴더와 피드마다 보여 줄 개수. 하단 탭이 그 자리에서 바꾼다. */
   countTab: LibraryTab; onChangeCountTab: (tab: LibraryTab) => void;
   visible?: boolean;
   onSelectTab: (tab: LibraryTab) => void; onSelectFolder: (id: string) => void; onSelectFeed: (id: string) => void; onAdd: () => void; onRefresh: () => void; refreshing: boolean; syncing?: boolean; onCreateFolder: (name: string) => Promise<void>;
-  /** Both ask for confirmation before anything is removed. */
+  /** 둘 다 무언가를 지우기 전에 확인을 받는다. */
   onDeleteFolder: (id: string) => void; onUnsubscribe: (subscriptionId: string, title: string) => void; onToggleUpdates: (feed: SubscriptionItem) => void; onLogout: () => void;
 }) {
   const [query, setQuery] = useState('');
@@ -19,7 +19,7 @@ export function MobileLibrary({ user, folders, subscriptions, counts, countTab, 
   const [newFolder, setNewFolder] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
-  // Touch screens have no hover, so removing feeds and folders lives in an edit mode.
+  // 터치 화면에는 마우스 올리기가 없으므로, 피드·폴더 지우기는 편집 모드에 둔다.
   const [editing, setEditing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chromeHidden = useScrollChrome(scrollRef, visible && !editing && newFolder === null, `${query}:${countTab}`);
@@ -29,7 +29,7 @@ export function MobileLibrary({ user, folders, subscriptions, counts, countTab, 
   const visibleSubscriptions = countTab === 'unread' ? subscriptions.filter((feed) => feed.unread_count > 0) : subscriptions;
   const visibleFolders = countTab === 'unread' ? folders.filter((folder) => visibleSubscriptions.some((feed) => feed.folder_id === folder.id)) : folders;
   const deleteButton = (label: string, onDelete: () => void) => <button type="button" className="sfeed-mobile-delete" aria-label={label} onClick={onDelete}><Trash2 size={17} /></button>;
-  // Edit mode also stops or resumes a feed's new articles without unsubscribing.
+  // 편집 모드에서는 구독을 끊지 않고 피드의 새 글을 멈추거나 다시 받을 수도 있다.
   const updatesButton = (feed: SubscriptionItem) => <button type="button" className="sfeed-mobile-updates" aria-label={`${feed.title} ${feed.paused_at ? '업데이트 다시 받기' : '업데이트 중지'}`} onClick={() => onToggleUpdates(feed)}>{feed.paused_at ? <Play size={17} /> : <Pause size={17} />}</button>;
   const feedRow = (feed: SubscriptionItem) => <div className="sfeed-mobile-row-wrap" key={feed.id} data-feed-id={feed.feed_id}><button className="sfeed-mobile-library-row sfeed-mobile-feed-row" data-paused={feed.paused_at ? true : undefined} onClick={() => onSelectFeed(feed.feed_id)}>{feed.favicon_url ? <img src={feed.favicon_url} alt="" /> : <Rss size={20} />}<span>{feed.title}</span>{feed.paused_at && <Pause size={14} role="img" aria-label="업데이트 중지됨" className="sfeed-mobile-paused" />}<span className="sfeed-mobile-count">{count(feed).toLocaleString()}</span>{!editing && <ChevronRight size={17} />}</button>{editing && updatesButton(feed)}{editing && deleteButton(`${feed.title} 구독 취소`, () => onUnsubscribe(feed.id, feed.title))}</div>;
   const ungrouped = visibleSubscriptions.filter((feed) => !feed.folder_id || !folders.some((folder) => folder.id === feed.folder_id));

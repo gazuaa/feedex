@@ -11,7 +11,7 @@ try {
   const { app } = await vite.ssrLoadModule('/src/server/app.ts');
   const { formatArticleDate } = await vite.ssrLoadModule('/src/client/api.ts');
   const url = 'https://www.hankyung.com/article/202609117709i';
-  const published = '2026-09-10T15:58:00.000Z'; // Sep 11, 00:58 KST
+  const published = '2026-09-10T15:58:00.000Z'; // 9월 11일 00:58 KST
   const updated = '2026-10-21T14:15:13.000Z';
   const card = `<h2 class="news-tit"><a href="${url}">Test title</a></h2><p class="txt-date">2026.09.11 00:58</p>`;
   const rss = (body = card, date = updated) => parseXmlFeedContent(`<rss><channel><title>Reporter</title><link>https://www.hankyung.com/</link><item><guid>stable-guid</guid><link>${url}</link><title>Test title</title><pubDate>${date}</pubDate><description><![CDATA[${body}]]></description></item></channel></rss>`, 'https://example.test/generated-rss');
@@ -71,21 +71,21 @@ try {
   const legacy = { ...parsed, articles: parsed.articles.map((article) => ({ ...article, publishedAt: updated, originalPublishedAt: null, dateSource: 'feed' })) };
   const { feedId } = await upsertFeedAndArticles(db, legacy);
   const row = await db.prepare('SELECT * FROM articles WHERE feed_id = ?').bind(feedId).first();
-  // The old timestamp is not near created_at, so the old heuristic missed it.
+  // 옛 시각이 created_at과 가깝지 않아서 예전 추정 방식은 이를 놓쳤다.
   await db.prepare('UPDATE articles SET created_at = ? WHERE id = ?').bind('2026-10-21T23:30:13.808Z', row.id).run();
   await db.prepare('INSERT INTO article_states(user_id,article_id,is_read,is_saved) VALUES(?,?,1,1)').bind(user.id, row.id).run();
   assert.equal((await upsertFeedAndArticles(db, parsed)).insertedCount, 0);
   assert.equal((await db.prepare('SELECT published_at FROM articles WHERE id = ?').bind(row.id).first()).published_at, published);
   assert.deepEqual({ ...await db.prepare('SELECT is_read,is_saved FROM article_states WHERE article_id = ?').bind(row.id).first() }, { is_read: 1, is_saved: 1 });
-  // Repeated generator timestamps cannot push a repaired original date forward.
+  // 생성기가 같은 시각을 되풀이해도 고친 원문 날짜를 뒤로 밀 수 없다.
   await upsertFeedAndArticles(db, legacy);
   assert.equal((await db.prepare('SELECT published_at FROM articles WHERE id = ?').bind(row.id).first()).published_at, published);
   const bulk = { ...parsed, articles: Array.from({ length: 8 }, (_, i) => ({ ...parsed.articles[0], guid: `bulk-${i}` })) };
   await upsertFeedAndArticles(db, bulk);
   assert.ok(maxParameters <= 100, `D1 bind limit exceeded: ${maxParameters}`);
 
-  // Reader View must select datePublished, persist it, and return it for the
-  // already-open drawer. Scraping a modified date alone must preserve the date.
+  // 리더 보기는 datePublished를 골라 저장하고, 이미 열린 서랍에 돌려줘야 한다.
+  // 수정 날짜만 긁어 왔을 때는 기존 날짜를 지켜야 한다.
   await db.prepare('UPDATE articles SET published_at = ?, content_html = NULL WHERE id = ?').bind(updated, row.id).run();
   await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('reader-sub', user.id, feedId, updated).run();
   globalThis.fetch = async () => new Response(`<html><head><meta property="article:published_time" content="2026-09-11T00:58:00+09:00"><meta property="article:modified_time" content="${updated}"></head><body><article><p>${'Real article content. '.repeat(30)}</p></article></body></html>`);
@@ -97,7 +97,7 @@ try {
   globalThis.fetch = async () => new Response(`<meta property="article:modified_time" content="${updated}"><article><p>${'Real article content. '.repeat(30)}</p></article>`);
   assert.equal((await (await read({ force: true })).json()).publishedAt, published);
   assert.equal((await (await read()).json()).publishedAt, published, 'cached reader responses must include the publication date');
-  // A blocked page is an error, not a made-up body; a real cached body stays.
+  // 막힌 페이지는 지어낸 본문이 아니라 오류다. 캐시된 실제 본문은 그대로 남는다.
   globalThis.fetch = async () => new Response('<title>Vercel Security Checkpoint</title>', { status: 429 });
   assert.equal((await read({ force: true })).status, 502);
   assert.match((await db.prepare('SELECT full_content_html FROM articles WHERE id = ?').bind(row.id).first()).full_content_html, /Real article content/);
@@ -106,8 +106,8 @@ try {
   assert.equal((await db.prepare('SELECT full_content_html FROM articles WHERE id = ?').bind(row.id).first()).full_content_html, null);
   await db.prepare('DELETE FROM subscriptions WHERE id = ?').bind('reader-sub').run();
   assert.equal((await read()).status, 404, 'Reader View only extracts articles from subscribed feeds');
-  // Every publisher is checked on article open, not only Hankyung and not only
-  // when the user explicitly switches to Reader View.
+  // 한국경제만이 아니라 모든 언론사를, 사용자가 리더 보기로 바꿀 때만이 아니라
+  // 글을 열 때마다 확인한다.
   const other = { ...rss('', updated), xmlUrl: 'https://other.test/rss', articles: [{ ...rss('', updated).articles[0], guid: 'other-story', url: 'https://other.test/post', dateSource: 'updated' }] };
   const otherFeed = await upsertFeedAndArticles(db, other);
   await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('date-sub', user.id, otherFeed.feedId, updated).run();
@@ -121,8 +121,8 @@ try {
   await dateRequest();
   assert.equal(fetched, 1, 'reopening must reuse the saved original date');
   assert.equal((await db.prepare('SELECT published_at FROM articles WHERE id=?').bind(otherRow.id).first()).published_at, published);
-  // A later feed refresh (including missing-image repair) cannot replace a
-  // verified original date with the old nine-hour heuristic.
+  // 나중에 피드를 새로고침해도(빠진 이미지 보충 포함) 확인된 원문 날짜를 예전
+  // 9시간 추정값으로 바꿀 수 없다.
   await upsertFeedAndArticles(db, { ...other, articles: other.articles.map((a) => ({ ...a, publishedAt: '2026-09-10T06:58:00.000Z', dateSource: 'feed', thumbnailUrl: 'https://other.test/photo.jpg' })) });
   assert.equal((await db.prepare('SELECT published_at FROM articles WHERE id=?').bind(otherRow.id).first()).published_at, published);
   assert.equal(formatArticleDate({ published_at: updated, date_source: 'updated' }), '발행일 미제공');

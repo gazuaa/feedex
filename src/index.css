@@ -14,7 +14,7 @@ body { margin: 0; min-height: 100dvh; background: var(--sfeed-background); color
 .sfeed-channel-list:focus-visible, .sfeed-feed-list:focus-visible { outline: 2px solid #10b981; outline-offset: -2px; }
 .sfeed-feed-list { padding-bottom: env(safe-area-inset-bottom); }
 .sfeed-pull-refresh { display: none; }
-/* A short confirmation, above the mobile dock. */
+/* 모바일 하단 막대 위에 뜨는 짧은 확인 안내. */
 .sfeed-notice { position: fixed; z-index: 120; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: min(420px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 14px; background: #0f172aeb; color: #f8fafc; box-shadow: 0 8px 24px #0004; font-size: 13px; line-height: 1.45; text-align: center; pointer-events: none; }
 @media (min-width: 1024px) { .sfeed-notice { bottom: 24px; } }
 .sfeed-context-menu { position: fixed; z-index: 200; min-width: 210px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; padding: 5px; border: 1px solid var(--sfeed-border); border-radius: 13px; background: var(--sfeed-panel); color: var(--sfeed-text); box-shadow: 0 12px 38px #0003; }
@@ -26,7 +26,7 @@ body { margin: 0; min-height: 100dvh; background: var(--sfeed-background); color
 .sfeed-sort-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--sfeed-border); border-radius: 12px; background: var(--sfeed-panel); font-size: 12px; white-space: nowrap; cursor: pointer; }
 .sfeed-feed-logo { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; background: var(--sfeed-background); color: #10b981; font-size: 22px; font-weight: 750; }
 .sfeed-feed-logo img { width: 44%; height: 44%; max-width: 64px; max-height: 64px; object-fit: contain; }
-/* Settings panels: titled groups of rows, each a name on the left and its control on the right. */
+/* 설정 패널: 제목 붙은 묶음 안에 줄이 있고, 줄마다 왼쪽에 이름, 오른쪽에 조절기가 있다. */
 .sfeed-setting-group + .sfeed-setting-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--sfeed-border); }
 .sfeed-setting-group-title { margin: 0 0 8px; color: var(--sfeed-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
 .sfeed-setting-items { display: grid; gap: 12px; }
@@ -89,7 +89,7 @@ html:not(.dark) :is(.sfeed-segmented, .sfeed-setting-row > .sfeed-text-size-cont
 }
 @container (min-width: 1024px) { .sfeed-article-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @container (max-width: 480px) {
-  /* A phone-wide row keeps the feed name and the time readable. */
+  /* 휴대폰 폭의 줄에서도 피드 이름과 시각을 읽을 수 있게 한다. */
   .sfeed-magazine-author { display: none; }
 }
 @container (max-width: 639px) {
@@ -120,7 +120,7 @@ html:not(.dark) :is(.sfeed-segmented, .sfeed-setting-row > .sfeed-text-size-cont
 .sfeed-sidebar-footer { padding-bottom: calc(.75rem + env(safe-area-inset-bottom)); }
 .sfeed-header { padding-top: calc(.875rem + env(safe-area-inset-top)); }
 @media (max-width: 639px) {
-  /* The feed-add sheet fills a phone screen: keep clear of the notch and home bar. */
+  /* 피드 추가 시트는 휴대폰 화면을 채운다. 노치와 홈 막대를 피한다. */
   .sfeed-discover-header { padding-top: calc(.75rem + env(safe-area-inset-top)); }
   .sfeed-discover-body { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
 }
@@ -149,8 +149,10 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
 @media (max-width: 1023px) {
   :root { --sfeed-mobile-header-height: calc(105px + env(safe-area-inset-top)); }
   .sfeed-workspace-main { position: relative; }
-  /* Fill the actual fixed viewport. Combining inset: 0 with a separate
-     100dvh height can truncate the app above the iOS home-indicator area. */
+  /*
+   * 실제 고정 뷰포트를 채운다. inset: 0과 따로 준 100dvh 높이를 함께 쓰면
+   * iOS 홈 표시기 영역 위에서 앱이 잘릴 수 있다.
+   */
   .sfeed-workspace { position: fixed; inset: 0; height: auto; }
   .sfeed-workspace-header { position: absolute; inset: 0 0 auto; z-index: 10; }
   html { --sfeed-mobile-surface: #fff; --sfeed-mobile-raised: #f1f5f9; --sfeed-mobile-glass: #ffffffed; --sfeed-mobile-muted: #64748b; --sfeed-mobile-line: #e2e8f0; --sfeed-mobile-selected: #d1fae5; }
@@ -175,13 +177,13 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .sfeed-mobile-settings summary { list-style: none; }
   .sfeed-mobile-settings summary::-webkit-details-marker { display: none; }
   .sfeed-mobile-settings-panel { max-height: calc(100dvh - 180px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); position: absolute; right: -42px; top: 52px; z-index: 8; width: min(304px, calc(100vw - 32px)); padding: 16px; border-radius: 22px; border: 1px solid var(--sfeed-mobile-line); background: var(--sfeed-mobile-surface); box-shadow: 0 12px 40px #0003; }
-  /* The phone's panel uses the phone palette for the shared settings styles. */
+  /* 휴대폰 패널은 공용 설정 스타일에 휴대폰 색 구성을 쓴다. */
   .sfeed-mobile-settings-panel { --sfeed-border: var(--sfeed-mobile-line); --sfeed-muted: var(--sfeed-mobile-muted); --sfeed-background: var(--sfeed-mobile-raised); --sfeed-panel: var(--sfeed-mobile-surface); }
   .sfeed-mobile-settings-panel :is(.sfeed-setting-row, .sfeed-scroll-read-setting, .sfeed-auto-refresh-setting) { min-height: 38px; font-size: 14px; }
   .sfeed-mobile-settings-panel :is(.sfeed-segmented, .sfeed-setting-row > .sfeed-text-size-control) button { min-height: 34px; }
   .sfeed-mobile-settings-panel .sfeed-setting-items > button { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0; border-radius: 0; font-size: 14px; color: var(--sfeed-text); background: none; }
   .sfeed-mobile-settings-panel .sfeed-setting-items > button svg { color: #10b981; }
-  /* Closed unless open, or revealed under the list while swiping back to it. */
+  /* 열려 있지 않으면 닫혀 있다. 단, 목록으로 밀어서 돌아가는 동안에는 목록 아래에 드러난다. */
   .sfeed-mobile-library-host:not([data-open]) { display: none; }
   html[data-sfeed-swipe="library"] .sfeed-mobile-library-host { display: block; }
   .sfeed-mobile-library { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; height: auto; min-height: 0; background: var(--sfeed-background); color: var(--sfeed-text); }
@@ -214,7 +216,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .sfeed-mobile-paused { flex-shrink: 0; color: var(--sfeed-mobile-muted); }
   .sfeed-mobile-section-actions { display: flex; align-items: center; }
   .sfeed-mobile-section-title .sfeed-mobile-edit { padding: 0 10px; font-size: 14px; font-weight: 600; }
-  /* The floating banner would cover the lists; the library shows a card instead. */
+  /* 떠 있는 띠는 목록을 가리므로, 보관함은 대신 카드를 보여 준다. */
   .sfeed-install-banner { display: none; }
   .sfeed-install-card { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 12px; border: 1px solid var(--sfeed-mobile-line); border-radius: 20px; background: var(--sfeed-mobile-surface); }
   .sfeed-install-card img { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; }
@@ -251,7 +253,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .sfeed-reader-toolbar { display: none; }
   .sfeed-mobile-reader-top { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; position: relative; z-index: 4; gap: 6px; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; border-bottom: 1px solid var(--sfeed-mobile-line); background: var(--sfeed-mobile-surface); transition: margin-top .2s ease; }
   .sfeed-mobile-reader-top > * { transition: opacity .15s ease; }
-  /* Folding up leaves only the safe-area strip, so text never scrolls under the status bar. */
+  /* 접히면 안전 영역 띠만 남아서 글이 상태 표시줄 아래로 스크롤되지 않는다. */
   .sfeed-mobile-reader-top[data-scroll-hidden] { margin-top: min(0px, calc(env(safe-area-inset-top) - var(--sfeed-reader-top-height, 0px))); }
   .sfeed-mobile-reader-top[data-scroll-hidden] > * { opacity: 0; }
   .sfeed-mobile-body-modes { display: flex; padding: 3px; border-radius: 24px; background: var(--sfeed-mobile-raised); }
@@ -266,7 +268,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   :root { --sfeed-article-font: 17px; }
   .sfeed-article-content { line-height: 1.85; word-break: normal; overflow-wrap: anywhere; }
   .sfeed-mobile-menu-label { padding: 6px 12px 0; color: var(--sfeed-mobile-muted); font-size: 11px; }
-  /* Text size (or site zoom) control raised above the reader dock. */
+  /* 글자 크기(또는 사이트 배율) 조절기를 리더 하단 막대 위로 올린다. */
   .sfeed-mobile-size-popover { position: fixed; z-index: 61; left: 50%; transform: translateX(-50%); bottom: calc(88px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 4px; padding: 6px; border: 1px solid var(--sfeed-mobile-line); border-radius: 24px; background: var(--sfeed-mobile-glass); box-shadow: 0 6px 28px #0002; backdrop-filter: blur(24px) saturate(1.5); }
   .sfeed-mobile-size-popover button { min-width: 52px; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 18px; font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; }
   .sfeed-mobile-size-popover button:disabled { opacity: .3; cursor: default; }
@@ -274,7 +276,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .sfeed-mobile-reader-dock > button { flex: 1; }
   .sfeed-mobile-share-notice { position: fixed; z-index: 61; bottom: calc(92px + env(safe-area-inset-bottom)); left: 20px; right: 20px; padding: 12px; border-radius: 14px; background: var(--sfeed-mobile-raised); text-align: center; font-size: 12px; }
   .sfeed-web-view { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
-  /* A framed site keeps its size while the bars come and go; the dock floats over it. */
+  /* 막대가 나타나고 사라져도 프레임 안 사이트는 크기를 유지하고, 하단 막대는 그 위에 뜬다. */
   .sfeed-web-view[data-scroll-hidden], .sfeed-web-view[data-framed] { padding-bottom: env(safe-area-inset-bottom); }
   .sfeed-web-peek { position: absolute; z-index: 61; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--sfeed-mobile-line); border-radius: 50%; background: var(--sfeed-mobile-glass); color: var(--sfeed-text); box-shadow: 0 4px 16px #0002; backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5); cursor: pointer; }
   .sfeed-web-pager { display: flex; flex: 1; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
@@ -297,7 +299,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   }
 }
 
-/* Custom sleek scrollbars */
+/* 얇게 다듬은 스크롤 막대 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -316,8 +318,10 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   background: rgba(148, 163, 184, 0.45);
 }
 
-/* Article Reader Typography. The size is --sfeed-article-font (set at the
-   top, larger on phones) times the reader's text size setting, set inline. */
+/*
+ * 기사 리더 글꼴. 크기는 --sfeed-article-font(위에서 정하며 휴대폰에서 더 크다)에
+ * 인라인으로 넣는 리더 글자 크기 설정을 곱한 값이다.
+ */
 .sfeed-article-content {
   line-height: 1.8;
   word-break: keep-all;

@@ -37,7 +37,7 @@ export async function importOpmlFeed(
   ).bind(userId, item.xmlUrl).first<{ id: string }>();
   if (existing) return { status: 'existing', foldersCreated: 0 };
 
-  // A failed fetch is reported, never replaced with demo articles.
+  // 받기 실패는 그대로 알리고, 예시 글로 바꾸지 않는다.
   let parsed;
   try {
     parsed = await fetchAndParseFeed(item.xmlUrl);

@@ -1,6 +1,5 @@
-// A feed generator's pubDate can be the time it discovered an old article.
-// Only explicit publication metadata (never dateModified or arbitrary prose)
-// may override that date.
+// 피드 생성기의 pubDate는 오래된 글을 발견한 시각일 수 있다.
+// 명시적인 발행 메타데이터만(dateModified나 아무 본문 글은 안 된다) 그 날짜를 덮어쓸 수 있다.
 const HAS_ZONE = /(?:Z|[+-]\d{2}:?\d{2}|\b[A-Z]{2,5})\s*$/;
 
 export function parsePublicationDate(raw: unknown): string | null {
@@ -13,7 +12,7 @@ export function parsePublicationDate(raw: unknown): string | null {
     const [, year, month, day, hour = '00', minute = '00', second = '00', fraction = ''] = local;
     const calendar = new Date(Date.UTC(+year, +month - 1, +day));
     if (calendar.getUTCFullYear() !== +year || calendar.getUTCMonth() !== +month - 1 || calendar.getUTCDate() !== +day || +hour > 23 || +minute > 59 || +second > 59) return null;
-    // Existing zone-less Korean CMS feeds and Hankyung cards use KST.
+    // 시간대 없는 기존 한국 CMS 피드와 한국경제 카드는 KST를 쓴다.
     value = `${year}-${month}-${day}T${hour}:${minute}:${second}${fraction}+09:00`;
   } else if (!HAS_ZONE.test(text)) {
     if (!Number.isFinite(Date.parse(text))) return null;
@@ -40,17 +39,17 @@ export function extractOriginalPublishedAt(html: string | null | undefined, url:
   if (!html) return null;
   const parseHtmlDate = (value: unknown) => {
     if (typeof value !== 'string') return null;
-    // Feed parsing has a KST convention for Korean CMS dates. Do not apply
-    // that convention to an overseas publisher's timezone-less metadata.
-    // Keep its feed date until an explicit offset can be verified instead.
+    // 피드 읽기에는 한국 CMS 날짜를 KST로 보는 관례가 있다. 해외 언론사의 시간대 없는
+    // 메타데이터에는 이 관례를 적용하지 않는다. 명시적인 시차를 확인할 수 있을 때까지
+    // 피드 날짜를 그대로 둔다.
     if (!HAS_ZONE.test(value.trim())) {
       try { if (!/(?:\.kr|(?:^|\.)(?:hankyung|aitimes)\.com)$/i.test(new URL(url).hostname)) return null; }
       catch { return null; }
     }
     return parsePublicationDate(value);
   };
-  // Ignore comments and non-JSON scripts so examples quoted in a post are not
-  // mistaken for the page's own metadata.
+  // 주석과 JSON이 아닌 스크립트는 무시해서, 글에 인용된 예시를 페이지 자체
+  // 메타데이터로 착각하지 않게 한다.
   const source = html.replace(/<!--[\s\S]*?-->/g, '');
   const markup = source.replace(/<script\b[\s\S]*?<\/script>/gi, '');
   for (const match of markup.matchAll(/<meta\b[^>]*>/gi)) {
@@ -77,12 +76,12 @@ export function extractOriginalPublishedAt(html: string | null | undefined, url:
           const date = parseHtmlDate(obj.datePublished);
           if (date) return date;
         }
-        // Do not descend into related articles, comments or quoted objects.
+        // 관련 기사, 댓글, 인용된 객체 안으로는 들어가지 않는다.
         return visit(obj['@graph']) || visit(obj.mainEntity);
       };
       const date = visit(JSON.parse(match[2]));
       if (date) return date;
-    } catch { /* Invalid structured metadata must not block the feed. */ }
+    } catch { /* 잘못된 구조화 메타데이터가 피드를 막으면 안 된다. */ }
   }
   for (const match of markup.matchAll(/<time\b([^>]*)>([\s\S]*?)<\/time>/gi)) {
     const attrs = attributes(match[1]);
@@ -102,8 +101,8 @@ export function extractOriginalPublishedAt(html: string | null | undefined, url:
       if (date) return date;
     }
   }
-  // PolitePol carries Hankyung's reporter-card HTML. Bind the date to the
-  // preceding headline link, rather than scanning arbitrary body dates.
+  // PolitePol에는 한국경제 기자 카드 HTML이 들어 있다. 본문의 아무 날짜나 훑지 않고
+  // 바로 앞의 제목 링크에 날짜를 묶는다.
   if (/^https?:\/\/(?:www\.)?hankyung\.com\/article\//i.test(url)) {
     for (const match of markup.matchAll(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>\s*<p\b([^>]*)>([\s\S]*?)<\/p>/gi)) {
       if (!attributes(match[2]).class?.split(/\s+/).includes('txt-date')) continue;
@@ -116,16 +115,15 @@ export function extractOriginalPublishedAt(html: string | null | undefined, url:
   return null;
 }
 
-// Older Feedly downloads retained only the flattened reporter card. This
-// publisher-specific format puts the date immediately after the exact title.
+// 예전 Feedly 다운로드에는 납작해진 기자 카드만 남았다. 이 언론사 형식은
+// 정확한 제목 바로 뒤에 날짜를 둔다.
 export function extractSummaryPublishedAt(summary: string | null, title: string, url: string): string | null {
   if (!summary) return null;
   const normalize = (text: string) => text.replace(/\s+/g, ' ').trim();
   const text = normalize(summary), headline = normalize(title);
   if (/^https?:\/\/(?:www\.)?blockmedia\.co\.kr\/archives\/\d+/i.test(url)) {
-    // Old Feedly rows kept a flattened PolitePol card: category, exact
-    // headline, short author byline, publication timestamp, optional footer.
-    // Require that complete card shape; do not scan dates in article prose.
+    // 예전 Feedly 행은 납작해진 PolitePol 카드를 가졌다: 분류, 정확한 제목, 짧은 글쓴이 줄,
+    // 발행 시각, 선택적인 바닥글. 이 카드 모양이 온전할 때만 쓰고, 기사 본문의 날짜는 훑지 않는다.
     const position = text.indexOf(headline);
     if (!headline || position < 0 || position > 80) return null;
     const tail = text.slice(position + headline.length);

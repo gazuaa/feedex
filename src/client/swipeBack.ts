@@ -4,7 +4,7 @@ export function isBackSwipe(start: Point, end: Point) {
   return dx >= 64 && dx > dy * 1.8 && end.time - start.time <= 900;
 }
 
-/** A slow, deliberate drag also goes back once it covers this share of the screen. */
+/** 느리게 천천히 끌어도 화면의 이 비율만큼 움직이면 뒤로 간다. */
 const COMMIT_SHARE = 0.4;
 const PARALLAX = 0.3;
 const DURATION = 220;
@@ -13,12 +13,12 @@ const EASING = 'cubic-bezier(.2, .8, .2, 1)';
 export interface SwipeNavigation {
   canGoBack(): boolean;
   back(): void;
-  /** Where Back leads from a list: the library, or an earlier state of the list. */
+  /** 목록에서 뒤로 가는 곳: 보관함 또는 목록의 이전 상태. */
   backTarget?(): 'library' | 'other';
 }
 
-// The screen that leaves follows the finger; the one it returns to slides in
-// from a little to the left, the way iOS navigation does.
+// 떠나는 화면은 손가락을 따라가고, 돌아갈 화면은 iOS 내비게이션처럼
+// 왼쪽 조금 떨어진 곳에서 미끄러져 들어온다.
 interface SwipeScene { top: HTMLElement[]; under: HTMLElement[]; revealLibrary: boolean }
 
 function readerScene(document: Document): SwipeScene | null {
@@ -47,7 +47,7 @@ function present(document: Document, scene: SwipeScene) {
   const root = document.documentElement;
   if (scene.revealLibrary) {
     root.dataset.sfeedSwipe = 'library';
-    // The library normally covers the list; while revealed underneath, the list stays on top.
+    // 보통은 보관함이 목록을 덮는다. 아래에 드러나 있는 동안에는 목록이 위에 남는다.
     scene.top[0].style.zIndex = '41';
   }
   for (const node of [...scene.top, ...scene.under]) { node.style.willChange = 'transform'; node.style.transition = 'none'; }
@@ -70,16 +70,16 @@ function present(document: Document, scene: SwipeScene) {
 }
 
 /**
- * The open article's back slide for a drag this module cannot see: one over a framed
- * site, which only reaches the app as scrolling (see WebPager). Null without motion.
+ * 이 모듈이 볼 수 없는 끌기에 쓰는, 열린 글의 뒤로 가기 슬라이드. 프레임 안 사이트 위에서
+ * 끈 것은 앱에 스크롤로만 전달된다(WebPager 참고). 움직임이 없으면 null.
  */
 export function presentReaderSlide(document: Document) {
   const scene = readerScene(document);
   return scene ? present(document, scene) : null;
 }
 
-// Ordinary rightward swipes use the same history as native Back. Leave the
-// screen edges to iOS so one gesture cannot trigger both navigation paths.
+// 보통의 오른쪽 밀기는 브라우저의 뒤로 가기와 같은 기록을 쓴다. 화면 가장자리는
+// iOS에 맡겨서 한 동작이 두 이동 경로를 모두 일으키지 않게 한다.
 export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
   const view = document.defaultView;
   if (!view) return () => {};
@@ -90,7 +90,7 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
   let settling = false;
   const cancel = () => { start = null; last = null; claimed = false; };
   const point = (touch: Touch, time: number): Point => ({ x: touch.clientX, y: touch.clientY, time });
-  // Slide the drag back into place and drop the inline styles afterwards.
+  // 끌던 화면을 제자리로 되돌리고, 끝나면 인라인 스타일을 지운다.
   const restore = () => {
     const current = stage;
     stage = null;
@@ -98,8 +98,8 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
     current.place(0, true);
     view.setTimeout(current.clear, DURATION + 40);
   };
-  // Finish the slide, go Back, and keep the leaving screen off to the side
-  // until the history change has rendered so it never flashes back.
+  // 슬라이드를 마치고 뒤로 간 뒤, 기록 변경이 그려질 때까지 떠나는 화면을 옆에 두어
+  // 다시 번쩍 나타나지 않게 한다.
   const commit = () => {
     const current = stage;
     stage = null;
@@ -127,7 +127,7 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
     const target = event.target as HTMLElement | null;
     const container = target?.closest('.sfeed-feed-list, .sfeed-mobile-library-scroll, .sfeed-reader-content');
     if (!container || target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"], video, audio, iframe, summary, button:not(.sfeed-mobile-library-row)')) return;
-    // Preserve horizontal code blocks, tables and carousels.
+    // 가로로 넓은 코드 블록, 표, 캐러셀은 그대로 둔다.
     for (let node = target; node && node !== container; node = node.parentElement) {
       if (node.scrollWidth > node.clientWidth + 4 && /auto|scroll/.test(view.getComputedStyle(node).overflowX)) return;
     }
@@ -151,7 +151,7 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
       if (event.cancelable) {
         event.preventDefault();
         stage?.place(dx, false);
-      } else { cancel(); restore(); } // the browser already took ownership of this gesture
+      } else { cancel(); restore(); } // 브라우저가 이미 이 동작을 가져갔다
     }
     last = current;
   };
@@ -161,7 +161,7 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
     if (!initial || !touch || !event.cancelable || !navigation.canGoBack()) { restore(); return; }
     const final = point(touch, event.timeStamp);
     const dx = final.x - initial.x, dy = Math.abs(final.y - initial.y);
-    // A flick goes back from a short distance; a slow drag needs to cover the screen.
+    // 튕기듯 밀면 짧은 거리로도 뒤로 가고, 느리게 끌면 화면을 가로질러야 한다.
     const flick = isBackSwipe(initial, final) || Boolean(previous && previous !== initial && final.time > previous.time && (final.x - previous.x) / (final.time - previous.time) > 0.6 && dx >= 64);
     if (!(flick || (stage && dx >= view.innerWidth * COMMIT_SHARE && dx > dy))) { restore(); return; }
     event.preventDefault();

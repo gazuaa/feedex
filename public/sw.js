@@ -1,6 +1,6 @@
-// Like Slap, cache only public install/offline assets. Account data and the app
-// HTML always come from the network, so switching accounts cannot expose a
-// previous user's feed and a deployment cannot leave an old app shell behind.
+// Slap처럼 공개된 설치·오프라인 자원만 캐시한다. 계정 데이터와 앱 HTML은
+// 항상 네트워크에서 받으므로, 계정을 바꿔도 이전 사용자의 피드가 드러나지 않고
+// 배포 뒤에 예전 앱 껍데기가 남지 않는다.
 const CACHE = 'sfeed-public-v4';
 const OFFLINE = '/offline.html';
 const PUBLIC_ASSETS = [OFFLINE, '/offline.js', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png', '/icons/apple-touch-icon.png'];
@@ -21,8 +21,8 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// These notifications are created by the running client after local detection.
-// There is deliberately no server-push subscription or push handler.
+// 이 알림은 실행 중인 클라이언트가 기기에서 새 글을 찾은 뒤 만든다.
+// 서버 푸시 구독이나 푸시 처리기는 일부러 두지 않았다.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data;

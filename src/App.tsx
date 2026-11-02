@@ -76,7 +76,7 @@ export const App: React.FC = () => {
   const bootstrapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (bootstrapTimer.current) clearTimeout(bootstrapTimer.current); bootstrapTimer.current = null; }, [readerCache]);
 
-  // Bootstrap data
+  // 처음 불러오는 데이터
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -90,7 +90,7 @@ export const App: React.FC = () => {
   const [curatedFeeds, setCuratedFeeds] = useState<CuratedFeedItem[]>([]);
   const [loadingBootstrap, setLoadingBootstrap] = useState(true);
 
-  // Active Navigation & Filters
+  // 현재 위치와 필터
   const [activeScope, setActiveScope] = useState<ScopeType>('all');
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [activeFeedId, setActiveFeedId] = useState<string | null>(null);
@@ -103,22 +103,22 @@ export const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // User Preferences
+  // 사용자 설정
   const [layout, setLayout] = useState<LayoutMode>('magazine');
   const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [desktopLibraryTab, setDesktopLibraryTab] = useState<LibraryTab>('all');
   const [markReadOnScroll, setMarkReadOnScroll] = useState(false);
   const [autoRefreshMinutes, setAutoRefreshMinutes] = useState(DEFAULT_AUTO_REFRESH_MINUTES);
-  // Phones only: the 저장 tab inside a folder or feed list keeps that list.
+  // 휴대폰 전용: 폴더나 피드 목록 안의 저장 탭은 그 목록을 유지한다.
   const [savedOnly, setSavedOnly] = useState(false);
 
-  // Articles & Reader State
+  // 글 목록과 리더 상태
   const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [loadingArticles, setLoadingArticles] = useState(false);
   const [hasMoreArticles, setHasMoreArticles] = useState(false);
   const [loadingMoreArticles, setLoadingMoreArticles] = useState(false);
-  // Query of the list currently shown; an older page is dropped if the view changed meanwhile.
+  // 지금 보이는 목록의 조회 조건. 그사이 보기가 바뀌었으면 늦게 온 이전 페이지는 버린다.
   const articleQueryRef = useRef('');
   const displayedArticleQuery = useRef('');
   const articleRequestRef = useRef(0);
@@ -128,8 +128,8 @@ export const App: React.FC = () => {
   const [restoredArticle, setRestoredArticle] = useState<ArticleItem | null>(null);
   const [refreshingFeeds, setRefreshingFeeds] = useState(false);
   const refreshingFeedsRef = useRef(false);
-  // Syncs on launch, on returning to the app and on the refresh interval turn
-  // the refresh button, so a list that changes on its own explains itself.
+  // 앱을 켤 때, 앱으로 돌아올 때, 새로고침 주기마다 하는 동기화는 새로고침 버튼을 돌려서
+  // 목록이 저절로 바뀌는 이유를 보여 준다.
   const [backgroundSyncs, setBackgroundSyncs] = useState(0);
   const showSync = useCallback((task: Promise<unknown>) => {
     setBackgroundSyncs((count) => count + 1);
@@ -137,7 +137,7 @@ export const App: React.FC = () => {
   }, []);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
-  // Modals & Mobile Sidebar
+  // 대화상자와 모바일 사이드바
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [discoverTab, setDiscoverTab] = useState<'curated' | 'opml'>(
     'curated'
@@ -167,12 +167,12 @@ export const App: React.FC = () => {
     folderId: string | null;
     feedId: string | null;
     name: string;
-    // The list's search and 저장 filter, so only the articles it shows are marked.
+    // 목록의 검색어와 저장 필터. 목록에 보이는 글만 읽음 처리하기 위해 둔다.
     search: string;
     savedOnly: boolean;
-    // Q / W: only the articles above or below the open one; `older` is that side in time.
+    // Q / W: 열린 글 위나 아래의 글만 처리한다. `older`는 그쪽이 시간상 더 오래된 쪽인지를 뜻한다.
     edge?: { articleId: string; side: 'above' | 'below'; older: boolean };
-    // Opened from the keyboard, so Enter confirms.
+    // 키보드로 열었으므로 Enter로 확인한다.
     keyboard?: boolean;
   } | null>(null);
   const [markingAllRead, setMarkingAllRead] = useState(false);
@@ -199,7 +199,7 @@ export const App: React.FC = () => {
     return () => { articleRequestRef.current++; articleQueryRef.current = ''; };
   }, [user?.id]);
 
-  // Sync HTML root class with theme
+  // HTML 루트 클래스를 테마와 맞춘다
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
@@ -227,7 +227,7 @@ export const App: React.FC = () => {
     window.addEventListener('sfeed-cache-cleared', clear);
     return () => { clearInterval(timer); window.removeEventListener('sfeed-cache-cleared', clear); };
   }, [readerCache]);
-  // Check OAuth callback token or stored token on mount
+  // 처음 띄울 때 OAuth 콜백 토큰이나 저장된 토큰을 확인한다
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const callbackToken = params.get('session_token');
@@ -297,12 +297,12 @@ export const App: React.FC = () => {
     bootstrapTimer.current = setTimeout(() => { bootstrapTimer.current = null; void fetchBootstrap(); }, 10_000);
   }, [fetchBootstrap]);
 
-  // A background sync ends once the visible list and the lists a tap opens
-  // next are ready, so the turning refresh button means loading is done.
+  // 백그라운드 동기화는 보이는 목록과 다음에 누를 목록이 준비되면 끝난다.
+  // 그래서 새로고침 버튼이 멈추면 불러오기가 끝났다는 뜻이다.
   const syncInBackground = useCallback(() => showSync(fetchBootstrap().then(() => publishSyncedPage.current()).then(() => warmListsRef.current())), [showSync, fetchBootstrap]);
 
-  // Refresh another device's changes when returning to the app, without
-  // making every article click run the expensive full-library counts query.
+  // 앱으로 돌아올 때 다른 기기의 변경을 반영한다. 다만 글을 누를 때마다 비싼
+  // 전체 보관함 개수 조회를 돌리지는 않는다.
   useEffect(() => {
     if (!readerCache) return;
     const visible = () => { if (document.visibilityState === 'visible') void syncInBackground(); };
@@ -386,12 +386,12 @@ export const App: React.FC = () => {
         setArticles(retainReadRows ? unreadSession.merge(res.articles, articleSort) : res.articles);
         setHasMoreArticles(Boolean(res.hasMore));
       }
-    } catch { /* cached screens remain usable while offline */ }
+    } catch { /* 오프라인이어도 캐시된 화면은 그대로 쓸 수 있다 */ }
     finally { if (current()) setLoadingArticles(false); }
   }, [readerCache, readerSync, buildArticleQuery, retainReadRows, unreadSession, fetchBootstrap, articleSort]);
   publishSyncedPage.current = fetchArticles;
 
-  // The library tabs and every folder's first screen, downloaded one at a time.
+  // 보관함 탭과 모든 폴더의 첫 화면을 하나씩 차례로 받는다.
   const warmLists = useCallback((alive: () => boolean = () => true) => {
     const cache = readerCache;
     if (!cache || !readerPreloader || preloadVersion?.cache !== cache) return Promise.resolve();
@@ -472,8 +472,8 @@ export const App: React.FC = () => {
     if ((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return;
     let active = true;
     const current = () => active && document.visibilityState === 'visible';
-    // Thumbnail/state writes do not invalidate prepared bodies. The account,
-    // list/view selection and cache generation provide the cancellation scope.
+    // 썸네일·상태 쓰기는 준비된 본문을 무효로 만들지 않는다. 취소 범위는 계정,
+    // 목록·보기 선택, 캐시 세대가 정한다.
     const start = () => { if (current()) void articleResources.preload(preloadRows, current, (article) => preloadModes.get(article.feed_id) || 'feed'); };
     const timer = setTimeout(start, selectedArticleId ? 200 : 500);
     document.addEventListener('visibilitychange', start);
@@ -500,7 +500,7 @@ export const App: React.FC = () => {
       });
       setHasMoreArticles(Boolean(res.hasMore));
     } catch {
-      // ignore; the button stays available for another try
+      // 무시한다. 버튼은 다시 시도할 수 있게 남아 있다
     } finally {
       setLoadingMoreArticles(false);
     }
@@ -574,7 +574,7 @@ export const App: React.FC = () => {
     const unread = desktopLibraryTab === 'unread';
     setUnreadOnly(unread); setSavedOnly(desktopLibraryTab === 'saved' && (scope === 'folder' || scope === 'feed'));
     if (unread !== unreadOnly) void savePreferences({ unreadOnly: unread });
-    // The search stays: it narrows whichever list is chosen next until it is cleared.
+    // 검색어는 지우기 전까지 남아서, 다음에 고른 목록도 좁혀 보여 준다.
     handleSelectScope(scope === 'all' && desktopLibraryTab === 'saved' ? 'saved' : scope, folderId, feedId);
   };
 
@@ -601,7 +601,7 @@ export const App: React.FC = () => {
       articleCache.current.set(article.id, nextArticle);
       setRestoredArticle((prev) => prev?.id === article.id ? nextArticle : prev);
 
-      // Optimistic UI update
+      // 화면을 먼저 바꾼다
       setArticles((prev) => {
         const next = prev.map((a) =>
           a.id === article.id
@@ -613,7 +613,7 @@ export const App: React.FC = () => {
         return next.filter((a) => (!savedView || a.is_saved) && (savedView || !unreadOnly || !a.is_read));
       });
 
-      // Preserve the user's toggle order if several updates happen quickly.
+      // 여러 번 빠르게 바꿔도 사용자가 누른 순서를 지킨다.
       const previous = stateWrites.current.get(article.id);
       if (!previous) confirmedStates.current.set(article.id, article);
       let precedingFailed = false;
@@ -631,7 +631,7 @@ export const App: React.FC = () => {
         if (activeCache.current === cache) confirmedStates.current.set(article.id, nextArticle);
       } catch {
         if (activeCache.current !== cache || stateWrites.current.get(article.id) !== operation) return;
-        // Revert on failure
+        // 실패하면 되돌린다
         const confirmed = confirmedStates.current.get(article.id) ?? article;
         const latest = articleCache.current.get(article.id) ?? nextArticle;
         const rollback = { ...latest, is_read: confirmed.is_read, is_saved: confirmed.is_saved };
@@ -708,8 +708,8 @@ export const App: React.FC = () => {
     );
   };
 
-  // Body views are account preferences. Existing change-only sync carries them
-  // to other devices without another polling request or article download.
+  // 본문 보기는 계정 설정이다. 기존의 변경분 동기화가 따로 조회하거나 글을 받지 않고
+  // 다른 기기로 옮겨 준다.
   const saveFeedViewMode = (feedId: string, viewMode: ArticleViewMode, onlyIfUnset = false) => {
     const cache = readerCache, token = getStoredToken();
     if (!user || !cache?.active) return;
@@ -752,7 +752,7 @@ export const App: React.FC = () => {
     refreshingFeedsRef.current = true;
     unreadSessions.forEach((session) => session.clear());
     setRefreshingFeeds(true);
-    // Read rows above leave the list once it refreshes, so start again from the top.
+    // 위쪽의 읽은 행은 새로고침하면 목록에서 빠지므로 맨 위부터 다시 시작한다.
     articleListRef.current?.scrollTo({ top: 0 });
     try {
       await apiRequest('/api/feeds/refresh', {
@@ -765,7 +765,7 @@ export const App: React.FC = () => {
       await Promise.all([fetchBootstrap(), fetchArticles()]);
       await warmListsRef.current();
     } catch {
-      // ignore
+      // 무시한다
     } finally {
       refreshingFeedsRef.current = false;
       setRefreshingFeeds(false);
@@ -784,7 +784,7 @@ export const App: React.FC = () => {
     });
   };
   const handleMarkAllRead = () => askMarkRead();
-  // The keyboard handler binds once and asks with the current list and article.
+  // 키보드 처리기는 한 번만 연결하고, 지금 목록과 글로 묻는다.
   const markReadShortcut = useRef<(side?: 'above' | 'below') => void>(() => {});
   markReadShortcut.current = (side) => askMarkRead(side, true);
 
@@ -827,7 +827,7 @@ export const App: React.FC = () => {
     await fetchBootstrap();
   };
 
-  // Deleting a folder or a subscription waits for a confirmation dialog.
+  // 폴더나 구독을 지울 때는 확인 창을 기다린다.
   const [deleteTarget, setDeleteTarget] = useState<{ kind: 'folder' | 'feed'; id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -843,8 +843,7 @@ export const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [notice]);
 
-  // Stops or resumes a feed's new articles while the subscription, its
-  // articles and their read/saved states stay.
+  // 피드의 새 글을 멈추거나 다시 받는다. 구독과 그 글, 읽음·저장 상태는 그대로 둔다.
   const handleToggleFeedUpdates = async (feed: SubscriptionItem) => {
     const paused = !feed.paused_at;
     try {
@@ -859,7 +858,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // A feed's context menu moves it to another folder, or to a new one.
+  // 피드의 우클릭 메뉴로 다른 폴더나 새 폴더로 옮긴다.
   const [moveTarget, setMoveTarget] = useState<SubscriptionItem | null>(null);
   const [movingFeed, setMovingFeed] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
@@ -926,7 +925,7 @@ export const App: React.FC = () => {
     try {
       await apiRequest('/api/user/logout', { method: 'POST' });
     } catch {
-      // ignore
+      // 무시한다
     }
     setStoredToken(null);
     authenticatedToken.current = null;
@@ -972,8 +971,8 @@ export const App: React.FC = () => {
     const legacy = readFeedPreference(user.id, selectedSubscription.feed_id).view;
     if (legacy !== 'feed' && legacy !== 'reader' && legacy !== 'web') return;
     importedFeedViews.add(selectedSubscription.feed_id);
-    // Only initialize an empty shared choice; another device's explicit choice
-    // wins even when it was made after this device's cached snapshot.
+    // 비어 있는 공유 선택만 채운다. 다른 기기가 직접 고른 값은 이 기기의 캐시 스냅숏보다
+    // 나중에 골랐더라도 그쪽을 따른다.
     saveFeedViewMode(selectedSubscription.feed_id, legacy, true);
   }, [user?.id, selectedSubscription, importedFeedViews]);
 
@@ -1009,11 +1008,11 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Global Keyboard Shortcuts (↑/↓/M/S/R/A/Q/W/C/O/ESC)
+  // 전체 키보드 단축키 (↑/↓/M/S/R/A/Q/W/C/O/ESC)
   useEffect(() => {
     if (!user || markReadTarget) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      // A menu that took the arrow keys has already handled them.
+      // 방향키를 쓰는 메뉴가 이미 처리한 키는 넘긴다.
       if (e.defaultPrevented || document.querySelector('dialog[open]')) return;
       const target = e.target as HTMLElement | null;
       if (
@@ -1026,13 +1025,13 @@ export const App: React.FC = () => {
         return;
       }
 
-      // Letters stay on their keys under a Hangul layout too.
+      // 한글 자판에서도 글자 단축키는 키 자리를 따른다.
       const key = shortcutKey(e);
       if (key === 'Escape') {
         if (selectedArticleId) setSelectedArticleId(null);
         else if (discoverOpen) setDiscoverOpen(false);
       } else if (e.metaKey || e.ctrlKey || e.altKey) {
-        // Cmd/Ctrl+C, R, S, A, Q, W and the rest stay the browser's and the system's.
+        // Cmd/Ctrl+C, R, S, A, Q, W 등은 브라우저와 시스템 기능으로 남긴다.
       } else if (key === 'ArrowDown') {
         e.preventDefault();
         handleNavigateRelative('next');
@@ -1137,9 +1136,8 @@ export const App: React.FC = () => {
   const mobileTab: LibraryTab = activeScope === 'saved' || savedOnly ? 'saved' : unreadOnly ? 'unread' : 'all';
   const openMobileDiscover = (tab: 'curated' | 'opml' = 'curated') => { setDiscoverTab(tab); setDiscoverOpen(true); };
   const selectMobileTab = (tab: LibraryTab) => { setSavedOnly(false); handleSelectLibraryTab(tab); setMobileSidebarOpen(false); };
-  // The dock tabs filter what is on screen instead of opening another list:
-  // on the library they switch which count each feed shows, and inside a
-  // folder or feed they filter that list.
+  // 하단 탭은 다른 목록을 여는 대신 화면에 보이는 것을 거른다. 보관함에서는 피드마다
+  // 보여 줄 개수를 바꾸고, 폴더나 피드 안에서는 그 목록을 거른다.
   const applyMobileFilter = (tab: LibraryTab) => {
     if (activeScope === 'saved') setActiveScope('all');
     const unread = tab === 'unread';
@@ -1393,7 +1391,7 @@ export const App: React.FC = () => {
 
       {notice && <div className="sfeed-notice" role="status" aria-live="polite">{notice}</div>}
 
-      {/* Discover / Add Feed / OPML Modal */}
+      {/* 피드 찾기 / 피드 추가 / OPML 창 */}
       <DiscoverModal
         isOpen={discoverOpen}
         initialTab={discoverTab}

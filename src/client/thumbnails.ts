@@ -7,7 +7,7 @@ type ThumbnailResult = { thumbnailUrl: string | null; retryable?: boolean };
 type ThumbnailArticle = Pick<ArticleItem, 'id' | 'url' | 'thumbnail_url'>;
 const identity = (account: string, article: ThumbnailArticle) => JSON.stringify([account, article.id, article.url]);
 
-/** Resolve nearby missing images, four at a time, and retain answers on the device. */
+/** 가까운 글의 빠진 이미지를 네 개씩 찾고, 답은 기기에 남긴다. */
 export class ThumbnailLoader {
   private requests = new Map<string, Promise<string | undefined>>();
   private retryAfter = new Map<string, number>();

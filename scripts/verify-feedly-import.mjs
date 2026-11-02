@@ -182,7 +182,7 @@ test('publish an unfinished feed, resume checkpoints, and preserve existing arti
     assert.equal(db.prepare("SELECT published_at FROM articles WHERE guid='g2'").get().published_at, '2026-09-10T15:58:00.000Z', 'archived Feedly summaries must use the publisher date');
     assert.deepEqual(JSON.parse(readFileSync(statePath)), state);
     assert.equal(JSON.parse(readFileSync(progressPath)).offset, 2);
-    // Downloader replaces its checkpoint as it progresses. Writer keeps offset 2.
+    // 다운로더는 진행하면서 체크포인트를 바꾼다. 기록하는 쪽은 위치 2를 유지한다.
     state.count = 4; state.cursor = 200;
     saveJson(statePath, state);
     writeFileSync(dataPath, [entry(1), entry(2), { ...entry(3), title: null }, entry(4)].map(JSON.stringify).join('\n') + '\n');
@@ -195,7 +195,7 @@ test('publish an unfinished feed, resume checkpoints, and preserve existing arti
     assert.equal(JSON.parse(readFileSync(progressPath)).offset, 4, 'skipped entries still advance the checkpoint');
     assert.deepEqual(JSON.parse(readFileSync(statePath)), state);
     db.exec('ALTER TABLE subscriptions RENAME TO subscriptions_temporarily_unavailable');
-    run(); // Nothing new: do not query the database just to discover that again.
+    run(); // 새 글이 없으면 그걸 다시 알아내려고 데이터베이스를 조회하지 않는다.
     db.exec('ALTER TABLE subscriptions_temporarily_unavailable RENAME TO subscriptions');
     const release = acquireLock(dataDir, 'write');
     assert.throws(() => acquireLock(dataDir, 'write'), /Another Feedly write/);

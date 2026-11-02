@@ -51,7 +51,7 @@ try {
   await Promise.resolve();
   assert.equal(refreshes, 1, 'short/up/diagonal drags, scrolled lists, reader, controls, dialogs, pinch and cancelled gestures do not refresh');
 
-  // iOS may report a negative scrollTop during its edge bounce.
+  // iOS는 가장자리에서 튕길 때 scrollTop을 음수로 알릴 수 있다.
   root.scrollTop = -3; swipe(104, 350); await Promise.resolve();
   assert.equal(refreshes, 2); finish(); await new Promise(setImmediate);
   cleanup(); swipe(104, 350); await Promise.resolve();

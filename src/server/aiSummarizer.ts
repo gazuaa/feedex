@@ -37,7 +37,7 @@ function buildExtractiveSummary(title: string, plainText: string, feedTitle: str
     }
   }
 
-  // Extract keywords
+  // 키워드를 뽑는다
   const words = `${title} ${plainText}`
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .split(/\s+/)
@@ -116,7 +116,7 @@ export async function summarizeArticleWithAI(
           };
         }
       } catch {
-        // Try next fallback model or local extractive fallback
+        // 다음 대체 모델을 쓰거나, 기기 쪽 추출식 요약으로 대신한다
       }
     }
   }

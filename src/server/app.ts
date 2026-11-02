@@ -51,14 +51,13 @@ const DEFAULT_PREFS: UserPreferences = {
   autoRefreshMinutes: DEFAULT_AUTO_REFRESH_MINUTES,
 };
 
-// Like Feedly, articles older than this count as read unless marked otherwise.
-// Bounding unread queries to recent articles also keeps them fast when feeds
-// carry years of imported history.
+// Feedly처럼, 이보다 오래된 글은 따로 표시하지 않는 한 읽은 글로 센다.
+// 안 읽은 글 조회를 최근 글로 한정하면 피드에 몇 년 치 가져온 기록이 있어도 빠르다.
 const UNREAD_WINDOW_DAYS = 30;
 const unreadCutoff = () =>
   new Date(Date.now() - UNREAD_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-// Fail closed: quick login is on only when explicitly enabled (vite dev server or .dev.vars)
+// 닫힌 쪽으로 실패한다: 빠른 로그인은 명시적으로 켰을 때만 동작한다 (vite 개발 서버나 .dev.vars)
 function isQuickLoginEnabled(env: Env): boolean {
   return env.ALLOW_QUICK_LOGIN === 'true';
 }
@@ -162,7 +161,7 @@ async function findOrCreateGoogleUser(
   return created!;
 }
 
-// Public Auth Config Endpoint
+// 공개 인증 설정 엔드포인트
 app.get('/api/auth/config', (c) => {
   const clientId =
     c.env.GOOGLE_CLIENT_ID && !c.env.GOOGLE_CLIENT_ID.includes('your-google-oauth-client-id')
@@ -176,7 +175,7 @@ app.get('/api/auth/config', (c) => {
   });
 });
 
-// Google Identity Services ID Token (credential) RS256 verification endpoint (MUUSED style)
+// Google Identity Services ID 토큰(credential) RS256 검증 엔드포인트 (MUUSED 방식)
 app.post('/api/auth/google/credential', async (c) => {
   const body = await c.req.json<{ credential?: string }>();
   if (!body.credential) {
@@ -208,7 +207,7 @@ app.post('/api/auth/google/credential', async (c) => {
   });
 });
 
-// Quick Google Account Sign-In (local development only — no identity verification)
+// 빠른 Google 계정 로그인 (로컬 개발 전용 — 신원 확인 없음)
 app.post('/api/auth/google/quick', async (c) => {
   if (!isQuickLoginEnabled(c.env)) {
     return c.json({ error: '빠른 로그인은 로컬 개발 환경에서만 사용할 수 있습니다.' }, 403);
@@ -246,7 +245,7 @@ app.post('/api/auth/google/quick', async (c) => {
   });
 });
 
-// Auth Middleware for protected /api/* routes
+// 보호된 /api/* 경로의 인증 미들웨어
 app.use('/api/*', async (c, next) => {
   const path = c.req.path;
   if (path.startsWith('/api/auth/')) {
@@ -275,8 +274,8 @@ app.use('/api/*', async (c, next) => {
     return c.json({ error: '세션이 만료되었거나 유효하지 않습니다.' }, 401);
   }
 
-  // Extend active sessions at most once per six months. Existing 30-day
-  // sessions upgrade on their next authenticated request; revoked ones stay revoked.
+  // 활성 세션은 최대 6개월에 한 번만 연장한다. 기존 30일 세션은 다음 인증 요청 때
+  // 올라가고, 취소된 세션은 취소된 채로 남는다.
   if (Date.parse(sessionRow.session_expires_at) < Date.now() + 180 * 86400_000) {
     await c.env.DB.prepare('UPDATE sessions SET expires_at=? WHERE token=? AND expires_at=?')
       .bind(new Date(Date.now() + 365 * 86400_000).toISOString(), token, sessionRow.session_expires_at).run();
@@ -331,7 +330,7 @@ app.post('/api/user/logout', async (c) => {
   return c.json({ success: true });
 });
 
-// Bootstrap includes both totals and unread counts so filters can switch instantly.
+// 처음 받는 데이터에 전체 개수와 안 읽은 개수를 함께 넣어 필터를 바로 바꿀 수 있게 한다.
 app.get('/api/bootstrap', async (c) => {
   const user = c.get('user');
   const syncCursor = await initialSyncCursor(c.env.DB, user.id);
@@ -437,7 +436,7 @@ function feedPreviewResponse(parsed: ParsedFeed) {
   };
 }
 
-// Both previews are read-only: never create folders, feeds, articles or subscriptions.
+// 두 미리 보기는 읽기 전용이다. 폴더·피드·글·구독을 절대 만들지 않는다.
 app.post('/api/discover/preview', async (c) => {
   const body = await c.req.json<{ url?: unknown }>().catch(() => null);
   const url = typeof body?.url === 'string' ? normalizeFeedUrl(body.url) : null;
@@ -506,7 +505,7 @@ app.get('/api/discover/feeds/:id/preview', async (c) => {
   }
 });
 
-// Folder CRUD
+// 폴더 만들기·읽기·고치기·지우기
 app.post('/api/folders', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{ name?: string; color?: string }>();
@@ -579,7 +578,7 @@ app.delete('/api/folders/:id', async (c) => {
   return c.json({ success: true });
 });
 
-// Subscribe to a Feed URL
+// 피드 주소 구독
 app.post('/api/subscriptions', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{
@@ -671,7 +670,7 @@ app.post('/api/subscriptions', async (c) => {
   });
 });
 
-// Update subscription (move folder or rename)
+// 구독 고치기 (폴더 옮기기 또는 이름 바꾸기)
 app.put('/api/subscriptions/:id', async (c) => {
   const user = c.get('user');
   const subId = c.req.param('id');
@@ -679,7 +678,7 @@ app.put('/api/subscriptions/:id', async (c) => {
     folderId?: string | null;
     customTitle?: string | null;
   }>();
-  // A subscription may only go into one of the user's own folders.
+  // 구독은 사용자 본인의 폴더로만 옮길 수 있다.
   if (body.folderId && !(await c.env.DB.prepare('SELECT 1 FROM folders WHERE id = ? AND user_id = ?').bind(body.folderId, user.id).first())) {
     return c.json({ error: '폴더를 찾을 수 없습니다.' }, 404);
   }
@@ -696,7 +695,7 @@ app.put('/api/subscriptions/:id', async (c) => {
   return c.json({ success: true });
 });
 
-// Unsubscribe
+// 구독 끊기
 app.delete('/api/subscriptions/:id', async (c) => {
   const user = c.get('user');
   const subId = c.req.param('id');
@@ -708,9 +707,8 @@ app.delete('/api/subscriptions/:id', async (c) => {
   return c.json({ success: true });
 });
 
-// Stop or resume a feed's new articles without unsubscribing. Articles that
-// arrive while paused stay hidden; resuming marks them read, so they appear
-// in their place instead of returning as a sudden unread backlog.
+// 구독을 끊지 않고 피드의 새 글을 멈추거나 다시 받는다. 멈춘 동안 온 글은 숨겨 두고,
+// 다시 받을 때 읽음으로 표시해서 갑자기 쌓인 안 읽은 글로 돌아오지 않고 제자리에 보이게 한다.
 app.post('/api/subscriptions/:id/updates', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{ paused?: unknown }>().catch(() => ({ paused: undefined }));
@@ -725,7 +723,7 @@ app.post('/api/subscriptions/:id/updates', async (c) => {
   const statements = body.paused
     ? [c.env.DB.prepare('UPDATE subscriptions SET paused_at = ? WHERE id = ?').bind(now, sub.id)]
     : [
-        // Older articles already count as read, so only the unread window needs marking.
+        // 오래된 글은 이미 읽은 글로 세므로, 안 읽은 기간의 글만 표시하면 된다.
         c.env.DB.prepare(`INSERT INTO article_states (user_id, article_id, is_read, read_at)
           SELECT ?, a.id, 1, ? FROM articles a
           WHERE a.feed_id = ? AND a.created_at > ? AND a.published_at >= ?
@@ -733,8 +731,8 @@ app.post('/api/subscriptions/:id/updates', async (c) => {
           .bind(user.id, now, sub.feed_id, sub.paused_at, unreadCutoff()),
         c.env.DB.prepare('UPDATE subscriptions SET paused_at = NULL WHERE id = ?').bind(sub.id),
       ];
-  // The subscription trigger only records folder and title changes, so other
-  // devices learn of the pause from an explicit change entry.
+  // 구독 트리거는 폴더와 제목 변경만 기록하므로, 다른 기기는 명시적인 변경 항목으로
+  // 멈춤을 알게 된다.
   statements.push(
     c.env.DB.prepare("DELETE FROM reader_sync_changes WHERE kind = 'subscription' AND owner_id = ? AND entity_id = ?").bind(user.id, sub.id),
     c.env.DB.prepare("INSERT INTO reader_sync_changes(kind, owner_id, entity_id, feed_id, operation) VALUES('subscription', ?, ?, ?, 'upsert')").bind(user.id, sub.id, sub.feed_id),
@@ -743,7 +741,7 @@ app.post('/api/subscriptions/:id/updates', async (c) => {
   return c.json({ pausedAt: body.paused ? now : null });
 });
 
-// Refresh feeds
+// 피드 새로고침
 app.post('/api/feeds/refresh', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{ feedId?: string }>().catch(() => ({ feedId: undefined }));
@@ -786,34 +784,34 @@ app.post('/api/sync', async (c) => {
   return c.json(await readerDelta(c.env.DB, c.get('user').id, body?.cursor));
 });
 
-// The list's search; marking all read uses the same match so only the results are marked.
+// 목록의 검색 조건. 모두 읽음도 같은 조건을 써서 검색 결과만 읽음 처리한다.
 const SEARCH_MATCH = '(a.title LIKE ? OR a.summary LIKE ? OR a.author LIKE ? OR f.title LIKE ?)';
 const searchParams = (search: string) => Array<string>(4).fill(`%${search}%`);
 
-// Fetch articles with filtering, search, layout support
+// 필터·검색·배치를 지원하며 글을 가져온다
 app.get('/api/articles', async (c) => {
   const user = c.get('user');
   const { sequence: syncSequence } = await syncHead(c.env.DB);
-  // History restoration must also find a read article outside the current
-  // filtered/paginated list. The subscription join still enforces ownership.
+  // 기록을 되살릴 때는 지금 걸러진·페이지로 나뉜 목록 밖의 읽은 글도 찾아야 한다.
+  // 구독 조인은 여전히 소유권을 확인한다.
   const articleId = c.req.query('articleId');
   const oldest = c.req.query('sort') === 'oldest';
   const scope = c.req.query('scope') || 'all'; // 'all' | 'today' | 'saved' | 'folder' | 'feed'
   const folderId = c.req.query('folderId') || '';
   const feedId = c.req.query('feedId') || '';
   const unreadOnly = c.req.query('unreadOnly') === 'true';
-  // Saved articles within a folder or feed (the phone's 저장 tab on a list).
+  // 폴더나 피드 안의 저장한 글 (휴대폰 목록의 저장 탭).
   const savedOnly = c.req.query('savedOnly') === 'true';
   const search = (c.req.query('search') || '').trim();
   const limit = Math.min(Number(c.req.query('limit') || 80), 200);
-  // Keyset cursor: the last article of the previous page (published_at, id).
+  // 키셋 커서: 이전 페이지의 마지막 글 (published_at, id).
   const before = c.req.query('before') || '';
   const beforeId = c.req.query('beforeId') || '';
   const cutoff = unreadCutoff();
 
-  // A paused feed keeps the articles stored before the pause and shows no newer ones.
+  // 멈춘 피드는 멈추기 전에 저장된 글은 보여 주고, 그 뒤의 글은 보여 주지 않는다.
   const conditions: string[] = ['s.user_id = ?', shownToSubscriber(await pauseSupported(c.env.DB))];
-  // The first placeholder sits in the SELECT list: the default read state by age.
+  // 첫 자리표시자는 SELECT 목록에 있다: 나이에 따른 기본 읽음 상태.
   const params: unknown[] = [cutoff, user.id];
 
   if (articleId) {
@@ -851,7 +849,7 @@ app.get('/api/articles', async (c) => {
     params.push(before, before, beforeId);
   }
 
-  // One extra row tells the client whether an older page exists.
+  // 한 행을 더 받아서, 더 오래된 페이지가 있는지 클라이언트에 알린다.
   params.push(limit + 1);
 
   const sql = `
@@ -909,7 +907,7 @@ app.get('/api/articles', async (c) => {
     content_html: (row.content_html as string) || null,
     full_content_html: realFullContent(row.full_content_html as string | null),
     ai_summary: (row.ai_summary as string) || null,
-    // Keep '' (looked up, no image) apart from null (not looked up yet).
+    // ''(찾아봤지만 이미지 없음)와 null(아직 찾아보지 않음)을 구분한다.
     thumbnail_url: row.thumbnail_url == null ? null : String(row.thumbnail_url),
     published_at: String(row.published_at),
     date_source: String(row.date_source),
@@ -920,7 +918,7 @@ app.get('/api/articles', async (c) => {
   return c.json({ articles, hasMore, syncSequence });
 });
 
-// Scroll reading updates only visible, passed articles and preserves bookmarks.
+// 스크롤 읽음은 보이고 지나간 글만 바꾸고 북마크는 지킨다.
 app.post('/api/articles/mark-read', async (c) => {
   const body = await c.req.json<{ articleIds?: unknown }>();
   if (!Array.isArray(body.articleIds) || body.articleIds.length > 50 || !body.articleIds.length || body.articleIds.some((id) => typeof id !== 'string' || !id || id.length > 200)) {
@@ -937,7 +935,7 @@ app.post('/api/articles/mark-read', async (c) => {
   return c.json({ success: true });
 });
 
-// Toggle read / saved state on an article
+// 글의 읽음 / 저장 상태 전환
 app.post('/api/articles/:id/state', async (c) => {
   const user = c.get('user');
   const articleId = c.req.param('id');
@@ -993,9 +991,9 @@ app.post('/api/articles/:id/state', async (c) => {
   });
 });
 
-// Mark all matching articles as read. `search` and `savedOnly` narrow it to the
-// list on screen, as they narrow /api/articles; `olderThan` / `newerThan` (an
-// article id) keep to one side of that article in the list's order.
+// 조건에 맞는 글을 모두 읽음 처리한다. `search`와 `savedOnly`는 /api/articles에서처럼
+// 화면의 목록으로 범위를 좁힌다. `olderThan` / `newerThan`(글 id)은 목록 순서에서
+// 그 글의 한쪽만 처리한다.
 app.post('/api/articles/mark-all-read', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{
@@ -1042,8 +1040,8 @@ app.post('/api/articles/mark-all-read', async (c) => {
     params.push(anchor.published_at, anchor.published_at, edge);
   }
 
-  // Older articles already count as read, so only the unread window needs
-  // marking — in one statement, as a per-article loop exceeds D1's query budget.
+  // 오래된 글은 이미 읽은 글로 세므로 안 읽은 기간의 글만 표시하면 된다. 글마다 돌면
+  // D1 쿼리 한도를 넘으므로 한 문장으로 처리한다.
   conditions.push('a.published_at >= ?');
   params.push(unreadCutoff());
   const res = await c.env.DB.prepare(
@@ -1062,16 +1060,16 @@ app.post('/api/articles/mark-all-read', async (c) => {
   return c.json({ markedCount: Number(res.meta?.changes ?? 0) });
 });
 
-// Runs for any subscribed publisher when its article is opened, independently
-// of Reader View. Repeated opens use the saved result rather than refetching.
+// 구독한 모든 언론사에 대해 글을 열 때 리더 보기와 관계없이 실행한다.
+// 여러 번 열면 다시 받지 않고 저장한 결과를 쓴다.
 app.post('/api/articles/:id/publication-date', async (c) => {
   const article = await c.env.DB.prepare(`SELECT a.id,a.url,a.title,a.summary,a.content_html,a.full_content_html,a.published_at,d.source AS date_source,d.checked_at FROM articles a LEFT JOIN article_date_checks d ON d.article_id=a.id WHERE a.id=? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=a.feed_id AND s.user_id=?)`).bind(c.req.param('id'), c.get('user').id).first<PublicationArticle>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
   return c.json(await resolveArticlePublication(c.env.DB, article));
 });
 
-// Reader View: Scrape full article body from original URL
-// Remember the body view (feed content / reader / web page) per feed.
+// 리더 보기: 원문 주소에서 전체 기사 본문을 긁어 온다
+// 피드마다 본문 보기(피드 본문 / 리더 / 웹 페이지)를 기억한다.
 app.put('/api/feeds/:feedId/view-mode', async (c) => {
   const user = c.get('user');
   const feedId = c.req.param('feedId');
@@ -1097,9 +1095,9 @@ app.put('/api/feeds/:feedId/view-mode', async (c) => {
   return c.json({ viewMode: saved?.view_mode ?? viewMode });
 });
 
-// Thumbnail for an article whose feed shipped none: look up the page's
-// og:image for nearby list rows. Device caching prevents repeated page fetches;
-// old empty answers may be retried and temporary failures are never definitive.
+// 피드에 이미지가 없는 글의 썸네일: 목록에서 가까운 행을 위해 페이지의 og:image를 찾는다.
+// 기기 캐시가 같은 페이지를 거듭 받지 않게 하고, 예전의 빈 답은 다시 시도할 수 있으며
+// 일시적인 실패는 확정 답으로 치지 않는다.
 app.post('/api/articles/:id/thumbnail', async (c) => {
   const article = await c.env.DB.prepare('SELECT id, url, thumbnail_url FROM articles a WHERE id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)')
     .bind(c.req.param('id'), c.get('user').id)
@@ -1116,7 +1114,7 @@ app.post('/api/articles/:id/thumbnail', async (c) => {
   return c.json({ thumbnailUrl: found ?? null, retryable: found === undefined });
 });
 
-// Web view: may the original page be framed inside the reader pane?
+// 웹 보기: 원문 페이지를 리더 영역 안 프레임에 넣어도 되는가?
 app.get('/api/articles/:id/embeddable', async (c) => {
   const article = await c.env.DB.prepare('SELECT url FROM articles WHERE id = ?')
     .bind(c.req.param('id'))
@@ -1125,8 +1123,8 @@ app.get('/api/articles/:id/embeddable', async (c) => {
   return c.json(await checkEmbeddable(article.url, new URL(c.req.url).origin));
 });
 
-// Web view for sites that refuse to be framed: a script-free copy of the page.
-// ?layout=phone asks for one laid out at phone width when the served page only fits a desktop.
+// 프레임을 거부하는 사이트의 웹 보기: 스크립트 없는 페이지 사본.
+// ?layout=phone은 받은 페이지가 데스크톱에만 맞을 때 휴대폰 폭으로 배치한 사본을 요청한다.
 app.get('/api/articles/:id/web-copy', async (c) => {
   const article = await c.env.DB.prepare(
     'SELECT a.url FROM articles a WHERE a.id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)'
@@ -1186,8 +1184,8 @@ app.post('/api/articles/:id/reader-view', async (c) => {
   );
 
   if (!scraped.fullContentHtml) {
-    // Keep a real body from an earlier extraction; drop only a made-up one
-    // cached by older versions so it stops showing.
+    // 예전에 뽑은 실제 본문은 지킨다. 이전 버전이 캐시한 지어낸 본문만 지워서
+    // 더는 보이지 않게 한다.
     await c.env.DB.prepare(
       `UPDATE articles
        SET full_content_html = CASE WHEN instr(full_content_html, ?) > 0 THEN NULL ELSE full_content_html END,
@@ -1217,7 +1215,7 @@ app.post('/api/articles/:id/reader-view', async (c) => {
   });
 });
 
-// Cloudflare Workers AI Summary endpoint
+// Cloudflare Workers AI 요약 엔드포인트
 app.post('/api/articles/:id/summarize', async (c) => {
   const articleId = c.req.param('id');
   const body = await c.req
@@ -1274,7 +1272,7 @@ app.post('/api/articles/:id/summarize', async (c) => {
   });
 });
 
-// Parse the entire OPML before writing anything; the client imports every item individually.
+// 무엇이든 쓰기 전에 OPML 전체를 읽는다. 클라이언트는 항목을 하나씩 가져온다.
 app.post('/api/opml/parse', async (c) => {
   const body = await c.req.json<{ opmlXml?: string }>();
   if (typeof body.opmlXml !== 'string' || !body.opmlXml.trim()) {
@@ -1303,7 +1301,7 @@ app.get('/api/opml/failures', async (c) => {
   return c.json({ failures: await listOpmlFailures(c.env.DB, c.get('user').id) });
 });
 
-// Diagnose a migrated URL in the same Worker environment without subscribing.
+// 구독하지 않고, 같은 Worker 환경에서 옮겨 간 주소를 진단한다.
 app.post('/api/opml/check', async (c) => {
   const body = await c.req.json<{ url?: string }>();
   let url: URL;
@@ -1322,8 +1320,8 @@ app.post('/api/opml/check', async (c) => {
   }
 });
 
-// The client can also record a network/interrupted-response failure, without
-// exposing its private feed URL to any service other than the user's own account.
+// 클라이언트도 네트워크·응답 중단 실패를 기록할 수 있다. 비공개 피드 주소는
+// 사용자 본인 계정 말고 다른 어떤 서비스에도 드러내지 않는다.
 app.post('/api/opml/failures', async (c) => {
   const body = await c.req.json<{ item?: OpmlFeed; error?: string }>();
   if (!validOpmlItem(body.item) || typeof body.error !== 'string' || !body.error.trim()) {
@@ -1333,7 +1331,7 @@ app.post('/api/opml/failures', async (c) => {
   return c.json({ saved: true });
 });
 
-// One feed per request avoids a large file exhausting Worker time or query budgets.
+// 요청마다 피드 하나만 처리해서, 큰 파일이 Worker 시간이나 쿼리 한도를 다 쓰지 않게 한다.
 app.post('/api/opml/import', async (c) => {
   const body = await c.req.json<{ item?: OpmlFeed; previousUrl?: string }>();
   const item = body.item;
@@ -1363,7 +1361,7 @@ app.post('/api/opml/import', async (c) => {
     console.warn('OPML import failed', {
       stage: sourceError ? 'fetch' : 'database',
       sourceHost: new URL(xmlUrl).hostname,
-      // Never log feed URL paths/queries, which may contain private feed tokens.
+      // 피드 주소의 경로·쿼리는 절대 기록하지 않는다. 비공개 피드 토큰이 들어 있을 수 있다.
       reason: detail.replace(/https?:\/\/[^\s]+/gi, '[feed URL]').slice(0, 300),
     });
     const message = sourceError
@@ -1388,7 +1386,7 @@ app.post('/api/opml/import', async (c) => {
   }
 });
 
-// OPML Export
+// OPML 내보내기
 app.get('/api/opml/export', async (c) => {
   const user = c.get('user');
 

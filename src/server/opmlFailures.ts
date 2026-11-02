@@ -1,8 +1,8 @@
 import type { OpmlFeed, OpmlImportFailure } from '../shared/opml';
 import type { D1DatabaseLike } from './types';
 
-// Verified publisher feeds. Suggestions require the user's choice; never silently
-// replace a subscription with a newsletter or publication of a different scope.
+// 확인된 언론사 피드. 제안은 사용자가 골라야 적용한다. 구독을 범위가 다른 뉴스레터나
+// 간행물로 몰래 바꾸지 않는다.
 const REPLACEMENTS: Record<string, string> = {
   'http://vitalik.ca/feed.xml': 'https://vitalik.eth.limo/feed.xml',
   'https://vitalik.ca/feed.xml': 'https://vitalik.eth.limo/feed.xml',

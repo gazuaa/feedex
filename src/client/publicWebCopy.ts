@@ -21,7 +21,7 @@ export function sanitizePublicWebCopy(html: string, url: string): string {
     if (/^on/i.test(name) || /^srcdoc$/i.test(name) || (/^(?:href|src|action|formaction|xlink:href)$/i.test(name) && /^\s*(?:javascript|vbscript|data:text\/html)/i.test(value))) element.removeAttribute(name);
   }
   revealLazyImages(document, url);
-  // Removed ad scripts/frames leave tall, empty billboard reservations.
+  // 광고 스크립트·프레임을 지우면 높고 빈 광고판 자리가 남는다.
   for (const slot of document.querySelectorAll('.ad-container, [id^="google_ads_"]')) {
     if (slot.textContent?.trim() || slot.querySelector('img[src],picture,video,audio,svg')) continue;
     let parent = slot.parentElement; slot.remove();

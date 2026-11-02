@@ -38,7 +38,7 @@ function sfeedApiPlugin(): Plugin {
           devVars.AI_MODEL ||
           process.env.AI_MODEL ||
           '@cf/meta/llama-3.1-8b-instruct',
-        // configureServer only runs for the local dev server, so quick login is on by default here
+        // configureServer는 로컬 개발 서버에서만 돌므로, 여기서는 빠른 로그인이 기본으로 켜진다
         ALLOW_QUICK_LOGIN: devVars.ALLOW_QUICK_LOGIN || 'true',
       };
 

@@ -1,7 +1,7 @@
 import type { ArticleItem } from './api';
 
-// Unread lists stay stable while reading, including during revalidation.
-// This session is memory-only; the regular device cache still excludes read rows.
+// 안 읽은 목록은 읽는 동안, 다시 확인하는 중에도 흔들리지 않는다.
+// 이 세션은 메모리에만 있고, 기기의 일반 캐시는 여전히 읽은 행을 뺀다.
 export class UnreadSession {
   private articles = new Map<string, ArticleItem>();
   merge(incoming: ArticleItem[], sort: 'newest' | 'oldest' = 'newest') {

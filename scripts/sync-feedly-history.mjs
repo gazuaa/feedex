@@ -1,5 +1,5 @@
-// Supervise a resumable download and publish snapshots every ten minutes,
-// including while Feedly has paused the downloader for a quota reset.
+// 이어받기가 되는 다운로드를 지켜보며 10분마다 스냅숏을 반영한다.
+// Feedly가 할당량 초기화를 기다리느라 다운로더를 멈춘 동안에도 마찬가지다.
 import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

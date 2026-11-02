@@ -8,7 +8,7 @@ export interface MobileLocation {
   feedId: string | null;
   search: string;
   unread: boolean;
-  /** 저장 tab inside a folder or feed list; missing in older history entries. */
+  /** 폴더나 피드 목록 안의 저장 탭. 예전 기록 항목에는 없다. */
   saved?: boolean;
   articleId: string | null;
   library: boolean;
@@ -29,8 +29,8 @@ const equal = (a: MobileLocation, b: MobileLocation) => JSON.stringify(normal(a)
 const sameList = (a: MobileLocation, b: MobileLocation) => a.scope === b.scope && a.folderId === b.folderId && a.feedId === b.feedId && a.unread === b.unread && Boolean(a.saved) === Boolean(b.saved) && a.search === b.search;
 const root = (location: MobileLocation): MobileLocation => ({ ...location, articleId: null, library: true });
 
-// Keep only navigation identifiers in history, never article bodies or tokens.
-// Using the native stack lets iOS edge swipes and browser Back/Forward agree.
+// 기록에는 이동 식별자만 둔다. 글 본문이나 토큰은 절대 넣지 않는다.
+// 브라우저의 기록 스택을 그대로 써서 iOS 가장자리 밀기와 브라우저 뒤로/앞으로가 같게 동작한다.
 export class MobileNavigation {
   private current: Entry;
   private restoring: MobileLocation | null = null;
@@ -54,30 +54,30 @@ export class MobileNavigation {
   }
   private apply(entry: Entry) {
     this.current = entry;
-    // A close button can update React before the asynchronous popstate arrives.
-    // In that case React may skip rendering identical state, so no render is
-    // needed to acknowledge restoration.
+    // 비동기 popstate가 오기 전에 닫기 버튼이 React 상태를 먼저 바꿀 수 있다.
+    // 그때 React는 같은 상태를 다시 그리지 않을 수 있으므로, 복원을 확인하려고
+    // 다시 그릴 필요는 없다.
     this.restoring = equal(entry.location, this.observed) ? null : entry.location;
     this.restore(entry.location, entry.scroll);
   }
   pop(state: unknown) {
     let entry = this.read(state);
-    // The library lists no articles, so the search typed in a list goes back
-    // through it to whichever list is chosen next.
+    // 보관함에는 글 목록이 없으므로, 목록에서 입력한 검색어는 보관함을 거쳐
+    // 다음에 고르는 목록으로 이어진다.
     if (entry?.location.library && entry.location.search !== this.observed.search) {
       entry = { ...entry, location: { ...entry.location, search: this.observed.search } };
       this.write(entry, false);
     }
     if (entry) this.apply(entry);
     else {
-      // Entries from a previous login must never reopen that account's article.
+      // 이전 로그인의 기록 항목으로 그 계정의 글을 다시 열면 안 된다.
       const safe = { ...this.current, index: 0, location: root(this.current.location), list: null, library: null, scroll: 0 };
       this.write(safe, false);
       this.apply(safe);
     }
   }
   canGoBack() { return this.current.index > 0 && !this.restoring; }
-  /** From a list, whether Back returns to the library or to an earlier state of the list. */
+  /** 목록에서 뒤로 가면 보관함으로 가는지, 목록의 이전 상태로 가는지. */
   backTarget(): 'library' | 'other' { return this.current.library !== null && this.current.library === this.current.index - 1 ? 'library' : 'other'; }
   back() { if (this.canGoBack()) this.history.go(-1); }
   record(location: MobileLocation, scroll = 0) {
@@ -88,8 +88,8 @@ export class MobileNavigation {
     }
     const previous = this.current;
     if (equal(previous.location, location)) return;
-    // Capture the list's position before opening a reader. The list stays
-    // mounted, and this also restores it after a reload or a scope change.
+    // 리더를 열기 전에 목록 위치를 기록한다. 목록은 마운트된 채로 남고,
+    // 다시 불러오거나 범위를 바꾼 뒤에도 이 값으로 위치를 되살린다.
     if (!previous.location.articleId && !previous.location.library) this.write({ ...previous, scroll }, false);
     if (previous.location.articleId && !location.articleId && !location.library && sameList(previous.location, location) && previous.list !== null) {
       this.restoring = location;
@@ -101,7 +101,7 @@ export class MobileNavigation {
       this.history.go(previous.library - previous.index);
       return;
     }
-    // Editing a search field should not create one Back step per character.
+    // 검색창을 고칠 때 글자마다 뒤로 가기 단계가 생기면 안 된다.
     const typing = previous.location.search !== location.search && equal({ ...previous.location, search: location.search }, location);
     const index = previous.index + (typing ? 0 : 1);
     this.write({ version: 1, account: this.account, index, location,

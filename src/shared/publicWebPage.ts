@@ -1,5 +1,5 @@
-// Only public article pages of publishers that turn server requests away can
-// use the device renderer. Never forward account URLs, tokens or cookies.
+// 서버 요청을 막는 언론사의 공개 기사 페이지만 기기 렌더러를 쓸 수 있다.
+// 계정 주소, 토큰, 쿠키는 절대 넘기지 않는다.
 const DEVICE_SITES = [
   // /markets/2026/10/26/slug, /news-analysis/2026/11/01/slug 등 분류 하나 뒤에 날짜가 붙은 기사 주소.
   { host: 'www.coindesk.com', hosts: ['www.coindesk.com', 'coindesk.com'], path: /^\/[a-z0-9][a-z0-9-]*\/\d{4}\/\d{2}\/\d{2}\/[a-z0-9][a-z0-9-]*\/?$/i },
@@ -75,7 +75,7 @@ export async function fetchPublicWebPage(value: string, options: PublicPageOptio
   return { html, url };
 }
 
-/** The content route may prepare a readable snapshot when raw HTML holds a checkpoint. */
+/** 원본 HTML이 보안 확인 화면일 때, 본문 경로로 요청하면 읽을 수 있는 스냅숏이 준비될 수 있다. */
 export async function preparePublicWebPage(value: string, options: PublicPageOptions = {}): Promise<boolean> {
   const response = await fetchPublicResponse(value, options, 'content'); if (!response) return false;
   const { data } = renderedResponse(response.body, response.url);

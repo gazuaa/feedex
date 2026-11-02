@@ -12,7 +12,7 @@ export function readTextSize(): number {
 export function setTextSize(value: number) {
   if (!FONT_SCALES.includes(value)) return;
   current = value;
-  try { localStorage.setItem(key, String(value)); } catch { /* keep the size for this session */ }
+  try { localStorage.setItem(key, String(value)); } catch { /* 이번 세션 동안은 크기를 유지한다 */ }
   listeners.forEach((listener) => listener());
 }
 const subscribe = (listener: () => void) => {

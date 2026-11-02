@@ -22,16 +22,16 @@ try {
   assert.equal(extractReaderContent('<title>Sign in</title><main>' + body + '</main>', url, null), null);
   assert.equal(extractReaderContent('<title>Premium</title><script type="application/ld+json">{"isAccessibleForFree":false}</script><article>' + body + '</article>', url, null), null);
   assert.equal(extractReaderContent('<html><body><div id="app"></div></body></html>', url, null), null);
-  // The reader shows the title, source and date itself, so the page's own header goes with its buttons and other stories (The Block).
+  // 리더가 제목·출처·날짜를 직접 보여 주므로, 페이지 자체 머리글은 그 버튼들과 다른 기사들과 함께 뺀다 (The Block).
   const headed = extractReaderContent(`<html><head><title>Utah charges Kalshi over gambling | The Block</title><meta property="og:title" content="Utah charges Kalshi over gambling"></head><body><article><div><h1>Utah charges Kalshi over gambling</h1><p>The short summary under the title stays.</p></div><div><span>By </span><a href="/authors/timmy-shen">Timmy Shen</a><span> • Edited by Brian Danga</span></div><div><a href="/news/business">Business</a><span>•</span><span>October 29, 2026, 2:40AM EDT</span></div><a href="https://www.google.com/preferences/source?q=theblock.co"><img src="/google.png" alt="Google">Make us preferred</a><button><div>Share</div></button><p>By the numbers, a short line stays.</p><figure><img src="/court.png"><figcaption>Court photo, October 29, 2026</figcaption></figure>${body}<h2>Background</h2>${body}<h3>Related articles</h3><div><article><a href="/other-1">Another story about prediction markets</a><time>Oct 26, 2026</time></article><article><a href="/other-2">Yet another story</a></article></div></article></body></html>`, url, null).fullContentHtml;
   assert.doesNotMatch(headed, /<h1|Timmy Shen|Edited by|2:40AM|preferences\/source|Make us preferred|Share|Another story|Related articles/, 'the page title, byline, date, badges, buttons and story cards go');
   assert.match(headed, /short summary under the title/); assert.match(headed, /By the numbers/); assert.match(headed, /Court photo, October 29, 2026/); assert.match(headed, /<h2>Background<\/h2>/);
-  // A Tailwind site's classes would pick up the app's own utilities and stretch the body sideways.
+  // Tailwind 사이트의 클래스가 앱의 유틸리티 클래스를 집어 와 본문을 옆으로 늘린다.
   const classed = extractReaderContent(`<article><div class="flex flex-col md:flex-row"><div class="grow shrink-0 basis-full min-w-0">${body}<p class="hidden md:block">Desktop duplicate</p><span class="sr-only">Screen reader note</span></div></div></article>`, url, null).fullContentHtml;
   assert.ok(!/\sclass=/.test(classed) && classed.includes('<div><div>'), 'site classes are dropped and the structure kept');
   assert.ok(!classed.includes('Desktop duplicate') && !classed.includes('Screen reader note'), 'what the site hid on phones stays hidden');
 
-  // Decenter-style lazy images: a 1×1 stand-in sized to the photo, the real one in data-src.
+  // Decenter식 지연 이미지: 사진 크기에 맞춘 1×1 대체 이미지가 있고 진짜 이미지는 data-src에 있다.
   const lazyPage = `<html><head><title>Lazy</title></head><body><article>${body}<figure><img loading="lazy" data-src="/photo_P1.webp" src="https://static.example.test/img/1X1.png" width="649" height="392"></figure><img src="/spacer.gif" width="600" height="300"><img data-lazy-src="/wide.jpg" data-srcset="/wide-800.jpg 800w, /wide-1600.jpg 1600w" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="><img src="/loading-dock.jpg"><img data-src="/lazy.png" src="/blank.gif"><p>${'More body text. '.repeat(10)}</p></article></body></html>`;
   const lazy = extractReaderContent(lazyPage, url, null).fullContentHtml;
   assert.match(lazy, /src="https:\/\/reader.example.test\/photo_P1.webp"/, 'the real photo replaces its stand-in, so no blank gap remains');
@@ -52,7 +52,7 @@ try {
   assert.equal(bodyShowsImage('<img src="https://cdn.example.test/uploads/harbor-sunset.jpg">', 'https://cdn.example.test/uploads/harbor-sunrise.jpg'), false);
   assert.equal(bodyShowsImage('<img src="https://cdn.example.test/a/img_1.jpg">', 'https://cdn.example.test/b/img_2.jpg'), false, 'short generic names are never treated as the same picture');
 
-  // Feeds that lead with the photo and repeat it in a captioned figure (보안뉴스) show it once.
+  // 사진으로 시작하고 같은 사진을 캡션 달린 figure로 되풀이하는 피드(보안뉴스)는 한 번만 보여 준다.
   const { dropRepeatedImages } = await vite.ssrLoadModule('/src/client/articleImages.ts');
   const { parseHTML } = await import('linkedom');
   const photo = 'https://cdn.example.test/news/photo/202610/146842_129483_520.jpg';
@@ -64,18 +64,18 @@ try {
   assert.equal((kept.match(/129484_100/g) || []).length, 1);
   assert.ok(!kept.includes('<a href="/x"></a>') && !kept.includes('<p></p>'), 'emptied wrappers go with the duplicate');
 
-  // Ad slots reserve height for scripts the copy no longer runs (Decrypt).
+  // 광고 칸은 사본에서 더는 돌지 않는 스크립트를 위해 높이를 잡아 둔다 (Decrypt).
   const slots = webCopy(`<html><head><title>Article</title></head><body><article><p>${'Paragraph text. '.repeat(10)}</p><div class="my-8 flex"><div style="min-width:300px;min-height:250px"></div></div><p>Next paragraph.</p><div style="height:280px"><img src="/chart.png"></div><div aria-hidden="true" style="background-image:radial-gradient(#fff 1px, transparent 0);height:1440px"></div><div style="position:fixed;top:16px;bottom:16px"></div><div style="min-height:20px"></div></article></body></html>`, url);
   assert.ok(!slots.includes('min-height:250px') && !slots.includes('class="my-8 flex"'), 'an empty ad slot and its emptied wrapper go');
   assert.ok(slots.includes('/chart.png') && slots.includes('radial-gradient') && slots.includes('position:fixed') && slots.includes('min-height:20px'), 'slots with content, painted or positioned boxes and small spacers stay');
-  // A sandboxed copy has no origin, and CDNs that answer only the site refuse its CORS requests (Cointelegraph).
+  // 샌드박스 사본에는 출처가 없고, 그 사이트에만 응답하는 CDN은 사본의 CORS 요청을 거절한다 (Cointelegraph).
   const styled = webCopy(`<html><head><title>Article</title><link rel="stylesheet" href="https://cdn.example.test/site.css" crossorigin integrity="sha384-x"></head><body><article><p>${'Paragraph text. '.repeat(10)}</p></article></body></html>`, url);
   assert.ok(styled.includes('href="https://cdn.example.test/site.css"') && !/<link(?=[^>]*stylesheet)[^>]*(?:crossorigin|integrity)/.test(styled), 'stylesheets load as plain requests');
-  // Columns of other stories beside the article go (Cointelegraph, TechCrunch); prose boxes and asides in the text stay.
+  // 기사 옆의 다른 기사 목록 열은 빼고(Cointelegraph, TechCrunch), 본문 안의 글 상자와 곁글은 둔다.
   const column = webCopy(`<html><head><title>Article</title></head><body><div class="flex"><div class="post"><h1>Title</h1><aside class="takeaways"><p>Key points of the story, in a sentence or two of plain prose.</p></aside><div class="body"><p>${'Paragraph text. '.repeat(10)}</p><aside class="quote">A pulled quote</aside><p>${'More text. '.repeat(10)}</p></div></div><aside class="w-[340px]"><h2>Editor's choice</h2><a href="/a">First other story headline</a><a href="/b">Second other story headline</a></aside><div class="article-sidebar"><div style="min-width:300px"></div></div><div class="sidebar-toggle"><a href="/menu">Menu</a></div></div></body></html>`, url);
   assert.ok(!column.includes("Editor's choice") && !column.includes('article-sidebar'), 'link columns and blank sidebars beside the article go');
   assert.ok(column.includes('Key points') && column.includes('A pulled quote') && column.includes('sidebar-toggle'), 'prose boxes, asides in the text and other names stay');
-  // A rendered page can carry the cookie banner its scripts opened; a copy can neither run nor close it (The Block).
+  // 렌더링된 페이지에는 스크립트가 띄운 쿠키 창이 남아 있을 수 있는데, 사본은 그 창을 실행하지도 닫지도 못한다 (The Block).
   const consent = webCopy(`<html><head><title>Article</title></head><body><article><p>${'Paragraph text. '.repeat(10)}</p><div role="dialog" aria-label="Share">Share this story</div></article><div id="onetrust-consent-sdk"><div id="onetrust-banner-sdk"><p>We and our partners store cookies</p><button>Accept All Cookies</button></div></div><div role="dialog" aria-modal="true"><p>We use cookies to improve your experience.</p><button>Accept</button><button>Reject</button></div></body></html>`, url);
   assert.ok(!/onetrust|our partners store|We use cookies|Accept All/.test(consent), 'consent managers and cookie dialogs go');
   assert.ok(consent.includes('Share this story') && consent.includes('Paragraph text.'), 'other dialogs and the article stay');
@@ -112,8 +112,8 @@ try {
   assert.equal((await request({ force: true })).status, 502);
   assert.ok((await db.prepare('SELECT full_content_html FROM articles WHERE id=?').bind(row.id).first()).full_content_html, 'a failed refresh must retain a previously read body');
   assert.deepEqual({ ...await db.prepare('SELECT is_read,is_saved FROM article_states WHERE article_id=?').bind(row.id).first() }, { is_read: 0, is_saved: 1 });
-  // Web view stand-in for sites that refuse framing: a script-free copy for
-  // subscribers only, with links opening in a new tab.
+  // 프레임을 거부하는 사이트의 웹 보기 대체: 구독자에게만 주는 스크립트 없는 사본이며,
+  // 링크는 새 탭에서 열린다.
   const stranger = await (await app.request('/api/auth/google/quick', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'stranger@example.test' }) }, env)).json();
   const copyRequest = (auth = token) => app.request(`/api/articles/${row.id}/web-copy`, { headers: { authorization: `Bearer ${auth}` } }, env);
   globalThis.fetch = async () => new Response(html, { headers: { 'x-frame-options': 'DENY' } });

@@ -104,7 +104,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
     return () => { clearTimeout(timer); controller.abort(); };
   }, [query, previewUrl, previewRetry, isOpen, tab, builderOpen]);
 
-  // The builder works on the website: for a feed address, its site page.
+  // 만들기 도구는 웹사이트를 대상으로 한다. 피드 주소면 그 사이트 페이지를 쓴다.
   const builderUrl = urlPreview?.feed.htmlUrl && normalizeFeedUrl(urlPreview.feed.xmlUrl) === previewUrl
     ? normalizeFeedUrl(urlPreview.feed.htmlUrl) || previewUrl
     : previewUrl;
@@ -208,8 +208,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
   const favicon = (value: string) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname(value))}&sz=64`;
   const cardSurface = isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200';
 
-  // Curated feeds carry a category, language and tags; a feed found from an
-  // address shows that address instead.
+  // 추천 피드에는 분류·언어·태그가 있다. 주소로 찾은 피드는 대신 그 주소를 보여 준다.
   const feedCard = (feed: CuratedFeedItem, onOpen: () => void) => (
     <div key={feed.id} className={`relative group p-4 rounded-2xl border flex flex-col justify-between gap-3 transition hover:border-emerald-500/50 ${cardSurface}`}>
       <button
@@ -250,8 +249,8 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
     </div>
   );
 
-  // Like Feedly: whatever the address search finds, offer to build a feed
-  // from the articles listed on the website itself.
+  // Feedly처럼, 주소 검색 결과가 무엇이든 웹사이트에 실린 글 목록으로
+  // 피드를 만들어 보라고 권한다.
   const builderSuggestion = builderUrl && (
     <section aria-labelledby="builder-suggestion-title" className={`rounded-2xl border p-4 sm:p-5 ${cardSurface}`}>
       <h3 id="builder-suggestion-title" className="text-sm font-bold">원하는 피드가 없나요?</h3>
@@ -289,7 +288,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
-        {/* Modal Header */}
+        {/* 창 머리글 */}
         <div
           className={`sfeed-discover-header px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-b flex items-center justify-between gap-3 ${
             isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
@@ -320,7 +319,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Tabs */}
+        {/* 창 탭 */}
         <div
           className={`px-4 sm:px-6 pt-3 shrink-0 border-b flex items-center gap-2 ${
             isDark ? 'border-slate-800' : 'border-slate-200'
@@ -355,7 +354,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
           </button>
         </div>
 
-        {/* Feedback Banner */}
+        {/* 안내 띠 */}
         {feedback && (
           <div
             className={`mx-6 mt-4 p-3 rounded-xl text-xs font-medium border ${
@@ -368,9 +367,9 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
           </div>
         )}
 
-        {/* Modal Body */}
+        {/* 창 본문 */}
         <div ref={bodyRef} className="sfeed-discover-body flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
-          {/* Unified feed search and URL preview */}
+          {/* 피드 검색과 주소 미리 보기를 한곳에서 */}
           {tab === 'curated' && <form role="search" aria-label="피드 검색" onSubmit={(event) => { event.preventDefault(); if (previewUrl) setPreviewRetry((value) => value + 1); }} className="mb-5">
             <label htmlFor="feed-discovery-search" className="sr-only">피드 이름 또는 RSS·웹사이트 주소</label>
             <div className="relative">
@@ -420,7 +419,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
                 {builderSuggestion}
               </div>
             ) : <div className="space-y-5">
-              {/* Category Filter Pills */}
+              {/* 분류 필터 알약 버튼 */}
               <div className="flex flex-wrap gap-2">
                 {categories.map((cat) => (
                   <button
@@ -447,9 +446,9 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: OPML Import / Export */}
+          {/* 탭 3: OPML 가져오기 / 내보내기 */}
           <div className={tab === 'opml' ? 'space-y-6' : 'hidden'}>
-              {/* Export Card */}
+              {/* 내보내기 카드 */}
               <div
                 className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                   isDark

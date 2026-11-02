@@ -120,7 +120,7 @@ try {
   })).json()).status, 'imported');
   assert.deepEqual((await (await request('/api/opml/failures')).json()).failures, [], 'Correcting a URL must clear the original unresolved entry');
 
-  // Bulk article writes must preserve IDs, saved/read state and fill missing content.
+  // 글을 한꺼번에 쓸 때도 ID와 저장·읽음 상태를 지키고 빠진 본문은 채워야 한다.
   const article = await db.prepare('SELECT id FROM articles ORDER BY id LIMIT 1').first();
   await db.prepare('INSERT INTO article_states (user_id, article_id, is_read, is_saved) VALUES (?, ?, 1, 1)').bind(user.id, article.id).run();
   const { feed_id: feedId } = await db.prepare('SELECT feed_id FROM articles WHERE id = ?').bind(article.id).first();

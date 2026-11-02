@@ -4,8 +4,8 @@ import { plainCopyStyles } from '../shared/copyStyles';
 import { dropSidebars } from '../shared/sidebars';
 import { dropConsentBanners } from '../shared/consentBanners';
 
-// A picture's name without its size variant: photo_T1.jpg and photo_P1.jpg,
-// or photo-300x200.jpg and photo.jpg, are the same picture.
+// 크기 변형을 뺀 그림 이름. photo_T1.jpg와 photo_P1.jpg,
+// photo-300x200.jpg와 photo.jpg는 같은 그림이다.
 function imageStem(url: string) {
   try {
     const name = decodeURIComponent(new URL(url, 'https://sfeed.invalid').pathname.split('/').pop() || '').toLowerCase();
@@ -13,7 +13,7 @@ function imageStem(url: string) {
   } catch { return ''; }
 }
 
-/** Whether the body already shows the lead image, in this size or another. */
+/** 본문이 대표 이미지를 이미 보여 주는지. 크기가 달라도 같은 그림이면 보여 주는 것으로 본다. */
 export function bodyShowsImage(html: string, url: string) {
   if (html.includes(url)) return true;
   const stem = imageStem(url);
@@ -25,8 +25,8 @@ export function bodyShowsImage(html: string, url: string) {
 }
 
 /**
- * Some feeds lead with the article photo and repeat it in a captioned figure further
- * down. A picture shows once, keeping the copy with a caption.
+ * 어떤 피드는 기사 사진으로 시작하고 아래에서 캡션 달린 figure로 같은 사진을 되풀이한다.
+ * 그림은 한 번만 보여 주고, 캡션이 있는 쪽을 남긴다.
  */
 export function dropRepeatedImages(root: ParentNode) {
   const seen = new Map<string, Element>();
@@ -46,9 +46,9 @@ export function dropRepeatedImages(root: ParentNode) {
 }
 
 /**
- * Bodies saved before lazy images were revealed on the server still hold
- * blank stand-ins, so the rendered body gets the same repair. Images that
- * fail or turn out to be a pixel are hidden rather than left as a gap.
+ * 서버에서 지연 이미지를 드러내기 전에 저장된 본문에는 아직 빈 대체 이미지가 있어서,
+ * 화면에 그린 본문에도 같은 보정을 한다. 불러오지 못했거나 1픽셀짜리로 밝혀진 이미지는
+ * 빈자리로 두지 않고 숨긴다.
  */
 export function bindArticleImages(container: HTMLElement, base: string) {
   revealLazyImages(container, base);
@@ -62,7 +62,7 @@ export function bindArticleImages(container: HTMLElement, base: string) {
   return () => { container.removeEventListener('error', hide, true); container.removeEventListener('load', hide, true); };
 }
 
-/** The same repairs for a saved web copy, which renders in a sandbox the app cannot reach into. */
+/** 저장된 웹 사본에도 같은 보정을 한다. 사본은 앱이 손댈 수 없는 샌드박스에서 그려진다. */
 export function revealCopyImages(html: string) {
   if (typeof DOMParser === 'undefined' || !/<img|<source|height|crossorigin|integrity|<aside|complementary|sidebar|dialog|onetrust|consent|cookie/i.test(html)) return html;
   const document = new DOMParser().parseFromString(html, 'text/html');

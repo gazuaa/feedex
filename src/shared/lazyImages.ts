@@ -7,7 +7,7 @@ interface ImageRoot { querySelectorAll(selector: string): Iterable<ImageNode> }
 
 const LAZY_SOURCES = ['data-src', 'data-lazy-src', 'data-original', 'data-original-src', 'data-actualsrc', 'data-lazy'];
 const LAZY_SETS = ['data-srcset', 'data-lazy-srcset'];
-// A stand-in that only reserves the image's space until a script swaps the real one in.
+// 스크립트가 진짜 이미지로 바꿔 넣기 전까지 자리만 잡아 두는 대체 이미지.
 const PLACEHOLDER_FILE = /\/(?:img[-_])?(?:1x1|blank|spacer|pixel|transparent|placeholder|lazy|lazyload|loading|empty|clear|grey|gray)(?:[-_]?(?:\d+x\d+|\d+|img|image))?\.(?:gif|png|svg|webp)(?:[?#]|$)/i;
 export const isPlaceholderImage = (src: string) => /^data:/i.test(src) ? src.length < 256 : PLACEHOLDER_FILE.test(src);
 
@@ -24,9 +24,9 @@ const first = (node: ImageNode, names: string[], usable: (value: string) => bool
   names.map((name) => node.getAttribute(name)?.trim() ?? '').find((value) => value && usable(value));
 
 /**
- * Pages copied without their scripts never run the lazy loader, so images
- * keep a 1×1 stand-in sized to the real photo and show as a blank gap. Put
- * the real address in place, and drop images left with only a stand-in.
+ * 스크립트 없이 복사한 페이지는 지연 로더를 돌리지 않아서, 이미지가 실제 사진 크기의
+ * 1×1 대체 이미지로 남아 빈 틈으로 보인다. 진짜 주소를 제자리에 넣고,
+ * 대체 이미지만 남은 이미지는 뺀다.
  */
 export function revealLazyImages(root: ImageRoot, base?: string) {
   for (const source of root.querySelectorAll('source')) {
@@ -38,7 +38,7 @@ export function revealLazyImages(root: ImageRoot, base?: string) {
     if (lazy) img.setAttribute('src', resolve(lazy, base));
     const set = first(img, LAZY_SETS, () => true);
     if (set) img.setAttribute('srcset', resolveSet(set, base));
-    // An address the lazy loader would have used is the real image, whatever its name.
+    // 지연 로더가 썼을 주소는 이름이 무엇이든 진짜 이미지다.
     const src = img.getAttribute('src')?.trim() ?? '';
     if (!lazy && !img.getAttribute('srcset') && (!src || isPlaceholderImage(src))) img.remove();
   }

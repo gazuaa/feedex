@@ -21,7 +21,7 @@ export function bindPullRefresh(doc: Document, options: PullOptions) {
     if (!gesture) return;
     if (event.touches.length !== 1 || !allowed() || !event.cancelable || gesture.root.scrollTop > 0) { reset(); return; }
     const dx = Math.abs(event.touches[0].clientX - gesture.x), dy = event.touches[0].clientY - gesture.y;
-    // Horizontal gestures remain available for back navigation.
+    // 가로 동작은 뒤로 가기에 쓰도록 남겨 둔다.
     if (dy < 0 || (dx > 10 && dx * 1.3 >= dy)) { reset(); return; }
     if (dy <= 8) return;
     event.preventDefault();

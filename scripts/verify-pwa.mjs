@@ -125,7 +125,7 @@ try {
       for (const run of [...timers.values()]) run();
       assert.deepEqual(fallback, ['pagehide', 'visibilitychange', 'cancel'].includes(mode) ? [] : [!['blocked-copy', 'no-clipboard'].includes(mode)]);
     }
-    // The actual install button routes iOS Brave to Safari and Safari to help.
+    // 실제 설치 버튼은 iOS Brave에서는 Safari로, Safari에서는 도움말로 보낸다.
     const win = new EventTarget(); let target = '';
     win.location = { get href() { return 'https://sfeed.test/'; }, set href(value) { target = value; } };
     Object.defineProperty(globalThis, 'window', { configurable: true, value: win });

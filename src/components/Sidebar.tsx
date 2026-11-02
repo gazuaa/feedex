@@ -46,7 +46,7 @@ interface SidebarProps {
   onCreateFolder: (name: string) => Promise<void>;
   onDeleteFolder: (folderId: string) => Promise<void>;
   onUnsubscribe: (subscriptionId: string, title: string) => Promise<void>;
-  /** Stops or resumes the feed's new articles without unsubscribing. */
+  /** 구독을 끊지 않고 피드의 새 글을 멈추거나 다시 받는다. */
   onToggleUpdates: (feed: SubscriptionItem) => void;
   onLogout: () => void;
   isDark: boolean;
@@ -130,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             : 'bg-slate-50 border-slate-200 text-slate-800'
         }`}
       >
-        {/* Top Logo & Add Feed CTA */}
+        {/* 위쪽 로고와 피드 추가 버튼 */}
         <div className="p-4 shrink-0 flex items-center justify-between">
           <div
             onClick={() => {
@@ -196,9 +196,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ><Archive size={17} className={isAllArticlesActive ? 'text-emerald-400' : 'text-emerald-500'} /><span>전체 글</span><span className="ml-auto text-xs text-slate-400">{libraryCount.toLocaleString('ko-KR')}</span><ChevronRight size={15} /></button>
         </div>
 
-        {/* Scrollable Navigation Tree */}
+        {/* 스크롤되는 내비게이션 트리 */}
         <div aria-label="구독 피드 채널" role="navigation" tabIndex={0} className="sfeed-channel-list flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 space-y-5 pb-4">
-          {/* Folders & Feeds Section */}
+          {/* 폴더와 피드 영역 */}
           <div>
             <div className="flex items-center justify-between px-2 mb-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
@@ -392,7 +392,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 );
               })}
 
-              {/* Uncategorized Subscriptions */}
+              {/* 미분류 구독 */}
               {uncategorizedSubs.length > 0 && (
                 <div className="pt-1 space-y-0.5">
                   <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-500">
@@ -467,7 +467,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          {/* Quick Tools Section */}
+          {/* 빠른 도구 영역 */}
           <div className="pt-2 border-t border-slate-800/40 space-y-1">
             <button
               type="button"
@@ -503,7 +503,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* User Footer */}
+        {/* 사용자 바닥글 */}
         <div
           className={`sfeed-sidebar-footer p-3 shrink-0 border-t flex items-center justify-between gap-2 ${
             isDark ? 'border-slate-800/80 bg-slate-950/50' : 'border-slate-200 bg-slate-100/70'

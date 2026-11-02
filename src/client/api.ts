@@ -44,12 +44,12 @@ export interface SubscriptionItem {
   total_count: number;
   saved_count: number;
   view_mode?: ArticleViewMode | null;
-  /** Set while the feed's new articles are not received; missing before 0004 is applied. */
+  /** 피드의 새 글을 받지 않는 동안 값이 있다. 0004가 적용되기 전에는 없다. */
   paused_at?: string | null;
 }
 
-// Body views RSS readers offer: the feed's content, the full article
-// extracted from the original page, or the original page itself.
+// RSS 리더가 주는 본문 보기: 피드 본문, 원문 페이지에서 뽑은 전체 기사,
+// 또는 원문 페이지 그대로.
 export type ArticleViewMode = 'feed' | 'reader' | 'web';
 
 export interface ArticleItem {
@@ -162,7 +162,7 @@ export async function apiRequest<T>(
       const data = await res.json();
       if (data?.error) errorMsg = data.error;
     } catch {
-      // ignore
+      // 무시한다
     }
     throw new ApiError(errorMsg, res.status);
   }
@@ -181,7 +181,7 @@ export function formatRelativeTime(isoDate: string): string {
     if (diffHours < 24) return `${diffHours}시간 전`;
     const diffDays = Math.floor(diffHours / 24);
     if (diffDays < 7) return `${diffDays}일 전`;
-    // Older posts from past years need the year, or 2018 reads as this year.
+    // 지난해 이전의 글은 연도를 붙여야 한다. 안 그러면 2018년 글이 올해 글로 읽힌다.
     return date.toLocaleDateString('ko-KR', {
       ...(date.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }),
       month: 'short',

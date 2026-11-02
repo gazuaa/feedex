@@ -5,18 +5,18 @@ interface ConfirmDialogProps {
   children: React.ReactNode;
   confirmLabel: string;
   busyLabel?: string;
-  /** danger: removes something (rose button); primary: everyday action (emerald). */
+  /** danger: 무언가를 지운다(장미색 버튼). primary: 일상적인 동작(에메랄드색). */
   tone?: 'danger' | 'primary';
   isDark: boolean;
   busy: boolean;
   error: string | null;
   onCancel: () => void;
   onConfirm: () => void;
-  /** Asked from a keyboard shortcut: focus starts on the confirm button, so Enter confirms. */
+  /** 키보드 단축키로 물을 때는 확인 버튼에 먼저 초점을 두어 Enter로 확인하게 한다. */
   focusConfirm?: boolean;
 }
 
-/** A modal yes/no question. Focus starts on 취소, and Esc cancels unless busy. */
+/** 예/아니오를 묻는 모달. 초점은 취소에서 시작하고, 처리 중이 아니면 Esc로 취소한다. */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   title, children, confirmLabel, busyLabel = '처리 중…', tone = 'primary', isDark, busy, error, onCancel, onConfirm, focusConfirm = false,
 }) => {

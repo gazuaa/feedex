@@ -30,7 +30,7 @@ try {
   forward(); assert.deepEqual(location, list);
   forward(); assert.deepEqual(location, a);
   forward(); assert.deepEqual(location, b);
-  // The reader's close button returns straight to its list, skipping articles.
+  // 리더의 닫기 버튼은 글들을 건너뛰고 곧장 목록으로 돌아간다.
   open(list);
   assert.equal(index, 1); assert.equal(scroll, 620);
   open(library); assert.equal(index, 0);
@@ -44,16 +44,16 @@ try {
   back(); assert.equal(location.search, 'bitcoin'); assert.equal(location.unread, true); assert.equal(scroll, 300);
   back(); assert.deepEqual(location, list);
   forward(); forward();
-  // A reload can recover the current reader using IDs without storing content.
+  // 다시 불러와도 본문을 저장하지 않고 ID만으로 지금 보던 리더를 되살릴 수 있다.
   navigation = new MobileNavigation(history, 'owner', library, restore);
   assert.equal(location.articleId, 'read-article'); navigation.record(location);
   assert.ok(!JSON.stringify(history.state).includes('content_html'));
-  // Logging into another account does not restore the former account's reader.
+  // 다른 계정으로 로그인하면 이전 계정의 리더를 되살리지 않는다.
   navigation = new MobileNavigation(history, 'another-account', library, restore);
   assert.equal(history.state.sfeedNavigation.account, 'another-account');
   assert.deepEqual(history.state.sfeedNavigation.location, library);
   back(); assert.equal(location.articleId, null); assert.equal(location.library, true);
-  // The library lists no articles, so a list's search goes back through it to the next list.
+  // 보관함에는 글 목록이 없으므로, 목록의 검색어는 보관함을 거쳐 다음 목록으로 이어진다.
   open({ ...list, search: 'eth' }); open({ ...location, library: true }); navigation.record(location);
   assert.equal(location.library, true); assert.equal(location.search, 'eth', 'going back to the library keeps the search');
   assert.equal(history.state.sfeedNavigation.location.search, 'eth');
@@ -61,7 +61,7 @@ try {
   back(); assert.equal(location.library, true); assert.equal(location.search, 'eth');
   forward(); assert.equal(location.feedId, 'other'); assert.equal(location.search, 'eth');
 
-  // Exercise the installed touch listeners with the same native event path.
+  // 설치된 터치 리스너를 실제와 같은 이벤트 경로로 시험한다.
   const doc = new EventTarget(), view = new EventTarget();
   view.innerWidth = 390; view.visualViewport = { scale: 1 };
   view.getComputedStyle = (node) => ({ overflowX: node.horizontal ? 'auto' : 'visible' });

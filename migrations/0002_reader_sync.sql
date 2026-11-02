@@ -1,4 +1,4 @@
--- Compact, coalesced change records. No article bodies are duplicated here.
+-- 합쳐 둔 간결한 변경 기록. 글 본문은 여기에 중복 저장하지 않는다.
 CREATE TABLE IF NOT EXISTS reader_sync_changes (
   version INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL,

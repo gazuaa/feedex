@@ -45,11 +45,11 @@ const VIEW_MODES = [
   { id: 'web', label: '웹', title: '웹 페이지 — 원본 사이트 그대로', Icon: Globe },
 ] as const;
 
-// Web view zoom steps, like a browser's. The framed page is cross-origin, so
-// it is scaled from outside: laid out at (pane size ÷ zoom), then scale(zoom).
-// The right zoom depends on the screen, so it is remembered per device.
+// 웹 보기 확대 단계는 브라우저와 같다. 프레임 안 페이지는 다른 출처라서 바깥에서
+// 크기를 바꾼다: (영역 크기 ÷ 배율)로 배치한 뒤 scale(배율)을 건다.
+// 알맞은 배율은 화면에 따라 다르므로 기기마다 기억한다.
 const WEB_ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
-/** How long bars brought out over a framed site stay before folding again. */
+/** 프레임 안 사이트 위로 꺼낸 막대가 다시 접히기 전까지 머무는 시간. */
 const PEEK_MS = 4000;
 
 
@@ -62,12 +62,12 @@ function loadWebZoom(account: string, feed: string): number {
   }
 }
 
-// The body is set as HTML, so its images are repaired in place after each change.
+// 본문을 HTML로 넣으므로, 바뀔 때마다 그 자리에서 이미지를 보정한다.
 function ArticleBody({ html, base, title, className, style }: { html: string; base: string; title?: string; className: string; style: React.CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (!ref.current) return;
-    // Content saved before classes and the page's own header were dropped on the server.
+    // 서버에서 클래스와 페이지 자체 머리글을 빼기 전에 저장된 본문.
     dropSiteClasses(ref.current);
     if (title) dropArticleChrome(ref.current, [titleKey(title)]);
     return bindArticleImages(ref.current, base);
@@ -75,7 +75,7 @@ function ArticleBody({ html, base, title, className, style }: { html: string; ba
   return <div ref={ref} style={style} className={className} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-/** Keep the web tab selected while its page loads, using content already on this device. */
+/** 페이지를 불러오는 동안 기기에 이미 있는 내용으로 웹 탭을 선택된 채로 둔다. */
 export function WebLoadingPreview({ article, isDark, ready = false, onReady, onReading }: { article: ArticleItem; isDark: boolean; ready?: boolean; onReady: () => void; onReading: () => void }) {
   const html = article.full_content_html || article.content_html;
   return <div className="flex-1 min-h-0 flex flex-col">
@@ -94,11 +94,11 @@ export function WebLoadingPreview({ article, isDark, ready = false, onReady, onR
 }
 
 /**
- * A framed site keeps its own touches, but on iOS a sideways drag the site cannot use carries
- * over to this pager. Settling on the empty page to its left goes back, wherever the drag began.
- * While it scrolls, the reader slides as it does in the other views: the whole screen moves with
- * the drag and the list comes in underneath. The site page is held back by the reader's shift,
- * so it stays under the finger at the scroll's own pace.
+ * 프레임 안 사이트는 자기 터치를 그대로 쓰지만, iOS에서는 사이트가 쓰지 않는 옆으로 끌기가
+ * 이 페이저로 넘어온다. 왼쪽의 빈 페이지에 멈추면 끌기를 어디서 시작했든 뒤로 간다.
+ * 스크롤하는 동안 리더는 다른 보기처럼 미끄러진다. 화면 전체가 끌기를 따라 움직이고
+ * 목록이 아래에서 들어온다. 사이트 페이지는 리더가 움직인 만큼 되돌려 두어서
+ * 스크롤 속도대로 손가락 아래에 머문다.
  */
 function WebPager({ enabled, onBack, children }: { enabled: boolean; onBack: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null), back = useRef(onBack);
@@ -145,7 +145,7 @@ interface ArticleDrawerProps {
     articleId: string,
     fields: Partial<ArticleItem>
   ) => void;
-  // Body view remembered for this article's feed.
+  // 이 글의 피드에 기억된 본문 보기.
   viewMode: ViewMode;
   onChangeViewMode: (mode: ViewMode) => void;
   onNavigateRelative: (direction: 'prev' | 'next') => void;
@@ -184,7 +184,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [fontScale] = useTextSize();
   const [webZoom, setWebZoom] = useState(() => loadWebZoom(accountId, article?.feed_id || ''));
   const [sizeToolsOpen, setSizeToolsOpen] = useState(false);
-  // Sites that refuse to be framed get a script-free copy fetched by the server.
+  // 프레임을 거부하는 사이트는 서버가 받아 온 스크립트 없는 사본으로 보여 준다.
   const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean } | null>(null);
   const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html) : undefined, [webCopy?.html]);
   const [readingPreview, setReadingPreview] = useState(false);
@@ -193,11 +193,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const isMobile = useMobileViewport();
   const topRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), copyRef = useRef<HTMLIFrameElement>(null);
-  // A framed site scrolls out of reach, so only the feed, reader and web copy hide the bars.
+  // 프레임 안 사이트의 스크롤은 손이 닿지 않으므로, 피드·리더·웹 사본만 막대를 숨긴다.
   const showingCopy = mode === 'web' && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
   const chromeHidden = useScrollChrome(bodyRef, isMobile && Boolean(article) && !mobileToolsOpen && !sizeToolsOpen, `${article?.id}:${mode}:${showingCopy}`, copyRef);
-  // A framed site's own scrolling cannot be followed, so once it loads its bars stay folded
-  // and come out on request, folding again after a few idle seconds.
+  // 프레임 안 사이트 자체의 스크롤은 따라갈 수 없으므로, 불러온 뒤에는 막대를 접어 두고
+  // 요청할 때만 꺼냈다가 몇 초 동안 움직임이 없으면 다시 접는다.
   const [loadedFrame, setLoadedFrame] = useState<string | null>(null);
   const framed = isMobile && mode === 'web' && frame?.articleId === article?.id && frame?.embeddable === true && loadedFrame === article?.id;
   const [peek, setPeek] = useState(0);
@@ -209,7 +209,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const keepPeeking = () => { if (peek) setPeek((value) => value + 1); };
   const barsHidden = chromeHidden || (framed && !peek && !mobileToolsOpen && !sizeToolsOpen);
   const hasArticle = Boolean(article);
-  // The folded top bar moves up by its own height, which depends on the safe area and text size.
+  // 접힌 상단 막대는 자기 높이만큼 올라간다. 높이는 안전 영역과 글자 크기에 따라 다르다.
   useLayoutEffect(() => {
     const top = topRef.current;
     if (!top) return;
@@ -219,7 +219,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     return () => observer.disconnect();
   }, [hasArticle]);
 
-  // -1 zooms out, +1 zooms in, 0 resets to 100%.
+  // -1은 축소, +1은 확대, 0은 100%로 되돌린다.
   const changeWebZoom = (step: -1 | 0 | 1) => {
     const index = WEB_ZOOM_STEPS.indexOf(webZoom);
     const next =
@@ -230,11 +230,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     try {
       if (article) saveFeedPreference(accountId, article.feed_id, { zoom: next });
     } catch {
-      // the zoom still applies to this article
+      // 배율은 이 글에 계속 적용된다
     }
   };
 
-  // Reader view: extract the full article once; the server caches it.
+  // 리더 보기: 전체 기사는 한 번만 뽑는다. 서버가 캐시한다.
   useEffect(() => {
     if (!article || mode !== 'reader' || article.full_content_html || readerFailedFor === article.id) return;
     let active = true;
@@ -252,7 +252,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     return () => { active = false; setScrapingReader(false); };
   }, [article?.id, article?.body_deferred, mode, readerRetry]);
 
-  // Show the site immediately; cached copies render without a server check.
+  // 사이트를 바로 보여 준다. 캐시된 사본은 서버 확인 없이 그린다.
   useEffect(() => {
     if (!article || mode !== 'web') return;
     let active = true;
@@ -280,8 +280,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     return () => { active = false; };
   }, [article?.id, mode, resources]);
 
-  // A copy whose text runs in a sliver beside desktop columns (see framedCopy) gives way,
-  // once, to one the server laid out at phone width.
+  // 글이 데스크톱 열 옆의 좁은 틈에 놓이는 사본(framedCopy 참고)은 한 번만,
+  // 서버가 휴대폰 폭으로 배치한 사본으로 바꾼다.
   useEffect(() => {
     if (!isMobile || !resources || !article || webCopy?.articleId !== article.id || !webCopy.html || webCopy.phone) return;
     const target = article;
@@ -327,7 +327,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
   const showingReader = mode === 'reader' && Boolean(article.full_content_html);
   const readerFailed = mode === 'reader' && readerFailedFor === article.id;
-  // Feeds built from a sitemap, or title-only feeds, carry no body at all.
+  // 사이트맵으로 만든 피드나 제목만 있는 피드에는 본문이 아예 없다.
   const bodyless = !showingReader && !article.content_html && !article.summary;
 
   const handleSummarizeAI = async (force = false) => {
@@ -346,14 +346,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       });
       setAiMeta({ provider: res.provider, model: res.model });
     } catch {
-      // ignore
+      // 무시한다
     } finally {
       setSummarizing(false);
     }
   };
 
-  // One control for both: the text size in feed and reader views, the site
-  // zoom in the web view.
+  // 두 가지를 하나의 조절기로 다룬다: 피드·리더 보기에서는 글자 크기,
+  // 웹 보기에서는 사이트 배율.
   const sizeControl = (className: string) => mode === 'web'
     ? <div role="group" aria-label="사이트 확대·축소" className={className}>
         <button type="button" aria-label="사이트 축소" disabled={webZoom === WEB_ZOOM_STEPS[0]} onClick={() => changeWebZoom(-1)}><ZoomOut size={18} /></button>
@@ -377,13 +377,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
   return (
     <div className="sfeed-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto h-full min-w-0 min-h-0 flex justify-end">
-      {/* Backdrop */}
+      {/* 배경 */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity lg:hidden"
         onClick={onClose}
       />
 
-      {/* Inline desktop reader and full-screen mobile reader */}
+      {/* 데스크톱의 본문 안 리더와 모바일의 전체 화면 리더 */}
       <div
         data-article-id={article.id}
         className={`sfeed-reader relative z-10 w-full max-w-3xl lg:max-w-none h-full min-w-0 min-h-0 flex flex-col border-l lg:border-l-0 shadow-2xl lg:shadow-none overflow-hidden ${
@@ -403,7 +403,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             <a href={article.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={18} />원문 사이트 열기</a>
           </div>}
         </div>
-        {/* Top Action Bar */}
+        {/* 상단 동작 막대 */}
         <div
           className={`sfeed-reader-toolbar px-4 sm:px-6 py-3 border-b flex flex-wrap items-center gap-2 shrink-0 ${
             isDark
@@ -414,7 +414,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <div className="sfeed-reader-navigation flex shrink-0 items-center gap-1">
             <button type="button" onClick={onClose} aria-label="목록으로 돌아가기" title="목록으로 돌아가기" className={`sfeed-reader-back sfeed-reader-icon ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-700 hover:bg-slate-100'}`}><ArrowLeft className="w-4 h-4" /></button>
 
-            {/* Read/Unread Toggle */}
+            {/* 읽음/안 읽음 전환 */}
             <button
               type="button"
               onClick={() => onToggleRead(article)}
@@ -466,9 +466,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </div>
           </div>
 
-          {/* Article tools */}
+          {/* 글 도구 */}
           <div className={`sfeed-reader-tools flex flex-wrap items-center gap-1 border-l pl-2 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-            {/* AI Summary Trigger */}
+            {/* AI 요약 버튼 */}
             {mode !== 'web' && <button
               type="button"
               onClick={() => handleSummarizeAI(false)}
@@ -489,7 +489,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <span className="sfeed-reader-control-label">{article.ai_summary ? 'AI 요약 완료' : 'AI 핵심 요약'}</span>
             </button>}
 
-            {/* Save / Bookmark Toggle */}
+            {/* 저장 / 북마크 전환 */}
             <button
               type="button"
               onClick={() => onToggleSaved(article)}
@@ -509,10 +509,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               />
             </button>
 
-            {/* Text size (feed and reader views) */}
+            {/* 글자 크기 (피드·리더 보기) */}
             {mode !== 'web' && <TextSizeControl />}
 
-            {/* Web view zoom */}
+            {/* 웹 보기 배율 */}
             {mode === 'web' && (
               <div
                 role="group"
@@ -561,7 +561,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               </div>
             )}
 
-            {/* Copy Link */}
+            {/* 링크 복사 */}
             <button
               type="button"
               onClick={() => onCopyLink(article)}
@@ -576,7 +576,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <Link2 className="w-4 h-4" />
             </button>
 
-            {/* Open Original Link */}
+            {/* 원문 링크 열기 */}
             <a
               href={article.url}
               target="_blank"
@@ -593,7 +593,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </a>
           </div>
 
-          {/* Body view: feed content / reader (full article) / web page */}
+          {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
           <div
             role="radiogroup"
             aria-label="본문 보기 방식"
@@ -699,8 +699,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 </div>
                 <WebPager enabled={isMobile} onBack={onClose}>
                 <div className="relative flex-1 min-h-0 overflow-hidden bg-white">
-                  {/* Scripts run only for the scroll reporter: the copy is stripped and its policy
-                      blocks anything else. Without allow-same-origin it cannot reach the app; links open in new tabs. */}
+                  {/*
+                    * 스크립트는 스크롤 알림용으로만 돈다. 사본은 정리돼 있고 보안 정책이 나머지를 막는다.
+                    * allow-same-origin이 없으므로 앱에 닿을 수 없고, 링크는 새 탭에서 열린다.
+                    */}
                   <iframe
                     ref={copyRef}
                     key={`copy-${article.id}`}
@@ -758,7 +760,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         ) : (
         <div ref={bodyRef} tabIndex={0} aria-label="본문 내용" className="sfeed-reader-content flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-6">
           {article.body_deferred && <div role="status" className="flex items-center gap-2 text-sm text-slate-400">{article.body_load_error ? <><span>본문을 가져오지 못했습니다.</span><button className="text-emerald-500" onClick={() => onUpdateArticleFields(article.id, { body_load_error: false })}>다시 시도</button></> : <><Loader2 size={16} className="animate-spin" /><span>본문 불러오는 중…</span></>}</div>}
-          {/* Article Metadata Header */}
+          {/* 글 정보 머리글 */}
           <div className="space-y-3 border-b pb-6 border-slate-800/60">
             <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-400 font-medium">
               {article.feed_favicon ? (
@@ -807,7 +809,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </h1>
           </div>
 
-          {/* Cloudflare Workers AI Summary Card */}
+          {/* Cloudflare Workers AI 요약 카드 */}
           {(article.ai_summary || summarizing) && (
             <div
               className={`p-5 rounded-2xl border relative overflow-hidden ${
@@ -867,7 +869,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </div>
           )}
 
-          {/* Lead Thumbnail Image (if not already embedded in contentHtml) */}
+          {/* 대표 썸네일 이미지 (contentHtml에 이미 들어 있지 않을 때) */}
           {article.thumbnail_url &&
             !bodyShowsImage(activeHtml, article.thumbnail_url) && (
               <div className="rounded-2xl overflow-hidden border border-slate-800/60">
@@ -882,7 +884,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               </div>
             )}
 
-          {/* Reader view status: loading, or fell back to the feed body */}
+          {/* 리더 보기 상태: 불러오는 중이거나 피드 본문으로 대신 보여 주는 중 */}
           {mode === 'reader' && !showingReader && (scrapingReader || (readerFailed && !bodyless)) && (
             <div
               className={`px-3.5 py-2 rounded-xl border text-xs flex items-center gap-2 ${
@@ -900,7 +902,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </div>
           )}
 
-          {/* Main HTML Body, or where to read it when the feed has none */}
+          {/* 본문 HTML. 피드에 본문이 없으면 어디서 읽을 수 있는지 안내한다 */}
           {bodyless ? (
             !scrapingReader && (
               <div className={`rounded-2xl border p-6 text-center ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'}`}>
@@ -945,7 +947,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             />
           )}
 
-          {/* Bottom Callout to Original Article */}
+          {/* 아래쪽 원문 기사 안내 */}
           <div
             className={`mt-10 pt-6 border-t flex flex-wrap items-center justify-between gap-4 ${
               isDark ? 'border-slate-800' : 'border-slate-200'

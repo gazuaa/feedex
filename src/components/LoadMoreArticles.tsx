@@ -7,8 +7,8 @@ interface LoadMoreArticlesProps {
   onLoadMore: () => void;
 }
 
-// Loads the next (older) page once the end of the list nears the viewport.
-// The button stays as a manual fallback.
+// 목록 끝이 화면에 가까워지면 다음(더 오래된) 페이지를 불러온다.
+// 버튼은 직접 누르는 대체 수단으로 남긴다.
 export const LoadMoreArticles: React.FC<LoadMoreArticlesProps> = ({
   loading,
   isDark,

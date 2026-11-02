@@ -1,9 +1,9 @@
 import { useEffect, type RefObject } from 'react';
 
 /**
- * Closes an open <details> popover on a press outside it or a resize. The press only
- * closes it: the click it would have made is swallowed, so whatever lay behind the
- * popover is not tapped too. A press that turns into a scroll swallows nothing.
+ * 열린 <details> 팝오버를 바깥을 누르거나 창 크기가 바뀌면 닫는다. 바깥 누르기는
+ * 닫기만 한다. 그 누르기가 만들 클릭은 삼켜서 팝오버 뒤에 있던 것이 함께 눌리지 않게
+ * 한다. 누르기가 스크롤로 바뀌면 아무것도 삼키지 않는다.
  */
 export function useOutsideDismiss(ref: RefObject<HTMLDetailsElement | null>) {
   useEffect(() => {

@@ -23,7 +23,7 @@ interface HeaderBarProps extends DesktopSettingsProps {
   onChangeTheme: (theme: ThemeMode) => void;
   onRefresh: () => void;
   refreshing: boolean;
-  /** A background sync turns the icon while the button stays available. */
+  /** 백그라운드 동기화 중에는 아이콘이 돌지만 버튼은 계속 누를 수 있다. */
   syncing?: boolean;
   onMarkAllRead: () => void;
   onOpenMobileSidebar: () => void;
@@ -61,7 +61,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     >
       <div className="sfeed-header-sections">
         <div className="sfeed-list-controls flex min-w-0 items-center gap-2 px-4">
-        {/* Mobile Menu */}
+        {/* 모바일 메뉴 */}
         <button
           type="button"
           aria-label="피드 채널 열기"
@@ -75,9 +75,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Search, sorting and mark-read controls follow the list pane. */}
+        {/* 검색, 정렬, 읽음 처리 조절기는 목록 영역을 따라간다. */}
         <div className="flex flex-1 min-w-0 items-center gap-2">
-          {/* Keyword Search Input */}
+          {/* 키워드 검색 입력창 */}
           <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -105,7 +105,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
           <button type="button" onClick={onToggleSort} aria-label={`정렬: ${sort === 'oldest' ? '오래된순, 최신순으로 전환' : '최신순, 오래된순으로 전환'}`} title="클릭하여 최신순 / 오래된순 전환" className="sfeed-sort-button"><ArrowDownUp size={16} /><span>{sort === 'oldest' ? '오래된순' : '최신순'}</span></button>
 
-          {/* Mark All Read */}
+          {/* 모두 읽음 */}
           <button
             type="button"
             onClick={onMarkAllRead}
@@ -126,7 +126,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <div className="sfeed-global-controls flex shrink-0 items-center justify-end gap-2 px-4">
             <DesktopReadingSettings accountId={accountId} layout={layout} onChangeLayout={onChangeLayout} markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />
             <InstallAppButton />
-            {/* Refresh Feeds */}
+            {/* 피드 새로고침 */}
             <button
               type="button"
               onClick={onRefresh}

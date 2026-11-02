@@ -12,7 +12,7 @@ interface MoveFeedDialogProps {
   busy: boolean;
   error: string | null;
   onCancel: () => void;
-  /** A folder id (null: 미분류), or the name of a folder to create first. */
+  /** 폴더 id(null은 미분류), 또는 먼저 만들 폴더의 이름. */
   onMove: (target: { folderId: string | null } | { newFolder: string }) => void;
 }
 

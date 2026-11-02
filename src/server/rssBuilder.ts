@@ -44,8 +44,8 @@ function pageTitle(document: HtmlDocument, source: URL): string {
   return title;
 }
 
-// The page copy shown for picking, and the page the server extracts from
-// later, both lose scripts and other active content so they match.
+// 고르기용으로 보여 주는 페이지 사본과 나중에 서버가 뽑아 쓰는 페이지 모두에서
+// 스크립트와 다른 동작 콘텐츠를 빼서 둘이 같게 한다.
 function stripActiveContent(document: HtmlDocument) {
   document.querySelectorAll('script,noscript,iframe,frame,frameset,object,embed,applet,template,base,meta[http-equiv],link[rel~="preload"],link[rel~="modulepreload"],link[rel~="prefetch"]').forEach((node) => node.remove());
   for (const element of document.querySelectorAll('*')) {
@@ -57,20 +57,20 @@ function stripActiveContent(document: HtmlDocument) {
 
 const PICKABLE_LINKS = 5;
 
-/** A static copy of the page for point-and-click selection, or undefined when it has nothing to pick. */
+/** 클릭으로 고르기용 페이지의 정적 사본. 고를 것이 없으면 undefined. */
 export function pickerSnapshot(html: string, pageUrl: string): string | undefined {
   return pageCopy(html, pageUrl, { minLinks: PICKABLE_LINKS });
 }
 
 /**
- * The web view's stand-in for sites that refuse to be framed: the page as the
- * server fetched it, with no scripts, shown in a sandbox. Links open in a new tab.
+ * 프레임을 거부하는 사이트의 웹 보기 대체: 서버가 받은 페이지를 스크립트 없이
+ * 샌드박스에서 보여 준다. 링크는 새 탭에서 열린다.
  */
 export function webCopy(html: string, pageUrl: string): string {
   return pageCopy(html, pageUrl, { linkTarget: '_blank', articleOnly: true })!;
 }
 
-// `articleOnly` drops the columns beside the article; the RSS picker keeps them, as their links can be picked.
+// `articleOnly`는 기사 옆 열을 뺀다. RSS 고르기 도구는 그 열의 링크도 고를 수 있으므로 남긴다.
 function pageCopy(html: string, pageUrl: string, { minLinks = 0, linkTarget, articleOnly }: { minLinks?: number; linkTarget?: string; articleOnly?: boolean }): string | undefined {
   const { document } = parseHTML(html);
   stripActiveContent(document);
@@ -93,7 +93,7 @@ function pageCopy(html: string, pageUrl: string, { minLinks = 0, linkTarget, art
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const pad = (value: string | number) => String(value).padStart(2, '0');
 
-/** A date as list pages print it: "2026.10.21 14:05", "2026년 10월 21일", "Oct 21, 2026", "3시간 전". */
+/** 목록 페이지에 찍힌 형태의 날짜: "2026.10.21 14:05", "2026년 10월 21일", "Oct 21, 2026", "3시간 전". */
 export function parseListedDate(raw: string | null | undefined, now = Date.now()): string | null {
   const value = (raw || '').replace(/\s+/g, ' ').trim();
   if (!value) return null;
@@ -132,7 +132,7 @@ function analysePicked(html: string, pageUrl: string, selector: string, pick: Pi
   return { sourceUrl: pageUrl, title, groups: articles.length ? [{ selector, label: 'pick', articles }] : [], rendered: Boolean(pick.rendered) };
 }
 
-/** Name and description for the "build a feed from this website" card. */
+/** "이 웹사이트로 피드 만들기" 카드의 이름과 설명. */
 export async function builderSiteInfo(url: string): Promise<BuilderSite> {
   const source = publicPageUrl(url);
   try {
@@ -209,7 +209,7 @@ export async function fetchPage(url: string, accept = 'text/html,application/xht
   throw new Error('사이트 이동이 너무 많습니다.');
 }
 
-/** `phone` lays the page out at phone width, for sites whose scripts pick the phone layout. */
+/** `phone`은 스크립트로 휴대폰 배치를 고르는 사이트를 위해 페이지를 휴대폰 폭으로 배치한다. */
 export async function renderPage(url: string, env: Pick<Env, 'BROWSER'>, content: 'links' | 'article' = 'links', phone = false): Promise<{ html: string; url: string }> {
   if (!env.BROWSER) throw new Error('이 사이트는 브라우저 렌더링이 필요합니다.');
   const { default: puppeteer } = await import('@cloudflare/puppeteer');
@@ -224,7 +224,7 @@ export async function renderPage(url: string, env: Pick<Env, 'BROWSER'>, content
         if (['image', 'font', 'media'].includes(request.resourceType())) void request.abort(); else void request.continue();
       } catch { void request.abort(); }
     });
-    // Article copies need readable paragraphs, not finished ad/analytics traffic.
+    // 기사 사본에 필요한 것은 읽을 수 있는 문단이지, 다 끝난 광고·분석 트래픽이 아니다.
     const response = await page.goto(publicPageUrl(url), { waitUntil: content === 'article' ? 'domcontentloaded' : 'networkidle2', timeout: 20000 });
     if (response && !response.ok()) throw new Error(`사이트 응답 오류 (HTTP ${response.status()})`);
     await page.waitForFunction(content === 'article'
@@ -234,9 +234,8 @@ export async function renderPage(url: string, env: Pick<Env, 'BROWSER'>, content
   } finally { await browser.close(); }
 }
 
-// Sites that turn automated visits away often still publish a sitemap for
-// search engines. Its post addresses and lastmod times are enough to notice
-// new posts; titles come from the address because the posts stay closed.
+// 자동 방문을 막는 사이트도 검색 엔진용 사이트맵은 내는 경우가 많다. 글 주소와
+// lastmod 시각이면 새 글을 알아채기에 충분하다. 글 페이지는 닫혀 있으므로 제목은 주소에서 얻는다.
 export const SITEMAP_SELECTOR = 'sitemap:';
 const MAX_SITEMAP_FILES = 6;
 const MAX_SITEMAP_ARTICLES = 100;
@@ -269,7 +268,7 @@ async function readSitemaps(source: URL, prefix: string): Promise<Array<{ url: s
       const loc = xmlValue(block, 'loc');
       if (loc) entries.push({ url: loc, lastmod: xmlValue(block, 'lastmod') });
     }
-    // In a sitemap index, child sitemaps named after the list's path go first.
+    // 사이트맵 색인에서는 목록 경로 이름이 붙은 하위 사이트맵을 먼저 본다.
     const score = (loc: string) => hints.filter((hint) => loc.includes(hint)).length;
     const children = [...xml.matchAll(/<sitemap(?:\s[^>]*)?>([\s\S]*?)<\/sitemap>/gi)].map(([, block]) => xmlValue(block, 'loc')).filter((loc): loc is string => {
       try { return !!loc && sameSite(new URL(loc), source); } catch { return false; }
@@ -283,7 +282,7 @@ function slugTitle(url: URL): string {
   const segment = url.pathname.split('/').filter(Boolean).pop() || '';
   let words = segment;
   try { words = decodeURIComponent(segment); } catch {}
-  // "lombard-s-roadmap" lost its apostrophe on the way into the address.
+  // "lombard-s-roadmap"은 주소로 들어가며 아포스트로피를 잃었다.
   words = words.replace(/\.(?:s?html?|php|aspx?)$/i, '').replace(/[-_+]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/(\w) s(?= |$)/g, "$1's");
   return words ? words[0].toUpperCase() + words.slice(1) : url.hostname;
 }
@@ -301,10 +300,10 @@ export async function analyseSitemap(sourceUrl: string, selector?: string): Prom
       return [{ url, lastmod: entry.lastmod && !Number.isNaN(Date.parse(entry.lastmod)) ? entry.lastmod : null }];
     } catch { return []; }
   });
-  // Listing pages such as categories usually carry no lastmod when posts do.
+  // 분류 같은 목록 페이지에는 글과 달리 보통 lastmod가 없다.
   const withDate = entries.filter((entry) => entry.lastmod);
   const candidates = withDate.length * 2 >= entries.length ? withDate : entries;
-  // One timestamp on many entries records a bulk migration, not when each post appeared.
+  // 여러 항목에 같은 시각이 찍혀 있으면 글이 나온 때가 아니라 한꺼번에 옮긴 기록이다.
   const shared = new Map<string, number>();
   for (const { lastmod } of candidates) if (lastmod) shared.set(lastmod, (shared.get(lastmod) || 0) + 1);
   const trusted = (lastmod: string | null): lastmod is string => {
@@ -340,8 +339,8 @@ export async function analyseBuilderPage(url: string, env: Env, selector?: strin
     const page = pick.rendered ? await renderPage(source, env) : await fetchPage(source);
     return analysePicked(page.html, page.url, selector, pick);
   }
-  // Without a selector this is the builder's first look: include the page copy
-  // so the person can pick the list even when none was detected.
+  // 선택자가 없으면 만들기 도구의 첫 보기다. 목록을 찾지 못했어도 사람이 고를 수 있게
+  // 페이지 사본을 함께 넣는다.
   const read = (page: { html: string; url: string }, rendered: boolean): BuilderAnalysis => {
     const result = { ...analyseBuilderHtml(page.html, page.url, selector), rendered };
     return selector ? result : { ...result, snapshot: pickerSnapshot(page.html, page.url) };

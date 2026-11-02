@@ -65,8 +65,8 @@ export class ArticleResources {
       if (!this.current()) throw new Error('Session changed');
       let result: WebResult | null = null;
       let deviceError: unknown;
-      // The device's request succeeds even when the publisher blocks the
-      // server network. Keep the original page layout and cache it locally.
+      // 언론사가 서버 네트워크를 막아도 기기의 요청은 성공한다.
+      // 원래 페이지 배치를 지키고 기기에 캐시한다.
       if (publicDeviceArticle(article.url)) {
         const source = publicDeviceArticle(article.url)!;
         try {
@@ -93,7 +93,7 @@ export class ArticleResources {
       return result;
     });
   }
-  /** A copy laid out at phone width, replacing a saved one that only fits a desktop. */
+  /** 휴대폰 폭에 맞춘 사본. 데스크톱에만 맞는 저장본을 대신한다. */
   phoneWeb(article: ArticleItem): Promise<WebResult> {
     return this.once(`phone:${article.id}`, async () => {
       const generation = cacheGeneration.get(this.account);
@@ -114,7 +114,7 @@ export class ArticleResources {
       if (mode === 'web') {
         let knownCopy = Boolean(publicDeviceArticle(article.url));
         try { knownCopy ||= this.copyOrigins.has(new URL(article.url).origin); } catch {}
-        // Ordinary embeddable sites keep their live page and scripts.
+        // 보통의 프레임 허용 사이트는 실제 페이지와 스크립트를 그대로 쓴다.
         if (knownCopy) web.push(article);
       }
     }

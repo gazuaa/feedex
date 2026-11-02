@@ -6,7 +6,7 @@ import { createServer } from 'vite';
 const vite = await createServer({ configFile: false, server: { middlewareMode: true, ws: false }, appType: 'custom', logLevel: 'silent' });
 const originalFetch = globalThis.fetch, originals = new Map(['DOMParser', 'indexedDB', 'IDBKeyRange'].map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
 const originalTimeout = Object.getOwnPropertyDescriptor(AbortSignal, 'timeout');
-// Older WebKit has AbortController but no AbortSignal.timeout.
+// 예전 WebKit에는 AbortController는 있지만 AbortSignal.timeout은 없다.
 Object.defineProperty(AbortSignal, 'timeout', { configurable: true, value: undefined });
 for (const [key, value] of Object.entries({ DOMParser, indexedDB, IDBKeyRange })) Object.defineProperty(globalThis, key, { configurable: true, value });
 try {
@@ -27,8 +27,8 @@ try {
     calls.push({ url: String(target), options });
     const headers = new Headers(options.headers), requested = String(target).replace('https://r.jina.ai/', '');
     const jsonHtml = (value, data = {}) => Response.json({ code: 200, data: { url: requested, html: value, ...data } });
-    // A real renderer response: an intermediate publisher redirect is reported
-    // as 422 only when the caller asserts status 200, despite usable final HTML.
+    // 실제 렌더러 응답을 흉내 낸다. 호출하는 쪽이 상태 200을 요구할 때만, 쓸 수 있는 최종
+    // HTML이 있어도 중간의 언론사 리디렉션을 422로 알린다.
     if (external === 'redirected' && new Headers(options.headers).has('X-Assert-Status-Code')) return Response.json({ message: 'Expected status code 200 but got 302' }, { status: 422 });
     if (external === 'limited') return new Response('Rate limited', { status: 429 });
     if (external === 'network') throw new TypeError('Load failed');
@@ -124,7 +124,7 @@ try {
   await new ArticleResources('owner', () => true, normalServer).web({ id: 'other-publisher', url: 'https://other.example.test/article' });
   assert.equal(calls.length, 0, 'other publishers and account URLs are never sent to the external renderer');
   assert.equal(await fetchPublicWebPage('https://www.coindesk.com/auth/login'), null);
-  // The Block turns servers away with a Cloudflare check; its public articles take the same device path.
+  // The Block은 Cloudflare 확인으로 서버 요청을 막는다. 공개 기사는 같은 기기 경로를 쓴다.
   const block = 'https://www.theblock.co/news/business/2026-10-29-utah-criminal-charges-kalshi-432104';
   assert.equal(publicDeviceArticle(block + '?utm_source=rss&token=private#top'), block);
   assert.equal(publicDeviceArticle('https://theblock.co/post/123456/older-article'), 'https://www.theblock.co/post/123456/older-article');

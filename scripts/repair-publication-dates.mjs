@@ -1,4 +1,4 @@
-// Preview: --db remote|local. Back up and repair: add --apply.
+// 미리 보기: --db remote|local. 백업 후 고치기: --apply를 덧붙인다.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -17,8 +17,8 @@ const local = dbMode === 'local' ? new DatabaseSync(join(root, '.local/sfeed.sql
 const wrangler = join(root, 'node_modules/.bin/wrangler');
 function remote(params) {
   const output = execFileSync(wrangler, ['d1', 'execute', 'sfeed', '--remote', '--json', ...params], { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
-  // --file prints upload progress even with --json. Subsequent SELECTs verify
-  // the applied rows; a failed command still throws before this point.
+  // --file은 --json을 줘도 업로드 진행 상황을 출력한다. 이어지는 SELECT로 반영된 행을
+  // 확인한다. 명령이 실패하면 이 지점 전에 이미 예외가 난다.
   return params.includes('--file') ? [] : JSON.parse(output);
 }
 const query = (sql) => local ? local.prepare(sql).all() : remote(['--command', sql]).flatMap((result) => result.results || []);

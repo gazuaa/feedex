@@ -61,7 +61,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
   const [googleClientId, setGoogleClientId] = useState<string>(
     DEFAULT_GOOGLE_CLIENT_ID
   );
-  // Hidden until the server confirms quick login is enabled (local dev only)
+  // 서버가 빠른 로그인이 켜져 있다고 확인할 때까지 숨긴다 (로컬 개발 전용)
   const [quickLoginEnabled, setQuickLoginEnabled] = useState(false);
   const [customEmail, setCustomEmail] = useState('');
   const [customName, setCustomName] = useState('');
@@ -80,7 +80,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
       .catch(() => {});
   }, []);
 
-  // Render official Google Identity Services button (same pattern as MUUSED)
+  // 공식 Google Identity Services 버튼을 그린다 (MUUSED와 같은 방식)
   useEffect(() => {
     let attempts = 0;
     const tryInitGsi = () => {
@@ -123,7 +123,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
             width: Math.max(200, Math.min(340, (gsiBtnRef.current.parentElement?.clientWidth || 372) - 34)),
           });
         } catch {
-          // ignore if blocked offline
+          // 오프라인이라 막히면 무시한다
         }
         return;
       }
@@ -172,7 +172,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
 
   return (
     <div className="sfeed-login min-h-screen bg-slate-950 text-slate-100 flex flex-col lg:flex-row">
-      {/* Left Hero Section */}
+      {/* 왼쪽 소개 영역 */}
       <div className="lg:w-7/12 p-8 lg:p-16 flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/30">
         <div className="relative z-10">
           {onChangeTheme && <div className="flex justify-end mb-4"><ThemeSwitch theme={theme} onChange={onChangeTheme} /></div>}
@@ -280,7 +280,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
         </div>
       </div>
 
-      {/* Right Auth Section */}
+      {/* 오른쪽 로그인 영역 */}
       <div className="lg:w-5/12 p-8 lg:p-14 flex items-center justify-center bg-slate-950">
         <div className="w-full max-w-md space-y-6">
           <div>
@@ -299,7 +299,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
             </div>
           )}
 
-          {/* Official Google GIS Button Container (MUUSED style) */}
+          {/* 공식 Google GIS 버튼 자리 (MUUSED 방식) */}
           <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-slate-900/70 border border-slate-800">
             <div ref={gsiBtnRef} className="min-h-[44px] flex items-center justify-center" />
             <span className="text-[11px] text-slate-400">
@@ -309,7 +309,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
 
           {quickLoginEnabled && (
             <>
-              {/* Quick Multi-User Switcher (local dev only) */}
+              {/* 여러 사용자 빠른 전환 (로컬 개발 전용) */}
               <div className="pt-1">
                 <div className="relative flex py-2 items-center">
                   <div className="flex-grow border-t border-slate-800"></div>
@@ -351,7 +351,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
                 </div>
               </div>
 
-              {/* Custom Google Account Form */}
+              {/* 직접 입력하는 Google 계정 양식 */}
               <form
                 onSubmit={handleCustomSubmit}
                 className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-3"

@@ -7,5 +7,5 @@ export function readCollapsedFolders(account: string): Record<string, boolean> {
   } catch { return {}; }
 }
 export function writeCollapsedFolders(account: string, collapsed: Record<string, boolean>) {
-  try { localStorage.setItem(collapsedFoldersKey(account), JSON.stringify(Object.fromEntries(Object.entries(collapsed).filter(([, value]) => value === true)))); } catch { /* keep the state for this session */ }
+  try { localStorage.setItem(collapsedFoldersKey(account), JSON.stringify(Object.fromEntries(Object.entries(collapsed).filter(([, value]) => value === true)))); } catch { /* 이번 세션 동안은 상태를 유지한다 */ }
 }

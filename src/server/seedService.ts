@@ -21,7 +21,7 @@ const FUTURE_AT_FETCH_MS = 10 * 60_000;
 const DATE_REPAIR_MIN_SHIFT_MS = 60 * 60_000;
 const KST_OFFSET_MS = 9 * 60 * 60_000;
 
-// Mirrors the published_at CASE in the upsert below.
+// 아래 upsert의 published_at CASE와 똑같이 맞춘다.
 function needsDateRepair(row: ExistingArticle, feedDate: string): boolean {
   const stored = Date.parse(row.published_at);
   const fetched = Date.parse(row.created_at);
@@ -40,7 +40,7 @@ export async function upsertFeedAndArticles(
 ): Promise<{ feedId: string; insertedCount: number }> {
   const now = new Date().toISOString();
 
-  // Check if feed already exists by xml_url
+  // xml_url로 피드가 이미 있는지 확인한다
   const existingFeed = await db
     .prepare('SELECT id FROM feeds WHERE xml_url = ?')
     .bind(parsed.xmlUrl)
@@ -85,8 +85,8 @@ export async function upsertFeedAndArticles(
       .run();
   }
 
-  // Fetch existing rows together and write up to eight articles per statement.
-  // This keeps a feed refresh below Workers/D1 query limits (at most 96 parameters).
+  // 기존 행을 한꺼번에 가져오고, 한 문장에 글을 최대 여덟 개까지 쓴다.
+  // 그래서 피드 새로고침이 Workers/D1 쿼리 한도 아래에 머문다 (매개변수 최대 96개).
   const existing = new Map<string, ExistingArticle>();
   for (let offset = 0; offset < parsed.articles.length; offset += 80) {
     const chunk = parsed.articles.slice(offset, offset + 80);
@@ -98,9 +98,8 @@ export async function upsertFeedAndArticles(
     for (const row of rows.results || []) existing.set(row.guid, row);
   }
 
-  // Feeds are refreshed every few minutes, so only write what changes: new
-  // articles and existing rows the ON CONFLICT clause below would improve.
-  // Rewriting every item on every refresh would cost a D1 row write each time.
+  // 피드는 몇 분마다 새로고침하므로 바뀌는 것만 쓴다: 새 글, 그리고 아래 ON CONFLICT 절이
+  // 나아지게 할 기존 행. 새로고침마다 모든 항목을 다시 쓰면 매번 D1 행 쓰기 비용이 든다.
   const toWrite = parsed.articles.filter((article) => {
     const row = existing.get(article.guid);
     if (!row) return true;
@@ -112,15 +111,13 @@ export async function upsertFeedAndArticles(
     );
   });
 
-  // Explicit original publication metadata also repairs generator timestamps,
-  // even when the old time does not resemble our own fetch/created_at time.
-  // Other published_at repairs: rows saved before a feed's date field was recognised
-  // carry their fetch time (published_at ≈ created_at), and rows whose zone-less
-  // KST time was read as UTC sit after their own fetch time. Once the feed
-  // yields a real, clearly earlier date, move them back to it. A stored date
-  // exactly 9 hours past the feed's is that same KST misread, even when it is
-  // already in the past. Undated items fall back to "now", which is never
-  // earlier, so they never overwrite a date.
+  // 명시적인 원문 발행 메타데이터는 옛 시각이 우리 수집 시각(created_at)과 닮지 않았어도
+  // 생성기 시각을 고친다.
+  // 그 밖의 published_at 보정: 피드의 날짜 필드를 알아보기 전에 저장된 행은 수집 시각을
+  // 갖고 있고(published_at ≈ created_at), 시간대 없는 KST 시각을 UTC로 읽은 행은 자기 수집
+  // 시각보다 뒤에 있다. 피드가 실제로 분명히 더 이른 날짜를 주면 그 날짜로 되돌린다.
+  // 저장된 날짜가 피드 날짜보다 정확히 9시간 뒤면, 이미 지난 시각이어도 같은 KST 오독이다.
+  // 날짜가 없는 항목은 "지금"으로 대신하는데, 이 값은 더 이를 수 없으므로 날짜를 덮어쓰지 않는다.
   let insertedCount = 0;
   const seenGuids = new Set(existing.keys());
   const articleIds = new Map([...existing].map(([guid, row]) => [guid, row.id]));

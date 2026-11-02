@@ -18,8 +18,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="SFeed" />
     <meta name="application-name" content="SFeed" />
-    <!-- Let iOS size the app below its status bar. Legacy translucent mode
-         can leave an unreachable strip below the standalone web view. -->
+    <!--
+      iOS가 상태 표시줄 아래로 앱 크기를 잡게 한다. 예전 반투명 모드는
+      독립 실행 웹 보기 아래에 닿을 수 없는 띠를 남길 수 있다.
+    -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -27,7 +29,7 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
-    <!-- Keep the opaque top-edge sample outside React and above app overlays. -->
+    <!-- 불투명한 상단 색 표본은 React 밖, 앱 오버레이보다 위에 둔다. -->
     <div class="sfeed-glass-sample" aria-hidden="true"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

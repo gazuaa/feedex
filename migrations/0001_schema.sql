@@ -1,4 +1,4 @@
--- Sfeed Multi-User RSS Service Schema (Cloudflare D1 / SQLite)
+-- SFeed 다중 사용자 RSS 서비스 스키마 (Cloudflare D1 / SQLite)
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   folder_id TEXT,
   custom_title TEXT,
   created_at TEXT NOT NULL,
-  -- New articles stored after this time stay hidden (0004_subscription_pause.sql).
+  -- 이 시각 뒤에 저장된 새 글은 숨긴다 (0004_subscription_pause.sql).
   paused_at TEXT,
   UNIQUE(user_id, feed_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -94,8 +94,8 @@ CREATE TABLE IF NOT EXISTS articles (
   FOREIGN KEY (feed_id) REFERENCES feeds(id) ON DELETE CASCADE
 );
 
--- id breaks published_at ties so keyset pagination can walk these indexes
--- instead of sorting every article (feeds may carry years of history).
+-- published_at이 같을 때 id로 순서를 정해, 키셋 페이지 나눔이 모든 글을
+-- 정렬하지 않고 이 인덱스를 따라가게 한다 (피드에는 몇 년 치 글이 있을 수 있다).
 CREATE INDEX IF NOT EXISTS idx_articles_feed_pub_id ON articles(feed_id, published_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_pub_id ON articles(published_at DESC, id DESC);
 DROP INDEX IF EXISTS idx_articles_feed_pub;
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS article_states (
 CREATE INDEX IF NOT EXISTS idx_article_states_user_saved ON article_states(user_id, is_saved);
 CREATE INDEX IF NOT EXISTS idx_article_states_user_read ON article_states(user_id, is_read);
 
--- Body view (feed content / reader / web page) each user chose for a feed.
+-- 사용자가 피드마다 고른 본문 보기 (피드 본문 / 리더 / 웹 페이지).
 CREATE TABLE IF NOT EXISTS feed_view_modes (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   feed_id TEXT NOT NULL REFERENCES feeds(id) ON DELETE CASCADE,
@@ -125,14 +125,14 @@ CREATE TABLE IF NOT EXISTS feed_view_modes (
   PRIMARY KEY (user_id, feed_id)
 );
 
--- Date provenance is kept separately so older imports can be checked in place.
+-- 날짜 출처를 따로 두어, 예전에 가져온 글도 그 자리에서 확인할 수 있게 한다.
 CREATE TABLE IF NOT EXISTS article_date_checks (
   article_id TEXT PRIMARY KEY REFERENCES articles(id) ON DELETE CASCADE,
   source TEXT NOT NULL CHECK(source IN ('original', 'feed', 'updated', 'collected')),
   checked_at TEXT
 );
 
--- Unresolved import failures are private to the signed-in user.
+-- 해결되지 않은 가져오기 실패는 로그인한 사용자 본인만 본다.
 CREATE TABLE IF NOT EXISTS opml_import_failures (
   user_id TEXT NOT NULL,
   xml_url TEXT NOT NULL,

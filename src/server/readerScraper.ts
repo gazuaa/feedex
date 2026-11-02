@@ -19,7 +19,7 @@ export interface ScrapedArticleResult {
   originalPublishedAt: string | null;
 }
 
-/** Extract only readable, public article content; challenge and sign-in pages are never cached. */
+/** 읽을 수 있는 공개 기사 본문만 뽑는다. 확인 화면과 로그인 페이지는 절대 캐시하지 않는다. */
 export function extractReaderContent(html: string, url: string, fallbackHtml: string | null): ScrapedArticleResult | null {
   const { document } = parseHTML(html);
   if (/security checkpoint|just a moment|verify you are human|access denied|sign in|log in/i.test(document.querySelector('title')?.textContent || '') || /"isAccessibleForFree"\s*:\s*false/.test(html)) return null;
@@ -58,13 +58,13 @@ export async function scrapeFullArticle(url: string, fallbackHtml: string | null
       const result = extractReaderContent((await res.text()).slice(0, 2_000_000), publicPageUrl(res.url || url), fallbackHtml);
       if (result) return result;
     } else await res.body?.cancel();
-  } catch { /* Try the public browser-rendered page below. */ }
+  } catch { /* 아래의 공개 브라우저 렌더링 페이지를 시도한다. */ }
   if (env?.BROWSER) {
     try {
       const page = await renderPage(url, env, 'article');
       const result = extractReaderContent(page.html, page.url, fallbackHtml);
       if (result) return result;
-    } catch { /* Keep a genuine feed body or an actionable error. */ }
+    } catch { /* 실제 피드 본문이나 조치할 수 있는 오류를 남긴다. */ }
   }
   return unavailable();
 }

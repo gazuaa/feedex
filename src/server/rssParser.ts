@@ -105,14 +105,14 @@ export function sanitizeContentHtml(html: string, baseUrl?: string): string {
         }
       });
     } catch {
-      // Ignore invalid baseUrl
+      // 잘못된 baseUrl은 무시한다
     }
   }
   return result.trim();
 }
 
 function extractThumbnail(item: Record<string, unknown>, htmlContent: string, baseUrl?: string): string | null {
-  // 1. Check media:content or media:thumbnail
+  // 1. media:content나 media:thumbnail을 확인한다
   const mediaCandidates = [
     item['media:content'],
     item['media:thumbnail'],
@@ -136,7 +136,7 @@ function extractThumbnail(item: Record<string, unknown>, htmlContent: string, ba
     }
   }
 
-  // 2. Check first <img> inside HTML content
+  // 2. HTML 본문 안의 첫 <img>를 확인한다
   if (htmlContent) {
     const imgMatch = htmlContent.match(/<img[^>]+src=["']([^"']+)["']/i);
     if (imgMatch && imgMatch[1] && !imgMatch[1].startsWith('data:image/gif') && !imgMatch[1].includes('1x1')) {
@@ -153,17 +153,17 @@ function resolveUrl(url: string, baseUrl?: string): string {
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     if (baseUrl) return new URL(url, baseUrl).href;
   } catch {
-    // ignore
+    // 무시한다
   }
   return url;
 }
 
-// Keep every item a publisher exposes (some feeds carry their whole archive);
-// the cap only guards against pathological feeds.
+// 언론사가 내놓는 항목은 모두 남긴다(어떤 피드는 보관 글 전체를 싣는다).
+// 상한은 비정상적인 피드만 막는다.
 const MAX_FEED_ITEMS = 1000;
 
-// RSS uses pubDate/dc:date, Atom 1.0 published/updated, and Atom 0.3 (still
-// served by Naver blogs) issued/created/modified. Publication dates come first.
+// RSS는 pubDate/dc:date, Atom 1.0은 published/updated, Atom 0.3(네이버 블로그가 아직 씀)은
+// issued/created/modified를 쓴다. 발행 날짜를 먼저 본다.
 const ITEM_DATE_FIELDS = ['pubDate', 'published', 'dc:date', 'issued', 'created', 'updated', 'modified'];
 
 function extractItemDate(item: Record<string, unknown>): { value: string; source: 'feed' | 'updated' | 'collected' } {
@@ -188,7 +188,7 @@ export function getFaviconForSite(siteUrl: string | null, xmlUrl: string): strin
 function parseXmlFeedContentRaw(xmlText: string, xmlUrl: string): ParsedFeed {
   const parsed = xmlParser.parse(xmlText) as Record<string, unknown>;
 
-  // RSS 2.0 or RDF
+  // RSS 2.0 또는 RDF
   const rssChannel =
     (parsed.rss as Record<string, unknown> | undefined)?.channel ||
     (parsed['rdf:RDF'] as Record<string, unknown> | undefined)?.channel;
@@ -369,8 +369,8 @@ function parseXmlFeedContentRaw(xmlText: string, xmlUrl: string): ParsedFeed {
 
 export function parseXmlFeedContent(xmlText: string, xmlUrl: string): ParsedFeed {
   const parsed = parseXmlFeedContentRaw(xmlText, xmlUrl);
-  // The publisher's live feed still contains vitalik.ca links, whose DNS no
-  // longer resolves. Only repair that publisher's old host, preserving GUIDs.
+  // 이 언론사의 현재 피드에는 아직 vitalik.ca 링크가 있는데, 그 DNS는 더 이상 풀리지 않는다.
+  // 이 언론사의 옛 호스트만 고치고 GUID는 지킨다.
   if (/^https?:\/\/vitalik\.eth\.limo\//i.test(xmlUrl)) {
     const repairUrl = (value: string | null): string | null => {
       if (!value) return value;
@@ -381,7 +381,7 @@ export function parseXmlFeedContent(xmlText: string, xmlUrl: string): ParsedFeed
           url.host = 'vitalik.eth.limo';
           return url.href;
         }
-      } catch { /* Keep unrelated relative or malformed URLs unchanged. */ }
+      } catch { /* 관계없는 상대 주소나 잘못된 주소는 그대로 둔다. */ }
       return value;
     };
     parsed.htmlUrl = repairUrl(parsed.htmlUrl);
@@ -404,7 +404,7 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
     normalizedUrl = `https://${normalizedUrl}`;
   }
 
-  // Check if user pasted a known curated site htmlUrl
+  // 사용자가 알려진 추천 사이트의 htmlUrl을 붙여 넣었는지 확인한다
   const matchedCurated = CURATED_FEEDS.find(
     (f) =>
       f.htmlUrl.replace(/\/$/, '').toLowerCase() === normalizedUrl.replace(/\/$/, '').toLowerCase()
@@ -436,7 +436,7 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
     const text = await response.text();
     const trimmed = text.trim();
 
-    // Check if HTML page instead of XML -> try auto-discovering <link rel="alternate" type="application/rss+xml">
+    // XML 대신 HTML 페이지면 <link rel="alternate" type="application/rss+xml">를 자동으로 찾는다
     if (/^<!doctype html/i.test(trimmed) || /^<html/i.test(trimmed)) {
       const linkMatch =
         trimmed.match(
@@ -455,7 +455,7 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
         }
       }
 
-      // Try common suffix paths
+      // 흔한 접미 경로를 시도한다
       const commonPaths = ['/feed', '/rss.xml', '/feed.xml', '/atom.xml', '/rss'];
       const origin = new URL(normalizedUrl).origin;
       for (const suffix of commonPaths) {
@@ -467,7 +467,7 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
             return parseXmlFeedContent(xml, candidateUrl);
           }
         } catch {
-          // continue trying
+          // 계속 시도한다
         }
       }
     }
@@ -548,7 +548,7 @@ export function generateOpml(
     '  <body>',
   ];
 
-  // Grouped by folders
+  // 폴더별로 묶는다
   for (const folder of folders) {
     const folderSubs = subscriptions.filter((s) => s.folder_id === folder.id);
     if (folderSubs.length === 0) continue;
@@ -565,7 +565,7 @@ export function generateOpml(
     lines.push('    </outline>');
   }
 
-  // Uncategorized
+  // 미분류
   const uncategorized = subscriptions.filter(
     (s) => !s.folder_id || !folders.some((f) => f.id === s.folder_id)
   );

@@ -6,23 +6,23 @@ compatibility_flags = ["nodejs_compat"]
 [browser]
 binding = "BROWSER"
 
-# Cloudflare D1 Serverless SQLite Database (APAC)
+# Cloudflare D1 서버리스 SQLite 데이터베이스 (APAC)
 [[d1_databases]]
 binding = "DB"
 database_name = "sfeed"
 database_id = "3c299f5d-16ca-4ca8-8a07-e37a8565f94d"
 
-# Cloudflare Workers AI (Built-in Free LLM for Article Summarization)
+# Cloudflare Workers AI (기사 요약용 기본 무료 LLM)
 [ai]
 binding = "AI"
 
-# Observability logs (matching MUUSED configuration)
+# 관측 로그 (MUUSED 설정과 같게)
 [observability]
 enabled = true
 head_sampling_rate = 1
 
-# Cron Trigger: Refresh subscribed RSS feeds every 15 minutes in the background.
-# News feeds only carry their latest 10-50 items, so slower refreshes miss articles.
+# Cron 트리거: 구독한 RSS 피드를 백그라운드에서 15분마다 새로고침한다.
+# 뉴스 피드는 최근 10~50개만 싣기 때문에, 더 느리게 새로고침하면 글을 놓친다.
 [triggers]
 crons = ["*/15 * * * *"]
 
@@ -32,7 +32,7 @@ GH_REPO = "gazuaa/sfeed"
 GOOGLE_CLIENT_ID = "649668487161-f4hutlff1sc7klvplnrm3dki5u3oh3ht.apps.googleusercontent.com"
 AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 
-# Serve React SPA build output via Cloudflare Workers Static Assets
+# React SPA 빌드 결과를 Cloudflare Workers Static Assets로 서빙한다
 [assets]
 directory = "./dist"
 binding = "ASSETS"

@@ -1,7 +1,7 @@
-// Web view support: whether an original page may be shown inside SFeed's
-// reader pane. Sites opt out with X-Frame-Options or CSP frame-ancestors;
-// browsers then render an error page that the app cannot detect, so check
-// the headers up front and offer "open in a new window" instead.
+// 웹 보기 지원: 원문 페이지를 SFeed 리더 영역 안에 보여 줘도 되는지 판단한다.
+// 사이트는 X-Frame-Options나 CSP frame-ancestors로 거부할 수 있고, 그러면 브라우저가
+// 앱이 알아챌 수 없는 오류 페이지를 그린다. 그래서 헤더를 미리 확인하고 대신
+// "새 창에서 열기"를 권한다.
 
 export function framingBlocked(headers: Headers, appOrigin: string): boolean {
   const xfo = (headers.get('x-frame-options') || '').toLowerCase();
@@ -38,19 +38,19 @@ export async function checkEmbeddable(url: string, appOrigin: string): Promise<E
     });
     await res.body?.cancel();
     const finalUrl = res.url || url;
-    // A bot challenge hides the page's own headers, and a framed challenge
-    // cannot finish without third-party cookies: open it in a new window.
+    // 봇 확인 화면은 페이지 자체 헤더를 가리고, 프레임 안에서는 서드파티 쿠키 없이
+    // 끝낼 수 없다: 새 창에서 연다.
     if (res.headers.get('x-vercel-mitigated') === 'challenge' || res.headers.get('cf-mitigated') === 'challenge') {
       return { embeddable: false, url: finalUrl, reason: 'challenge' };
     }
     if (!res.ok) return { embeddable: false, url: finalUrl, reason: 'http' };
-    // An https app cannot frame plain http pages (mixed content).
+    // https 앱은 일반 http 페이지를 프레임에 넣을 수 없다 (혼합 콘텐츠).
     const secureEnough = finalUrl.startsWith('https:') || appOrigin.startsWith('http:');
     if (!secureEnough) return { embeddable: false, url: finalUrl, reason: 'mixed-content' };
     const blocked = framingBlocked(res.headers, appOrigin);
     return { embeddable: !blocked, url: finalUrl, ...(blocked ? { reason: 'framing' as const } : {}) };
   } catch {
-    // Unreachable from the server (some sites block Cloudflare): let the browser try.
+    // 서버에서 닿지 않는다 (Cloudflare를 막는 사이트가 있다): 브라우저가 시도하게 둔다.
     return { embeddable: true, url: appOrigin.startsWith('https:') ? url.replace(/^http:/, 'https:') : url };
   }
 }

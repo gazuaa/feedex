@@ -76,7 +76,7 @@ export const deviceSnapshots: SnapshotStorage = {
   },
 };
 
-// Estimate without serializing large HTML strings on the rendering thread.
+// 렌더링 스레드에서 큰 HTML 문자열을 직렬화하지 않고 크기를 어림한다.
 function sizeOf(value: unknown): number {
   if (typeof value === 'string') return value.length * 2;
   if (!value || typeof value !== 'object') return 8;
@@ -125,7 +125,7 @@ export class ReaderCache {
     let bytes = [...this.entries.values()].reduce((sum, entry) => sum + entry.size, 0);
     for (const [key, snapshot] of this.entries) {
       if (this.entries.size <= CACHE_LIMITS.entries && bytes <= CACHE_LIMITS.bytes) break;
-      // The bootstrap holds the sync epoch that marks every saved list as current.
+      // 처음 받은 데이터에는 저장된 모든 목록을 최신으로 표시하는 동기화 시점이 들어 있다.
       if (key === 'bootstrap') continue;
       this.entries.delete(key); bytes -= snapshot.size;
     }
@@ -135,7 +135,7 @@ export class ReaderCache {
     const revision = this.revision;
     const memory = this.entries.get(key);
     const loaded = memory ?? await this.storage.read(this.account, key).catch(() => undefined);
-    // A faster network response may have populated memory while disk was read.
+    // 디스크를 읽는 동안 더 빠른 네트워크 응답이 메모리를 채웠을 수 있다.
     const snapshot = this.entries.get(key) ?? loaded;
     if (this.closed || revision !== this.revision || snapshot?.account !== this.account || snapshot.savedAt + retentionAge(this.account) <= this.now()) return;
     if (key.startsWith('articles?') && this.overrides.size) snapshot.data = patchPage(snapshot.data as ArticlePage, key, [...this.overrides.values()], new Set(), new Set(), this.entries.get('bootstrap')?.data as BootstrapResponse | undefined);
@@ -143,7 +143,7 @@ export class ReaderCache {
     this.trim();
     return snapshot.data as T;
   }
-  /** The saved value when it is already in memory, so a ready list paints without waiting a frame. */
+  /** 이미 메모리에 있을 때의 저장값. 준비된 목록이 한 프레임도 기다리지 않고 그려지게 한다. */
   peek<T extends Snapshot['data']>(key: string): T | undefined {
     const snapshot = this.entries.get(key);
     if (this.closed || !snapshot || snapshot.savedAt + retentionAge(this.account) <= this.now()) return;
@@ -153,7 +153,7 @@ export class ReaderCache {
   put(key: string, data: Snapshot['data']) {
     if (this.closed) return;
     let size = sizeOf(data);
-    // Retain a useful first screen even if a feed includes very large bodies.
+    // 피드에 아주 큰 본문이 있어도 쓸 만한 첫 화면은 남긴다.
     if ('articles' in data) {
       rememberArticles(this.account, data.articles);
       while (size > CACHE_LIMITS.bytes && data.articles.length > 1) {
@@ -165,7 +165,7 @@ export class ReaderCache {
     const snapshot: Snapshot = { account: this.account, key, data, savedAt: this.now(), size };
     this.entries.delete(key); this.entries.set(key, snapshot);
     this.trim();
-    // Writes accepted before logout must finish; closed instances reject new puts.
+    // 로그아웃 전에 받은 쓰기는 끝까지 마쳐야 한다. 닫힌 인스턴스는 새 저장을 거부한다.
     void this.queue(() => this.storage.write(snapshot));
   }
   updateArticle(before: ArticleItem, after: ArticleItem) {
@@ -231,8 +231,8 @@ export class ReaderCache {
     for (const [key, page] of pages) if (page) {
       const patched = patchPage(page, key, changes, removed, changedBodies, next);
       const query = new URLSearchParams(key.slice(9));
-      // An existing feed can be newly subscribed or moved into a cached folder
-      // without any article writes. Only those affected pages need a refill.
+      // 이미 있는 피드는 글을 쓰지 않고도 새로 구독되거나 캐시된 폴더로 옮겨질 수 있다.
+      // 그때 영향을 받는 페이지만 다시 채운다.
       const refill = subscriptions.some((sub) => {
         const before = old.get(sub.feed_id), scope = query.get('scope');
         if (scope === 'folder') return sub.folder_id === query.get('folderId') && (!before || before.folder_id !== sub.folder_id);
@@ -248,8 +248,8 @@ export class ReaderCache {
   flushed() { return this.writes; }
 }
 
-// Cached data can paint while the request runs. A late disk read or an old
-// response must not overwrite fresh data, navigation or optimistic mutations.
+// 요청이 도는 동안 캐시된 데이터를 먼저 그릴 수 있다. 늦게 끝난 디스크 읽기나
+// 예전 응답이 새 데이터, 이동, 먼저 바꾼 화면을 덮어쓰면 안 된다.
 export async function revalidate<T extends Snapshot['data']>(cache: ReaderCache, key: string, fetcher: () => Promise<T>, apply: (data: T, source: 'cache' | 'network') => void, current: () => boolean) {
   if (!cache.active || !current()) return false;
   const revision = cache.revision;

@@ -12,8 +12,7 @@ export async function loadStoredFeed(env: Env, feed: StoredFeed) {
   return builderParsedFeed(analysis, builder.selector, feed.xml_url, builder.title);
 }
 
-// Keep browser sessions within the provider's concurrency limit while ordinary
-// RSS feeds continue to refresh in parallel.
+// 일반 RSS 피드는 계속 동시에 새로고침하면서, 브라우저 세션은 제공자의 동시 실행 한도 안에서 쓴다.
 export async function refreshStoredFeeds(env: Env, feeds: StoredFeed[]): Promise<number> {
   let inserted = 0;
   const refresh = async (feed: StoredFeed) => {

@@ -1,13 +1,13 @@
 const MEDIA = 'img,picture,video,audio,svg,canvas,iframe,object,embed';
 const NAMED = /(?:^|[-_])sidebar$/i;
 
-/** Text a reader sees: widgets often carry their own style blocks. */
+/** 독자가 보는 글. 위젯은 자기 style 블록을 갖고 있는 경우가 많다. */
 function shownLength(node: Element) {
   const hidden = Array.from(node.querySelectorAll('style,script,noscript,template')).reduce((sum, part) => sum + (part.textContent?.length || 0), 0);
   return Math.max(0, (node.textContent?.replace(/\s+/g, ' ').length || 0) - hidden);
 }
 
-/** The block holding most of the article's paragraph text. */
+/** 기사 문단 글을 가장 많이 담은 블록. */
 function articleText(root: ParentNode) {
   const sums = new Map<Element, number>();
   for (const p of Array.from(root.querySelectorAll('p'))) {
@@ -19,9 +19,9 @@ function articleText(root: ParentNode) {
 }
 
 /**
- * Columns beside an article (aside, complementary, *-sidebar) list other stories and
- * ads. A copy shows the article alone, so ones outside its text that are mostly links,
- * or blank, go. Boxes of prose such as key points stay, as does anything in the text.
+ * 기사 옆 열(aside, complementary, *-sidebar)은 다른 기사와 광고를 늘어놓는다.
+ * 사본은 기사만 보여 주므로, 본문 밖에 있으면서 대부분 링크이거나 비어 있는 열은 뺀다.
+ * 핵심 정리 같은 글 상자와 본문 안에 있는 것은 남긴다.
  */
 export function dropSidebars(root: ParentNode) {
   const text = articleText(root);

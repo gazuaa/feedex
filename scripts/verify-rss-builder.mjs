@@ -35,7 +35,7 @@ try {
   const noImage = analyseBuilderHtml('<a href="/post/1"><img>First real article</a><a href="/post/2">Second real article</a>', source);
   assert.equal(noImage.groups[0].articles[0].thumbnailUrl, null);
 
-  // The page copy for point-and-click selection carries no active content.
+  // 클릭으로 고르기용 페이지 사본에는 동작하는 콘텐츠가 없다.
   const unsafe = pickerSnapshot(`<html><head><script>steal()</script><meta http-equiv="refresh" content="0;url=https://evil.example.test"></head><body onload="steal()"><a href="javascript:steal()">Bad link</a>${Array.from({ length: 5 }, (_, i) => `<a href="/p/${i}" onclick="steal()">Post ${i}</a>`).join('')}<img data-src="/lazy.png" src="data:image/gif;base64,AAAA"><iframe src="https://evil.example.test"></iframe></body></html>`, source);
   assert.ok(!/<script|onload|onclick|javascript:|http-equiv|<iframe/i.test(unsafe), 'page copy keeps no active content');
   assert.match(unsafe, /<base href="https:\/\/builder\.example\.test\/ko\/research">/);
@@ -131,7 +131,7 @@ try {
   assert.equal((await worker.fetch(new Request(built.rssUrl), env, {})).status, 200, 'stored RSS must remain available during upstream failure');
   unavailable = false;
 
-  // A site that challenges automated visits: build the list from its sitemap.
+  // 자동 방문을 막는 사이트: 사이트맵으로 목록을 만든다.
   const fromSitemap = await (await request('/api/rss-builder/analyse', { url: blocked })).json();
   assert.equal(fromSitemap.fromSitemap, true);
   assert.equal(fromSitemap.groups.length, 1);
@@ -149,8 +149,8 @@ try {
   assert.ok(!blockedFetches.includes(blocked), 'a sitemap feed refreshes from the sitemap without retrying the blocked page');
   assert.equal((await db.prepare('SELECT title FROM articles WHERE feed_id=? ORDER BY published_at DESC').bind(sitemapBuilt.feedId).first()).title, 'Newest report');
 
-  // Point-and-click: the first look carries the page copy; the picker run on
-  // it selects the suggested article's list, and the server extracts the same.
+  // 클릭으로 고르기: 처음 보기에 페이지 사본이 함께 오고, 그 위에서 돈 고르기 도구는 제안된
+  // 기사의 목록을 고르며, 서버도 같은 것을 뽑아낸다.
   const firstLook = await (await request('/api/rss-builder/analyse', { url: source })).json();
   assert.match(firstLook.snapshot, /Report number 0/);
   assert.ok(!/<script/i.test(firstLook.snapshot));

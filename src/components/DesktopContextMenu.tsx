@@ -51,7 +51,7 @@ export function DesktopContextMenu({ enabled, touch = false, actions }: { enable
     {enabled && menu && <div ref={ref} role="menu" aria-label="SFeed 메뉴" className="sfeed-context-menu" style={{ left: menu.x, top: menu.y }} onKeyDown={(event) => {
       const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')];
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      // Esc closes only the menu, not the article behind it.
+      // Esc는 메뉴만 닫고 뒤에 열린 글은 닫지 않는다.
       if (event.key === 'Escape' || event.key === 'Tab') { setMenu(null); if (event.key === 'Escape') { event.preventDefault(); previousFocus.current?.focus(); } return; }
       const next = event.key === 'ArrowDown' ? (index + 1) % buttons.length : event.key === 'ArrowUp' ? (index + buttons.length - 1) % buttons.length : event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : null;
       if (next !== null) { event.preventDefault(); buttons[next]?.focus(); }

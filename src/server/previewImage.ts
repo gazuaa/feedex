@@ -1,5 +1,5 @@
-// Representative image of an article page (og:image, twitter:image or
-// <link rel="image_src">), for feeds that ship no image of their own.
+// 기사 페이지의 대표 이미지(og:image, twitter:image 또는 <link rel="image_src">).
+// 자체 이미지가 없는 피드에 쓴다.
 
 const PATTERNS = [
   /<meta[^>]+(?:property|name)=["']og:image(?::secure_url|:url)?["'][^>]*content=["']([^"']+)["']/i,
@@ -17,16 +17,15 @@ export function extractPreviewImage(html: string, pageUrl: string): string | nul
       const url = new URL(raw, pageUrl);
       if (url.protocol === 'https:' || url.protocol === 'http:') return url.href;
     } catch {
-      // malformed URL: try the next tag
+      // 잘못된 주소: 다음 태그를 시도한다
     }
   }
   return null;
 }
 
 /**
- * Looks the image up on the page itself. Returns null when the page answered
- * but has no image (or is gone), and undefined when it could not be reached,
- * so callers only remember definite answers.
+ * 페이지에서 직접 이미지를 찾는다. 페이지가 답했지만 이미지가 없거나(또는 사라졌으면)
+ * null을, 닿지 못했으면 undefined를 돌려줘서 호출하는 쪽이 확정 답만 기억하게 한다.
  */
 export async function fetchPreviewImage(pageUrl: string): Promise<string | null | undefined> {
   try {
@@ -40,7 +39,7 @@ export async function fetchPreviewImage(pageUrl: string): Promise<string | null 
       return res.status === 404 || res.status === 410 ? null : undefined;
     }
     if (res.headers.get('x-vercel-mitigated') === 'challenge' || res.headers.get('cf-mitigated') === 'challenge') { await res.body?.cancel(); return undefined; }
-    // The tags live in <head>; the first part of the page is enough.
+    // 태그는 <head>에 있으므로 페이지 앞부분만 보면 된다.
     const reader = res.body?.getReader(); if (!reader) return null;
     const decoder = new TextDecoder(); let html = '', bytes = 0;
     try {

@@ -1,6 +1,6 @@
 export const RETENTION_OPTIONS = [1, 7, 14, 30, 60, 90] as const;
 export const CONTENT_LIMIT = 256 * 1024 * 1024;
-/** Saved lists on the device: enough for the first screen of every folder, beyond what memory keeps. */
+/** 기기에 저장하는 목록 수: 메모리에 두는 것보다 많이, 모든 폴더의 첫 화면을 담을 만큼. */
 export const SNAPSHOT_LIMITS = { entries: 160, bytes: 32 * 1024 * 1024 };
 export function retentionDays(account: string) {
   try { const days = Number(localStorage.getItem(`sfeed_cache_days:${account}`)); return (RETENTION_OPTIONS as readonly number[]).includes(days) ? days : 30; } catch { return 30; }

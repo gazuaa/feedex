@@ -6,8 +6,8 @@ const platform = () => installPlatform(navigator.userAgent, navigator.maxTouchPo
 const SNOOZE_KEY = 'sfeed:install-snooze';
 const snoozed = () => { try { return Date.now() - Number(localStorage.getItem(SNOOZE_KEY) || 0) < 86400000; } catch { return false; } };
 
-// One install prompt for the floating banner (desktop) and the card at the
-// top of the mobile library, where a floating banner would cover the lists.
+// 떠 있는 띠(데스크톱)와 모바일 보관함 위쪽 카드가 같은 설치 안내를 쓴다.
+// 모바일에서는 떠 있는 띠가 목록을 가리기 때문이다.
 function useInstallPrompt() {
   const state = useInstallState();
   const ios = platform() === 'ios';
@@ -34,7 +34,7 @@ function InstallPromptContent({ prompt }: { prompt: ReturnType<typeof useInstall
   </>;
 }
 
-/** The install prompt as a card inside the mobile library. */
+/** 모바일 보관함 안에 카드로 보여 주는 설치 안내. */
 export function InstallCard() {
   const prompt = useInstallPrompt();
   if (!prompt.visible) return null;

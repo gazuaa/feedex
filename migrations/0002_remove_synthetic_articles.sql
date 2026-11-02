@@ -1,6 +1,6 @@
--- Remove only Sfeed's former generated welcome posts and hard-coded demos.
--- Real articles, feeds, subscriptions and folders are preserved.
--- Associated read/bookmark rows follow the article foreign-key cascade.
+-- SFeed가 예전에 만들어 넣은 환영 글과 하드코딩된 예시만 지운다.
+-- 실제 글·피드·구독·폴더는 그대로 둔다.
+-- 딸린 읽음·북마크 행은 글 외래 키의 연쇄 삭제를 따른다.
 DELETE FROM articles WHERE id IN (
   SELECT a.id FROM articles a JOIN feeds f ON f.id = a.feed_id
   WHERE (

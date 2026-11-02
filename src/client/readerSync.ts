@@ -42,7 +42,7 @@ export class ReaderSync {
     this.cache.put('bootstrap', bootstrap);
     return { bootstrap, changed: true, reset: true };
   }
-  /** A current list already in memory; anything else goes through page(). */
+  /** 이미 메모리에 있는 최신 목록. 그 밖의 것은 page()를 거친다. */
   ready(query: URLSearchParams): ArticlePage | undefined {
     const cached = this.cache.peek<ArticlePage>(articlePageKey(query));
     return cached && !cached.needsRefresh && cached.syncEpoch && cached.syncEpoch === this.cache.epoch ? cached : undefined;

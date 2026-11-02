@@ -5,7 +5,7 @@ interface MarkAllReadDialogProps {
   scopeName: string;
   search: string;
   savedOnly: boolean;
-  /** Only the articles above or below the open one. */
+  /** 열린 글의 위쪽이나 아래쪽 글만. */
   side?: 'above' | 'below';
   focusConfirm?: boolean;
   isDark: boolean;

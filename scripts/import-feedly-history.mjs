@@ -1,18 +1,17 @@
-// One-off import of a user's feed history from Feedly's public stream API.
+// Feedly 공개 스트림 API에서 사용자의 피드 기록을 한 번 가져오는 스크립트.
 //
-// Feedly keeps years of entries for every feed, while RSS only carries the
-// latest few. Its unauthenticated stream endpoint returns at most 50 entries
-// and no continuation token, but `ranked=oldest` plus `newerThan` (Feedly's
-// crawl time in ms) walks a stream from its first entry to now. Entries map to
-// Sfeed rows by originId == articles.guid, so existing articles are skipped.
+// Feedly는 피드마다 몇 년 치 글을 보관하지만 RSS에는 최근 몇 개만 있다. 인증 없는
+// 스트림 엔드포인트는 한 번에 최대 50개만 주고 이어받기 토큰도 없지만, `ranked=oldest`와
+// `newerThan`(Feedly 수집 시각, ms)을 함께 쓰면 스트림을 첫 글부터 지금까지 따라갈 수 있다.
+// 글은 originId == articles.guid로 SFeed 행과 맞추므로 이미 있는 글은 건너뛴다.
 //
 //   npm run import:feedly -- download  --db remote --user <userId> [--feed <url part>]
 //   npm run import:feedly -- write     --db remote --user <userId>
 //
-// `--db local` targets .local/sfeed.sqlite instead of the production D1.
-// Downloads live under .local/feedly-import/ (keyed by feed URL, shared by
-// both databases) and every step resumes where it stopped. No read states are
-// written: the app already treats articles older than 30 days as read.
+// `--db local`은 운영 D1 대신 .local/sfeed.sqlite에 쓴다. 받은 파일은
+// .local/feedly-import/ 아래에 피드 주소별로 두고 두 데이터베이스가 함께 쓰며, 모든 단계는
+// 멈춘 곳부터 이어서 한다. 읽음 상태는 쓰지 않는다. 앱이 30일보다 오래된 글을 이미 읽은
+// 글로 다루기 때문이다.
 
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -25,7 +24,7 @@ import { acquireLock, createFeedlyClient, readEntries as readCompleteEntries, ru
 
 const DIR = '.local/feedly-import';
 const LOCAL_DB = '.local/sfeed.sqlite';
-const ROWS_PER_STATEMENT = 25; // keeps each INSERT well under D1's 100 KB statement limit
+const ROWS_PER_STATEMENT = 25; // INSERT 하나가 D1의 문장 크기 한도 100KB보다 넉넉히 작게 유지되도록 한다
 const ROWS_PER_REMOTE_FILE = 4000;
 
 const [command, ...rest] = process.argv.slice(2);
@@ -144,15 +143,15 @@ async function download(stripHtmlToSummary, decodeHtmlEntities, extractOriginalP
       if (lines.length) appendFileSync(dataPath(feed.xml_url), lines.join('\n') + '\n');
       state.count += lines.length;
 
-      // newerThan is exclusive, so restart one ms before the newest crawl time
-      // to keep entries that share it; once a page brings nothing new, step past.
+      // newerThan은 그 값을 포함하지 않으므로, 가장 최근 수집 시각보다 1ms 앞에서 다시 시작해
+      // 같은 시각의 글을 놓치지 않는다. 새 글이 하나도 없는 페이지가 오면 그 시각을 넘긴다.
       const newest = Math.max(...page.map((entry) => entry.crawled || entry.published || 0));
       const next = fresh.length > 0 ? newest - 1 : newest;
       state.stalled = next <= (state.cursor ?? -1) ? (state.stalled || 0) + 1 : 0;
       state.cursor = Math.max(next, state.cursor ?? -1);
       saveState(state);
       if (state.stalled >= 3) {
-        // Keep the feed visibly incomplete instead of silently losing history.
+        // 기록을 조용히 잃지 않도록, 덜 받은 피드는 덜 받았다고 보이게 둔다.
         throw new Error(`${feed.title}: cursor stopped advancing; saved progress retained`);
       }
       const last = page.reduce((a, b) => ((a.crawled || 0) > (b.crawled || 0) ? a : b));
@@ -179,8 +178,8 @@ function write(extractSummaryPublishedAt) {
   }
   for (const feed of subscribedFeeds()) {
     const state = readState(feed.xml_url);
-    // Writers own a separate checkpoint: downloading may continue and replace
-    // its state without rolling back the committed database offset.
+    // 기록하는 쪽은 체크포인트를 따로 가진다. 다운로드가 계속되며 자기 상태를 바꿔도
+    // 이미 반영한 데이터베이스 위치가 되돌아가지 않는다.
     const progressPath = join(DIR, `${feedKey(feed.xml_url)}.${opts.db}.written.json`);
     const progress = existsSync(progressPath) ? JSON.parse(readFileSync(progressPath, 'utf8')) : {};
     const entries = readEntries(feed.xml_url).slice(0, state.count);
@@ -190,8 +189,8 @@ function write(extractSummaryPublishedAt) {
     const fileRows = opts.db === 'remote' ? ROWS_PER_REMOTE_FILE : entries.length;
     while (offset < entries.length) {
       const slice = entries.slice(offset, offset + fileRows);
-      // Feedly keeps a few old entries with no link at all; articles.url is
-      // NOT NULL, and one such row makes D1 reject the whole file.
+      // Feedly에는 링크가 아예 없는 오래된 글이 조금 있다. articles.url은 NOT NULL이라
+      // 그런 행 하나 때문에 D1이 파일 전체를 거부한다.
       const chunk = slice.filter((entry) => entry.url);
       const statements = [];
       for (let i = 0; i < chunk.length; i += ROWS_PER_STATEMENT) {

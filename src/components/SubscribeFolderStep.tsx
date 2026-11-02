@@ -10,7 +10,7 @@ export interface FolderChoice {
 
 const NEW_FOLDER = '__new__';
 
-/** The one step between "구독하기" and a subscription: pick a folder, optionally rename. */
+/** "구독하기"와 구독 사이의 한 단계: 폴더를 고르고, 원하면 이름을 바꾼다. */
 export function SubscribeFolderStep({
   feedTitle,
   siteUrl,

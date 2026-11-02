@@ -5,7 +5,7 @@ import { cacheGeneration, CONTENT_LIMIT, estimateBytes, retentionAge, SNAPSHOT_L
 export interface ContentEntry { account: string; key: string; data: Partial<ArticleItem> | { html: string; url: string; phone?: boolean }; savedAt: number; size: number }
 const memory = new Map<string, ContentEntry>();
 const pending = new Set<Promise<unknown>>();
-// Sweeping walks every key of the account, so it runs periodically rather than per write.
+// 정리는 계정의 모든 키를 훑으므로, 쓸 때마다가 아니라 주기적으로 돌린다.
 const SWEEP_EVERY = 50;
 let writes = 0;
 const id = (account: string, key: string) => `${account}:${key}`;
@@ -48,7 +48,7 @@ export function rememberArticles(account: string, articles: ArticleItem[]) {
     const generation = cacheGeneration.get(account);
     void cachedArticle(account, article).then((body) => {
       if (generation !== cacheGeneration.get(account)) return;
-      // Keep full reader HTML when a feed-only list arrives later.
+      // 피드 본문만 있는 목록이 나중에 와도 리더 전체 HTML은 지킨다.
       return writeContent(account, `article:${article.id}`, { id: article.id, url: article.url, content_html: body.content_html, full_content_html: body.full_content_html, ai_summary: body.ai_summary, published_at: body.published_at, date_source: body.date_source });
     });
   }

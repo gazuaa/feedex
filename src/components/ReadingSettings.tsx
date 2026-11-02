@@ -22,11 +22,11 @@ export function TextSizeControl({ className = '' }: { className?: string }) {
   </div>;
 }
 
-/** Settings come in titled groups; lines divide the groups, not every setting. */
+/** 설정은 제목 붙은 묶음으로 나뉜다. 구분선은 설정마다가 아니라 묶음 사이에만 긋는다. */
 export function SettingGroup({ title, children }: { title: string; children: ReactNode }) {
   return <section className="sfeed-setting-group" aria-label={title}><p className="sfeed-setting-group-title">{title}</p><div className="sfeed-setting-items">{children}</div></section>;
 }
-/** One setting: its name on the left, its control on the right. */
+/** 설정 하나: 왼쪽에 이름, 오른쪽에 조절기. */
 export function SettingRow({ label, children }: { label: string; children: ReactNode }) {
   return <div className="sfeed-setting-row"><span>{label}</span>{children}</div>;
 }

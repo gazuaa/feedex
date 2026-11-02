@@ -8,7 +8,7 @@ export function localNotificationsEnabled(account: string) {
   try { return Boolean(account && localStorage.getItem(settingKey(account)) === 'true' && typeof Notification !== 'undefined' && Notification.permission === 'granted'); } catch { return false; }
 }
 export function setLocalNotifications(account: string, enabled: boolean) {
-  try { localStorage.setItem(settingKey(account), String(enabled)); } catch { /* session-only environments may block storage */ }
+  try { localStorage.setItem(settingKey(account), String(enabled)); } catch { /* 세션 전용 환경에서는 저장소가 막혀 있을 수 있다 */ }
   listeners.forEach((listener) => listener());
 }
 export function useLocalNotifications(account: string) {
@@ -31,7 +31,7 @@ export async function notifyNewArticles(account: string, articles: ArticleItem[]
   const deliver = async () => {
     if (!localNotificationsEnabled(account) || !current()) return;
     let previous: string[] = [];
-    try { previous = JSON.parse(localStorage.getItem(seenKey(account)) || '[]'); if (!Array.isArray(previous)) previous = []; } catch { /* ignore malformed history */ }
+    try { previous = JSON.parse(localStorage.getItem(seenKey(account)) || '[]'); if (!Array.isArray(previous)) previous = []; } catch { /* 형식이 잘못된 기록은 무시한다 */ }
     const seen = new Set(previous), fresh = articles.filter((article) => !seen.has(article.id));
     if (!fresh.length) return;
     let display = show;
@@ -44,10 +44,10 @@ export async function notifyNewArticles(account: string, articles: ArticleItem[]
       if (!localNotificationsEnabled(account) || !current()) break;
       if (seen.has(article.id)) continue;
       seen.add(article.id);
-      try { localStorage.setItem(seenKey(account), JSON.stringify([...seen].slice(-1000))); } catch { /* notification tags also deduplicate */ }
+      try { localStorage.setItem(seenKey(account), JSON.stringify([...seen].slice(-1000))); } catch { /* 알림 태그로도 중복을 거른다 */ }
       const feed = article.feed_title?.trim() || 'SFeed';
-      // macOS puts the browser's origin subtitle between title and body.
-      // Keep all article content above it; iPad's desktop UA is still mobile.
+      // macOS는 제목과 본문 사이에 브라우저 출처 부제를 넣는다. 글 내용은 모두 그 위에 둔다.
+      // iPad의 데스크톱 UA도 여전히 모바일이다.
       const mac = /Macintosh|Mac OS X/.test(navigator.userAgent || '') && !/iPhone|iPad|iPod/.test(navigator.userAgent || '') && !(navigator.maxTouchPoints > 1);
       await display(mac ? `${feed} · ${article.title}` : feed, { ...(!mac ? { body: article.title } : {}), tag: `sfeed-${account}-${article.id}`, icon: '/icons/icon-192.png', data: { account, articleId: article.id } });
     }

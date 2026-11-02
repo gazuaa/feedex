@@ -15,7 +15,7 @@ import {
   type LayoutMode,
 } from '../client/api';
 import { useArticleThumbnail } from '../client/thumbnails';
-// Keep the site's logo visible while a nearby article's image is being resolved.
+// 가까운 글의 이미지를 찾는 동안에는 사이트 로고를 보여 준다.
 export function FeedLogo({ article }: { article: ArticleItem }) {
   const [failed, setFailed] = useState(0);
   let origin = '';
@@ -140,7 +140,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     );
   }
 
-  // 1. COMPACT LIST VIEW (Feedly Title-Only View)
+  // 1. 간단한 목록 보기 (Feedly 제목만 보기)
   if (layout === 'list') {
     return (
       <div ref={listRef} className="sfeed-list-items p-4 lg:p-8 max-w-6xl mx-auto" data-retain-read={retainReadRows || undefined}>
@@ -170,7 +170,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                 }`}
               >
                 <div className="sfeed-compact-content flex items-center gap-3 min-w-0 flex-1">
-                  {/* Unread / Read Status Toggle */}
+                  {/* 안 읽음 / 읽음 상태 전환 */}
                   <button
                     type="button"
                     onClick={(e) => onToggleRead(article, e)}
@@ -184,7 +184,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                     )}
                   </button>
 
-                  {/* Feed Source */}
+                  {/* 피드 출처 */}
                   <div className="sfeed-compact-source flex items-center gap-1.5 w-32 sm:w-40 shrink-0 truncate">
                     {article.feed_favicon ? (
                       <img
@@ -200,7 +200,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                     </span>
                   </div>
 
-                  {/* Title & Inline Snippet */}
+                  {/* 제목과 한 줄 요약 */}
                   <div className="sfeed-compact-title min-w-0 flex-1 truncate">
                     <span
                       className={`${
@@ -228,7 +228,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                   </div>
                 </div>
 
-                {/* Right Timestamp & Quick Actions */}
+                {/* 오른쪽 시각과 빠른 동작 */}
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-[11px] text-slate-500 whitespace-nowrap">
                     {formatArticleDate(article)}
@@ -270,7 +270,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     );
   }
 
-  // 2. CARDS VIEW (Grid Layout)
+  // 2. 카드 보기 (격자 배치)
   if (layout === 'cards') {
     return (
       <div ref={listRef} className="sfeed-list-items sfeed-article-cards p-4 lg:p-8 max-w-7xl mx-auto grid grid-cols-1 gap-5" data-retain-read={retainReadRows || undefined}>
@@ -291,7 +291,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
               }`}
             >
               <div>
-                {/* Cover Image or Stylish Gradient Banner */}
+                {/* 표지 이미지 또는 그라데이션 띠 */}
                 <div className="h-44 w-full overflow-hidden relative bg-gradient-to-br from-slate-800 via-slate-900 to-emerald-950">
                   <Thumbnail article={article} accountId={accountId} onUpdateArticleFields={onUpdateArticleFields} card />
 
@@ -308,7 +308,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                   )}
                 </div>
 
-                {/* Card Body */}
+                {/* 카드 본문 */}
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-2 text-xs text-slate-400 mb-2">
                     <div className="flex items-center gap-1.5 truncate">
@@ -350,7 +350,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                 </div>
               </div>
 
-              {/* Card Footer */}
+              {/* 카드 바닥글 */}
               <div
                 className={`px-4 py-2.5 border-t flex items-center justify-between text-xs ${
                   isDark ? 'border-slate-800/70' : 'border-slate-100'
@@ -408,7 +408,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     );
   }
 
-  // 3. MAGAZINE VIEW (Default Feedly Classic Layout)
+  // 3. 매거진 보기 (Feedly 기본 클래식 배치)
   return (
     <div ref={listRef} className="sfeed-list-items p-3 lg:p-4 max-w-5xl mx-auto space-y-2" data-retain-read={retainReadRows || undefined}>
       {articles.map((article) => {
@@ -436,8 +436,10 @@ export const ArticleList: React.FC<ArticleListProps> = ({
             <MagazineThumbnail article={article} accountId={accountId} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />
 
             <div className="sfeed-magazine-copy flex-1 min-w-0">
-              {/* Always one line: source and author truncate instead of wrapping.
-                  Separators belong to the item after them, so none dangle. */}
+              {/*
+                * 언제나 한 줄: 출처와 글쓴이는 줄을 바꾸지 않고 잘린다.
+                * 구분 기호는 뒤 항목에 붙어 있어서 혼자 남지 않는다.
+                */}
               <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap text-xs text-slate-400">
                 {!article.is_read && (
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />

@@ -36,8 +36,8 @@ export async function resolveArticlePublication(db: D1DatabaseLike, article: Pub
   return { publishedAt: publishedAt || article.published_at, dateSource };
 }
 
-// Give every feed a turn instead of allowing a large news feed to monopolize
-// verification. One unchecked article per feed on each scheduled refresh.
+// 큰 뉴스 피드가 확인을 독차지하지 않도록 모든 피드에 차례를 준다.
+// 예약 새로고침 때마다 피드당 확인 안 된 글 하나씩.
 export async function checkFeedPublicationDates(db: D1DatabaseLike, feedIds: string[]) {
   for (let offset = 0; offset < feedIds.length; offset += 4) {
     await Promise.all(feedIds.slice(offset, offset + 4).map(async (feedId) => {

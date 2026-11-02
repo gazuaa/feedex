@@ -9,19 +9,19 @@ const linkShare = (node: Element) => {
   return length ? Array.from(node.querySelectorAll('a')).reduce((sum, link) => sum + text(link).length, 0) / length : 1;
 };
 
-/** A title as the page-title comparison sees it. */
+/** 페이지 제목 비교에 쓰는 형태로 바꾼 제목. */
 export const titleKey = words;
 
-/** The page's own name for the article: og:title, else <title> with its " | Site" suffix as well. */
+/** 페이지가 기사에 붙인 이름: og:title, 없으면 <title>과 그 " | 사이트" 앞부분. */
 export function pageTitles(document: Document): string[] {
   const titles = [document.querySelector('meta[property="og:title"]')?.getAttribute('content'), document.querySelector('meta[name="twitter:title"]')?.getAttribute('content'), document.querySelector('title')?.textContent];
   return [...new Set(titles.flatMap((title) => [title, title?.split(/\s+[|–—-]\s+/)[0]]).map(words).filter((title) => title.length >= 12))];
 }
 
 /**
- * A reader body is the article alone; the reader shows its title, source and date itself.
- * From the page's article markup this drops the page's own title, the byline and date
- * lines before the text, "preferred source" and share buttons, and cards for other stories.
+ * 리더 본문은 기사만 담는다. 제목·출처·날짜는 리더가 직접 보여 준다.
+ * 페이지의 기사 마크업에서 페이지 자체 제목, 본문 앞의 글쓴이·날짜 줄,
+ * "선호 출처"·공유 버튼, 다른 기사 카드를 뺀다.
  */
 export function dropArticleChrome(body: Element, titles: string[]) {
   for (const heading of Array.from(body.querySelectorAll('h1,h2')).slice(0, 3)) {
@@ -30,7 +30,7 @@ export function dropArticleChrome(body: Element, titles: string[]) {
   for (const node of Array.from(body.querySelectorAll('a[href*="google.com/preferences/source"], button'))) {
     if (!node.querySelector(MEDIA) || node.tagName === 'A') node.remove();
   }
-  // Short byline and date lines, only ahead of the first full paragraph.
+  // 짧은 글쓴이·날짜 줄은 첫 온전한 문단 앞에 있을 때만 뺀다.
   const first = Array.from(body.querySelectorAll('p')).find((p) => text(p).length >= 200);
   const before = (node: Element) => !first || Boolean(node.compareDocumentPosition(first) & 4);
   for (const node of Array.from(body.querySelectorAll('div,p,span,time,address'))) {
@@ -44,7 +44,7 @@ export function dropArticleChrome(body: Element, titles: string[]) {
   for (const card of Array.from(body.querySelectorAll('article'))) {
     if (card.isConnected && linkShare(card) >= 0.5) card.remove();
   }
-  // A heading those cards leave with nothing after it ("Related articles").
+  // 그 카드들이 빠지고 뒤에 아무것도 남지 않은 제목("관련 기사").
   const last = (node: Element) => {
     for (let at: Element | null = node; at && at !== body; at = at.parentElement) {
       for (let next = at.nextElementSibling; next; next = next.nextElementSibling) if (text(next) || next.matches(MEDIA) || next.querySelector(MEDIA)) return false;

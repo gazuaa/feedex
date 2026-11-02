@@ -46,8 +46,8 @@ try {
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM articles').first()).n, 1, 'manual and scheduled failures must preserve real articles without adding demos');
   assert.equal((await db.prepare('SELECT last_error FROM feeds WHERE id = ?').bind(subscribed.feedId).first()).last_error, 'HTTP 503');
 
-  // Verify cleanup markers against a real article, a similar publisher title,
-  // and a coincidentally identical GUID from a different publisher.
+  // 정리 표시를 실제 글, 비슷한 언론사 제목, 그리고 우연히 GUID가 같은 다른 언론사 글로
+  // 확인한다.
   const now = new Date().toISOString();
   const addFeed = async (id, xml) => db.prepare('INSERT INTO feeds(id,xml_url,title,created_at) VALUES(?,?,?,?)').bind(id, xml, id, now).run();
   await addFeed('demo-feed', 'https://news.hada.io/rss/news');

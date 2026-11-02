@@ -110,7 +110,7 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
               method: 'POST', body: JSON.stringify({ item, error: result.error || '가져오기에 실패했습니다.' }),
             });
             saved = true;
-          } catch { /* Keep an explicit unsaved marker in this screen. */ }
+          } catch { /* 이 화면에는 저장하지 않은 상태라는 표시를 분명히 남긴다. */ }
         }
         current = {
           ...current,
@@ -128,8 +128,8 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
     } catch (err) {
       setError(err instanceof Error ? err.message : 'OPML 가져오기에 실패했습니다.');
     } finally {
-      // Refresh the workspace once, rather than after every imported feed.
-      try { await onSubscribed(); } catch { /* The next refresh will reload the workspace. */ }
+      // 피드를 하나 가져올 때마다가 아니라 한 번만 작업 공간을 새로고침한다.
+      try { await onSubscribed(); } catch { /* 다음 새로고침 때 작업 공간을 다시 불러온다. */ }
       await reloadFailures();
       busy.current = false;
       setRunning(false);

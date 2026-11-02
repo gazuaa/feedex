@@ -1,16 +1,15 @@
-// RSS builder point-and-click selection. The person clicks an article title in
-// a static copy of the page; similar cards are found and stored as selectors.
-// extractPicked() runs on the server (linkedom) and inside the sandboxed page
-// copy, so both see the same articles. extractPicked and pickerRuntime are
-// injected into the page copy with Function#toString: keep them
-// self-contained (no imports or module-level references).
+// RSS 만들기 도구의 클릭으로 고르기. 사람이 페이지의 정적 사본에서 기사 제목을 누르면
+// 비슷한 카드를 찾아 선택자로 저장한다. extractPicked()는 서버(linkedom)와 샌드박스
+// 페이지 사본 안에서 모두 돌아서 둘이 같은 기사를 본다. extractPicked와 pickerRuntime은
+// Function#toString으로 페이지 사본에 넣으므로 자기 안에서 완결되게 둔다
+// (import나 모듈 수준 참조 금지).
 
 export type PickField = 'title' | 'summary' | 'image' | 'date';
 
 export interface PickSelection {
-  /** Selector for every repeated article card. */
+  /** 되풀이되는 모든 기사 카드의 선택자. */
   item: string;
-  /** Selectors inside a card; '' is the card itself. */
+  /** 카드 안의 선택자. ''는 카드 자신이다. */
   title: string;
   summary?: string;
   image?: string;
@@ -64,8 +63,8 @@ export function extractPicked(root: ParentNode, selection: PickSelection, baseUr
   };
   const text = (node: Element | null) => (node?.textContent || '').replace(/\s+/g, ' ').trim();
   const within = (card: Element, selector: string | undefined) => (selector === undefined ? null : selector ? card.querySelector(selector) : card);
-  // Server-rendered React writes dateTime and srcSet; browsers lower-case
-  // attribute names but linkedom keeps them as written.
+  // 서버에서 렌더링한 React는 dateTime과 srcSet으로 쓴다. 브라우저는 속성 이름을
+  // 소문자로 바꾸지만 linkedom은 쓴 그대로 둔다.
   const attr = (node: Element | null | undefined, name: string) =>
     node ? node.getAttribute(name) ?? Array.from(node.attributes).find((item) => item.name.toLowerCase() === name)?.value ?? null : null;
   const imageSource = (img: Element) => {
@@ -103,7 +102,7 @@ export function extractPicked(root: ParentNode, selection: PickSelection, baseUr
   return items;
 }
 
-/** Runs inside the sandboxed page copy and talks to the app with postMessage. */
+/** 샌드박스 페이지 사본 안에서 돌며 postMessage로 앱과 이야기한다. */
 export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, suggestUrl: string | null) {
   const FIELDS = ['title', 'summary', 'image', 'date'] as const;
   const HEADINGS = 'h1,h2,h3,h4,h5,h6';
@@ -142,8 +141,8 @@ export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, su
     const link = node && (node.matches('a[href]') ? node : node.querySelector('a[href]'));
     return link ? normalize(link.getAttribute('href') || '') : null;
   };
-  // Cards in one list share most of their inner tags; a byline or category
-  // link next to the title does not look like the title link.
+  // 한 목록의 카드들은 안쪽 태그가 대부분 같다. 제목 옆의 글쓴이·분류 링크는
+  // 제목 링크처럼 보이지 않는다.
   const shape = (node: Element) => new Set(Array.from(node.querySelectorAll('*')).slice(0, 200).map((child) => child.tagName));
   const alike = (a: Element, b: Element) => {
     const left = shape(a);
@@ -154,8 +153,8 @@ export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, su
     return both / (left.size + right.size - both) >= 0.5;
   };
 
-  // The card is the ancestor of the link that repeats most among alike
-  // siblings leading elsewhere; on a tie the outer one holds more fields.
+  // 카드는, 다른 곳으로 이어지는 비슷한 형제 사이에서 가장 많이 되풀이되는 링크의 조상이다.
+  // 같으면 바깥쪽이 더 많은 항목을 담는다.
   const cardFor = (start: Element, link: Element) => {
     const own = hrefOf(link);
     let best: { card: Element; classes: string[]; count: number } | null = null;
@@ -230,8 +229,8 @@ export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, su
     return items.length;
   };
 
-  // A whole card can be one link (category, byline, title, teaser): its title
-  // is the text set in the largest type.
+  // 카드 전체가 링크 하나일 수 있다(분류, 글쓴이, 제목, 요약). 그때 제목은 가장 큰
+  // 글자로 쓴 글이다.
   const titleWithin = (link: Element) => {
     const leaves = Array.from(link.querySelectorAll('*')).filter((node) => node.children.length === 0 && (node.textContent || '').trim().length >= 2);
     if (leaves.length < 2) return link;
@@ -285,9 +284,8 @@ export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, su
     }
   });
 
-  // Start from a likely list: linked headlines (a heading, or a few words of
-  // text) whose card repeats the most. Otherwise fall back to the server's
-  // guess, the first article it found.
+  // 그럴듯한 목록부터 시작한다: 카드가 가장 많이 되풀이되는, 링크가 걸린 제목(제목 태그나
+  // 몇 단어짜리 글). 없으면 서버의 추측, 즉 서버가 찾은 첫 기사로 대신한다.
   const suggestion = () => {
     let best: { anchor: Element; count: number } | null = null;
     const headlines = Array.from(document.querySelectorAll('a[href]')).filter((anchor) => {
@@ -310,14 +308,14 @@ export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, su
   const start = suggestion();
   if (start) {
     pick(start);
-    // Scroll the page copy only: scrollIntoView would also move the dialog
-    // around the frame and hide the builder's controls.
+    // 페이지 사본만 스크롤한다. scrollIntoView는 프레임 둘레의 대화창까지 움직여
+    // 만들기 도구의 조절기를 가린다.
     const first = document.querySelector('[data-sfeed-item]');
     try { if (first) window.scrollTo(0, Math.max(0, first.getBoundingClientRect().top + window.scrollY - window.innerHeight / 3)); } catch {}
   }
 }
 
-/** The page copy plus the picker, ready for an iframe's srcdoc. */
+/** iframe srcdoc에 바로 넣을 수 있는, 고르기 도구를 더한 페이지 사본. */
 export function pickerDocument(snapshot: string, baseUrl: string, suggestUrl: string | null): string {
   const code = `(${pickerRuntime.toString()})(${extractPicked.toString()}, ${JSON.stringify(baseUrl)}, ${JSON.stringify(suggestUrl)});`.replace(/<\/script/gi, '<\\/script');
   const script = `<script>${code}</script>`;
