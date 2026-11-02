@@ -45,6 +45,33 @@ export function sanitizePublicWebCopy(html: string, url: string): string {
  */
 export const checkpointRetryDelays = [1500];
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * 원문 사이트는 리더 서비스를 보통 몇 분만 막는다. 사용자가 그 글을 보고 있는 동안 이만큼씩
+ * 기다렸다가 다시 받는다(ms). 테스트는 이 배열을 짧게 바꿔 쓴다.
+ */
+export const challengeRetryDelays = [20_000, 40_000, 80_000];
+
+/**
+ * `load`가 보안 확인으로 실패하면 점점 길게 기다리며 다시 부른다. 기다리기 시작할 때마다
+ * `onWaiting`을 부른다. 로그인·유료 기사 같은 다른 실패나 마지막 재시도의 실패는 그대로 던진다.
+ * `stop`은 기다림을 끝내고 더 묻지 않는다(다른 글이나 보기로 옮겼을 때).
+ */
+export function retryChallenged<T>(load: () => Promise<T>, onWaiting: (error: PublicWebCopyError) => void, delays: readonly number[] = challengeRetryDelays) {
+  let stopped = false, timer: ReturnType<typeof setTimeout> | undefined, wake: (() => void) | undefined;
+  const result = (async () => {
+    for (let attempt = 0; ; attempt++) {
+      try { return await load(); }
+      catch (error) {
+        const delay = delays[attempt];
+        if (stopped || !(error instanceof PublicWebCopyError) || error.reason !== 'challenge' || delay === undefined) throw error;
+        onWaiting(error);
+        await new Promise<void>((resolve) => { wake = resolve; timer = setTimeout(resolve, delay); });
+        if (stopped) throw error;
+      }
+    }
+  })();
+  return { result, stop: () => { stopped = true; clearTimeout(timer); wake?.(); } };
+}
 
 export interface PublicWebCopy { html: string; url: string; textOnly?: boolean }
 /**

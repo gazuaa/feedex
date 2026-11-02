@@ -37,6 +37,7 @@ import type { ArticleResources } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
 import { TextSizeControl } from './ReadingSettings';
 import { publicDeviceArticle } from '../shared/publicWebPage';
+import { retryChallenged } from '../client/publicWebCopy';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 
 const VIEW_MODES = [
@@ -186,7 +187,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [sizeToolsOpen, setSizeToolsOpen] = useState(false);
   // 프레임을 거부하는 사이트는 서버가 받아 온 스크립트 없는 사본으로 보여 준다.
   // textOnly: 원문 사이트가 원래 배치를 잠시 막아 받은 본문만 보여 주는 사본.
-  const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean; textOnly?: boolean } | null>(null);
+  // retrying: 보안 확인으로 막혀 잠시 뒤 자동으로 다시 받는 중.
+  const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean; textOnly?: boolean; retrying?: boolean } | null>(null);
   const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html) : undefined, [webCopy?.html]);
   const [readingPreview, setReadingPreview] = useState(false);
   useEffect(() => { setReadingPreview(false); }, [article?.id, mode]);
@@ -256,7 +258,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 사이트를 바로 보여 준다. 캐시된 사본은 서버 확인 없이 그린다.
   useEffect(() => {
     if (!article || mode !== 'web') return;
-    let active = true;
+    let active = true, retry: { stop: () => void } | undefined;
     setFrame({ articleId: article.id, embeddable: !publicDeviceArticle(article.url), url: article.url.replace(/^http:/, 'https:') });
     const load = async () => {
       const cached = await resources?.cachedWeb(article);
@@ -264,7 +266,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       if (cached) { setFrame({ articleId: article.id, embeddable: false, url: cached.url }); setWebCopy({ articleId: article.id, html: cached.html, phone: cached.phone }); return; }
       if (resources && publicDeviceArticle(article.url)) {
         setFrame({ articleId: article.id, embeddable: false, url: article.url, reason: 'framing' });
-        try { const copy = await resources.web(article); if (active) setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly }); }
+        // 원문 사이트가 리더 서비스를 잠시 막았으면, 이 글을 보고 있는 동안 자동으로 다시 받는다.
+        const attempt = retryChallenged(() => resources.web(article), (error) => { if (active) setWebCopy({ articleId: article.id, html: null, error: error.message, retrying: true }); });
+        retry = attempt;
+        try { const copy = await attempt.result; if (active) setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly }); }
         catch (error) { if (active) setWebCopy({ articleId: article.id, html: null, error: error instanceof Error ? error.message : undefined }); }
         return;
       }
@@ -278,7 +283,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       } catch (error) { if (active) setWebCopy({ articleId: article.id, html: null, error: error instanceof Error ? error.message : undefined }); }
     };
     void load().catch(() => {});
-    return () => { active = false; };
+    return () => { active = false; retry?.stop(); };
   }, [article?.id, mode, resources]);
 
   // 글이 데스크톱 열 옆의 좁은 틈에 놓이는 사본(framedCopy 참고)은 한 번만,
@@ -732,6 +737,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   {webCopy?.articleId === article.id && webCopy.error ? webCopy.error : frame.reason === 'challenge' ? '사이트의 보안 확인 때문에 웹 보기를 열 수 없어요.' : frame.reason === 'http' ? '사이트에서 페이지를 불러오지 못했어요.' : '이 사이트는 다른 서비스 안에서 열리지 않도록 막아 두었어요.'}
                 </p>
+                {webCopy?.articleId === article.id && webCopy.retrying && <p className={`-mt-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>사이트가 잠깐 막은 것일 수 있어요. 이 글을 보고 계시는 동안 잠시 뒤 자동으로 다시 받아 볼게요.</p>}
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <button type="button" className="sfeed-cache-clear" onClick={showWebCopy}>웹 사본 다시 시도</button>
                   <button type="button" className="sfeed-cache-clear" onClick={() => setFrame({ articleId: article.id, embeddable: true, url: article.url })}>원본 다시 표시</button>

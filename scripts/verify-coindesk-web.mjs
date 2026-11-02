@@ -12,7 +12,7 @@ for (const [key, value] of Object.entries({ DOMParser, indexedDB, IDBKeyRange })
 try {
   const { publicCoinDeskArticle, publicDeviceArticle, fetchPublicWebPage } = await vite.ssrLoadModule('/src/shared/publicWebPage.ts');
   const { ArticleResources } = await vite.ssrLoadModule('/src/client/articleResources.ts');
-  const { sanitizePublicWebCopy, PublicWebCopyError, checkpointRetryDelays } = await vite.ssrLoadModule('/src/client/publicWebCopy.ts');
+  const { sanitizePublicWebCopy, PublicWebCopyError, checkpointRetryDelays, retryChallenged } = await vite.ssrLoadModule('/src/client/publicWebCopy.ts');
   // 보안 확인 뒤 다시 묻는 간격은 실제로는 몇 초지만, 테스트에서는 순서만 본다.
   checkpointRetryDelays.splice(0, Infinity, 5);
   const { readContent, maintainDeviceCache } = await vite.ssrLoadModule('/src/client/deviceContent.ts');
@@ -151,8 +151,24 @@ try {
   assert.equal(calls.length, 1); assert.equal(calls[0].url, 'https://r.jina.ai/' + block); assert.equal(calls[0].options.credentials, 'omit');
   assert.equal(blockCopy.url, block); assert.match(blockCopy.html, /real public article/);
   assert.throws(() => sanitizePublicWebCopy('<html><head><title>Sign in</title></head><body><main>Login</main></body></html>', url));
+  // 사용자가 보고 있는 글은 보안 확인이 풀릴 때까지 점점 길게 기다리며 다시 받는다.
+  const checkpoint = () => new PublicWebCopyError('challenge', '사이트의 보안 확인으로 웹 사본을 불러오지 못했습니다.');
+  let tries = 0, waits = 0;
+  const later = retryChallenged(async () => { if (++tries < 3) throw checkpoint(); return 'copy'; }, () => waits++, [5, 5, 5]);
+  assert.equal(await later.result, 'copy'); assert.equal(tries, 3); assert.equal(waits, 2, 'each wait is announced so the screen can say it will retry');
+  tries = 0; waits = 0;
+  await assert.rejects(retryChallenged(async () => { tries++; throw checkpoint(); }, () => waits++, [5, 5]).result, /보안 확인/);
+  assert.equal(tries, 3, 'the last failure is shown once the waits run out'); assert.equal(waits, 2);
+  tries = 0; waits = 0;
+  await assert.rejects(retryChallenged(async () => { tries++; throw new PublicWebCopyError('login', '로그인이 필요한 페이지'); }, () => waits++, [5]).result, /로그인/);
+  assert.equal(tries, 1, 'login, paywall and other failures are not retried'); assert.equal(waits, 0);
+  tries = 0;
+  const leaving = retryChallenged(async () => { tries++; throw checkpoint(); }, () => {}, [60_000]);
+  while (!tries) await new Promise(setImmediate);
+  await new Promise(setImmediate); leaving.stop();
+  await assert.rejects(leaving.result, /보안 확인/); assert.equal(tries, 1, 'leaving the article ends the wait without asking again');
   await maintainDeviceCache('owner', true);
-  console.log('PASS: JSON and raw public HTML; every CoinDesk page shape except account pages; an opened article recovers from a checkpoint through content preparation then cached HTML, or shows the article text without keeping it, never skipping the renderer cache and never through the server path; preloads ask once and an open after a failed preload retries; safe text-only conversion; local reuse, source/redirect restrictions and no caching of challenges/paywalls/errors.');
+  console.log('PASS: JSON and raw public HTML; every CoinDesk page shape except account pages; an opened article recovers from a checkpoint through content preparation then cached HTML, or shows the article text without keeping it, never skipping the renderer cache and never through the server path; an article left open retries a passing checkpoint after growing waits and stops when left; preloads ask once and an open after a failed preload retries; safe text-only conversion; local reuse, source/redirect restrictions and no caching of challenges/paywalls/errors.');
 } finally {
   globalThis.fetch = originalFetch;
   if (originalTimeout) Object.defineProperty(AbortSignal, 'timeout', originalTimeout); else delete AbortSignal.timeout;
