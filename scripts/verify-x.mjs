@@ -49,6 +49,26 @@ try {
   assert.equal(configResponse.headers.get('Cache-Control'), 'no-store');
   assert.ok(!(await configResponse.text()).includes('server-only-secret'));
 
+  const setupEnv = { ...noConfig, OWNER_EMAIL: 'x-import@example.test', X_SETTINGS_SECRET: 'a-test-only-master-key-with-at-least-32-characters' };
+  const putSettings = (body, auth = token, bindings = setupEnv) => app.request('/api/x/settings', { method: 'PUT', headers: { authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, bindings);
+  assert.equal((await app.request('/api/x/settings', { method: 'PUT', body: '{}' }, setupEnv)).status, 401);
+  const ownerConfig = await (await request('/api/x/config', null, token, setupEnv)).json();
+  assert.equal(ownerConfig.canManage, true); assert.equal(ownerConfig.configured, false);
+  assert.equal((await (await request('/api/x/config', null, other, setupEnv)).json()).canManage, false);
+  assert.equal((await putSettings({ clientId: 'client-id', clientSecret: 'server-only-secret' }, other)).status, 403);
+  assert.equal((await putSettings({ clientId: 'client-id', clientSecret: 'server-only-secret' }, token, { ...setupEnv, OWNER_EMAIL: undefined })).status, 403);
+  assert.equal((await putSettings({ clientId: 'client-id', clientSecret: '' })).status, 400);
+  assert.equal((await putSettings({ clientId: 'client-id', clientSecret: 'server-only-secret' }, token, { ...setupEnv, X_SETTINGS_SECRET: undefined })).status, 400);
+  const saved = await putSettings({ clientId: 'client-id', clientSecret: 'server-only-secret' });
+  assert.equal(saved.status, 200); assert.equal(saved.headers.get('Cache-Control'), 'no-store');
+  const savedText = await saved.text(); assert.ok(!savedText.includes('server-only-secret')); assert.equal(JSON.parse(savedText).configured, true);
+  const storedSettings = await db.prepare("SELECT encrypted_value FROM integration_settings WHERE name='x_oauth'").first();
+  assert.ok(!storedSettings.encrypted_value.includes('server-only-secret')); assert.ok(!storedSettings.encrypted_value.includes('client-id'));
+  assert.equal((await (await request('/api/x/config', null, token, { ...setupEnv })).json()).configured, true, '프로세스 메모리 밖에 저장돼 다음 요청에도 연결 설정을 읽는다.');
+  await putSettings({ clientId: 'invalid id', clientSecret: 'new-server-secret' });
+  assert.equal((await db.prepare("SELECT encrypted_value FROM integration_settings WHERE name='x_oauth'").first()).encrypted_value, storedSettings.encrypted_value);
+  assert.equal((await putSettings({ clientId: 'client-id', clientSecret: 'server-only-secret' }, token, { ...env, OWNER_EMAIL: setupEnv.OWNER_EMAIL })).status, 400, '환경 변수로 관리하는 키를 화면에서 덮어쓰지 않는다.');
+
   let apiCalls = [], rssCalls = [], apiMode = 'ok', rssMode = 'ok';
   const xml = (provider, username) => `<?xml version="1.0"?><rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Example / @${username}</title><link>${provider}/${username}</link><image><url>${provider}/pic/https%3A%2F%2Fpbs.twimg.com%2Fprofile_images%2F123%2Favatar.jpg</url></image><item><guid>2000000000000000001</guid><title>A real post</title><link>${provider}/${username}/status/2000000000000000001#m</link><dc:creator>@${username}</dc:creator><pubDate>Mon, 02 Nov 2026 10:00:00 GMT</pubDate><description><![CDATA[<p>Real post body</p><img src="${provider}/pic/media%2Fphoto.jpg"/><a href="https://example.test/?a=1&amp;b=2">link</a>]]></description></item><item><title>Unsafe post</title><link>https://evil.test/a</link></item></channel></rss>`;
   globalThis.fetch = async (input, options = {}) => {
@@ -84,7 +104,7 @@ try {
   };
   assert.equal((await request('/api/x/connect', { code: '', verifier: pending.verifier })).status, 400);
   assert.equal(apiCalls.length, 0);
-  const connected = await request('/api/x/connect', { code: 'code', verifier: pending.verifier });
+  const connected = await request('/api/x/connect', { code: 'code', verifier: pending.verifier }, token, setupEnv);
   assert.equal(connected.status, 200);
   const connector = await connected.json();
   assert.equal(connector.username, 'myaccount');
@@ -149,5 +169,5 @@ try {
   assert.equal(rssCalls.length, limitCount + 1, '요청 제한에 걸리면 다른 제공자로 돌며 재시도하지 않는다.');
   await assert.rejects(fetchAndParseFeed('@cooldown'), /요청 한도/);
   assert.equal(rssCalls.length, limitCount + 1);
-  console.log('PASS: X OAuth PKCE/state/session checks, private encrypted account-bound tokens, authenticated paginated follows, API errors, explicit imports, public feed refresh/cache, canonical post IDs, images, provider failure and cooldown.');
+  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache and cooldown.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }

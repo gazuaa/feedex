@@ -36,6 +36,8 @@ function sfeedApiPlugin(): Plugin {
         JWT_SECRET: devVars.JWT_SECRET || process.env.JWT_SECRET || 'dev-secret',
         X_CLIENT_ID: devVars.X_CLIENT_ID || process.env.X_CLIENT_ID,
         X_CLIENT_SECRET: devVars.X_CLIENT_SECRET || process.env.X_CLIENT_SECRET,
+        X_SETTINGS_SECRET: devVars.X_SETTINGS_SECRET || process.env.X_SETTINGS_SECRET || 'sfeed-local-x-settings-development-only',
+        OWNER_EMAIL: devVars.OWNER_EMAIL || process.env.OWNER_EMAIL || 'jonyq659@gmail.com',
         AI_MODEL:
           devVars.AI_MODEL ||
           process.env.AI_MODEL ||

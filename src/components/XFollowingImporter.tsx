@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Loader2, LockKeyhole, RefreshCw, Users } from 'lucide-react';
 import { apiRequest, type SubscriptionItem } from '../client/api';
-import { consumeXCallback, xAuthorization, type XConfig } from '../client/xConnection';
+import { consumeXCallback, xAuthorization, X_SETUP_LOGIN_URL, type XConfig } from '../client/xConnection';
+import { XConnectionSetup } from './XConnectionSetup';
 import { X_CALLBACK_QUERY, xProfile, type XAccount } from '../shared/xFeed';
 import type { OpmlImportResult } from '../shared/opml';
 
@@ -10,6 +11,8 @@ interface Report { processed: number; imported: number; existing: number; failur
 
 export function XFollowingImporter({ isDark, subscriptions, onBusyChange, onSubscribed }: Props) {
   const [config, setConfig] = useState<XConfig | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [setupOpen, setSetupOpen] = useState(false);
   const [connection, setConnection] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [accounts, setAccounts] = useState<XAccount[]>([]);
@@ -52,11 +55,31 @@ export function XFollowingImporter({ isDark, subscriptions, onBusyChange, onSubs
           setConnection(result.connection); setUsername(result.username);
           await loadFollowing(result.connection);
         } catch (err) { if (alive.current) setError(err instanceof Error ? err.message : 'X 연결에 실패했습니다.'); }
-        finally { if (alive.current) changeBusy(false); }
+        finally { if (alive.current) { setChecking(false); changeBusy(false); } }
       })();
     }
     return () => { alive.current = false; stop.current = true; };
   }, []);
+
+  useEffect(() => {
+    if (!setupOpen) return;
+    let lastCheck = 0;
+    const check = () => {
+      if (document.visibilityState === 'hidden' || Date.now() - lastCheck < 2000) return;
+      lastCheck = Date.now();
+      void apiRequest<XConfig>('/api/x/config').then((settings) => { if (alive.current) setConfig(settings); }).catch(() => {});
+    };
+    window.addEventListener('focus', check); document.addEventListener('visibilitychange', check);
+    return () => { window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', check); };
+  }, [setupOpen]);
+
+  async function checkConfig() {
+    if (checking) return;
+    setChecking(true); setError(null);
+    try { setConfig(await apiRequest<XConfig>('/api/x/config')); }
+    catch (err) { setError(err instanceof Error ? err.message : '연결 상태를 확인하지 못했습니다.'); }
+    finally { setChecking(false); }
+  }
 
   async function loadFollowing(sealed: string, from: string | null = null) {
     stop.current = false; setError(null);
@@ -72,10 +95,10 @@ export function XFollowingImporter({ isDark, subscriptions, onBusyChange, onSubs
     } while (next && !stop.current);
   }
 
-  async function connect() {
-    if (working.current || !config) return;
+  async function connect(settings: XConfig) {
+    if (working.current) return;
     changeBusy(true); setError(null);
-    try { window.location.assign(await xAuthorization(config)); }
+    try { window.location.assign(await xAuthorization(settings)); }
     catch (err) { setError(err instanceof Error ? err.message : 'X 연결에 실패했습니다.'); changeBusy(false); }
   }
 
@@ -123,10 +146,12 @@ export function XFollowingImporter({ isDark, subscriptions, onBusyChange, onSubs
     <div className={`rounded-2xl border p-4 space-y-3 ${surface}`}>
       <h3 className="flex items-center gap-2 font-bold text-sm"><Users className="h-4 w-4" />내 X 팔로우 가져오기</h3>
       <p className="text-xs text-slate-400 leading-relaxed">X에 로그인해 팔로우 목록을 불러오고, 원하는 공개 계정을 골라 구독하세요. X의 팔로우 상태는 바뀌지 않습니다.</p>
-      {config && !config.configured && <p role="status" className="text-xs text-amber-500">X 계정 연결을 준비 중입니다. 개발자 앱 연결 후 사용할 수 있습니다.</p>}
-      <button type="button" onClick={connect} disabled={busy || !config?.configured} className="rounded-xl bg-emerald-500 px-4 py-2.5 text-slate-950 text-xs font-bold cursor-pointer disabled:opacity-40 inline-flex items-center gap-2">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}{connection ? 'X 계정 다시 연결' : 'X 계정 연결'}</button>
+      {config && !config.configured && <p role="status" className="text-xs text-slate-400">{config.canManage ? '처음 한 번 X 앱 연결이 필요합니다. 아래 버튼으로 로그인하고 설정을 마치세요.' : 'SFeed 운영자의 최초 X 연결 설정이 필요합니다.'}</p>}
+      {config && !config.configured && config.canManage ? <a href={X_SETUP_LOGIN_URL} target="_blank" rel="noopener noreferrer" onClick={() => setSetupOpen(true)} className="rounded-xl bg-emerald-500 px-4 py-2.5 text-slate-950 text-xs font-bold cursor-pointer inline-flex items-center gap-2"><Users className="w-4 h-4" />X 로그인 · 연결 설정<ExternalLink className="w-3.5 h-3.5" /></a> : <button type="button" onClick={() => { if (config?.configured) void connect(config); else void checkConfig(); }} disabled={busy || checking} className="rounded-xl bg-emerald-500 px-4 py-2.5 text-slate-950 text-xs font-bold cursor-pointer disabled:opacity-40 inline-flex items-center gap-2">{busy || checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}{checking ? '연결 확인 중…' : !config?.configured ? '연결 상태 다시 확인' : connection ? 'X 계정 다시 연결' : 'X 계정 연결'}</button>}
+      {config?.canManage && config.configured && <button type="button" disabled={busy} onClick={() => setSetupOpen((value) => !value)} className="ml-3 text-xs text-slate-400 underline cursor-pointer">연결 설정</button>}
       {username && <p className="text-xs text-emerald-500">@{username} 연결됨 · {accounts.length.toLocaleString()}개 계정 불러옴{busy && !report ? '…' : cursor ? ' · 남은 목록 있음' : ''}</p>}
     </div>
+    {setupOpen && config?.canManage && <XConnectionSetup config={config} isDark={isDark} onBusyChange={changeBusy} onConfigured={(settings) => { setConfig(settings); setSetupOpen(false); void connect(settings); }} />}
     {error && <p role="alert" className="text-xs text-rose-500">{error}</p>}
     {busy && <button type="button" onClick={() => { stop.current = true; }} className="rounded-xl border border-slate-400/40 px-3 py-2 text-xs cursor-pointer">현재 요청 후 중단</button>}
     {!busy && connection && (cursor || !loaded) && <button type="button" onClick={more} className="inline-flex items-center gap-2 text-xs text-emerald-500 cursor-pointer"><RefreshCw className="w-4 h-4" />{loaded ? '남은 팔로우 목록 불러오기' : '팔로우 목록 다시 불러오기'}</button>}

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, UserRecord } from './types';
 import { xCallbackUrl, xProfile, type XAccount } from '../shared/xFeed';
+import { canManageX, readXCredentials, saveXCredentials, XSettingsError } from './xSettings';
 
 type Connection = { sub: string; xId: string; token: string; expires: number };
 export class XConnectionError extends Error {
@@ -8,11 +9,10 @@ export class XConnectionError extends Error {
 }
 const encode = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const decode = (text: string) => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (value) => value.charCodeAt(0));
-const configured = (env: Env) => Boolean(env.X_CLIENT_ID?.trim() && env.X_CLIENT_SECRET?.trim());
-
 async function encryptionKey(env: Env) {
-  if (!configured(env)) throw new XConnectionError('X 계정 연결을 준비 중입니다. 아직 개발자 앱이 연결되지 않았습니다.', 503);
-  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`sfeed-x-v1:${env.X_CLIENT_SECRET}`));
+  const credentials = await readXCredentials(env);
+  if (!credentials) throw new XConnectionError('X 연결 설정을 먼저 완료해 주세요.', 503);
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`sfeed-x-v1:${credentials.clientSecret}`));
   return crypto.subtle.importKey('raw', hash, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
 async function seal(env: Env, connection: Connection): Promise<string> {
@@ -57,14 +57,30 @@ export const xRoutes = new Hono<{ Bindings: Env; Variables: { user: UserRecord }
 xRoutes.use('*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next(); });
 xRoutes.onError((error, c) => c.json({ error: error instanceof XConnectionError ? error.message : 'X 연결 중 오류가 발생했습니다.' }, error instanceof XConnectionError ? error.status : 502));
 
-xRoutes.get('/config', (c) => c.json({ configured: configured(c.env), clientId: configured(c.env) ? c.env.X_CLIENT_ID : null, redirectUri: xCallbackUrl(c.req.url) }));
+async function clientConfig(env: Env, user: UserRecord, requestUrl: string) {
+  const credentials = await readXCredentials(env);
+  return { configured: Boolean(credentials), clientId: credentials?.clientId || null, redirectUri: xCallbackUrl(requestUrl), canManage: canManageX(env, user) && !(env.X_CLIENT_ID?.trim() && env.X_CLIENT_SECRET?.trim()) };
+}
+xRoutes.get('/config', async (c) => c.json(await clientConfig(c.env, c.get('user'), c.req.url)));
+
+xRoutes.put('/settings', async (c) => {
+  if (!canManageX(c.env, c.get('user'))) throw new XConnectionError('X 연결 설정은 SFeed 운영자만 변경할 수 있습니다.', 403);
+  // 환경 변수로 관리 중인 설치에서는 화면 설정으로 덮어쓰지 않는다.
+  if (c.env.X_CLIENT_ID?.trim() && c.env.X_CLIENT_SECRET?.trim()) throw new XConnectionError('이 연결 정보는 서버에서 관리 중입니다.', 400);
+  const input = await c.req.json<{ clientId?: unknown; clientSecret?: unknown }>().catch(() => null);
+  if (!input) throw new XConnectionError('연결 정보를 입력해 주세요.', 400);
+  try { await saveXCredentials(c.env, input); }
+  catch (error) { throw new XConnectionError(error instanceof XSettingsError ? error.message : 'X 연결 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.', error instanceof XSettingsError ? 400 : 503); }
+  return c.json(await clientConfig(c.env, c.get('user'), c.req.url));
+});
 
 xRoutes.post('/connect', async (c) => {
-  if (!configured(c.env)) throw new XConnectionError('X 계정 연결을 준비 중입니다. 아직 개발자 앱이 연결되지 않았습니다.', 503);
+  const credentials = await readXCredentials(c.env);
+  if (!credentials) throw new XConnectionError('X 연결 설정을 먼저 완료해 주세요.', 503);
   const body = await c.req.json<{ code?: unknown; verifier?: unknown }>().catch(() => null);
   if (typeof body?.code !== 'string' || !body.code || body.code.length > 2048 || typeof body.verifier !== 'string' || !/^[a-zA-Z\d._~-]{43,128}$/.test(body.verifier)) throw new XConnectionError('X 연결 요청을 확인할 수 없습니다. 다시 연결해 주세요.', 400);
   const form = new URLSearchParams({ grant_type: 'authorization_code', code: body.code, code_verifier: body.verifier, redirect_uri: xCallbackUrl(c.req.url) });
-  const auth = btoa(`${encodeURIComponent(c.env.X_CLIENT_ID!)}:${encodeURIComponent(c.env.X_CLIENT_SECRET!)}`);
+  const auth = btoa(`${encodeURIComponent(credentials.clientId)}:${encodeURIComponent(credentials.clientSecret)}`);
   const result = await xJson('2/oauth2/token', { method: 'POST', headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString() });
   if (typeof result.access_token !== 'string' || result.access_token.length > 4096 || !Number.isFinite(Number(result.expires_in)) || Number(result.expires_in) <= 0) throw new XConnectionError('X 로그인 응답을 확인하지 못했습니다.');
   const scopes = typeof result.scope === 'string' ? result.scope.split(' ') : [];

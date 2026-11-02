@@ -81,6 +81,8 @@ export class LocalD1Database implements D1DatabaseLike {
       // 과거의 데이터 정리 마이그레이션을 다시 돌리지 않는다.
       const syncMigration = path.join(path.dirname(schemaFilePath), '0002_reader_sync.sql');
       if (fs.existsSync(syncMigration)) this.db.exec(fs.readFileSync(syncMigration, 'utf-8'));
+      const xMigration = path.join(path.dirname(schemaFilePath), '0005_x_connection_settings.sql');
+      if (fs.existsSync(xMigration)) this.db.exec(fs.readFileSync(xMigration, 'utf-8'));
     }
   }
 

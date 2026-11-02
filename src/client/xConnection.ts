@@ -1,7 +1,8 @@
 import { getStoredToken } from './api';
 import { X_CALLBACK_QUERY } from '../shared/xFeed';
 
-export interface XConfig { configured: boolean; clientId: string | null; redirectUri: string }
+export interface XConfig { configured: boolean; clientId: string | null; redirectUri: string; canManage?: boolean }
+export const X_SETUP_LOGIN_URL = 'https://x.com/login?redirect_after_login=https%3A%2F%2Fconsole.x.com%2F';
 const pendingKey = 'sfeed_x_oauth_pending';
 const base64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const digest = async (value: string) => base64(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))));

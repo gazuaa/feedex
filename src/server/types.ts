@@ -43,6 +43,8 @@ export interface Env {
   JWT_SECRET?: string;
   X_CLIENT_ID?: string;
   X_CLIENT_SECRET?: string;
+  X_SETTINGS_SECRET?: string;
+  OWNER_EMAIL?: string;
   AI_MODEL?: string;
   // 확인하지 않은 이메일 로그인(/api/auth/google/quick)을 켠다. 로컬 개발 전용이며 운영에서는 절대 설정하지 않는다.
   ALLOW_QUICK_LOGIN?: string;
