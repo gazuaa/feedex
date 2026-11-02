@@ -1,13 +1,14 @@
 import { getStoredToken } from './api';
 import { X_CALLBACK_QUERY } from '../shared/xFeed';
 
-export interface XConfig { configured: boolean; clientId: string | null; redirectUri: string; canManage?: boolean }
+export interface XConfig { canUse: boolean; configured: boolean; clientId: string | null; redirectUri: string; canManage?: boolean }
 export const X_SETUP_LOGIN_URL = 'https://x.com/login?redirect_after_login=https%3A%2F%2Fconsole.x.com%2F';
 const pendingKey = 'sfeed_x_oauth_pending';
 const base64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const digest = async (value: string) => base64(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))));
 
 export async function xAuthorization(config: XConfig, token = getStoredToken(), storage: Storage = sessionStorage): Promise<string> {
+  if (!config.canUse) throw new Error('X 팔로우 연결은 운영자 계정만 사용할 수 있습니다.');
   if (!config.configured || !config.clientId) throw new Error('X 개발자 앱이 아직 연결되지 않았습니다.');
   if (!token) throw new Error('SFeed에 다시 로그인해 주세요.');
   const verifier = base64(crypto.getRandomValues(new Uint8Array(48)));

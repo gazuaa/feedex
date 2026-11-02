@@ -102,12 +102,17 @@ async function xJson(path: string, init: RequestInit = {}): Promise<Record<strin
 }
 
 export const xRoutes = new Hono<{ Bindings: Env; Variables: { user: UserRecord } }>();
-xRoutes.use('*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next(); });
+xRoutes.use('*', async (c, next) => {
+  c.header('Cache-Control', 'no-store');
+  // 외부 X 요청이나 저장된 연결 정보를 읽기 전에 운영자 권한부터 확인한다.
+  if (!canManageX(c.env, c.get('user'))) throw new XConnectionError('X 팔로우 연결은 운영자 계정만 사용할 수 있습니다.', 403, 'x_owner_required');
+  await next();
+});
 xRoutes.onError((error, c) => c.json({ error: error instanceof XConnectionError ? error.message : 'X 연결 중 오류가 발생했습니다.', ...(error instanceof XConnectionError && error.code ? { code: error.code, upstreamStatus: error.upstreamStatus } : {}) }, error instanceof XConnectionError ? error.status : 502));
 
 async function clientConfig(env: Env, user: UserRecord, requestUrl: string) {
   const credentials = await readXCredentials(env);
-  return { configured: Boolean(credentials), clientId: credentials?.clientId || null, redirectUri: xCallbackUrl(requestUrl), canManage: canManageX(env, user) && !(env.X_CLIENT_ID?.trim() && env.X_CLIENT_SECRET?.trim()) };
+  return { canUse: true, configured: Boolean(credentials), clientId: credentials?.clientId || null, redirectUri: xCallbackUrl(requestUrl), canManage: canManageX(env, user) && !(env.X_CLIENT_ID?.trim() && env.X_CLIENT_SECRET?.trim()) };
 }
 xRoutes.get('/config', async (c) => c.json(await clientConfig(c.env, c.get('user'), c.req.url)));
 

@@ -14,7 +14,9 @@ try {
   const { xAuthorization, consumeXCallback } = await vite.ssrLoadModule('/src/client/xConnection.ts');
   const memory = new Map();
   const storage = { getItem: (key) => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, value), removeItem: (key) => memory.delete(key) };
-  const settings = { configured: true, clientId: 'client-id', redirectUri: 'https://sfeed.test/?x_callback=1' };
+  const settings = { canUse: true, configured: true, clientId: 'client-id', redirectUri: 'https://sfeed.test/?x_callback=1' };
+  await assert.rejects(xAuthorization({ ...settings, canUse: false }, 'sfeed-session', storage), /운영자/);
+  assert.equal(memory.size, 0, '권한이 없으면 로그인 요청을 준비하지 않는다.');
   const authorize = new URL(await xAuthorization(settings, 'sfeed-session', storage));
   const pending = JSON.parse([...memory.values()][0]);
   assert.equal(authorize.origin, 'https://x.com');
@@ -37,7 +39,7 @@ try {
   const { app } = await vite.ssrLoadModule('/src/server/app.ts');
   const { LocalD1Database } = await vite.ssrLoadModule('/src/server/localD1.ts');
   const db = new LocalD1Database(':memory:', 'migrations/0001_schema.sql');
-  const env = { DB: db, ALLOW_QUICK_LOGIN: 'true', X_CLIENT_ID: 'client-id', X_CLIENT_SECRET: 'server-only-secret' };
+  const env = { DB: db, ALLOW_QUICK_LOGIN: 'true', OWNER_EMAIL: 'x-import@example.test', X_CLIENT_ID: 'client-id', X_CLIENT_SECRET: 'server-only-secret' };
   const login = async (email) => (await (await app.request('/api/auth/google/quick', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }, env)).json()).token;
   const token = await login('x-import@example.test'), other = await login('x-other@example.test');
   const request = (path, body, auth = token, bindings = env) => app.request(path, { method: body ? 'POST' : 'GET', headers: { authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) }, bindings);
@@ -47,14 +49,16 @@ try {
   assert.equal((await request('/api/x/connect', { code: 'code', verifier: pending.verifier }, token, noConfig)).status, 503);
   const configResponse = await request('/api/x/config');
   assert.equal(configResponse.headers.get('Cache-Control'), 'no-store');
-  assert.ok(!(await configResponse.text()).includes('server-only-secret'));
+  const configText = await configResponse.text();
+  assert.ok(!configText.includes('server-only-secret')); assert.equal(JSON.parse(configText).canUse, true);
 
   const setupEnv = { ...noConfig, OWNER_EMAIL: 'x-import@example.test', X_SETTINGS_SECRET: 'a-test-only-master-key-with-at-least-32-characters' };
   const putSettings = (body, auth = token, bindings = setupEnv) => app.request('/api/x/settings', { method: 'PUT', headers: { authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, bindings);
   assert.equal((await app.request('/api/x/settings', { method: 'PUT', body: '{}' }, setupEnv)).status, 401);
   const ownerConfig = await (await request('/api/x/config', null, token, setupEnv)).json();
   assert.equal(ownerConfig.canManage, true); assert.equal(ownerConfig.configured, false);
-  assert.equal((await (await request('/api/x/config', null, other, setupEnv)).json()).canManage, false);
+  const otherConfig = await request('/api/x/config', null, other, setupEnv);
+  assert.equal(otherConfig.status, 403); assert.equal((await otherConfig.json()).code, 'x_owner_required');
   assert.equal((await putSettings({ clientId: 'client-id', clientSecret: 'server-only-secret' }, other)).status, 403);
   assert.equal((await putSettings({ clientId: 'client-id', clientSecret: 'server-only-secret' }, token, { ...setupEnv, OWNER_EMAIL: undefined })).status, 403);
   assert.equal((await putSettings({ clientId: 'client-id', clientSecret: '' })).status, 400);
@@ -104,6 +108,21 @@ try {
     const username = url.pathname.split('/')[1];
     return new Response(xml(url.origin, rssMode === 'wrong-profile' ? 'different' : username));
   };
+  for (const bindings of [env, setupEnv, { ...env, OWNER_EMAIL: undefined }]) {
+    for (const [path, body] of [
+      ['/api/x/config', null],
+      ['/api/x/connect', { code: 'code', verifier: pending.verifier }],
+      ['/api/x/following', { connection: 'old-connection' }],
+    ]) {
+      const denied = await request(path, body, other, bindings);
+      assert.equal(denied.status, 403); assert.equal(denied.headers.get('Cache-Control'), 'no-store');
+      const deniedText = await denied.text();
+      assert.equal(JSON.parse(deniedText).code, 'x_owner_required');
+      assert.doesNotMatch(deniedText, /client-id|server-only-secret/);
+    }
+  }
+  assert.equal((await request('/api/x/connect', { code: 'code', verifier: pending.verifier }, token, { ...env, OWNER_EMAIL: undefined })).status, 403, '운영자 설정이 없으면 누구에게도 X 연결을 허용하지 않는다.');
+  assert.equal(apiCalls.length, 0, '다른 회원의 요청은 과금 가능한 X API를 호출하기 전에 차단한다.');
   assert.equal((await request('/api/x/connect', { code: '', verifier: pending.verifier })).status, 400);
   assert.equal(apiCalls.length, 0);
   const connected = await request('/api/x/connect', { code: 'code', verifier: pending.verifier }, token, setupEnv);
@@ -112,7 +131,8 @@ try {
   assert.equal(connector.username, 'myaccount');
   assert.ok(!JSON.stringify(connector).includes('private-x-oauth-token'));
   const before = apiCalls.length;
-  assert.equal((await request('/api/x/following', { connection: connector.connection }, other)).status, 401);
+  assert.equal((await request('/api/x/following', { connection: connector.connection }, other)).status, 403);
+  assert.equal((await request('/api/x/following', { connection: connector.connection }, token, { ...env, OWNER_EMAIL: 'x-other@example.test' })).status, 403, '이미 연결한 사용자라도 운영자 권한이 없어지면 차단한다.');
   assert.equal((await request('/api/x/following', { connection: connector.connection + 'tampered' })).status, 401);
   assert.equal((await request('/api/x/following', { connection: connector.connection, cursor: '../bad' })).status, 400);
   assert.equal(apiCalls.length, before);

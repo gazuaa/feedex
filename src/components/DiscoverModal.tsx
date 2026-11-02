@@ -19,6 +19,7 @@ import { RssBuilder } from './RssBuilder';
 import { SubscribeFolderStep, type FolderChoice } from './SubscribeFolderStep';
 import { matchesFeedSearch, normalizeFeedUrl } from '../shared/feedDiscovery';
 import { xProfile } from '../shared/xFeed';
+import type { XConfig } from '../client/xConnection';
 import type { BuilderSite } from '../shared/rssBuilder';
 import {
   apiRequest,
@@ -68,6 +69,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
   const [opmlImporting, setOpmlImporting] = useState(false);
   const [xImporting, setXImporting] = useState(false);
+  const [xAllowed, setXAllowed] = useState(false);
   const modalBusy = opmlImporting || builderBusy || xImporting;
   const [feedback, setFeedback] = useState<{
     type: 'success' | 'error';
@@ -85,6 +87,19 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
     setBuilderOpen(false);
     setUrlFeedOpen(false);
   }, [initialTab, isOpen]);
+
+  React.useEffect(() => {
+    setXAllowed(false);
+    if (!isOpen) return;
+    const controller = new AbortController();
+    const hideX = () => { setXAllowed(false); setTab((current) => current === 'x' ? 'curated' : current); };
+    apiRequest<XConfig>('/api/x/config', { signal: controller.signal }).then((config) => {
+      if (controller.signal.aborted) return;
+      if (config.canUse === true) setXAllowed(true);
+      else hideX();
+    }).catch(() => { if (!controller.signal.aborted) hideX(); });
+    return () => controller.abort();
+  }, [isOpen]);
 
   const previewUrl = normalizeFeedUrl(query);
   React.useEffect(() => {
@@ -356,9 +371,9 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             <FileCode2 className="w-4 h-4" />
             <span>OPML<span className="hidden sm:inline"> 가져오기 / 내보내기</span></span>
           </button>
-          <button type="button" disabled={modalBusy} onClick={() => setTab('x')} className={`px-3 sm:px-4 py-2.5 shrink-0 whitespace-nowrap text-xs font-semibold border-b-2 flex items-center gap-1.5 cursor-pointer ${tab === 'x' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400'}`}>
+          {xAllowed && <button type="button" disabled={modalBusy} onClick={() => setTab('x')} className={`px-3 sm:px-4 py-2.5 shrink-0 whitespace-nowrap text-xs font-semibold border-b-2 flex items-center gap-1.5 cursor-pointer ${tab === 'x' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400'}`}>
             <Users className="w-4 h-4" /><span>X 팔로우</span>
-          </button>
+          </button>}
         </div>
 
         {/* 안내 띠 */}
@@ -453,7 +468,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             </div>
           )}
 
-          {tab === 'x' && <XFollowingImporter isDark={isDark} subscriptions={subscriptions} onBusyChange={setXImporting} onSubscribed={onSubscribed} />}
+          {tab === 'x' && xAllowed && <XFollowingImporter isDark={isDark} subscriptions={subscriptions} onBusyChange={setXImporting} onSubscribed={onSubscribed} />}
 
           {/* OPML 가져오기 / 내보내기 */}
           <div className={tab === 'opml' ? 'space-y-6' : 'hidden'}>

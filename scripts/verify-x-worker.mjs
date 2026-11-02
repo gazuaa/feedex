@@ -8,7 +8,7 @@ const bundled = await build({
     import { Hono } from 'hono';
     import { xRoutes } from './src/server/xConnection';
     const app = new Hono();
-    app.use('*', async (c, next) => { c.set('user', { id: 'worker-user', email: 'worker@example.test' }); await next(); });
+    app.use('*', async (c, next) => { c.set('user', c.req.header('x-test-user') === 'other' ? { id: 'other-user', email: 'other@example.test' } : { id: 'worker-user', email: 'worker@example.test' }); await next(); });
     app.route('/api/x', xRoutes);
     export default { fetch: (request, env) => app.fetch(request, env) };
   `, resolveDir: process.cwd(), sourcefile: 'x-worker-check.ts', loader: 'ts' },
@@ -20,7 +20,7 @@ const calls = [];
 const json = (body) => new WorkerResponse(JSON.stringify(body), { headers: { 'content-type': 'application/json' } });
 const worker = new Miniflare({
   modules: true, script: bundled.outputFiles[0].text, compatibilityDate: '2025-06-01', compatibilityFlags: ['nodejs_compat'], log: new Log(LogLevel.ERROR),
-  bindings: { X_CLIENT_ID: 'worker-client-id', X_CLIENT_SECRET: 'worker-client-secret' },
+  bindings: { OWNER_EMAIL: 'worker@example.test', X_CLIENT_ID: 'worker-client-id', X_CLIENT_SECRET: 'worker-client-secret' },
   outboundService: async (request) => {
     const url = new URL(request.url);
     calls.push({ origin: url.origin, path: url.pathname, query: url.searchParams, method: request.method, auth: request.headers.get('authorization'), body: await request.text() });
@@ -35,9 +35,15 @@ const worker = new Miniflare({
     return json({ data: [{ id: '9', name: 'NASA', username: 'NASA' }], meta: { result_count: 1 } });
   },
 });
-const post = (path, body) => worker.dispatchFetch(`https://sfeed.test/api/x/${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const post = (path, body, identity = 'owner') => worker.dispatchFetch(`https://sfeed.test/api/x/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': identity }, body: JSON.stringify(body) });
 const payload = { code: 'worker-approval-code', verifier: 'v'.repeat(64) };
 try {
+  const deniedConfig = await worker.dispatchFetch('https://sfeed.test/api/x/config', { headers: { 'x-test-user': 'other' } });
+  assert.equal(deniedConfig.status, 403); assert.equal((await deniedConfig.json()).code, 'x_owner_required');
+  const deniedConnect = await post('connect', payload, 'other');
+  assert.equal(deniedConnect.status, 403); assert.equal(calls.length, 0, '일반 회원은 외부 X 요청 전에 차단한다.');
+  const ownerConfig = await worker.dispatchFetch('https://sfeed.test/api/x/config');
+  assert.equal(ownerConfig.status, 200); assert.equal((await ownerConfig.json()).canUse, true);
   const connected = await post('connect', payload);
   const result = await connected.json();
   assert.equal(connected.status, 200, JSON.stringify(result));
@@ -49,6 +55,10 @@ try {
   assert.equal(following.status, 200); assert.equal((await following.json()).accounts[0].username, 'NASA');
   assert.equal(calls[1].auth, 'Bearer worker-private-token'); assert.equal(calls[2].auth, 'Bearer worker-private-token');
   assert.equal(calls[2].query.get('max_results'), '1000');
+  const beforeDenied = calls.length;
+  const deniedFollowing = await post('following', { connection: result.connection }, 'other');
+  assert.equal(deniedFollowing.status, 403); assert.equal((await deniedFollowing.json()).code, 'x_owner_required');
+  assert.equal(calls.length, beforeDenied, '기존 연결 정보로 요청해도 다른 회원에게 X 비용을 발생시키지 않는다.');
 
   // 인증정보가 다른 호스트로 넘어가지 않도록 3xx를 따르지 않고 오류로 표시한다.
   mode = 'redirect'; const beforeRedirect = calls.length;
