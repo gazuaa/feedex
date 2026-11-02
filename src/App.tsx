@@ -49,6 +49,7 @@ import { maintainDeviceCache } from './client/deviceContent';
 import { readDevicePreferences, saveDevicePreferences, readFeedPreference, feedViewPreference } from './client/devicePreferences';
 import { useListAnchor } from './client/listAnchor';
 import { notifyNewArticles, useLocalNotifications } from './client/localNotifications';
+import { shortcutKey } from './client/shortcutKey';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -999,11 +1000,21 @@ export const App: React.FC = () => {
     [articles, selectedIndex, handleSelectArticle]
   );
 
-  // Global Keyboard Shortcuts (J/K/M/S/R/A/Q/W/ESC)
+  const handleCopyLink = useCallback(async (article: ArticleItem) => {
+    try {
+      await navigator.clipboard.writeText(article.url);
+      setNotice('링크를 복사했어요.');
+    } catch {
+      setNotice('링크를 복사하지 못했어요. 원문을 열어 주소를 복사해 주세요.');
+    }
+  }, []);
+
+  // Global Keyboard Shortcuts (J/K/↑/↓/M/S/R/A/Q/W/C/O/ESC)
   useEffect(() => {
     if (!user || markReadTarget) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (document.querySelector('dialog[open]')) return;
+      // A menu that took the arrow keys has already handled them.
+      if (e.defaultPrevented || document.querySelector('dialog[open]')) return;
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -1015,32 +1026,40 @@ export const App: React.FC = () => {
         return;
       }
 
-      if (e.key === 'Escape') {
+      // Letters stay on their keys under a Hangul layout too.
+      const key = shortcutKey(e);
+      if (key === 'Escape') {
         if (selectedArticleId) setSelectedArticleId(null);
         else if (discoverOpen) setDiscoverOpen(false);
-      } else if (e.key === 'j' || e.key === 'J') {
+      } else if (e.metaKey || e.ctrlKey || e.altKey) {
+        // Cmd/Ctrl+C, R, S, A, Q, W and the rest stay the browser's and the system's.
+      } else if (key === 'j' || key === 'ArrowDown') {
         e.preventDefault();
         handleNavigateRelative('next');
-      } else if (e.key === 'k' || e.key === 'K') {
+      } else if (key === 'k' || key === 'ArrowUp') {
         e.preventDefault();
         handleNavigateRelative('prev');
-      } else if ((e.key === 'm' || e.key === 'M') && selectedArticle) {
+      } else if (key === 'm' && selectedArticle) {
         e.preventDefault();
         handleToggleRead(selectedArticle);
-      } else if ((e.key === 's' || e.key === 'S') && selectedArticle) {
+      } else if (key === 's' && selectedArticle) {
         e.preventDefault();
         handleToggleSaved(selectedArticle);
-      } else if (e.key === 'r' || e.key === 'R') {
+      } else if (key === 'r') {
         e.preventDefault();
         handleRefreshFeeds();
-      } else if (e.metaKey || e.ctrlKey || e.altKey) {
-        // Cmd/Ctrl+A, Q and W stay the browser's and the system's.
-      } else if (e.key === 'a' || e.key === 'A') {
+      } else if (key === 'a') {
         e.preventDefault();
         markReadShortcut.current();
-      } else if ((e.key === 'q' || e.key === 'Q' || e.key === 'w' || e.key === 'W') && selectedArticle) {
+      } else if ((key === 'q' || key === 'w') && selectedArticle) {
         e.preventDefault();
-        markReadShortcut.current(/q/i.test(e.key) ? 'above' : 'below');
+        markReadShortcut.current(key === 'q' ? 'above' : 'below');
+      } else if (key === 'c' && selectedArticle) {
+        e.preventDefault();
+        void handleCopyLink(selectedArticle);
+      } else if (key === 'o' && selectedArticle) {
+        e.preventDefault();
+        window.open(selectedArticle.url, '_blank', 'noopener,noreferrer');
       }
     };
 
@@ -1056,6 +1075,7 @@ export const App: React.FC = () => {
     handleToggleRead,
     handleToggleSaved,
     handleRefreshFeeds,
+    handleCopyLink,
   ]);
 
   const headerInfo = useMemo(() => {
@@ -1244,6 +1264,7 @@ export const App: React.FC = () => {
             viewMode={selectedViewMode}
             onChangeViewMode={(mode) => selectedArticle && handleChangeViewMode(selectedArticle.feed_id, mode)}
             onNavigateRelative={handleNavigateRelative}
+            onCopyLink={handleCopyLink}
             hasPrev={selectedIndex > 0}
             hasNext={selectedIndex >= 0 && selectedIndex < articles.length - 1}
             isDark={isDark}
@@ -1259,7 +1280,7 @@ export const App: React.FC = () => {
           >
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <span>
-                <strong className="text-slate-400">J / K</strong> 이전·다음 아티클
+                <strong className="text-slate-400">K / J · ↑ / ↓</strong> 이전·다음 아티클
               </span>
               <span>
                 <strong className="text-slate-400">M</strong> 읽음/안읽음 토글
@@ -1275,6 +1296,12 @@ export const App: React.FC = () => {
               </span>
               <span>
                 <strong className="text-slate-400">Q / W</strong> 선택 글 위·아래 모두 읽음
+              </span>
+              <span>
+                <strong className="text-slate-400">C</strong> 링크 복사
+              </span>
+              <span>
+                <strong className="text-slate-400">O</strong> 원문 열기
               </span>
               <span>
                 <strong className="text-slate-400">ESC</strong> 리더 뷰 닫기

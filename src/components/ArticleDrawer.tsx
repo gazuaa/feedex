@@ -20,6 +20,7 @@ import {
   MoreHorizontal,
   ChevronUp,
   Share2,
+  Link2,
 } from 'lucide-react';
 import {
   apiRequest,
@@ -148,6 +149,7 @@ interface ArticleDrawerProps {
   viewMode: ViewMode;
   onChangeViewMode: (mode: ViewMode) => void;
   onNavigateRelative: (direction: 'prev' | 'next') => void;
+  onCopyLink: (article: ArticleItem) => void;
   hasPrev: boolean;
   hasNext: boolean;
   isDark: boolean;
@@ -164,6 +166,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   viewMode,
   onChangeViewMode,
   onNavigateRelative,
+  onCopyLink,
   hasPrev,
   hasNext,
   isDark,
@@ -436,7 +439,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 type="button"
                 disabled={!hasPrev}
                 onClick={() => onNavigateRelative('prev')}
-                title="이전 아티클 (K)"
+                aria-label="이전 아티클"
+                title="이전 아티클 (K, ↑)"
                 className={`sfeed-reader-icon disabled:opacity-30 ${
                   isDark
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-800'
@@ -449,7 +453,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 type="button"
                 disabled={!hasNext}
                 onClick={() => onNavigateRelative('next')}
-                title="다음 아티클 (J)"
+                aria-label="다음 아티클"
+                title="다음 아티클 (J, ↓)"
                 className={`sfeed-reader-icon disabled:opacity-30 ${
                   isDark
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-800'
@@ -556,12 +561,28 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               </div>
             )}
 
+            {/* Copy Link */}
+            <button
+              type="button"
+              onClick={() => onCopyLink(article)}
+              aria-label="링크 복사"
+              title="링크 복사 (C)"
+              className={`sfeed-reader-icon ${
+                isDark
+                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Link2 className="w-4 h-4" />
+            </button>
+
             {/* Open Original Link */}
             <a
               href={article.url}
               target="_blank"
               rel="noopener noreferrer"
-              title="원문 사이트 새 탭에서 열기"
+              aria-label="원문 사이트 새 탭에서 열기"
+              title="원문 사이트 새 탭에서 열기 (O)"
               className={`sfeed-reader-icon ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'

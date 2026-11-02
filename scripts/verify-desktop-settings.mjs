@@ -54,7 +54,17 @@ try {
   assert.equal((await update({ autoRefreshMinutes: 1 })).autoRefreshMinutes, 1, 'one-minute refresh can be saved');
   assert.equal((await update({ theme: 'dark' })).autoRefreshMinutes, 1, 'one-minute refresh survives other preference changes');
   assert.equal((await update({ autoRefreshMinutes: 0 })).autoRefreshMinutes, 0, 'manual refresh is retained');
-  console.log('PASS: account-scoped folder persistence and first paint; refresh interval settings/defaults; visible-only scheduling, overlap prevention, cleanup and manual mode.');
+
+  const { shortcutKey } = await vite.ssrLoadModule('/src/client/shortcutKey.ts');
+  assert.equal(shortcutKey({ key: 'A', code: 'KeyA' }), 'a');
+  assert.equal(shortcutKey({ key: 'ㅁ', code: 'KeyA' }), 'a', 'a Hangul layout keeps A on its key');
+  assert.equal(shortcutKey({ key: 'ㅊ', code: 'KeyC' }), 'c');
+  assert.equal(shortcutKey({ key: 'Process', code: 'KeyO' }), 'o', 'an input method holding the key keeps O');
+  assert.equal(shortcutKey({ key: 'j', code: 'KeyC' }), 'j', 'a Latin layout such as Dvorak keeps the typed letter');
+  assert.equal(shortcutKey({ key: 'ArrowDown', code: 'ArrowDown' }), 'ArrowDown');
+  assert.equal(shortcutKey({ key: 'Escape', code: 'Escape' }), 'Escape');
+  assert.equal(shortcutKey({ key: '1', code: 'Digit1' }), '1');
+  console.log('PASS: account-scoped folder persistence and first paint; refresh interval settings/defaults; visible-only scheduling, overlap prevention, cleanup and manual mode; shortcut letters under Hangul and Latin layouts.');
 } finally {
   if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage); else delete globalThis.localStorage;
   await vite.close();
