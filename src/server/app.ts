@@ -16,6 +16,8 @@ import type { OpmlFeed } from '../shared/opml';
 import { normalizeFeedUrl } from '../shared/feedDiscovery';
 import { xRoutes } from './xConnection';
 import { XFeedError } from './xFeed';
+import { inheritXView, saveXView } from './xViews';
+import { isXProfileFeed } from '../shared/xFeed';
 import { importOpmlFeed, OpmlSourceError } from './opmlImporter';
 import { clearOpmlFailure, listOpmlFailures, recordOpmlFailure } from './opmlFailures';
 import { fetchAndParseFeed, parseOpml, generateOpml, type ParsedFeed } from './rssParser';
@@ -665,6 +667,7 @@ app.post('/api/subscriptions', async (c) => {
       new Date().toISOString()
     )
     .run();
+  await inheritXView(c.env.DB, user.id, feedId);
 
   return c.json({
     subscriptionId: subId,
@@ -1084,10 +1087,14 @@ app.put('/api/feeds/:feedId/view-mode', async (c) => {
   if (viewMode !== 'feed' && viewMode !== 'reader' && viewMode !== 'web') {
     return c.json({ error: '보기 방식은 feed, reader, web 중 하나여야 합니다.' }, 400);
   }
-  const subscribed = await c.env.DB.prepare('SELECT 1 FROM subscriptions WHERE user_id = ? AND feed_id = ?')
+  const subscribed = await c.env.DB.prepare('SELECT f.xml_url FROM subscriptions s JOIN feeds f ON f.id = s.feed_id WHERE s.user_id = ? AND s.feed_id = ?')
     .bind(user.id, feedId)
-    .first();
+    .first<{ xml_url: string }>();
   if (!subscribed) return c.json({ error: '구독 중인 피드가 아닙니다.' }, 404);
+  // X 계정은 하나에서 고른 보기를 구독 중인 모든 X 계정이 함께 쓴다.
+  if (onlyIfUnset !== true && isXProfileFeed(subscribed.xml_url)) {
+    return c.json({ viewMode, feedIds: await saveXView(c.env.DB, user.id, viewMode) });
+  }
   await c.env.DB.prepare(
     `INSERT INTO feed_view_modes (user_id, feed_id, view_mode, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id, feed_id) ${onlyIfUnset === true ? 'DO NOTHING' : 'DO UPDATE SET view_mode = excluded.view_mode, updated_at = excluded.updated_at'}`

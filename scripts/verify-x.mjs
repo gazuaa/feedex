@@ -186,6 +186,34 @@ try {
   const feed = await db.prepare('SELECT id,xml_url FROM feeds LIMIT 1').first();
   assert.equal((await loadStoredFeed(env, feed)).articles.length, 1);
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM subscriptions').first()).n, 1);
+
+  // X 계정들은 본문 보기를 함께 쓴다. X가 아닌 피드와 다른 회원의 선택은 건드리지 않는다.
+  const xImport = async (name) => (await (await request('/api/opml/import', { item: { title: name, xmlUrl: `https://x.com/${name}`, htmlUrl: null, folderName: 'X' } })).json()).status;
+  assert.equal(await xImport('second'), 'imported');
+  const { upsertFeedAndArticles } = await vite.ssrLoadModule('/src/server/seedService.ts');
+  const plain = (await upsertFeedAndArticles(db, { title: 'Plain', xmlUrl: 'https://plain.example.test/feed', htmlUrl: 'https://plain.example.test', description: '', faviconUrl: null, articles: [] })).feedId;
+  const ownerId = (await db.prepare("SELECT id FROM users WHERE email='x-import@example.test'").first()).id;
+  const otherId = (await db.prepare("SELECT id FROM users WHERE email='x-other@example.test'").first()).id;
+  const subscribe = (userId, feedId) => db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,folder_id,created_at) VALUES(?,?,?,?,?)').bind(`sub-${userId}-${feedId}`, userId, feedId, null, new Date().toISOString()).run();
+  await subscribe(ownerId, plain); await subscribe(otherId, feed.id);
+  const views = async (auth = token) => Object.fromEntries((await (await request('/api/bootstrap', null, auth)).json()).subscriptions.map((sub) => [sub.xml_url, sub.view_mode ?? null]));
+  const putView = async (feedId, body, auth = token) => (await app.request(`/api/feeds/${feedId}/view-mode`, { method: 'PUT', headers: { authorization: `Bearer ${auth}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, env)).json();
+  const secondFeed = (await db.prepare("SELECT id FROM feeds WHERE xml_url='https://x.com/second'").first()).id;
+  const xChange = await putView(feed.id, { viewMode: 'web' });
+  assert.deepEqual([xChange.viewMode, [...xChange.feedIds].sort()], ['web', [feed.id, secondFeed].sort()]);
+  assert.deepEqual(await views(), { 'https://x.com/nasa': 'web', 'https://x.com/second': 'web', 'https://plain.example.test/feed': null }, '한 X 계정의 보기가 모든 X 계정에 적용되고 다른 피드는 그대로다.');
+  assert.deepEqual(await views(other), { 'https://x.com/nasa': null }, '다른 회원의 보기는 바뀌지 않는다.');
+  assert.equal((await putView(plain, { viewMode: 'reader' })).feedIds, undefined);
+  assert.equal((await views())['https://x.com/second'], 'web', 'X가 아닌 피드의 보기는 그 피드에만 적용된다.');
+  assert.equal(await xImport('third'), 'imported');
+  assert.equal((await views())['https://x.com/third'], 'web', '새로 구독한 X 계정은 X 계정에 고른 보기를 이어받는다.');
+  await putView(secondFeed, { viewMode: 'reader' });
+  assert.deepEqual(new Set(Object.entries(await views()).filter(([url]) => url.startsWith('https://x.com/')).map(([, view]) => view)), new Set(['reader']));
+  await db.prepare("DELETE FROM feed_view_modes WHERE feed_id=?").bind(secondFeed).run();
+  assert.equal((await putView(secondFeed, { viewMode: 'feed', onlyIfUnset: true })).feedIds, undefined);
+  assert.deepEqual([(await views())['https://x.com/second'], (await views())['https://x.com/nasa']], ['feed', 'reader'], '빈 보기를 채우는 저장은 그 계정에만 적용된다.');
+  await db.prepare("DELETE FROM subscriptions WHERE feed_id IN (?,?) OR user_id=?").bind(secondFeed, plain, otherId).run();
+  await db.prepare("DELETE FROM subscriptions WHERE feed_id=(SELECT id FROM feeds WHERE xml_url='https://x.com/third')").run();
   const { fetchAndParseFeed } = await vite.ssrLoadModule('/src/server/rssParser.ts');
   rssMode = 'fallback';
   const fallback = await fetchAndParseFeed('@fallback');
@@ -250,5 +278,5 @@ try {
   let stopped = false; runs = 0;
   outcome = await importWithinLimits(async () => { runs++; return limitedResult; }, { pause: { wait: async () => { stopped = true; }, cancel: () => {} }, stopped: () => stopped, onWait: () => {} });
   assert.deepEqual([outcome.limited, runs], [true, 1], '기다리는 중에 중단하면 다시 요청하지 않는다.');
-  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, and import waits on rate limits.');
+  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, and one shared body view for every subscribed X account.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }

@@ -43,6 +43,7 @@ import { useScrollRead } from './client/scrollRead';
 import { UnreadSession } from './client/unreadSession';
 import { useAutoRefresh } from './client/autoRefresh';
 import { DEFAULT_AUTO_REFRESH_MINUTES } from './shared/preferences';
+import { isXProfileFeed } from './shared/xFeed';
 import { ReaderSync } from './client/readerSync';
 import { DesktopContextMenu, type AppContextAction, type AppContextTarget } from './components/DesktopContextMenu';
 import { ArticleResources } from './client/articleResources';
@@ -762,34 +763,43 @@ export const App: React.FC = () => {
   const saveFeedViewMode = (feedId: string, viewMode: ArticleViewMode, onlyIfUnset = false) => {
     const cache = readerCache, token = getStoredToken();
     if (!user || !cache?.active) return;
-    const key = `view:${feedId}`, previous = stateWrites.current.get(key);
+    // X 계정은 하나에서 고른 보기를 모든 X 계정이 함께 쓴다. 서버도 같은 규칙으로 저장한다.
+    const together = !onlyIfUnset && isXProfileFeed(subscriptions.find((sub) => sub.feed_id === feedId)?.xml_url);
+    const feedIds = together ? subscriptions.filter((sub) => isXProfileFeed(sub.xml_url)).map((sub) => sub.feed_id) : [feedId];
+    const key = together ? 'view:x' : `view:${feedId}`, previous = stateWrites.current.get(key);
     const current = () => activeCache.current === cache && cache.active && getStoredToken() === token;
-    const before = subscriptions.find((sub) => sub.feed_id === feedId)?.view_mode ?? null;
-    if (!previous && !onlyIfUnset && before === viewMode) return;
-    if (!previous) confirmedFeedViews.current.set(feedId, before);
-    const apply = (view: ArticleViewMode | null) => {
-      const update = (sub: SubscriptionItem) => sub.feed_id === feedId ? { ...sub, view_mode: view } : sub;
+    const before = new Map(feedIds.map((id) => [id, subscriptions.find((sub) => sub.feed_id === id)?.view_mode ?? null]));
+    if (!previous && !onlyIfUnset && [...before.values()].every((view) => view === viewMode)) return;
+    if (!previous) before.forEach((view, id) => confirmedFeedViews.current.set(id, view));
+    const apply = (ids: readonly string[], view: (id: string) => ArticleViewMode | null) => {
+      const targets = new Set(ids);
+      const update = (sub: SubscriptionItem) => targets.has(sub.feed_id) ? { ...sub, view_mode: view(sub.feed_id) } : sub;
       setSubscriptions((items) => items.map(update));
       cache.updateBootstrap((data) => ({ ...data, subscriptions: data.subscriptions.map(update) }));
     };
-    if (!onlyIfUnset) apply(viewMode);
+    if (!onlyIfUnset) apply(feedIds, () => viewMode);
     const work: Promise<void> = (previous ?? Promise.resolve()).catch(() => {}).then(async () => {
       if (!current()) return;
-      const result = await apiRequest<{ viewMode: ArticleViewMode }>(`/api/feeds/${feedId}/view-mode`, {
+      const result = await apiRequest<{ viewMode: ArticleViewMode; feedIds?: string[] }>(`/api/feeds/${feedId}/view-mode`, {
         method: 'PUT', body: JSON.stringify({ viewMode, ...(onlyIfUnset ? { onlyIfUnset: true } : {}) }),
       });
       if (!current()) return;
-      confirmedFeedViews.current.set(feedId, result.viewMode);
-      if (stateWrites.current.get(key) === work) apply(result.viewMode);
+      // 서버가 실제로 저장한 X 계정 목록을 따른다. 다른 기기에서 막 구독한 계정도 함께 맞춘다.
+      const saved = result.feedIds ?? feedIds;
+      feedIds.forEach((id) => confirmedFeedViews.current.set(id, result.viewMode));
+      if (stateWrites.current.get(key) === work) {
+        apply(saved, () => result.viewMode);
+        if (together && saved.length > 1) setNotice(`X 계정 ${saved.length.toLocaleString()}개에 같은 보기를 적용했어요.`);
+      }
     });
     stateWrites.current.set(key, work);
     void work.catch(() => {
       if (current() && stateWrites.current.get(key) === work) {
-        apply(confirmedFeedViews.current.get(feedId) ?? null);
+        apply(feedIds, (id) => confirmedFeedViews.current.get(id) ?? null);
         setNotice('보기 방식을 동기화하지 못했습니다. 다시 선택해 주세요.');
       }
     }).finally(() => {
-      if (stateWrites.current.get(key) === work) { stateWrites.current.delete(key); confirmedFeedViews.current.delete(feedId); }
+      if (stateWrites.current.get(key) === work) { stateWrites.current.delete(key); feedIds.forEach((id) => confirmedFeedViews.current.delete(id)); }
     });
   };
   const handleChangeViewMode = (feedId: string, viewMode: ArticleViewMode) => {

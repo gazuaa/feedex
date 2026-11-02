@@ -3,6 +3,7 @@ import type { D1DatabaseLike } from './types';
 import { fetchAndParseFeed } from './rssParser';
 import { generateId, upsertFeedAndArticles } from './seedService';
 import { XFeedError } from './xFeed';
+import { inheritXView } from './xViews';
 
 export class OpmlSourceError extends Error {
   readonly retryAfter?: number;
@@ -83,5 +84,6 @@ export async function importOpmlFeed(
      ON CONFLICT(user_id, feed_id) DO NOTHING RETURNING id`
   ).bind(generateId('sub'), userId, feedId, folderId, item.title?.trim() || null, now)
     .first<{ id: string }>();
+  if (subscription) await inheritXView(db, userId, feedId);
   return { status: subscription ? 'imported' : 'existing', foldersCreated };
 }

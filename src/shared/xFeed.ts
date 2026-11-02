@@ -21,3 +21,6 @@ export function xProfile(input: string): { username: string; url: string } | nul
 
 export const X_CALLBACK_QUERY = 'x_callback';
 export const xCallbackUrl = (origin: string) => `${new URL(origin).origin}/?${X_CALLBACK_QUERY}=1`;
+
+// 구독 주소가 X 계정 프로필 그대로인 피드. X 계정들은 본문 보기를 함께 쓴다.
+export const isXProfileFeed = (url: string | null | undefined) => Boolean(url) && xProfile(url!)?.url === url!.toLowerCase();
