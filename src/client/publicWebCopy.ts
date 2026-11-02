@@ -1,4 +1,4 @@
-import { fetchPublicWebPage } from '../shared/publicWebPage';
+import { fetchPublicWebPage, preparePublicWebPage } from '../shared/publicWebPage';
 import { revealLazyImages } from '../shared/lazyImages';
 import { dropSidebars } from '../shared/sidebars';
 import { dropEmptySlots } from '../shared/emptySlots';
@@ -39,6 +39,23 @@ export function sanitizePublicWebCopy(html: string, url: string): string {
   return '<!doctype html>' + document.documentElement.outerHTML;
 }
 export async function loadPublicWebCopy(url: string, options: { fresh?: boolean } = {}) {
-  const page = await fetchPublicWebPage(url, options);
-  return page ? { html: sanitizePublicWebCopy(page.html, page.url), url: page.url } : null;
+  const deadline = Date.now() + 20000;
+  const remaining = () => deadline - Date.now();
+  const page = await fetchPublicWebPage(url, { ...options, timeoutMs: remaining() });
+  if (!page) return null;
+  try { return { html: sanitizePublicWebCopy(page.html, page.url), url: page.url }; }
+  catch (error) {
+    if (!(error instanceof PublicWebCopyError) || error.reason !== 'challenge') throw error;
+    // Keep the original web layout: prepare the public content snapshot, then
+    // ask for its HTML again. Never display markdown as an original website.
+    try {
+      if (remaining() > 0 && await preparePublicWebPage(url, { timeoutMs: remaining() })) {
+        const rendered = await fetchPublicWebPage(url, { timeoutMs: remaining() });
+        if (rendered) return { html: sanitizePublicWebCopy(rendered.html, rendered.url), url: rendered.url };
+      }
+    } catch (recoveryError) {
+      if (recoveryError instanceof PublicWebCopyError && recoveryError.reason !== 'challenge') throw recoveryError;
+    }
+    throw error;
+  }
 }
