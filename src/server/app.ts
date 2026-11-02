@@ -1387,6 +1387,7 @@ app.post('/api/opml/import', async (c) => {
       foldersCreated: 0,
       error: message,
       failureSaved,
+      ...(sourceError && error.retryAfter ? { retryAfter: error.retryAfter } : {}),
     });
   }
 });

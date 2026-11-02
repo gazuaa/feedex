@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Loader2, LockKeyhole, RefreshCw, Users } from 'lucide-react';
 import { apiRequest, type SubscriptionItem } from '../client/api';
 import { consumeXCallback, xAuthorization, X_SETUP_LOGIN_URL, type XConfig } from '../client/xConnection';
+import { importPause, importWithinLimits, useSecondsLeft } from '../client/importLimits';
 import { XConnectionSetup } from './XConnectionSetup';
 import { X_CALLBACK_QUERY, xProfile, type XAccount } from '../shared/xFeed';
 import type { OpmlImportResult } from '../shared/opml';
@@ -26,6 +27,9 @@ export function XFollowingImporter({ isDark, subscriptions, onBusyChange, onSubs
   const [visible, setVisible] = useState(100);
   const [folder, setFolder] = useState('X');
   const [report, setReport] = useState<Report | null>(null);
+  const [waiting, setWaiting] = useState<{ username: string; until: number } | null>(null);
+  const secondsLeft = useSecondsLeft(waiting?.until ?? null);
+  const pause = useRef(importPause());
   const started = useRef(false), working = useRef(false), stop = useRef(false), alive = useRef(true);
   const existing = new Set(subscriptions.map((item) => xProfile(item.xml_url)?.url).filter(Boolean));
   const subscribed = (account: XAccount) => imported.has(account.id) || existing.has(xProfile(`@${account.username}`)!.url);
@@ -58,7 +62,7 @@ export function XFollowingImporter({ isDark, subscriptions, onBusyChange, onSubs
         finally { if (alive.current) { setChecking(false); changeBusy(false); } }
       })();
     }
-    return () => { alive.current = false; stop.current = true; };
+    return () => { alive.current = false; stop.current = true; pause.current.cancel(); };
   }, []);
 
   useEffect(() => {
@@ -122,9 +126,15 @@ export function XFollowingImporter({ isDark, subscriptions, onBusyChange, onSubs
         if (stop.current || !alive.current) break;
         const url = xProfile(`@${account.username}`)!.url;
         const item = { title: `${account.name} (@${account.username})`, xmlUrl: url, htmlUrl: url, folderName: folder.trim() || null };
-        let result: OpmlImportResult;
-        try { result = await apiRequest<OpmlImportResult>('/api/opml/import', { method: 'POST', body: JSON.stringify({ item }) }); }
-        catch (err) { result = { status: 'failed', foldersCreated: 0, error: err instanceof Error ? err.message : '가져오기에 실패했습니다.' }; }
+        const { result, limited } = await importWithinLimits(async (): Promise<OpmlImportResult> => {
+          try { return await apiRequest<OpmlImportResult>('/api/opml/import', { method: 'POST', body: JSON.stringify({ item }) }); }
+          catch (err) { return { status: 'failed', foldersCreated: 0, error: err instanceof Error ? err.message : '가져오기에 실패했습니다.' }; }
+        }, { pause: pause.current, stopped: () => stop.current || !alive.current, onWait: (until) => setWaiting(until ? { username: account.username, until } : null) });
+        // 기다려도 한도가 풀리지 않으면 남은 계정도 같은 이유로 실패한다. 이 계정부터 선택한 채로 두고 멈춘다.
+        if (limited) {
+          if (!stop.current && alive.current) setError(`X 게시물 제공 경로의 요청 한도가 계속돼 @${account.username}에서 멈췄습니다. 남은 계정은 선택해 두었으니 잠시 뒤 다시 구독해 주세요.`);
+          break;
+        }
         let saved = result.failureSaved === true;
         if (result.status === 'failed' && !saved) {
           try { await apiRequest('/api/opml/failures', { method: 'POST', body: JSON.stringify({ item, error: result.error || '가져오기에 실패했습니다.' }) }); saved = true; } catch { /* 저장하지 못한 실패도 현재 화면에는 남긴다. */ }
@@ -153,7 +163,8 @@ export function XFollowingImporter({ isDark, subscriptions, onBusyChange, onSubs
     </div>
     {setupOpen && config?.canManage && <XConnectionSetup config={config} isDark={isDark} onBusyChange={changeBusy} onConfigured={(settings) => { setConfig(settings); setSetupOpen(false); void connect(settings); }} />}
     {error && <p role="alert" className="text-xs text-rose-500">{error}</p>}
-    {busy && <button type="button" onClick={() => { stop.current = true; }} className="rounded-xl border border-slate-400/40 px-3 py-2 text-xs cursor-pointer">현재 요청 후 중단</button>}
+    {waiting && <p role="status" className="text-xs text-amber-500">X 게시물 제공 경로의 요청 한도에 걸려 잠시 기다립니다. {secondsLeft}초 뒤 @{waiting.username}부터 이어서 구독합니다.</p>}
+    {busy && <button type="button" onClick={() => { stop.current = true; pause.current.cancel(); }} className="rounded-xl border border-slate-400/40 px-3 py-2 text-xs cursor-pointer">현재 요청 후 중단</button>}
     {!busy && connection && (cursor || !loaded) && <button type="button" onClick={more} className="inline-flex items-center gap-2 text-xs text-emerald-500 cursor-pointer"><RefreshCw className="w-4 h-4" />{loaded ? '남은 팔로우 목록 불러오기' : '팔로우 목록 다시 불러오기'}</button>}
     {accounts.length > 0 && <>
       <input aria-label="팔로우 계정 검색" placeholder="이름 또는 @아이디 검색" value={query} onChange={(event) => { setQuery(event.target.value); setVisible(100); }} className={input} />

@@ -3,6 +3,7 @@ import { Loader2, Upload } from 'lucide-react';
 import { apiRequest } from '../client/api';
 import type { OpmlFeed, OpmlImportFailure, OpmlImportResult } from '../shared/opml';
 import { SavedOpmlFailures } from './SavedOpmlFailures';
+import { importPause, importWithinLimits, useSecondsLeft } from '../client/importLimits';
 
 interface QueueItem { item: OpmlFeed; previousUrl?: string }
 
@@ -31,6 +32,9 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
   const [savedFailures, setSavedFailures] = useState<OpmlImportFailure[]>([]);
   const [savedError, setSavedError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [waitUntil, setWaitUntil] = useState<number | null>(null);
+  const secondsLeft = useSecondsLeft(waitUntil);
+  const pause = useRef(importPause());
   const stopRequested = useRef(false);
   const busy = useRef(false);
 
@@ -95,13 +99,19 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
       for (; index < queue.length; index++) {
         if (stopRequested.current) break;
         const { item, previousUrl } = queue[index];
-        let result: OpmlImportResult;
-        try {
-          result = await apiRequest<OpmlImportResult>('/api/opml/import', {
-            method: 'POST', body: JSON.stringify({ item, previousUrl }),
-          });
-        } catch (err) {
-          result = { status: 'failed', foldersCreated: 0, error: err instanceof Error ? err.message : '가져오기에 실패했습니다.' };
+        const { result, limited } = await importWithinLimits(async (): Promise<OpmlImportResult> => {
+          try {
+            return await apiRequest<OpmlImportResult>('/api/opml/import', {
+              method: 'POST', body: JSON.stringify({ item, previousUrl }),
+            });
+          } catch (err) {
+            return { status: 'failed', foldersCreated: 0, error: err instanceof Error ? err.message : '가져오기에 실패했습니다.' };
+          }
+        }, { pause: pause.current, stopped: () => stopRequested.current, onWait: setWaitUntil });
+        // 기다려도 한도가 풀리지 않으면 이 항목부터 남겨 두고 멈춘다. 이어서 가져오기로 다시 받을 수 있다.
+        if (limited) {
+          if (!stopRequested.current) setError(`${result.error || '피드 제공 경로의 요청 한도에 도달했습니다.'} 남은 항목은 잠시 뒤 이어서 가져와 주세요.`);
+          break;
         }
         let saved = result.failureSaved === true;
         if (result.status === 'failed' && !saved) {
@@ -174,6 +184,7 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
           <p className="text-slate-400 leading-relaxed">
             신규 구독 {report.imported}개 · 기존 구독 {report.existing}개 · 실패 {report.failures.length}개 · 신규 폴더 {report.foldersCreated}개
           </p>
+          {waitUntil && <p className="text-amber-500">피드 제공 경로의 요청 한도에 걸려 잠시 기다립니다. {secondsLeft}초 뒤 같은 항목부터 이어서 가져옵니다.</p>}
           {running && <p className="text-slate-400">가져오는 동안 이 화면을 유지해 주세요. 중단하면 남은 항목부터 이어서 가져올 수 있습니다.</p>}
         </div>
       )}
@@ -192,7 +203,7 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
           <button
             type="button"
             disabled={stopping}
-            onClick={() => { stopRequested.current = true; setStopping(true); }}
+            onClick={() => { stopRequested.current = true; setStopping(true); pause.current.cancel(); }}
             className="px-3 py-2 rounded-xl border border-slate-500 text-xs cursor-pointer disabled:opacity-50"
           >
             {stopping ? '현재 항목 처리 후 중단…' : '일시 중단'}

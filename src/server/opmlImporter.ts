@@ -5,6 +5,7 @@ import { generateId, upsertFeedAndArticles } from './seedService';
 import { XFeedError } from './xFeed';
 
 export class OpmlSourceError extends Error {
+  readonly retryAfter?: number;
   constructor(error: unknown) {
     const message = error instanceof Error ? error.message : '';
     const status = message.match(/^HTTP (\d{3})$/)?.[1];
@@ -25,6 +26,7 @@ export class OpmlSourceError extends Error {
     }
     super(reason, { cause: error });
     this.name = 'OpmlSourceError';
+    if (error instanceof XFeedError) this.retryAfter = error.retryAfter;
   }
 }
 

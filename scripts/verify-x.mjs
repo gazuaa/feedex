@@ -103,6 +103,8 @@ try {
     assert.ok(!new Headers(options.headers).has('Authorization'));
     if (rssMode === 'limited') return new Response('', { status: 429, headers: { 'Retry-After': '60' } });
     if (rssMode === 'fallback' && url.hostname === 'nitter.mie.foundation') return new Response('', { status: 503 });
+    if (rssMode === 'one-limited' && url.hostname === 'nitter.mie.foundation') return new Response('<html>Instance has been rate limited</html>', { status: 429 });
+    if (rssMode === 'alias') return new Response(xml('http://nitter.alias.test', url.pathname.split('/')[1]));
     if (rssMode === 'challenge') return new Response('<html><title>Verify your browser</title></html>');
     if (rssMode === 'redirect') return new Response('', { status: 302, headers: { location: 'http://127.0.0.1/private' } });
     const username = url.pathname.split('/')[1];
@@ -195,11 +197,58 @@ try {
   const invalidCount = rssCalls.length;
   await assert.rejects(fetchAndParseFeed('https://x.com/home'));
   assert.equal(rssCalls.length, invalidCount);
-  rssMode = 'limited';
-  const limitCount = rssCalls.length;
-  await assert.rejects(fetchAndParseFeed('@limited'), /요청 한도/);
-  assert.equal(rssCalls.length, limitCount + 1, '요청 제한에 걸리면 다른 제공자로 돌며 재시도하지 않는다.');
-  await assert.rejects(fetchAndParseFeed('@cooldown'), /요청 한도/);
-  assert.equal(rssCalls.length, limitCount + 1);
-  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache and cooldown.');
+  // 다른 공개 주소 이름으로 피드를 만드는 경로도 같은 계정이면 받고, 링크는 모두 X 주소로 돌린다.
+  rssMode = 'alias';
+  const alias = await fetchAndParseFeed('@aliased');
+  assert.equal(alias.htmlUrl, 'https://x.com/aliased');
+  assert.equal(alias.articles[0].url, 'https://x.com/aliased/status/2000000000000000001');
+  assert.equal(alias.articles[0].thumbnailUrl, 'https://pbs.twimg.com/media/photo.jpg');
+  assert.ok(!alias.articles[0].contentHtml.includes('nitter.alias.test'));
+
+  // 한 경로가 한도에 걸려도 다른 경로로 받고, 걸린 경로는 쉬는 동안 다시 부르지 않는다.
+  rssMode = 'one-limited';
+  for (const name of ['@onelimited', '@nextone', '@thirdone']) {
+    const from = rssCalls.length;
+    assert.equal((await fetchAndParseFeed(name)).xmlUrl, `https://x.com/${name.slice(1)}`);
+    assert.ok(rssCalls.slice(from).every(({ url }, index, calls) => url.hostname === 'nitter.mizuki.st' || index < calls.length - 1));
+  }
+  assert.equal(rssCalls.filter(({ url }) => url.hostname === 'nitter.mie.foundation' && /onelimited|nextone|thirdone/.test(url.pathname)).length, 1, '한도를 알린 경로는 쉬는 동안 부르지 않는다.');
+
+  // 한도가 풀린 뒤 두 경로가 모두 한도를 알리면 각 경로를 한 번씩만 부르고, 다시 시도할 시간을 알려 준다.
+  const limitNow = Date.now;
+  Date.now = () => limitNow() + 31_000;
+  try {
+    rssMode = 'limited';
+    const limitCount = rssCalls.length;
+    const limitedError = await fetchAndParseFeed('@limited').catch((error) => error);
+    assert.match(limitedError.message, /요청 한도/);
+    assert.ok(limitedError.retryAfter > 50 && limitedError.retryAfter <= 60, '경로가 알려 준 대기 시간을 전달한다.');
+    assert.equal(rssCalls.length, limitCount + 2, '한도에 걸리면 다른 경로를 한 번만 시도한다.');
+    await assert.rejects(fetchAndParseFeed('@cooldown'), /요청 한도/);
+    assert.equal(rssCalls.length, limitCount + 2, '모든 경로가 쉬는 동안에는 외부에 요청하지 않는다.');
+    const limitedImport = await (await request('/api/opml/import', { item: { title: 'Limited', xmlUrl: 'https://x.com/limitedimport', htmlUrl: null, folderName: 'X' } })).json();
+    assert.equal(limitedImport.status, 'failed'); assert.equal(limitedImport.failureSaved, true);
+    assert.ok(limitedImport.retryAfter > 0 && limitedImport.retryAfter <= 60, '가져오기 화면이 기다렸다 다시 받을 수 있게 대기 시간을 돌려준다.');
+    assert.equal(rssCalls.length, limitCount + 2);
+  } finally { Date.now = limitNow; }
+
+  // 가져오기 화면은 한도 실패를 다음 계정으로 넘기지 않고, 기다렸다가 같은 계정부터 다시 받는다.
+  const { importWithinLimits } = await vite.ssrLoadModule('/src/client/importLimits.ts');
+  const waits = [], marks = [];
+  const pause = { wait: async (ms) => { waits.push(ms); }, cancel: () => {} };
+  const limitedResult = { status: 'failed', foldersCreated: 0, error: '요청 한도', retryAfter: 20 };
+  let runs = 0;
+  let outcome = await importWithinLimits(async () => (++runs < 3 ? limitedResult : { status: 'imported', foldersCreated: 0 }), { pause, stopped: () => false, onWait: (until) => marks.push(until) });
+  assert.deepEqual([outcome.result.status, outcome.limited, runs, waits], ['imported', false, 3, [21_000, 21_000]]);
+  assert.equal(marks.filter((until) => until === null).length, 2, '기다림이 끝나면 대기 표시를 지운다.');
+  runs = 0; waits.length = 0;
+  outcome = await importWithinLimits(async () => { runs++; return limitedResult; }, { pause, stopped: () => false, onWait: () => {} });
+  assert.deepEqual([outcome.limited, runs, waits.length], [true, 4, 3], '세 번 기다려도 풀리지 않으면 멈추게 알린다.');
+  runs = 0; waits.length = 0;
+  outcome = await importWithinLimits(async () => { runs++; return { status: 'failed', foldersCreated: 0, error: '없는 계정' }; }, { pause, stopped: () => false, onWait: () => {} });
+  assert.deepEqual([outcome.limited, runs, waits.length], [false, 1, 0], '한도가 아닌 실패는 기다리지 않는다.');
+  let stopped = false; runs = 0;
+  outcome = await importWithinLimits(async () => { runs++; return limitedResult; }, { pause: { wait: async () => { stopped = true; }, cancel: () => {} }, stopped: () => stopped, onWait: () => {} });
+  assert.deepEqual([outcome.limited, runs], [true, 1], '기다리는 중에 중단하면 다시 요청하지 않는다.');
+  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, and import waits on rate limits.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }

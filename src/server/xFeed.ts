@@ -6,7 +6,12 @@ const cache = new Map<string, { expires: number; feed: ParsedFeed; bytes: number
 let cachedBytes = 0;
 const flights = new Map<string, Promise<ParsedFeed>>();
 const limited = new Map<string, number>();
-export class XFeedError extends Error { constructor(message: string) { super(message); this.name = 'XFeedError'; } }
+let turn = 0;
+const LIMIT_MESSAGE = 'X 게시물 제공 경로의 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.';
+export class XFeedError extends Error {
+  // retryAfter는 모든 제공 경로가 한도에 걸렸을 때, 다시 시도해도 되는 시점까지 남은 초다.
+  constructor(message: string, readonly retryAfter?: number) { super(message); this.name = 'XFeedError'; }
+}
 
 // 응답 전체를 메모리에 무제한으로 쌓지 않고, 공개 RSS만 읽는다.
 async function readFeed(response: Response): Promise<string> {
@@ -26,10 +31,10 @@ async function readFeed(response: Response): Promise<string> {
   return new TextDecoder().decode(bytes);
 }
 
-function originalUrl(value: string, provider: string): string {
+function originalUrl(value: string, provider: string, hosts: ReadonlySet<string>): string {
   try {
     const url = new URL(value, provider);
-    if (url.hostname !== new URL(provider).hostname) return value;
+    if (!hosts.has(url.hostname)) return value;
     // 이미지 프록시 주소를 원래 공개 이미지 주소로 돌려 혼합 콘텐츠와 불필요한 경유를 줄인다.
     if (url.pathname.startsWith('/pic/')) {
       const path = decodeURIComponent(url.pathname.slice(5));
@@ -48,8 +53,14 @@ export async function fetchXFeed(input: string, parse: (xml: string, url: string
   const running = flights.get(profile.url); if (running) return running;
   const work = (async () => {
     const deadline = Date.now() + 10_000;
-    for (const provider of providers) {
-      if ((limited.get(provider) || 0) > Date.now()) throw new XFeedError('X 게시물 제공 경로의 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.');
+    // 한 경로에 요청이 몰리지 않게 시작 경로를 번갈아 고른다.
+    const start = turn++ % providers.length;
+    let limitedUntil = 0;
+    for (const provider of [...providers.slice(start), ...providers.slice(0, start)]) {
+      if (Date.now() >= deadline) break;
+      // 한도에 걸린 경로는 알려 준 시간까지 다시 부르지 않고, 아직 받을 수 있는 다른 경로를 쓴다.
+      const until = limited.get(provider) || 0;
+      if (until > Date.now()) { limitedUntil = limitedUntil ? Math.min(limitedUntil, until) : until; continue; }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.min(5000, Math.max(1, deadline - Date.now())));
       try {
@@ -60,27 +71,33 @@ export async function fetchXFeed(input: string, parse: (xml: string, url: string
         if (response.status === 429) {
           const retry = response.headers.get('Retry-After') || '';
           const wait = /^\d+$/.test(retry) ? Number(retry) * 1000 : Date.parse(retry) - Date.now();
-          limited.set(provider, Date.now() + Math.max(60_000, Number.isFinite(wait) ? wait : 0));
+          // Nitter는 대개 대기 시간을 알려 주지 않는다. 그때는 30초 동안 이 경로만 쉬게 한다.
+          const resume = Date.now() + Math.min(600_000, Math.max(30_000, Number.isFinite(wait) ? wait : 0));
+          limited.set(provider, resume);
+          limitedUntil = limitedUntil ? Math.min(limitedUntil, resume) : resume;
           await response.body?.cancel();
-          throw new XFeedError('X 게시물 제공 경로의 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.');
+          continue;
         }
         if (!response.ok) { await response.body?.cancel(); continue; }
         const xml = await readFeed(response);
         if (!/<rss[\s>]/i.test(xml) || !/<channel[\s>]/i.test(xml)) continue;
         const parsed = parse(xml, `${provider}/${profile.username}/rss`);
+        // 어떤 경로는 다른 공개 주소 이름으로 피드를 만든다. 피드가 채널 주소로 밝힌 호스트도 같은 경로로 본다.
+        const hosts = new Set([new URL(provider).hostname]);
+        try { if (parsed.htmlUrl) hosts.add(new URL(parsed.htmlUrl, provider).hostname); } catch { /* 채널 주소가 없으면 요청한 호스트만 쓴다. */ }
         // 다른 계정이나 보안 확인 페이지를 피드로 잘못 저장하지 않는다.
-        const source = originalUrl(parsed.htmlUrl || '', provider);
+        const source = originalUrl(parsed.htmlUrl || '', provider, hosts);
         if (xProfile(source)?.url !== profile.url) continue;
         const feed: ParsedFeed = {
           ...parsed, xmlUrl: profile.url, htmlUrl: profile.url,
           description: `@${profile.username}의 공개 X 게시물`,
-          faviconUrl: parsed.faviconUrl ? originalUrl(parsed.faviconUrl, provider) : 'https://abs.twimg.com/favicons/twitter.3.ico',
+          faviconUrl: parsed.faviconUrl ? originalUrl(parsed.faviconUrl, provider, hosts) : 'https://abs.twimg.com/favicons/twitter.3.ico',
           articles: parsed.articles.flatMap((article) => {
-            const url = originalUrl(article.url, provider);
+            const url = originalUrl(article.url, provider, hosts);
             if (!/^https:\/\/x\.com\/[a-z\d_]{1,15}\/status\/\d+$/i.test(url)) return [];
             return [{ ...article, guid: `x:${url.split('/').at(-1)}`, url,
-              thumbnailUrl: article.thumbnailUrl ? originalUrl(article.thumbnailUrl, provider) : null,
-              contentHtml: article.contentHtml?.replace(/((?:href|src)=["'])([^"']+)(["'])/gi, (_all, before, value, after) => `${before}${originalUrl(value.replace(/&amp;/gi, '&'), provider).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}${after}`) || null,
+              thumbnailUrl: article.thumbnailUrl ? originalUrl(article.thumbnailUrl, provider, hosts) : null,
+              contentHtml: article.contentHtml?.replace(/((?:href|src)=["'])([^"']+)(["'])/gi, (_all, before, value, after) => `${before}${originalUrl(value.replace(/&amp;/gi, '&'), provider, hosts).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}${after}`) || null,
             }];
           }),
         };
@@ -96,8 +113,9 @@ export async function fetchXFeed(input: string, parse: (xml: string, url: string
       } catch (error) {
         if (error instanceof XFeedError) throw error;
       } finally { clearTimeout(timer); }
-      if (Date.now() >= deadline) break;
     }
+    // 받을 수 있는 경로가 하나도 없었다면 가장 먼저 풀리는 시점을 알려, 다음 계정을 곧바로 실패시키지 않게 한다.
+    if (limitedUntil) throw new XFeedError(LIMIT_MESSAGE, Math.max(1, Math.ceil((limitedUntil - Date.now()) / 1000)));
     throw new XFeedError('X 공개 게시물을 가져오지 못했습니다. 비공개·삭제된 계정이거나 제공 경로가 일시 중단됐을 수 있습니다.');
   })().finally(() => flights.delete(profile.url));
   flights.set(profile.url, work); return work;
