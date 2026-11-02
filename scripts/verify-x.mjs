@@ -75,6 +75,7 @@ try {
     const url = new URL(input);
     if (url.hostname === 'api.x.com') {
       apiCalls.push({ url, options });
+      assert.equal(options.redirect, 'manual', '운영 Workers 엔진이 허용하는 옵션만 사용하고 인증정보를 다른 주소로 보내지 않는다.');
       if (apiMode === 'limited') return new Response('', { status: 429 });
       if (apiMode === 'billing') return new Response('', { status: 402 });
       if (url.pathname === '/2/oauth2/token') {

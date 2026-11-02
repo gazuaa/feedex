@@ -34,8 +34,17 @@ async function unseal(env: Env, sealed: unknown, userId: string): Promise<Connec
 
 async function xJson(path: string, init: RequestInit = {}): Promise<Record<string, any>> {
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 12_000);
+  const step = path === '2/oauth2/token' ? 'token' : path === '2/users/me' ? 'profile' : 'following';
+  const label = step === 'token' ? 'X 로그인 승인 확인' : step === 'profile' ? 'X 계정 확인' : '팔로우 목록 조회';
+  let upstreamStatus: number | null = null;
   try {
-    const response = await fetch(`https://api.x.com/${path}`, { ...init, redirect: 'error', credentials: 'omit', signal: controller.signal });
+    // Workers는 redirect: 'error'를 지원하지 않는다. 직접 3xx를 거절해 인증정보가 다른 주소로 전달되지 않게 한다.
+    const response = await fetch(`https://api.x.com/${path}`, { ...init, redirect: 'manual', credentials: 'omit', signal: controller.signal });
+    upstreamStatus = response.status;
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      throw new XConnectionError(`${label} 중 예상하지 않은 주소 이동 응답을 받았습니다. 잠시 후 다시 연결해 주세요.`);
+    }
     if (!response.ok) {
       await response.body?.cancel();
       if (response.status === 429) throw new XConnectionError('X API 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.', 429);
@@ -46,10 +55,16 @@ async function xJson(path: string, init: RequestInit = {}): Promise<Record<strin
     // 한 페이지는 최대 1,000개다. 비정상 응답을 계속 받지 않는다.
     const text = await response.text();
     if (text.length > 2_000_000) throw new XConnectionError('X 응답이 너무 큽니다.');
-    return JSON.parse(text);
+    const data = JSON.parse(text);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new SyntaxError('Unexpected X response');
+    return data;
   } catch (error) {
+    // 요청 내용·헤더·응답 본문에는 키와 토큰이 있으므로 기록하지 않고 실패 단계만 남긴다.
+    console.warn('X API 요청 실패', { step, status: upstreamStatus, reason: controller.signal.aborted ? 'timeout' : error instanceof SyntaxError ? 'invalid_json' : error instanceof XConnectionError ? 'response' : 'network' });
     if (error instanceof XConnectionError) throw error;
-    throw new XConnectionError('X에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    if (controller.signal.aborted) throw new XConnectionError(`${label} 응답이 늦어지고 있습니다. 잠시 후 다시 연결해 주세요.`);
+    if (error instanceof SyntaxError) throw new XConnectionError(`${label} 중 X가 올바르지 않은 응답 형식을 보냈습니다. 잠시 후 다시 연결해 주세요.`);
+    throw new XConnectionError(`${label} 중 X에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.`);
   } finally { clearTimeout(timer); }
 }
 
