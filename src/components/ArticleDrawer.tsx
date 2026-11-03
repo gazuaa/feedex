@@ -198,9 +198,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [checkingDate, setCheckingDate] = useState(false);
   const [scrapingReader, setScrapingReader] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
+  const [aiOpen, setAiOpen] = useState(Boolean(article?.ai_summary));
+  const summaryRequest = useRef<AbortController | null>(null);
+  const summaryScope = `${accountId}:${article?.id || ''}`;
+  const currentSummaryScope = useRef(summaryScope); currentSummaryScope.current = summaryScope;
   const [aiMeta, setAiMeta] = useState<{ provider?: string; model?: string } | null>(
     null
   );
+  useEffect(() => {
+    setAiOpen(Boolean(article?.ai_summary)); setSummarizing(false); setAiMeta(null);
+    return () => { summaryRequest.current?.abort(); summaryRequest.current = null; };
+  }, [summaryScope]);
   const [fontScale] = useTextSize();
   const [webZoom, setWebZoom] = useState(() => loadWebZoom(accountId, article?.feed_id || ''));
   const [sizeToolsOpen, setSizeToolsOpen] = useState(false);
@@ -410,7 +418,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const bodyless = !showingReader && !article.content_html && !article.summary;
 
   const handleSummarizeAI = async (force = false) => {
-    setSummarizing(true);
+    summaryRequest.current?.abort();
+    const controller = new AbortController();
+    summaryRequest.current = controller;
+    const current = () => !controller.signal.aborted && summaryRequest.current === controller && currentSummaryScope.current === summaryScope;
+    setAiOpen(true); setSummarizing(true);
     try {
       const res = await apiRequest<{
         aiSummary: string;
@@ -419,17 +431,33 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       }>(`/api/articles/${article.id}/summarize`, {
         method: 'POST',
         body: JSON.stringify({ force }),
+        signal: controller.signal,
       });
+      // 닫거나 다른 글로 이동한 뒤 도착한 응답은 화면과 새 요청 상태를 바꾸지 않는다.
+      if (!current()) return;
       onUpdateArticleFields(article.id, {
         ai_summary: res.aiSummary,
       });
       setAiMeta({ provider: res.provider, model: res.model });
     } catch {
-      // 무시한다
+      if (current()) {
+        if (!article.ai_summary) setAiOpen(false);
+        onNotice('AI 요약을 불러오지 못했어요. 다시 시도해 주세요.');
+      }
     } finally {
-      setSummarizing(false);
+      if (summaryRequest.current === controller) { summaryRequest.current = null; setSummarizing(false); }
     }
   };
+  const toggleAiSummary = () => {
+    if (aiOpen || summaryRequest.current) {
+      summaryRequest.current?.abort(); summaryRequest.current = null;
+      setAiOpen(false); setSummarizing(false);
+    } else {
+      setAiOpen(true);
+      if (!article.ai_summary) void handleSummarizeAI();
+    }
+  };
+  const aiAction = summarizing ? 'AI 요약 취소' : aiOpen ? 'AI 요약 닫기' : 'AI 핵심 요약';
 
   // 두 가지를 하나의 조절기로 다룬다: 피드·리더 보기에서는 글자 크기,
   // 웹 보기에서는 사이트 배율.
@@ -476,7 +504,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <div role="radiogroup" aria-label="본문 보기 방식" className="sfeed-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}<span>{label}</span></button>)}</div>
           <button className="sfeed-mobile-icon" aria-label="본문 도구" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((value) => !value)}><MoreHorizontal size={22} /></button>
           {mobileToolsOpen && <div className="sfeed-mobile-reader-menu">
-            <button disabled={summarizing} onClick={() => { setMobileToolsOpen(false); void handleSummarizeAI(); }}><Sparkles size={18} />AI 핵심 요약</button>
+            <button aria-pressed={aiOpen} onClick={() => { setMobileToolsOpen(false); toggleAiSummary(); }}><Sparkles size={18} />{aiAction}</button>
             <button disabled={refreshing} onClick={() => { setMobileToolsOpen(false); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />기사 새로고침</button>
             <p className="sfeed-mobile-menu-label">{mode === 'web' ? '사이트 확대·축소' : '글자 크기'}</p>
             {sizeControl('sfeed-mobile-zoom')}
@@ -514,6 +542,42 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               )}
             </button>
 
+            {/* 기사 새로고침 */}
+            <button
+              type="button"
+              onClick={() => void refreshArticle()}
+              disabled={refreshing}
+              aria-label="기사 새로고침"
+              title="기사 새로고침"
+              className={`sfeed-reader-icon disabled:cursor-default ${
+                isDark
+                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+
+            {/* 저장 / 북마크 전환 */}
+            <button
+              type="button"
+              onClick={() => onToggleSaved(article)}
+              aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'}
+              aria-pressed={article.is_saved}
+              title="나중에 읽기 북마크 (S)"
+              className={`sfeed-reader-icon ${
+                article.is_saved
+                  ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-400'
+                  : isDark
+                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Bookmark
+                className={`w-4 h-4 ${article.is_saved ? 'fill-current' : ''}`}
+              />
+            </button>
+
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -548,47 +612,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
           {/* 글 도구 */}
           <div className={`sfeed-reader-tools flex flex-wrap items-center gap-1 border-l pl-2 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-            {/* AI 요약 버튼 */}
-            {mode !== 'web' && <button
-              type="button"
-              onClick={() => handleSummarizeAI(false)}
-              disabled={summarizing}
-              aria-label={article.ai_summary ? 'AI 요약 완료' : 'AI 핵심 요약'}
-              title="AI 핵심 요약"
-              className={`h-8 px-2.5 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 border transition cursor-pointer ${
-                article.ai_summary
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                  : 'bg-emerald-500 hover:bg-emerald-400 border-emerald-500 text-slate-950 shadow-xs'
-              }`}
-            >
-              {summarizing ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="w-3.5 h-3.5" />
-              )}
-              <span className="sfeed-reader-control-label">{article.ai_summary ? 'AI 요약 완료' : 'AI 핵심 요약'}</span>
-            </button>}
-
-            {/* 저장 / 북마크 전환 */}
-            <button
-              type="button"
-              onClick={() => onToggleSaved(article)}
-              aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'}
-              aria-pressed={article.is_saved}
-              title="나중에 읽기 북마크 (S)"
-              className={`sfeed-reader-icon ${
-                article.is_saved
-                  ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-400'
-                  : isDark
-                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <Bookmark
-                className={`w-4 h-4 ${article.is_saved ? 'fill-current' : ''}`}
-              />
-            </button>
-
             {/* 글자 크기 (피드·리더 보기) */}
             {mode !== 'web' && <TextSizeControl />}
 
@@ -672,21 +695,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <ExternalLink className="w-4 h-4" />
             </a>
 
-            {/* 기사 새로고침 */}
-            <button
-              type="button"
-              onClick={() => void refreshArticle()}
-              disabled={refreshing}
-              aria-label="기사 새로고침"
-              title="기사 새로고침"
-              className={`sfeed-reader-icon disabled:cursor-default ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
           </div>
 
           {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
@@ -728,6 +736,27 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               );
             })}
           </div>
+
+          {/* AI 요약 버튼 */}
+          {mode !== 'web' && <button
+            type="button"
+            onClick={toggleAiSummary}
+            aria-label={aiAction}
+            aria-pressed={aiOpen}
+            title={aiAction}
+            className={`shrink-0 h-8 px-2.5 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+              aiOpen
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                : 'bg-emerald-500 hover:bg-emerald-400 border-emerald-500 text-slate-950 shadow-xs'
+            }`}
+          >
+            {summarizing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            <span className="sfeed-reader-control-label">AI 핵심 요약</span>
+          </button>}
 
         </div>
 
@@ -908,7 +937,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>
 
           {/* Cloudflare Workers AI 요약 카드 */}
-          {(article.ai_summary || summarizing) && (
+          {aiOpen && (article.ai_summary || summarizing) && (
             <div
               className={`p-5 rounded-2xl border relative overflow-hidden ${
                 isDark
