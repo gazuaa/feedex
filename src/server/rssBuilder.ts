@@ -4,6 +4,7 @@ import { normalizeFeedUrl } from '../shared/feedDiscovery';
 import { revealLazyImages } from '../shared/lazyImages';
 import { dropEmptySlots } from '../shared/emptySlots';
 import { plainCopyStyles } from '../shared/copyStyles';
+import { proxyPageAssets, type AssetProxy } from './pageAssets';
 import { dropSidebars } from '../shared/sidebars';
 import { dropConsentBanners } from '../shared/consentBanners';
 import { PICK_SELECTOR, decodePick, extractPicked, type PickSelection } from '../shared/rssPicker';
@@ -58,20 +59,21 @@ function stripActiveContent(document: HtmlDocument) {
 const PICKABLE_LINKS = 5;
 
 /** 클릭으로 고르기용 페이지의 정적 사본. 고를 것이 없으면 undefined. */
-export function pickerSnapshot(html: string, pageUrl: string): string | undefined {
-  return pageCopy(html, pageUrl, { minLinks: PICKABLE_LINKS });
+export function pickerSnapshot(html: string, pageUrl: string, assets?: AssetProxy): string | undefined {
+  return pageCopy(html, pageUrl, { minLinks: PICKABLE_LINKS, assets });
 }
 
 /**
  * 프레임을 거부하는 사이트의 웹 보기 대체: 서버가 받은 페이지를 스크립트 없이
  * 샌드박스에서 보여 준다. 링크는 새 탭에서 열린다.
  */
-export function webCopy(html: string, pageUrl: string): string {
-  return pageCopy(html, pageUrl, { linkTarget: '_blank', articleOnly: true })!;
+export function webCopy(html: string, pageUrl: string, assets?: AssetProxy): string {
+  return pageCopy(html, pageUrl, { linkTarget: '_blank', articleOnly: true, assets })!;
 }
 
 // `articleOnly`는 기사 옆 열을 뺀다. RSS 고르기 도구는 그 열의 링크도 고를 수 있으므로 남긴다.
-function pageCopy(html: string, pageUrl: string, { minLinks = 0, linkTarget, articleOnly }: { minLinks?: number; linkTarget?: string; articleOnly?: boolean }): string | undefined {
+// `assets`는 https 앱 안에서 막히는 http 그림·스타일을 앱이 대신 받는 주소로 바꾼다(pageAssets 참고).
+function pageCopy(html: string, pageUrl: string, { minLinks = 0, linkTarget, articleOnly, assets }: { minLinks?: number; linkTarget?: string; articleOnly?: boolean; assets?: AssetProxy }): string | undefined {
   const { document } = parseHTML(html);
   stripActiveContent(document);
   if (document.querySelectorAll('a[href]').length < minLinks) return undefined;
@@ -80,6 +82,7 @@ function pageCopy(html: string, pageUrl: string, { minLinks = 0, linkTarget, art
   dropConsentBanners(document);
   if (articleOnly) dropSidebars(document);
   plainCopyStyles(document);
+  if (assets) proxyPageAssets(document, pageUrl, assets);
   const head = document.head || document.documentElement;
   const base = document.createElement('base');
   base.setAttribute('href', pageUrl);
@@ -330,7 +333,7 @@ export async function analyseSitemap(sourceUrl: string, selector?: string): Prom
   };
 }
 
-export async function analyseBuilderPage(url: string, env: Env, selector?: string): Promise<BuilderAnalysis> {
+export async function analyseBuilderPage(url: string, env: Env, selector?: string, assets?: AssetProxy): Promise<BuilderAnalysis> {
   const source = publicPageUrl(url);
   if (selector?.startsWith(SITEMAP_SELECTOR)) return analyseSitemap(source, selector);
   if (selector?.startsWith(PICK_SELECTOR)) {
@@ -343,7 +346,7 @@ export async function analyseBuilderPage(url: string, env: Env, selector?: strin
   // 페이지 사본을 함께 넣는다.
   const read = (page: { html: string; url: string }, rendered: boolean): BuilderAnalysis => {
     const result = { ...analyseBuilderHtml(page.html, page.url, selector), rendered };
-    return selector ? result : { ...result, snapshot: pickerSnapshot(page.html, page.url) };
+    return selector ? result : { ...result, snapshot: pickerSnapshot(page.html, page.url, assets) };
   };
   let failure: unknown;
   let fallback: BuilderAnalysis | null = null;

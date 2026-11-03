@@ -4,6 +4,7 @@ import type { Env } from './server/types';
 import { generatedRss, refreshStoredFeeds, storedFeedColumns, type StoredFeed } from './server/feedLoader';
 import { checkFeedPublicationDates } from './server/articlePublication';
 import { backfillXFeeds } from './server/xBackfill';
+import { servePageAsset } from './server/pageAssets';
 
 export default {
   async fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
@@ -11,6 +12,8 @@ export default {
 
     const rssId = /^\/rss\/([a-zA-Z0-9_-]+)\.xml$/.exec(url.pathname)?.[1];
     if (rssId && request.method === 'GET') return generatedRss(env, rssId);
+    // 페이지 사본 속 http 그림·스타일. 사본이 앱 밖 출처의 샌드박스에서 부르므로 로그인 없이 서명으로 확인한다.
+    if (url.pathname.startsWith('/page-asset/')) return servePageAsset(request, env);
 
     if (url.pathname.startsWith('/api/')) {
       return app.fetch(request, env, ctx as never);

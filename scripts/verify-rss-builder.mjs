@@ -41,6 +41,47 @@ try {
   assert.match(unsafe, /<base href="https:\/\/builder\.example\.test\/ko\/research">/);
   assert.match(unsafe, /src="\/lazy\.png"/);
   assert.equal(pickerSnapshot('<a href="/one">One</a>', source), undefined, 'a page without links has nothing to pick');
+
+  // https 앱 안에서 막히는 http 그림·스타일은 서명한 앱 주소로 바꾸고, 서명이 맞는 것만 대신 받는다.
+  const { pageAssetProxy, servePageAsset } = await vite.ssrLoadModule('/src/server/pageAssets.ts');
+  const secretEnv = { X_SETTINGS_SECRET: 'page-asset-test-secret-0123456789abcdef' };
+  assert.equal(pageAssetProxy({}, 'https://app.example.test'), undefined, 'no secret, no proxy');
+  assert.equal(pageAssetProxy(secretEnv, 'http://127.0.0.1:5173'), undefined, 'a plain http app has no mixed content to fix');
+  const proxy = pageAssetProxy(secretEnv, 'https://app.example.test');
+  const httpPage = 'http://old.example.test/src/go.php?s=news';
+  const proxied = pickerSnapshot(`<html><head><link rel="stylesheet" href="http://img.example.test/css/a.css"><link rel="stylesheet" href="https://cdn.example.test/b.css"><style>.x{background:url(../bg.gif)}</style></head><body><table><tr><td background="/td.gif">${Array.from({ length: 5 }, (_, i) => `<a href="/p/${i}"><img src="http://img.example.test/t${i}.gif"></a>`).join('')}<img srcset="/s1.png 1x, https://cdn.example.test/s2.png 2x"><div style="background-image:url('/inline.png')"></div><img src="http://127.0.0.1/private.png"></td></tr></table></body></html>`, httpPage, proxy);
+  const asset = (url) => proxy(url).replace(/&/g, '&amp;');
+  for (const url of ['http://img.example.test/css/a.css', 'http://old.example.test/bg.gif', 'http://old.example.test/td.gif', 'http://img.example.test/t0.gif', 'http://old.example.test/s1.png', 'http://old.example.test/inline.png']) assert.ok(proxied.includes(asset(url)) || proxied.includes(proxy(url)), url);
+  for (const kept of ['href="https://cdn.example.test/b.css"', 'https://cdn.example.test/s2.png 2x', 'src="http://127.0.0.1/private.png"']) assert.ok(proxied.includes(kept), `${kept} stays as it is`);
+  assert.match(proxy('http://img.example.test/t0.gif'), /^https:\/\/app\.example\.test\/page-asset\/[\w-]{22}\?u=http%3A%2F%2Fimg\.example\.test%2Ft0\.gif$/);
+  const served = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input); served.push(url);
+    assert.equal(init.redirect, 'manual');
+    if (url.endsWith('/moved.gif')) return new Response(null, { status: 301, headers: { location: 'http://127.0.0.1/secret.gif' } });
+    if (url.endsWith('.css')) return new Response('.a{background:url(../img/b.gif)}@import "c.css";', { headers: { 'content-type': 'text/css' } });
+    if (url.endsWith('.html')) return new Response('<script>x</script>', { headers: { 'content-type': 'text/html' } });
+    if (url.endsWith('.svg')) return new Response('<svg xmlns="http://www.w3.org/2000/svg"><script>x</script></svg>', { headers: { 'content-type': 'image/svg+xml' } });
+    return new Response(new Uint8Array([71, 73, 70]), { headers: { 'content-type': 'image/gif' } });
+  };
+  try {
+    const get = (url, path = proxy(url)) => servePageAsset(new Request(path), secretEnv);
+    const gif = await get('http://img.example.test/t0.gif');
+    assert.equal(gif.status, 200); assert.equal(gif.headers.get('content-type'), 'image/gif'); assert.deepEqual([...new Uint8Array(await gif.arrayBuffer())], [71, 73, 70]);
+    assert.equal(gif.headers.get('cross-origin-resource-policy'), 'cross-origin');
+    const css = await (await get('http://img.example.test/css/a.css')).text();
+    assert.ok(css.includes(proxy('http://img.example.test/img/b.gif')) && css.includes(proxy('http://img.example.test/css/c.css')), 'addresses inside a proxied stylesheet are proxied too');
+    const svg = await get('http://img.example.test/x.svg');
+    assert.match(svg.headers.get('content-security-policy'), /sandbox/, 'an SVG opened directly cannot run script in the app origin');
+    assert.equal((await get('http://img.example.test/page.html')).status, 415, 'only images and stylesheets');
+    assert.equal((await get('http://img.example.test/moved.gif')).status, 502, 'redirects to private hosts are refused');
+    assert.ok(!served.some((url) => url.includes('127.0.0.1')));
+    const before = served.length;
+    assert.equal((await get('http://img.example.test/t0.gif', proxy('http://img.example.test/t0.gif').replace('t0.gif', 't1.gif'))).status, 403, 'a signature only fits its own address');
+    assert.equal((await get('https://img.example.test/t0.gif', `https://app.example.test/page-asset/${'a'.repeat(22)}?u=${encodeURIComponent('http://img.example.test/t0.gif')}`)).status, 403);
+    assert.equal(served.length, before, 'unsigned requests never reach the network');
+  } finally { globalThis.fetch = realFetch; }
   const now = Date.parse('2026-10-22T12:00:00Z');
   assert.equal(parseListedDate('2026.10.21 14:05', now), '2026-10-21T05:05:00.000Z');
   assert.equal(parseListedDate('2026년 10월 21일 오후 2:05', now), '2026-10-21T05:05:00.000Z');
