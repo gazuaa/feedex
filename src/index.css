@@ -13,6 +13,8 @@ body { margin: 0; min-height: 100dvh; background: var(--sfeed-background); color
 .sfeed-channel-list, .sfeed-feed-list { scrollbar-gutter: stable; }
 .sfeed-channel-list:focus-visible, .sfeed-feed-list:focus-visible { outline: 2px solid #10b981; outline-offset: -2px; }
 .sfeed-feed-list { padding-bottom: env(safe-area-inset-bottom); }
+/* 목록의 글은 선택 동작을 막고, 별도 본문 영역에서는 텍스트 선택을 유지한다. */
+.sfeed-feed-list [data-article-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .sfeed-pull-refresh { display: none; }
 /* 모바일 하단 막대 위에 뜨는 짧은 확인 안내. */
 .sfeed-notice { position: fixed; z-index: 120; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: min(420px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 14px; background: #0f172aeb; color: #f8fafc; box-shadow: 0 8px 24px #0004; font-size: 13px; line-height: 1.45; text-align: center; pointer-events: none; }
@@ -160,7 +162,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .sfeed-pull-refresh { position: fixed; z-index: 70; top: var(--sfeed-mobile-header-height); left: 50%; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--sfeed-mobile-line); border-radius: 24px; background: var(--sfeed-mobile-surface); color: var(--sfeed-text); box-shadow: 0 5px 18px #0002; font-size: 13px; white-space: nowrap; pointer-events: none; }
   .sfeed-pull-refresh > svg { flex-shrink: 0; color: #10b981; }
   .sfeed-sidebar { display: none; }
-  .sfeed-feed-list [data-article-id], .sfeed-mobile-library [data-feed-id], .sfeed-mobile-library [data-folder-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .sfeed-mobile-library [data-feed-id], .sfeed-mobile-library [data-folder-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .sfeed-mobile-header { position: relative; z-index: 3; flex-shrink: 0; padding: calc(6px + env(safe-area-inset-top)) 18px 10px; background: var(--sfeed-mobile-surface); border-bottom: 1px solid var(--sfeed-mobile-line); transition: transform .2s ease, opacity .2s ease, visibility .2s; }
   .sfeed-mobile-header[data-scroll-hidden] { transform: translateY(-100%); opacity: 0; visibility: hidden; pointer-events: none; }
   .sfeed-mobile-heading { display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 6px; }
