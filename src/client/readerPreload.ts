@@ -10,17 +10,19 @@ export function feedCacheVersion(data: BootstrapResponse): string {
 
 export function preloadArticleQueries(current: URLSearchParams, folderIds: string[] = []): URLSearchParams[] {
   if (current.get('search')) return [];
-  const queries = [
-    new URLSearchParams({ scope: 'all', unreadOnly: 'false' }),
-    new URLSearchParams({ scope: 'all', unreadOnly: 'true' }),
-    new URLSearchParams({ scope: 'saved', unreadOnly: 'false' }),
-  ];
+  const queries: URLSearchParams[] = [];
   const scope = current.get('scope');
   const field = scope === 'folder' ? 'folderId' : scope === 'feed' ? 'feedId' : null;
+  // 보고 있는 폴더·피드의 다른 탭(전체·안 읽음·저장)을 먼저 받는다. 하단 탭을 누르면 바로 바뀌게 한다.
   if (field && current.get(field)) {
     const base = { scope: scope!, [field]: current.get(field)! };
     queries.push(new URLSearchParams({ ...base, unreadOnly: 'false' }), new URLSearchParams({ ...base, unreadOnly: 'true' }), new URLSearchParams({ ...base, unreadOnly: 'false', savedOnly: 'true' }));
   }
+  queries.push(
+    new URLSearchParams({ scope: 'all', unreadOnly: 'false' }),
+    new URLSearchParams({ scope: 'all', unreadOnly: 'true' }),
+    new URLSearchParams({ scope: 'saved', unreadOnly: 'false' }),
+  );
   // 지금 쓰는 필터로 모든 폴더의 첫 화면을 받아 두어, 동기화 뒤에 폴더를 열면
   // 바로 보이게 한다.
   for (const folderId of folderIds) {

@@ -14,6 +14,16 @@ export function matchesPage(query: URLSearchParams, article: ArticleItem, now = 
   return !search || [article.title, article.summary, article.feed_title].some((value) => value?.toLocaleLowerCase().includes(search));
 }
 const order = (a: ArticleItem, b: ArticleItem) => b.published_at.localeCompare(a.published_at) || b.id.localeCompare(a.id);
+// 같은 목록에서 탭(전체·안 읽음·저장)만 바꿀 때, 이미 받은 글로 새 탭의 목록을 먼저 그린다. 서버 답이 오면 그것으로 바꾼다.
+export function filteredPage(query: URLSearchParams, pool: Iterable<ArticleItem>, now = Date.now()): ArticleItem[] {
+  const compare = query.get('sort') === 'oldest' ? (a: ArticleItem, b: ArticleItem) => -order(a, b) : order;
+  return [...pool].filter((article) => matchesPage(query, article, now)).sort(compare).slice(0, Math.min(200, Number(query.get('limit') || 80)));
+}
+/** 앞 목록과 탭(안 읽음·저장 거르기)만 다른 목록인지. */
+export function sameListOtherTab(before: string, after: URLSearchParams): boolean {
+  const list = (query: URLSearchParams) => { const copy = new URLSearchParams(query); copy.delete('unreadOnly'); copy.delete('savedOnly'); copy.sort(); return copy.toString(); };
+  return Boolean(before) && before !== after.toString() && list(new URLSearchParams(before)) === list(after);
+}
 export function patchPage(page: ArticlePage, key: string, changes: ArticleItem[], removed: Set<string>, changedBodies: Set<string>, bootstrap?: BootstrapResponse): ArticlePage {
   const query = new URLSearchParams(key.slice(9));
   const compare = query.get('sort') === 'oldest' ? (a: ArticleItem, b: ArticleItem) => -order(a, b) : order;

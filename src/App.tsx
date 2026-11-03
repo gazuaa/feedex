@@ -36,6 +36,7 @@ import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileCh
 import { MobileLibrary } from './components/MobileLibrary';
 import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type ArticlePage } from './client/readerCache';
 import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './client/readerPreload';
+import { filteredPage, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, takeResumePoint, watchAppVersion } from './client/appVersion';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
@@ -429,6 +430,13 @@ export const App: React.FC = () => {
     const qs = buildArticleQuery();
     articleQueryRef.current = qs.toString();
     const ready = readerSync.ready(qs);
+    // 같은 목록에서 탭만 바꿨으면 이미 받은 글로 새 탭을 먼저 그린다. 맞는 글이 하나도 없을 때만 기다리는 화면을 보인다.
+    const draft = !ready && sameListOtherTab(displayedArticleQuery.current, qs) ? filteredPage(qs, articleCache.current.values()) : [];
+    if (draft.length) {
+      displayedArticleQuery.current = qs.toString();
+      setArticles(retainReadRows ? unreadSession.merge(draft, articleSort) : draft);
+      setHasMoreArticles(false);
+    }
     setLoadingArticles(!ready && displayedArticleQuery.current !== qs.toString());
     try {
       const res = ready ?? await readerSync.page(qs, current, () => Promise.allSettled([...stateWrites.current.values()]));

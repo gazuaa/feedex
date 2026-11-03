@@ -102,6 +102,15 @@ try {
   const folderPlan = preloadArticleQueries(new URLSearchParams('scope=folder&folderId=folder-one&unreadOnly=true'));
   assert.equal(folderPlan.length, 5, 'only library tabs and the selected folder are warmed');
   assert.equal(folderPlan.filter((query) => query.get('folderId') === 'folder-one').length, 2);
+  assert.deepEqual(folderPlan.slice(0, 2).map((query) => query.get('folderId')), ['folder-one', 'folder-one'], 'the open folder\'s other tabs are warmed before the library');
+  const { filteredPage, sameListOtherTab } = await vite.ssrLoadModule('/src/client/syncPages.ts');
+  assert.ok(sameListOtherTab('scope=feed&feedId=f&unreadOnly=false', new URLSearchParams('scope=feed&feedId=f&unreadOnly=true')));
+  assert.ok(sameListOtherTab('scope=feed&feedId=f&unreadOnly=false', new URLSearchParams('scope=feed&feedId=f&unreadOnly=false&savedOnly=true')));
+  assert.ok(!sameListOtherTab('scope=feed&feedId=f&unreadOnly=false', new URLSearchParams('scope=feed&feedId=g&unreadOnly=true')), 'another feed is not drawn from this one');
+  assert.ok(!sameListOtherTab('', new URLSearchParams('scope=feed&feedId=f&unreadOnly=true')));
+  const pool = [['n1', 'f', false, false, 1], ['n2', 'f', true, true, 2], ['n3', 'f', false, true, 3], ['other', 'g', false, false, 4]].map(([id, feed_id, is_read, is_saved, hour]) => ({ ...article, id, feed_id, is_read, is_saved, published_at: new Date(now - hour * 3600_000).toISOString() }));
+  assert.deepEqual(filteredPage(new URLSearchParams('scope=feed&feedId=f&unreadOnly=true'), pool, now).map((row) => row.id), ['n1', 'n3'], 'unread tab keeps only this feed\'s unread posts, newest first');
+  assert.deepEqual(filteredPage(new URLSearchParams('scope=feed&feedId=f&unreadOnly=false&savedOnly=true&sort=oldest'), pool, now).map((row) => row.id), ['n3', 'n2']);
   assert.equal(preloadArticleQueries(new URLSearchParams('scope=all&search=bitcoin')).length, 0, 'search does not trigger speculative downloads');
   const folderWarm = preloadArticleQueries(new URLSearchParams('scope=all&unreadOnly=true&sort=oldest'), ['folder-one', 'folder-two']);
   assert.deepEqual(folderWarm.filter((query) => query.get('scope') === 'folder').map((query) => `${query.get('folderId')}:${query.get('unreadOnly')}:${query.get('sort')}`), ['folder-one:true:oldest', 'folder-two:true:oldest'], 'every folder is warmed under the filter in use');
