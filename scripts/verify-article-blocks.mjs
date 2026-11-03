@@ -34,6 +34,7 @@ try {
   assert.deepEqual(visibleArticleNeighbors(page, visible, 'hidden'), { prev: page[0], next: page[2] });
   assert.deepEqual(visibleArticleNeighbors(page, visible, 'a'), { prev: null, next: page[2] });
   assert.deepEqual(visibleArticleNeighbors(page, [], 'hidden'), { prev: null, next: null });
+  assert.deepEqual(visibleArticleNeighbors(page, visible, null), { prev: page[0], next: page[0] }, '선택한 글이 없을 때 위·아래 키로 첫 글을 여는 동작을 유지한다.');
   assert.equal(page.at(-1).id, 'last-hidden', '보기 필터는 다음 페이지에 쓰는 원래 마지막 행을 바꾸지 않는다.');
 
   assert.equal(readArticleBlocks('owner').length, 0);

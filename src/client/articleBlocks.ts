@@ -115,7 +115,10 @@ export function suggestArticleBlock(article: Pick<ArticleItem, 'title' | 'feed_i
 /** 숨긴 글을 읽던 중에도 원래 위치에 가장 가까운 보이는 글로 이동한다. */
 export function visibleArticleNeighbors<T extends { id: string }>(all: readonly T[], visible: readonly T[], selectedId: string | null): { prev: T | null; next: T | null } {
   const index = all.findIndex((article) => article.id === selectedId);
-  if (index < 0) return { prev: null, next: visible[0] || null };
+  if (index < 0) {
+    const first = visible[0] || null;
+    return { prev: selectedId === null ? first : null, next: first };
+  }
   const ids = new Set(visible.map((article) => article.id));
   let prev: T | null = null, next: T | null = null;
   for (let at = index - 1; at >= 0; at--) if (ids.has(all[at].id)) { prev = all[at]; break; }
