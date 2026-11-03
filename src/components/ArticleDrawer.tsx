@@ -101,6 +101,9 @@ export function WebLoadingPreview({ article, isDark, ready = false, onReady, onR
  * 스크롤하는 동안 리더는 다른 보기처럼 미끄러진다. 화면 전체가 끌기를 따라 움직이고
  * 목록이 아래에서 들어온다. 사이트 페이지는 리더가 움직인 만큼 되돌려 두어서
  * 스크롤 속도대로 손가락 아래에 머문다.
+ *
+ * 빈 페이지에 닿아도 손가락이 떨어지고 스크롤이 멈춘 뒤에 닫는다. iOS는 끌고 있는 이 페이저와
+ * 손가락 아래 프레임을 그 자리에서 지우면, 돌아간 목록이 손가락 스크롤에 움직이지 않는다.
  */
 function WebPager({ enabled, onBack, children }: { enabled: boolean; onBack: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null), back = useRef(onBack);
@@ -108,7 +111,7 @@ function WebPager({ enabled, onBack, children }: { enabled: boolean; onBack: () 
   useLayoutEffect(() => {
     const pager = ref.current;
     if (!enabled || !pager) return;
-    let gone = false;
+    let gone = false, timer = 0;
     let slide: ReturnType<typeof presentReaderSlide> = null;
     const page = pager.lastElementChild as HTMLElement | null;
     const rest = () => { slide?.clear(); slide = null; page?.style.removeProperty('transform'); };
@@ -116,9 +119,16 @@ function WebPager({ enabled, onBack, children }: { enabled: boolean; onBack: () 
     home();
     const observer = new ResizeObserver(home);
     observer.observe(pager);
+    const leave = () => {
+      window.clearTimeout(timer);
+      if (gone || pager.scrollLeft > 1) return;
+      gone = true; back.current();
+    };
+    // scrollend는 손가락을 떼고 스크롤이 끝나야 온다. 이 알림이 없는 브라우저는 스크롤이 잠잠해지면 닫는다.
+    const settle = () => { window.clearTimeout(timer); timer = window.setTimeout(leave, 'onscrollend' in window ? 1000 : 160); };
     const scroll = () => {
       if (gone) return;
-      if (pager.scrollLeft <= 1) { gone = true; back.current(); return; }
+      if (pager.scrollLeft <= 1) settle(); else window.clearTimeout(timer);
       const dx = Math.max(0, pager.scrollWidth - pager.clientWidth - pager.scrollLeft);
       if (dx < 1) { rest(); return; }
       slide ??= presentReaderSlide(document);
@@ -127,7 +137,8 @@ function WebPager({ enabled, onBack, children }: { enabled: boolean; onBack: () 
       if (page) page.style.transform = `translate3d(${-dx}px, 0, 0)`;
     };
     pager.addEventListener('scroll', scroll, { passive: true });
-    return () => { observer.disconnect(); pager.removeEventListener('scroll', scroll); rest(); };
+    pager.addEventListener('scrollend', leave);
+    return () => { observer.disconnect(); window.clearTimeout(timer); pager.removeEventListener('scroll', scroll); pager.removeEventListener('scrollend', leave); rest(); };
   }, [enabled]);
   if (!enabled) return <>{children}</>;
   return <div ref={ref} className="sfeed-web-pager">
