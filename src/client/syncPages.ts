@@ -22,7 +22,8 @@ export function patchPage(page: ArticlePage, key: string, changes: ArticleItem[]
   for (const article of changes) {
     const before = rows.get(article.id);
     if (!before && page.hasMore && last && compare(article, last) > 0) continue;
-    rows.set(article.id, before && !changedBodies.has(article.id) ? { ...before, ...article,
+    // 본문 없이 남은 글에 본문이 함께 오면(X 글) 그 본문을 쓴다.
+    rows.set(article.id, before && !changedBodies.has(article.id) && !(before.body_deferred && !article.body_deferred) ? { ...before, ...article,
       content_html: before.content_html, full_content_html: before.full_content_html, ai_summary: before.ai_summary, body_deferred: before.body_deferred,
     } : article);
   }

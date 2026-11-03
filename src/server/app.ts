@@ -804,6 +804,9 @@ app.get('/api/articles', async (c) => {
   // 기록을 되살릴 때는 지금 걸러진·페이지로 나뉜 목록 밖의 읽은 글도 찾아야 한다.
   // 구독 조인은 여전히 소유권을 확인한다.
   const articleId = c.req.query('articleId');
+  // X 타임라인은 본문 없이 동기화된 글 여러 개의 본문을 한 번에 받는다.
+  const articleIds = [...new Set((c.req.query('articleIds') || '').split(',').filter((id) => id && id.length <= 200))].slice(0, 80);
+  const exact = Boolean(articleId) || articleIds.length > 0;
   const oldest = c.req.query('sort') === 'oldest';
   const scope = c.req.query('scope') || 'all'; // 'all' | 'today' | 'saved' | 'folder' | 'feed'
   const folderId = c.req.query('folderId') || '';
@@ -826,6 +829,9 @@ app.get('/api/articles', async (c) => {
   if (articleId) {
     conditions.push('a.id = ?');
     params.push(articleId);
+  } else if (articleIds.length) {
+    conditions.push(`a.id IN (${articleIds.map(() => '?').join(',')})`);
+    params.push(...articleIds);
   } else if (scope === 'folder' && folderId) {
     conditions.push('s.folder_id = ?');
     params.push(folderId);
@@ -840,20 +846,20 @@ app.get('/api/articles', async (c) => {
     params.push(twentyFourHoursAgo);
   }
 
-  if (!articleId && savedOnly && scope !== 'saved') {
+  if (!exact && savedOnly && scope !== 'saved') {
     conditions.push('COALESCE(st.is_saved, 0) = 1');
   }
-  if (!articleId && unreadOnly && !savedOnly && scope !== 'saved') {
+  if (!exact && unreadOnly && !savedOnly && scope !== 'saved') {
     conditions.push('a.published_at >= ? AND COALESCE(st.is_read, 0) = 0');
     params.push(cutoff);
   }
 
-  if (!articleId && search) {
+  if (!exact && search) {
     conditions.push(SEARCH_MATCH);
     params.push(...searchParams(search));
   }
 
-  if (!articleId && before) {
+  if (!exact && before) {
     conditions.push(oldest ? '(a.published_at > ? OR (a.published_at = ? AND a.id > ?))' : '(a.published_at < ? OR (a.published_at = ? AND a.id < ?))');
     params.push(before, before, beforeId);
   }

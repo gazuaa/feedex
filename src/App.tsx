@@ -402,7 +402,7 @@ export const App: React.FC = () => {
     const bodies = new Set(delta.articleChangedIds);
     for (const incoming of delta.articles) {
       const previous = articleCache.current.get(incoming.id);
-      const article = previous && !bodies.has(incoming.id) ? { ...incoming, content_html: previous.content_html, full_content_html: previous.full_content_html, ai_summary: previous.ai_summary, body_deferred: previous.body_deferred } : incoming;
+      const article = previous && !bodies.has(incoming.id) && !(previous.body_deferred && !incoming.body_deferred) ? { ...incoming, content_html: previous.content_html, full_content_html: previous.full_content_html, ai_summary: previous.ai_summary, body_deferred: previous.body_deferred } : incoming;
       if (previous) { articleCache.current.set(article.id, article); setRestoredArticle((item) => item?.id === article.id ? article : item); }
       unreadSessions.forEach((session) => session.patch(article.id, article));
     }
@@ -1038,6 +1038,49 @@ export const App: React.FC = () => {
   const xFolders = useMemo(() => xFolderIds(folders, subscriptions), [folders, subscriptions]);
   const xTimeline = activeScope === 'folder' ? Boolean(activeFolderId && xFolders.has(activeFolderId))
     : activeScope === 'feed' && isXProfileFeed(subscriptions.find((sub) => sub.feed_id === activeFeedId)?.xml_url);
+  // X 타임라인은 본문(사진·영상·인용 글)으로 줄을 그린다. 본문 없이 동기화돼 남은 글은 기기 저장본이나 서버에서 한 번에 받아 채운다.
+  // 받지 못한 글은 1분 뒤에, 서버에도 없던 글은 다시 부르지 않는다.
+  const xBodyRetry = useRef(new Map<string, number>());
+  const deferredXIds = xTimeline ? articles.filter((article) => article.body_deferred && !article.content_html && (xBodyRetry.current.get(article.id) || 0) <= Date.now()).map((article) => article.id).join(',') : '';
+  useEffect(() => {
+    const cache = readerCache, resources = articleResources;
+    if (!deferredXIds || !cache || !resources) return;
+    // 목록이 바뀌어도 받은 본문은 그대로 쓴다. 계정이 바뀌었을 때만 버린다.
+    const live = () => cache.active && activeCache.current === cache;
+    const fill = (bodies: ArticleItem[]) => {
+      const changes = new Map<string, Partial<ArticleItem>>();
+      for (const body of bodies) {
+        const latest = articleCache.current.get(body.id);
+        if (!latest?.body_deferred) continue;
+        changes.set(body.id, { content_html: body.content_html, full_content_html: body.full_content_html || latest.full_content_html || null, ai_summary: body.ai_summary || latest.ai_summary || null, body_deferred: false, body_load_error: false });
+      }
+      if (!changes.size) return;
+      cache.updateMany(changes);
+      for (const [id, fields] of changes) {
+        unreadSessions.forEach((session) => session.patch(id, fields));
+        const known = articleCache.current.get(id);
+        if (known) articleCache.current.set(id, { ...known, ...fields });
+      }
+      setRestoredArticle((item) => item && changes.has(item.id) ? { ...item, ...changes.get(item.id) } : item);
+      setArticles((rows) => rows.map((row) => changes.has(row.id) ? { ...row, ...changes.get(row.id) } : row));
+    };
+    void (async () => {
+      const rows = deferredXIds.split(',').flatMap((id) => articleCache.current.get(id) ?? []);
+      const local = (await Promise.all(rows.map((row) => resources.hydrate(row)))).filter((row) => !row.body_deferred);
+      if (!live()) return;
+      fill(local);
+      const found = new Set(local.map((row) => row.id));
+      const missing = rows.filter((row) => !found.has(row.id)).map((row) => row.id);
+      for (let at = 0; at < missing.length && live(); at += 80) {
+        const ids = missing.slice(at, at + 80);
+        ids.forEach((id) => xBodyRetry.current.set(id, Infinity));
+        try {
+          const page = await apiRequest<ArticlePage>(`/api/articles?articleIds=${encodeURIComponent(ids.join(','))}`);
+          if (live()) fill(page.articles);
+        } catch { ids.forEach((id) => xBodyRetry.current.set(id, Date.now() + 60_000)); }
+      }
+    })();
+  }, [deferredXIds, readerCache, articleResources, unreadSessions]);
   const selectedViewMode = user && selectedArticle
     ? feedViewPreference(user.id, selectedArticle.feed_id, selectedSubscription?.view_mode) : 'feed';
   useEffect(() => {

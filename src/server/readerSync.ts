@@ -79,6 +79,7 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
     const rows = await db.prepare(`SELECT a.id,a.feed_id,COALESCE(s.custom_title,f.title) AS feed_title,
       f.favicon_url AS feed_favicon,f.html_url AS feed_html_url,s.folder_id,fl.name AS folder_name,
       a.guid,a.title,a.url,a.author,a.summary,a.ai_summary,a.thumbnail_url,a.published_at,a.created_at AS collected_at,
+      CASE WHEN f.xml_url LIKE 'https://x.com/%' AND length(a.content_html)<=20000 THEN a.content_html END AS x_body,
       COALESCE(dc.source,'feed') AS date_source,
       COALESCE(st.is_read,CASE WHEN a.published_at<? THEN 1 ELSE 0 END) AS is_read,COALESCE(st.is_saved,0) AS is_saved
       FROM articles a JOIN subscriptions s ON s.feed_id=a.feed_id AND s.user_id=? JOIN feeds f ON f.id=a.feed_id
@@ -89,9 +90,10 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
     delta.newArticleIds ??= [];
     delta.newArticleIds.push(...rows.results.filter((row) => articleChanged.has(String(row.id)) && Date.parse(String(row.collected_at)) >= cursor.checkedAt && Date.parse(String(row.published_at)) >= now - DAY).map((row) => String(row.id)));
     chunk.forEach((id) => { if (!found.has(id)) removed.add(id); });
-    delta.articles.push(...rows.results.map((row) => ({ ...row,
+    // 본문은 글을 열 때 받는다. X 글은 짧고 X 타임라인이 본문(사진·영상·인용 글)으로 줄을 그리므로 함께 보낸다.
+    delta.articles.push(...rows.results.map(({ x_body, ...row }) => ({ ...row,
       is_read: Boolean(Number(row.is_read)), is_saved: Boolean(Number(row.is_saved)),
-      content_html: null, full_content_html: null, body_deferred: true,
+      content_html: x_body ?? null, full_content_html: null, body_deferred: !x_body,
     } as unknown as ArticleItem)));
   }
   delta.removedIds = [...removed]; delta.articleChangedIds = [...articleChanged];

@@ -19,7 +19,7 @@ export interface XPost {
   text: string;
   media: XMedia[];
   card: { href: string; image: string | null; title: string } | null;
-  quote: { name: string; handle: string; text: string; href: string } | null;
+  quote: { name: string; handle: string; text: string; href: string; media: XMedia[] } | null;
 }
 
 const statusUser = (url: string) => /^https:\/\/x\.com\/([a-z\d_]{1,15})\/status\//i.exec(url)?.[1] || null;
@@ -56,20 +56,21 @@ export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | unde
     copy.querySelectorAll('br').forEach((br) => br.replaceWith('\u2028'));
     return (copy.textContent || '').replace(/[ \t]*[\r\n]+[ \t]*/g, '').replace(/[ \t]*\u2028[ \t]*/g, '\n').trim();
   };
-  post.text = textOf(main.querySelector('p')) || post.text;
-  for (const image of main.querySelectorAll('img')) {
+  const mediaOf = (node: Element) => [...node.querySelectorAll('img')].flatMap((image): XMedia[] => {
     const src = image.getAttribute('src') || '';
-    if (!/^https:\/\/pbs\.twimg\.com\//.test(src)) continue;
+    if (!/^https:\/\/pbs\.twimg\.com\//.test(src)) return [];
     // 동영상은 글 링크 안에 "Video" 글자와 썸네일로 들어온다.
     const holder = image.parentElement;
-    post.media.push({ src, video: /video_thumb/.test(src) || (holder?.tagName === 'A' && /\bVideo\b/.test(holder.textContent || '')) });
-  }
+    return [{ src, video: /video_thumb/.test(src) || (holder?.tagName === 'A' && /\bVideo\b/.test(holder.textContent || '')) }];
+  });
+  post.text = textOf(main.querySelector('p')) || post.text;
+  post.media = mediaOf(main);
   // 미러는 인용 글을 <p> 안에 <p>로 감싸 보내서, 읽고 나면 빈 문단과 글 문단이 나란히 남는다.
   const quote = extra?.querySelector('blockquote');
   if (quote) {
     const who = /^(.*?)\s*\(@([a-z\d_]{1,15})\)\s*$/i.exec(quote.querySelector('b')?.textContent?.trim() || '');
     const href = quote.querySelector('cite a')?.getAttribute('href') || '';
-    post.quote = { name: who?.[1] || who?.[2] || '', handle: who?.[2] || statusUser(href) || '', text: [...quote.querySelectorAll('p')].map(textOf).find(Boolean) || '', href: /^https:\/\//.test(href) ? href : article.url };
+    post.quote = { name: who?.[1] || who?.[2] || '', handle: who?.[2] || statusUser(href) || '', text: [...quote.querySelectorAll('p')].map(textOf).find(Boolean) || '', href: /^https:\/\//.test(href) ? href : article.url, media: mediaOf(quote) };
   } else if (extra) {
     const link = extra.querySelector('a[href]');
     const href = link?.getAttribute('href') || '';

@@ -120,6 +120,8 @@ try {
   await db.prepare('UPDATE articles SET content_html=? WHERE id=?').bind('CHANGED-BODY', 'a').run(); await sync.check(() => true, async () => {});
   assert.equal((await cache.get(articlePageKey(all))).articles.find((article) => article.id === 'a').body_deferred, true);
   assert.equal((await request('/api/articles?articleId=a')).articles[0].content_html, 'CHANGED-BODY');
+  // 본문 없이 남은 글 여러 개는 한 번에 받는다. 다른 계정의 글은 섞이지 않는다.
+  assert.deepEqual((await request('/api/articles?articleIds=a,b,foreign')).articles.map((article) => [article.id, article.content_html]), [['a', 'CHANGED-BODY'], ['b', 'FULL-b']]);
   await db.prepare('DELETE FROM subscriptions WHERE id=?').bind('sub-two').run(); await sync.check(() => true, async () => {});
   assert.ok((await cache.get(articlePageKey(all))).articles.every((article) => article.feed_id !== 'two'));
   assert.deepEqual((await cache.get('bootstrap')).counts, (await request('/api/bootstrap')).counts);
@@ -134,6 +136,18 @@ try {
   await sync.check(() => true, async () => {});
   assert.equal((await cache.get(articlePageKey(all))).needsRefresh, false, 'moving a feed does not redownload an unaffected All list');
   assert.ok((await sync.page(folderPage, () => true, async () => {})).articles.some((article) => article.id === 'd'), 'moving an existing feed refills its new folder');
+
+  // X 글은 짧고 X 타임라인이 본문으로 줄을 그리므로, 동기화에 본문을 함께 싣는다.
+  await db.prepare('INSERT INTO feeds(id,xml_url,title,created_at) VALUES(?,?,?,?)').bind('xfeed', 'https://x.com/someone', 'Someone (@someone)', stamp()).run();
+  await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('sub-x', owner.user.id, 'xfeed', stamp()).run();
+  await sync.check(() => true, async () => {}); await sync.page(all, () => true, async () => {});
+  const xCursor = (await cache.get('bootstrap')).syncCursor;
+  await insert('xpost', 'xfeed', now + 3);
+  const xDelta = await request('/api/sync', { method: 'POST', body: JSON.stringify({ cursor: xCursor }) });
+  assert.deepEqual(xDelta.articles.map((article) => [article.id, article.content_html, article.body_deferred]), [['xpost', 'FULL-xpost', false]]);
+  await sync.check(() => true, async () => {});
+  const xPage = await cache.get(articlePageKey(all)), xRow = xPage.articles.find((article) => article.id === 'xpost');
+  assert.deepEqual([xPage.needsRefresh, xRow?.content_html, xRow?.body_deferred], [false, 'FULL-xpost', false], '저장된 목록에 X 글이 본문과 함께 들어간다.');
 
   await cache.flushed(); await cache.close();
   const reopened = new ReaderCache(owner.user.id, storage, () => now), reopenedSync = new ReaderSync(reopened, request);

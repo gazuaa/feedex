@@ -184,14 +184,17 @@ export class ReaderCache {
       }
     }
   }
-  updateFields(articleId: string, fields: Partial<ArticleItem>) {
-    const previous = this.overrides.get(articleId);
-    if (previous) this.overrides.set(articleId, { ...previous, ...fields });
+  updateFields(articleId: string, fields: Partial<ArticleItem>) { this.updateMany(new Map([[articleId, fields]])); }
+  /** 여러 글을 한 번에 고친다. 목록 하나는 한 번만 다시 저장한다. */
+  updateMany(changes: ReadonlyMap<string, Partial<ArticleItem>>) {
+    if (!changes.size) return;
+    for (const [id, fields] of changes) { const previous = this.overrides.get(id); if (previous) this.overrides.set(id, { ...previous, ...fields }); }
     this.revision++;
     for (const [key, snapshot] of [...this.entries]) {
       if (key.startsWith('articles?')) {
         const data = snapshot.data as ArticlePage;
-        this.put(key, { ...data, articles: data.articles.map((article) => article.id === articleId ? { ...article, ...fields } : article) });
+        if (!data.articles.some((article) => changes.has(article.id))) continue;
+        this.put(key, { ...data, articles: data.articles.map((article) => changes.has(article.id) ? { ...article, ...changes.get(article.id) } : article) });
       }
     }
   }

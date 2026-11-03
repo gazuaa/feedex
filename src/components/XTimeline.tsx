@@ -58,7 +58,9 @@ function XPostRow({ article, selected, onSelectArticle, onToggleRead, onToggleSa
       </a>}
       {post.quote && <a href={post.quote.href} target="_blank" rel="noopener noreferrer" onClick={stop} className={`mt-3 block rounded-2xl border px-3 py-2.5 ${line}`}>
         <span className="flex min-w-0 items-center gap-1 text-[15px]"><span className={`truncate font-bold ${strong}`}>{post.quote.name}</span>{post.quote.handle && <span className="truncate text-slate-500">@{post.quote.handle}</span>}</span>
-        <span className={`mt-0.5 block whitespace-pre-wrap break-words text-[15px] leading-5 line-clamp-6 ${strong}`}>{post.quote.text}</span>
+        {/* block을 함께 주면 줄 수 제한(line-clamp)의 표시 방식을 덮어 긴 인용 글이 다 펼쳐진다. */}
+        {post.quote.text && <span className={`mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-5 line-clamp-6 ${strong}`}>{post.quote.text}</span>}
+        <MediaGrid media={post.quote.media} line={line} compact />
       </a>}
       <div className="-ml-2 mt-1 flex max-w-[425px] items-center justify-between text-slate-500">
         <button type="button" title="댓글 보기" aria-label="댓글 보기" onClick={(event) => { stop(event); onSelectArticle(article); }} className={`${action} hover:bg-sky-500/10 hover:text-sky-500`}><MessageCircle className="h-[18px] w-[18px]" /></button>
@@ -77,13 +79,14 @@ function Avatar({ post, isDark }: { post: XPost; isDark: boolean }) {
 }
 
 // X처럼 사진 1장은 크게, 2~4장은 격자로 놓는다. 동영상은 썸네일에 재생 표시만 단다.
-function MediaGrid({ media, line }: { media: XMedia[]; line: string }) {
+// compact는 인용 글 안이다. 테두리 없이 낮게 놓는다.
+function MediaGrid({ media, line, compact = false }: { media: XMedia[]; line: string; compact?: boolean }) {
   const items = media.slice(0, 4);
   if (!items.length) return null;
   const many = items.length > 1;
-  return <div className={`mt-3 overflow-hidden rounded-2xl border ${line} ${many ? `grid aspect-[16/9] grid-cols-2 gap-0.5 ${items.length > 2 ? 'grid-rows-2' : ''}` : ''}`}>
+  return <div className={`overflow-hidden ${compact ? 'mt-2 rounded-xl' : `mt-3 rounded-2xl border ${line}`} ${many ? `grid aspect-[16/9] grid-cols-2 gap-0.5 ${items.length > 2 ? 'grid-rows-2' : ''}` : ''}`}>
     {items.map((item, index) => <div key={item.src} className={`relative min-h-0 ${items.length === 3 && index === 0 ? 'row-span-2' : ''}`}>
-      <img src={item.src} alt="" loading="lazy" referrerPolicy="no-referrer" className={many ? 'h-full w-full object-cover' : 'max-h-[510px] w-full object-cover'} />
+      <img src={item.src} alt="" loading="lazy" referrerPolicy="no-referrer" className={many ? 'h-full w-full object-cover' : `${compact ? 'max-h-[320px]' : 'max-h-[510px]'} w-full object-cover`} />
       {item.video && <span className="absolute inset-0 flex items-center justify-center"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/90 text-white"><Play className="ml-0.5 h-6 w-6 fill-current" /></span></span>}
     </div>)}
   </div>;
