@@ -111,7 +111,7 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
   if (metadata) {
     delta.folders = (await db.prepare('SELECT * FROM folders WHERE user_id=? ORDER BY sort_order,name').bind(userId).all<FolderItem>()).results;
     delta.subscriptions = (await db.prepare(`SELECT s.id,s.feed_id,s.folder_id,s.custom_title,${pausedAtColumn(paused)} AS paused_at,f.xml_url,f.html_url,
-      COALESCE(s.custom_title,f.title) AS title,f.description,f.favicon_url,f.last_fetched_at,f.last_error,v.view_mode
+      COALESCE(s.custom_title,f.title) AS title,f.description,f.favicon_url,f.last_fetched_at,f.last_error,v.view_mode,(SELECT b.id FROM rss_builders b WHERE b.feed_id=s.feed_id AND b.created_by=s.user_id) AS builder_id
       FROM subscriptions s JOIN feeds f ON f.id=s.feed_id LEFT JOIN feed_view_modes v ON v.feed_id=s.feed_id AND v.user_id=s.user_id
       WHERE s.user_id=? ORDER BY title`).bind(userId).all<SubscriptionMetadata>()).results;
   }

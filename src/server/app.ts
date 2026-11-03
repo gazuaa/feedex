@@ -389,6 +389,7 @@ app.get('/api/bootstrap', async (c) => {
        f.favicon_url,
        f.last_fetched_at,
        f.last_error,
+       (SELECT b.id FROM rss_builders b WHERE b.feed_id=s.feed_id AND b.created_by=s.user_id) AS builder_id,
        (
          SELECT COUNT(*)
          FROM articles a

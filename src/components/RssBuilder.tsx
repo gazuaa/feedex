@@ -61,8 +61,8 @@ export function RssBuilder({ url, folders, isDark, onBack, onSubscribed, onBusyC
   }, [url, retry]);
 
   const pickerSource = useMemo(
-    () => (analysis?.snapshot ? pickerDocument(analysis.snapshot, analysis.sourceUrl, analysis.groups[0]?.articles[0]?.url ?? null, analysis.nextPages) : null),
-    [analysis]
+    () => (analysis?.snapshot ? pickerDocument(analysis.snapshot, analysis.sourceUrl, analysis.groups[selected]?.articles[0]?.url ?? null, analysis.nextPages) : null),
+    [analysis, selected]
   );
   const sendToPicker = (message: Record<string, unknown>) => frameRef.current?.contentWindow?.postMessage({ source: 'sfeed-app', ...message }, '*');
 

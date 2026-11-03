@@ -93,6 +93,8 @@ export interface SubscriptionItem {
   total_count: number;
   saved_count: number;
   view_mode: 'feed' | 'reader' | 'web' | null;
+  /** 현재 계정이 만든 RSS 빌더 피드만 수정 메뉴를 연다. */
+  builder_id?: string | null;
 }
 
 export interface ArticleItem {

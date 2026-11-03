@@ -247,6 +247,35 @@ try {
   assert.equal(pickedRows[0].published_at, '2026-10-21T06:00:00.000Z');
   count = 3;
   assert.equal((await (await request('/api/feeds/refresh', { feedId: pickedFeed.feedId })).json()).newArticles, 1, 'a picked feed ingests new posts');
+  // 만든 피드의 수정 경로: 다른 회원은 볼 수 없고, 수정해도 주소·구독·읽음 기록은 바뀌지 않는다.
+  const builderId = (await db.prepare('SELECT id FROM rss_builders WHERE feed_id=?').bind(pickedFeed.feedId).first()).id;
+  const savedBuilder = await (await request(`/api/rss-builder/${builderId}`)).json();
+  assert.deepEqual([savedBuilder.sourceUrl, savedBuilder.selector, savedBuilder.title], [source, pickSelector, 'Picked']);
+  assert.equal((await request(`/api/rss-builder/${builderId}`, null, other.token)).status, 404);
+  const ownerBootstrap = await (await request('/api/bootstrap')).json();
+  assert.equal(ownerBootstrap.subscriptions.find((feed) => feed.feed_id === pickedFeed.feedId).builder_id, builderId);
+  await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('shared-builder-sub', other.user.id, pickedFeed.feedId, new Date().toISOString()).run();
+  const otherBootstrap = await (await request('/api/bootstrap', null, other.token)).json();
+  assert.equal(otherBootstrap.subscriptions.find((feed) => feed.feed_id === pickedFeed.feedId).builder_id, null, '다른 회원이 구독한 빌더에는 수정 메뉴를 내보내지 않는다.');
+  const firstPost = await db.prepare('SELECT id FROM articles WHERE feed_id=? ORDER BY published_at LIMIT 1').bind(pickedFeed.feedId).first();
+  await request(`/api/articles/${firstPost.id}/state`, { isRead: true, isSaved: true });
+  const putBuilder = (body, auth = token) => app.request(`https://sfeed.example.test/api/rss-builder/${builderId}`, { method: 'PUT', headers: { authorization: `Bearer ${auth}`, 'content-type': 'application/json' }, body: JSON.stringify(body) }, env);
+  const editedSelector = encodePick({ ...chosen.selection, summary: '' }, false);
+  const editBody = { url: source, selector: editedSelector, title: 'Edited research' };
+  const beforeUnauthorized = fetches;
+  assert.equal((await putBuilder(editBody, other.token)).status, 404);
+  assert.equal(fetches, beforeUnauthorized, '권한이 없는 수정은 원문 요청 전에 거절한다.');
+  assert.equal((await putBuilder({ ...editBody, url: 'http://127.0.0.1/private' })).status, 400);
+  const editResponse = await putBuilder(editBody); assert.equal(editResponse.status, 200, await editResponse.clone().text());
+  const edited = await editResponse.json();
+  assert.equal(edited.rssUrl, pickedFeed.rssUrl); assert.equal(edited.feedId, pickedFeed.feedId);
+  const restored = await (await request(`/api/rss-builder/${builderId}`)).json(); assert.equal(restored.selector, editedSelector); assert.equal(restored.title, 'Edited research');
+  const readingState = await db.prepare('SELECT is_read,is_saved FROM article_states WHERE user_id=? AND article_id=?').bind(user.id, firstPost.id).first();
+  assert.deepEqual([readingState.is_read, readingState.is_saved], [1, 1]);
+  const afterEditing = await (await request('/api/bootstrap')).json();
+  assert.equal(afterEditing.subscriptions.find((feed) => feed.feed_id === pickedFeed.feedId).title, 'Edited research');
+  assert.equal(afterEditing.subscriptions.filter((feed) => feed.feed_id === pickedFeed.feedId).length, 1);
+
   assert.equal((await (await request('/api/rss-builder/site', { url: source })).json()).title, 'Research & reports');
   assert.equal((await (await request('/api/rss-builder/site', { url: blocked })).json()).title, 'blocked.example.test', 'a blocked site still gets a card');
   console.log('PASS: public URL validation, structured list discovery, deduplication, accurate/missing dates, read-only analysis, opt-in creation, folder ownership, stable RSS URL, public XML/OPML, idempotency, manual and scheduled new-post ingestion, retained history/read/save states, upstream failure recovery, sitemap fallback for sites that block automated visits, a script-free page copy, listed-date parsing and point-and-click selection shared by the picker and the server.');

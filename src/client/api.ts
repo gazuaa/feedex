@@ -46,6 +46,8 @@ export interface SubscriptionItem {
   view_mode?: ArticleViewMode | null;
   /** 피드의 새 글을 받지 않는 동안 값이 있다. 0004가 적용되기 전에는 없다. */
   paused_at?: string | null;
+  /** 현재 계정이 만든 RSS 빌더 피드만 수정 메뉴를 연다. */
+  builder_id?: string | null;
 }
 
 // RSS 리더가 주는 본문 보기: 피드 본문, 원문 페이지에서 뽑은 전체 기사,

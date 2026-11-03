@@ -164,5 +164,13 @@ try {
   await pruneReaderChanges(db);
   const remaining = await db.prepare('SELECT COUNT(*) AS count FROM reader_sync_changes').first();
   assert.ok(remaining.count <= 50000, 'server change storage is bounded');
+  const legacyBuilderBootstrap = structuredClone(await reopened.get('bootstrap'));
+  legacyBuilderBootstrap.subscriptions[0].xml_url = 'https://sfeed.example.test/rss/rss_legacy.xml';
+  delete legacyBuilderBootstrap.subscriptions[0].builder_id;
+  reopened.put('bootstrap', legacyBuilderBootstrap); network = [];
+  await reopenedSync.check(() => true, async () => {});
+  assert.deepEqual(network, ['/api/bootstrap'], '기존 빌더 캐시에 수정 권한이 없으면 한 번 갱신해 메뉴를 표시한다.');
+  network = []; await reopenedSync.check(() => true, async () => {});
+  assert.deepEqual(network, ['/api/sync'], '권한을 채운 뒤에는 가벼운 변경 확인으로 돌아간다.');
   console.log('PASS: two indexed reads/no counts for idle sync; delta-only new/state/metadata/deletion updates; local cached tabs and relaunch; count expiry, account isolation, deferred bodies and bounded cursor recovery.');
 } finally { Date.now = originalNow; await vite.close(); }

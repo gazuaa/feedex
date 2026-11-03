@@ -14,7 +14,9 @@ export class ReaderSync {
       if (!current() || !this.cache.active) return { changed: false, reset: false };
       const revision = this.cache.revision;
       const cached = await this.cache.get<BootstrapResponse>('bootstrap');
-      if (!cached?.syncCursor || !cached.cacheEpoch) return this.reset(current, pending);
+      // 수정 권한 항목이 없던 저장본은 빌더 피드를 구독한 계정에 한해 한 번 갱신한다.
+      const missingBuilderMetadata = cached?.subscriptions.some((feed) => feed.builder_id === undefined && /\/rss\/rss_[\w-]+\.xml(?:[?#]|$)/.test(feed.xml_url));
+      if (!cached?.syncCursor || !cached.cacheEpoch || missingBuilderMetadata) return this.reset(current, pending);
       const delta = await this.request<ReaderSyncDelta>('/api/sync', { method: 'POST', body: JSON.stringify({ cursor: cached.syncCursor }) });
       if (!current() || !this.cache.active) return { changed: false, reset: false };
       if (revision !== this.cache.revision) return attempt < 2 ? run(attempt + 1) : { bootstrap: await this.cache.get<BootstrapResponse>('bootstrap'), changed: false, reset: false };
