@@ -39,7 +39,13 @@ export class ArticleResources {
   async cachedWeb(article: ArticleItem): Promise<WebResult | undefined> {
     const stored = await readContent(this.account, `web:${article.id}`);
     // 예전 X 글 사본은 댓글 자리만 회색으로 남은 x.com 화면이거나, 인용 글 상자가 깨진 사본이다. 지금 방식의 사본을 새로 받게 한다.
-    if (!stored || !('html' in stored.data) || (isXStatusUrl(article.url) && (!stored.data.thread || !stored.data.html.includes(X_THREAD_MARK)))) { this.preparedCopies.delete(article.id); return; }
+    // 대리 경로(/page-asset/) 없이 http 그림·스타일이 그대로 남은 사본도 혼합 콘텐츠로 깨지므로 다시 받는다.
+    if (!stored || !('html' in stored.data)
+      || (isXStatusUrl(article.url) && (!stored.data.thread || !stored.data.html.includes(X_THREAD_MARK)))
+      || /<(?:link|img)\b[^>]+(?:href|src)=["']http:\/\//i.test(stored.data.html)) {
+      this.preparedCopies.delete(article.id);
+      return;
+    }
     try { this.copyOrigins.add(new URL(article.url).origin); } catch {}
     const prepared = this.preparedCopies.get(article.id);
     if (prepared?.source === stored.data) return prepared.result;

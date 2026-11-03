@@ -49,6 +49,8 @@ try {
   await resources.web(articles[0]); requests = [];
   assert.match((await new ArticleResources('owner', () => true, request).web(articles[0])).html, /Original layout/);
   assert.equal(requests.length, 0, 'a cached website copy opens locally');
+  await content.writeContent('owner', 'web:http-broken', { html: '<html><head><link rel="stylesheet" href="http://image.rhythmer.net/css/common.css"></head><body>Broken copy</body></html>', url: 'http://board.rhythmer.net/src/go.php?n=21637' });
+  assert.equal(await new ArticleResources('owner', () => true, request).cachedWeb({ id: 'http-broken', feed_id: 'one', url: 'http://board.rhythmer.net/src/go.php?n=21637' }), undefined, 'unproxied http stylesheet/image copies are discarded and refetched');
   const restarted = await createServer({ configFile: false, server: { middlewareMode: true, ws: false }, appType: 'custom', logLevel: 'silent' });
   try {
     const diskContent = await restarted.ssrLoadModule('/src/client/deviceContent.ts');
