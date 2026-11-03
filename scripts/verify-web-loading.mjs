@@ -14,6 +14,7 @@ try {
   const { ArticleResources } = await vite.ssrLoadModule('/src/client/articleResources.ts');
   const { readContent, writeContent, maintainDeviceCache } = await vite.ssrLoadModule('/src/client/deviceContent.ts');
   const { ArticleDrawer, WebLoadingPreview } = await vite.ssrLoadModule('/src/components/ArticleDrawer.tsx');
+  const { X_THREAD_MARK } = await vite.ssrLoadModule('/src/shared/xThreadStyle.ts');
   const page = '<!doctype html><html><head><title>Public page</title></head><body><main><h1>Original web layout</h1><p>'+'Real article text. '.repeat(30)+'</p><img src="https://cdn.example.test/photo.jpg"></main></body></html>';
   const articles = Array.from({length:8},(_,n)=>({id:'fast-'+n,feed_id:'coindesk',url:`https://www.coindesk.com/tech/2026/11/02/public-article-${n}`,title:'Available article '+n,feed_title:'CoinDesk',content_html:'<p>Feed body already received.</p>',full_content_html:'<p>Prepared reader body.</p>',is_read:false,is_saved:false}));
   let calls = 0, active = 0, peak = 0, waiting = [], serverCalls = [];
@@ -109,7 +110,7 @@ try {
   // X 글: 댓글 자리만 회색으로 남은 예전 사본은 버리고, 글과 댓글 사본은 저장해 다시 쓴다.
   const xArticle={...articles[0],id:'x-1',url:'https://x.com/nasa/status/2000000000000000001'};
   let xCalls=0;
-  const xResources=new ArticleResources('x-owner',()=>true,async()=>{xCalls++;return {html:'<!doctype html><html><head><meta name="sfeed-x-thread" content="2"></head><body><main>Post and replies</main></body></html>',url:xArticle.url,thread:true};});
+  const xResources=new ArticleResources('x-owner',()=>true,async()=>{xCalls++;return {html:`<!doctype html><html><head>${X_THREAD_MARK}</head><body><main>Post and replies</main></body></html>`,url:xArticle.url,thread:true};});
   await writeContent('x-owner','web:x-1',{html:'<!doctype html><html><body><main>Old skeleton</main></body></html>',url:xArticle.url});
   assert.equal(await xResources.cachedWeb(xArticle),undefined,'an old X copy without replies is not shown again');
   await writeContent('x-owner','web:x-1',{html:'<!doctype html><html><body><main>Broken quote box</main></body></html>',url:xArticle.url,thread:true});
