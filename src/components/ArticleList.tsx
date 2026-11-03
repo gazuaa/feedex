@@ -43,7 +43,6 @@ interface ArticleListProps {
   layout: LayoutMode;
   selectedArticleId: string | null;
   onSelectArticle: (article: ArticleItem) => void;
-  onOpenXPost?: (article: ArticleItem, url: string) => void;
   onToggleRead: (article: ArticleItem, e: React.MouseEvent) => void;
   onToggleSaved: (article: ArticleItem, e: React.MouseEvent) => void;
   onOpenDiscover: () => void;
@@ -64,7 +63,6 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   layout,
   selectedArticleId,
   onSelectArticle,
-  onOpenXPost,
   onToggleRead,
   onToggleSaved,
   onOpenDiscover,
@@ -149,7 +147,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     );
   }
 
-  if (timeline) return <XTimeline blockedArticleIds={blockedArticleIds} onOpenXPost={onOpenXPost} articles={articles} selectedArticleId={selectedArticleId} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} retainReadRows={retainReadRows} listRef={listRef} />;
+  if (timeline) return <XTimeline blockedArticleIds={blockedArticleIds} articles={articles} selectedArticleId={selectedArticleId} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} retainReadRows={retainReadRows} listRef={listRef} />;
 
   // 1. 간단한 목록 보기 (Feedly 제목만 보기)
   if (layout === 'list') {

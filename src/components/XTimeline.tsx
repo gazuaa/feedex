@@ -3,12 +3,12 @@ import React, { useMemo, useState } from 'react';
 import { Bookmark, CheckCircle2, Circle, ExternalLink, MessageCircle, Play, Repeat2 } from 'lucide-react';
 import type { ArticleItem } from '../client/api';
 import { parseXPost, xTime, type XMedia, type XPost } from '../client/xTimeline';
+import { useXAvatars } from '../client/xAvatars';
 
 interface Props {
   articles: ArticleItem[];
   selectedArticleId: string | null;
   onSelectArticle: (article: ArticleItem) => void;
-  onOpenXPost?: (article: ArticleItem, url: string) => void;
   onToggleRead: (article: ArticleItem, e: React.MouseEvent) => void;
   onToggleSaved: (article: ArticleItem, e: React.MouseEvent) => void;
   isDark: boolean;
@@ -18,14 +18,16 @@ interface Props {
 }
 
 // X 폴더와 X 계정은 X 타임라인처럼 보여 준다. 글을 누르면 다른 목록처럼 리더에서 열린다.
-export function XTimeline({ articles, selectedArticleId, onSelectArticle, onOpenXPost, onToggleRead, onToggleSaved, isDark, retainReadRows, blockedArticleIds, listRef }: Props) {
+export function XTimeline({ articles, selectedArticleId, onSelectArticle, onToggleRead, onToggleSaved, isDark, retainReadRows, blockedArticleIds, listRef }: Props) {
+  // 인용한 글과 재게시한 글은 글쓴이가 구독 계정이 아닐 수 있어 프로필 사진을 따로 찾는다.
+  const posts = useMemo(() => new Map(articles.map((article) => [article.id, parseXPost(article)])), [articles]);
+  const avatarOf = useXAvatars([...posts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
   return <div ref={listRef} className={`sfeed-list-items sfeed-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
-    {articles.map((article) => <XPostRow blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onOpenXPost={onOpenXPost} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} />)}
+    {articles.map((article) => <XPostRow blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id)!} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} />)}
   </div>;
 }
 
-function XPostRow({ article, selected, blocked, onSelectArticle, onOpenXPost, onToggleRead, onToggleSaved, isDark }: { article: ArticleItem; selected: boolean; blocked: boolean } & Pick<Props, 'onSelectArticle' | 'onOpenXPost' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
-  const post = useMemo(() => parseXPost(article), [article.id, article.title, article.content_html, article.feed_title, article.feed_favicon, article.feed_html_url, article.url]);
+function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, isDark }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
   const line = isDark ? 'border-slate-800' : 'border-slate-200';
   const strong = isDark ? 'text-slate-100' : 'text-slate-900';
   const stop = (event: React.MouseEvent) => event.stopPropagation();
@@ -42,7 +44,7 @@ function XPostRow({ article, selected, blocked, onSelectArticle, onOpenXPost, on
   >
     <div className="flex w-10 shrink-0 flex-col items-end gap-1">
       {post.repostedBy && <Repeat2 aria-hidden="true" className="h-4 w-4 text-slate-500" />}
-      <Avatar post={post} isDark={isDark} />
+      <Avatar post={post.avatar ? post : { ...post, avatar: avatarOf(post.handle) || null }} isDark={isDark} />
     </div>
     <div className="min-w-0 flex-1">
       {post.repostedBy && <p className="-mt-0.5 mb-0.5 text-[13px] font-semibold text-slate-500">{post.repostedBy} 님이 재게시함</p>}
@@ -60,12 +62,13 @@ function XPostRow({ article, selected, blocked, onSelectArticle, onOpenXPost, on
         {post.card.image && <img src={post.card.image} alt="" loading="lazy" referrerPolicy="no-referrer" className="aspect-[1.91/1] w-full object-cover" />}
         <span className="block px-3 py-2"><span className="block truncate text-[13px] text-slate-500">{hostOf(post.card.href)}</span><span className={`block truncate text-[15px] ${strong}`}>{post.card.title}</span></span>
       </a>}
-      {post.quote && <a href={post.quote.href} onClick={(event) => { stop(event); if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && onOpenXPost) { event.preventDefault(); onOpenXPost(article, post.quote!.href); } }} className={`mt-3 block rounded-2xl border px-3 py-2.5 ${line}`}>
-        <span className="flex min-w-0 items-center gap-1 text-[15px]"><span className={`truncate font-bold ${strong}`}>{post.quote.name}</span>{post.quote.handle && <span className="truncate text-slate-500">@{post.quote.handle}</span>}</span>
+      {/* 목록에서 인용 글을 누르면 먼저 이 글을 연다. 인용한 글은 열린 글 안에서 누르면 보인다. */}
+      {post.quote && <div className={`mt-3 block rounded-2xl border px-3 py-2.5 ${line}`}>
+        <span className="flex min-w-0 items-center gap-1 text-[15px]"><Avatar post={{ name: post.quote.name, handle: post.quote.handle, avatar: avatarOf(post.quote.handle) || null }} isDark={isDark} size="mini" /><span className={`truncate font-bold ${strong}`}>{post.quote.name}</span>{post.quote.handle && <span className="truncate text-slate-500">@{post.quote.handle}</span>}</span>
         {/* block을 함께 주면 줄 수 제한(line-clamp)의 표시 방식을 덮어 긴 인용 글이 다 펼쳐진다. */}
         {post.quote.text && <span className={`mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-5 line-clamp-6 ${strong}`}>{post.quote.text}</span>}
         <MediaGrid media={post.quote.media} line={line} compact />
-      </a>}
+      </div>}
       <div className="-ml-2 mt-1 flex max-w-[425px] items-center justify-between text-slate-500">
         <button type="button" title="댓글 보기" aria-label="댓글 보기" onClick={(event) => { stop(event); onSelectArticle(article); }} className={`${action} hover:bg-sky-500/10 hover:text-sky-500`}><MessageCircle className="h-[18px] w-[18px]" /></button>
         <button type="button" title={article.is_read ? '안읽음으로 표시' : '읽음으로 표시'} aria-label={article.is_read ? '안읽음으로 표시' : '읽음으로 표시'} onClick={(event) => onToggleRead(article, event)} className={`${action} hover:bg-emerald-500/10 hover:text-emerald-500`}>{article.is_read ? <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500/80" /> : <Circle className="h-[18px] w-[18px]" />}</button>
@@ -76,10 +79,12 @@ function XPostRow({ article, selected, blocked, onSelectArticle, onOpenXPost, on
   </article>;
 }
 
-function Avatar({ post, isDark }: { post: XPost; isDark: boolean }) {
-  const [broken, setBroken] = useState(false);
-  if (post.avatar && !broken) return <img src={post.avatar} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="h-10 w-10 rounded-full object-cover" />;
-  return <span aria-hidden="true" className={`flex h-10 w-10 items-center justify-center rounded-full text-base font-bold ${isDark ? 'bg-slate-700 text-slate-100' : 'bg-slate-200 text-slate-700'}`}>{(post.name || post.handle).slice(0, 1).toUpperCase()}</span>;
+// mini는 인용 글 이름 옆의 작은 사진이다.
+function Avatar({ post, isDark, size = 'full' }: { post: Pick<XPost, 'name' | 'handle' | 'avatar'>; isDark: boolean; size?: 'full' | 'mini' }) {
+  const [broken, setBroken] = useState<string | null>(null);
+  const box = size === 'mini' ? 'h-5 w-5 shrink-0 text-[11px]' : 'h-10 w-10 text-base';
+  if (post.avatar && broken !== post.avatar) return <img src={post.avatar} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(post.avatar)} className={`${box} rounded-full object-cover`} />;
+  return <span aria-hidden="true" className={`flex ${box} items-center justify-center rounded-full font-bold ${isDark ? 'bg-slate-700 text-slate-100' : 'bg-slate-200 text-slate-700'}`}>{(post.name || post.handle).slice(0, 1).toUpperCase()}</span>;
 }
 
 // X처럼 사진 1장은 크게, 2~4장은 격자로 놓는다. 동영상은 썸네일에 재생 표시만 단다.

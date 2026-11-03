@@ -29,6 +29,7 @@ import { fetchWebView } from './webView';
 import { fetchPreviewImage } from './previewImage';
 import { analyseBuilderPage, builderListPageArticles, builderParsedFeed, builderSiteInfo, fetchPage, publicPageUrl, webCopy } from './rssBuilder';
 import { pageAssetProxy } from './pageAssets';
+import { resolveXAvatars } from './xAvatars';
 import { refreshStoredFeeds, storedFeedColumns, type StoredFeed } from './feedLoader';
 import { extractOriginalPublishedAt } from './publicationDate';
 import { resolveArticlePublication, type PublicationArticle } from './articlePublication';
@@ -303,6 +304,12 @@ app.get('/api/user/me', (c) => {
       preferences: parsePreferences(user.preferences_json),
     },
   });
+});
+
+// 인용한 글·재게시한 글의 글쓴이 프로필 사진(xAvatars 참고).
+app.post('/api/x/avatars', async (c) => {
+  const body = await c.req.json<{ handles?: unknown }>().catch(() => null);
+  return c.json(await resolveXAvatars(c.env.DB, body?.handles));
 });
 
 app.get('/api/user/article-blocks', (c) => {

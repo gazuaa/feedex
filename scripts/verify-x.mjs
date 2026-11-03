@@ -104,11 +104,14 @@ try {
     <div id="m" class="main-tweet"><div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><a class="tweet-avatar" href="/${user}"><img class="avatar round" src="/pic/profile_images%2F1%2Fme_bigger.jpg"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/${user}">Main &lt;b&gt;Name</a><a class="username" href="/${user}">@${user}</a></div><span class="tweet-date"><a href="/${user}/status/2000000000000000001#m" title="Nov 2, 2026 · 6:42 PM UTC">1h</a></span></div></div></div>
       <div class="tweet-content media-body">Main text &lt;script&gt;x&lt;/script&gt;<br><a href="/search?q=%23tag">#tag</a> <a href="javascript:alert(1)">bad</a> <a href="https://example.test/a" onclick="x()">site</a></div>
       <div class="attachments"><div class="gallery-row"><div class="attachment image"><a class="still-image" href="/pic/orig/media%2Fphoto.jpg"><img src="/pic/media%2Fphoto.jpg%3Fname%3Dsmall" onerror="x()"></a></div></div></div>
-      <div class="quote quote-big"><a class="quote-link" href="/quoted/status/1999#m"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/quoted">Quoted</a><a class="username" href="/quoted">@quoted</a></div></div><div class="quote-text">Quoted text <a href="/HSBC">@HSBC</a>’s rest of quote</div><div class="quote-media-container"><video poster="/pic/amplify_video_thumb%2F99%2Fimg%2Fquote.jpg" data-url="/video/SIGNED/https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F99%2Fpl%2Fmovie.m3u8%3Ftag%3D1"></video></div></div>
+      <div class="quote quote-big"><a class="quote-link" href="/quoted/status/1999#m"></a><div class="tweet-name-row"><div class="fullname-and-username"><img class="avatar round mini" src="/pic/profile_images%2Fq%2Fquoted_mini.jpg"><a class="fullname" href="/quoted">Quoted</a><a class="username" href="/quoted">@quoted</a></div></div><div class="quote-text">Quoted text <a href="/HSBC">@HSBC</a>’s rest of quote</div><div class="quote-media-container"><video poster="/pic/amplify_video_thumb%2F99%2Fimg%2Fquote.jpg" data-url="/video/SIGNED/https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F99%2Fpl%2Fmovie.m3u8%3Ftag%3D1"></video></div></div>
       <p class="tweet-published">Nov 2, 2026 · 6:42 PM UTC</p><div class="tweet-stats"><span class="tweet-stat"><div class="icon-container"><span class="icon-comment"></span> 2</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-heart"></span> 1,099</div></span></div></div></div></div></div>
     <div id="r" class="replies"><div class="reply thread thread-line"><div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><a class="tweet-avatar" href="/fan"><img class="avatar round" src="/pic/abs.twimg.com%2Fsticky%2Fdefault.png"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/fan">Fan</a><a class="username" href="/fan">@fan</a></div><span class="tweet-date"><a href="/fan/status/2000000000000000002#m" title="t">5m</a></span></div></div></div><div class="replying-to">Replying to <a href="/${user}">@${user}</a></div><div class="tweet-content media-body">First reply</div><div class="attachments media-gif"><div class="attachment"><video class="gif" poster="/pic/tweet_video_thumb%2Fgif.jpg"><source src="/pic/video.twimg.com%2Ftweet_video%2Fgif.mp4" type="video/mp4"></video></div></div></div></div>
       <div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/other">Other</a><a class="username" href="/other">@other</a></div><span class="tweet-date"><a href="/other/status/2000000000000000003#m">4m</a></span></div></div></div><div class="tweet-content media-body">Nested reply</div></div></div></div>
       <div class="show-more"><a href="?cursor=abc#r">Load more</a></div></div></div></body></html>`;
+  const replyPage = (withParent) => statusPage('nasa')
+    .replace('<div id="m" class="main-tweet">', () => (withParent ? '<div class="before-tweet thread-line"><div class="timeline-item more-replies earlier-replies"><a class="more-replies-text" href="/parent/status/1">earlier replies</a></div><div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/parent">Parent</a><a class="username" href="/parent">@parent</a></div><span class="tweet-date"><a href="/parent/status/1999999999999999990#m" title="Nov 2, 2026 · 5:00 PM UTC">1h</a></span></div></div></div><div class="tweet-content media-body">Parent text</div></div></div></div>' : '') + '<div id="m" class="main-tweet">')
+    .replace('<div class="tweet-content media-body">Main text', '<div class="replying-to">Replying to <a href="/parent">@parent</a></div><div class="tweet-content media-body">Main text');
   const xml = (provider, username) => `<?xml version="1.0"?><rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Example / @${username}</title><link>${provider}/${username}</link><image><url>${provider}/pic/https%3A%2F%2Fpbs.twimg.com%2Fprofile_images%2F123%2Favatar.jpg</url></image><item><guid>2000000000000000001</guid><title>A real post</title><link>${provider}/${username}/status/2000000000000000001#m</link><dc:creator>@${username}</dc:creator><pubDate>Mon, 02 Nov 2026 10:00:00 GMT</pubDate><description><![CDATA[<p>Real post body</p><img src="${provider}/pic/media%2Fphoto.jpg"/><a href="https://example.test/?a=1&amp;b=2">link</a><cite><a href="${provider}/quoted/status/1999#m">${provider}/quoted/status/1999#m</a></cite>]]></description></item><item><title>Unsafe post</title><link>https://evil.test/a</link></item></channel></rss>`;
   // 쪽으로 나뉜 미러 RSS: 한 쪽에 20개, Min-Id 헤더가 다음(더 옛날) 쪽의 위치다. 글 번호가 클수록 최근 글이다.
   let historyNewest = 45, pagedLimited = false;
@@ -151,6 +154,8 @@ try {
       if (pageMode === 'challenge' && url.hostname === 'nitter.mie.foundation') return new Response("<html><head><title>Making sure you're not a bot!</title></head><body><script>work()</script></body></html>");
       if (pageMode === 'missing') return new Response('<html><body><div class="error-panel"><span>Tweet not found</span></div></body></html>');
       if (pageMode === 'down') return new Response('', { status: 503 });
+      // 답글 글 페이지: orphan은 두 미러 모두 원글을 못 불러오고, orphan-one은 첫 미러만 못 불러온다.
+      if (pageMode === 'orphan' || pageMode === 'orphan-one') return new Response(replyPage(pageMode === 'orphan-one' && url.hostname === 'nitter.mizuki.st'));
       return new Response(statusPage(url.pathname.split('/')[1]));
     }
     if (rssMode === 'paged') return pagedResponse(url);
@@ -284,7 +289,7 @@ try {
   assert.match(copyHtml, /<div class="quote"><a class="quote-post" href="https:\/\/x\.com\/quoted\/status\/1999">(?:(?!<a |<\/a>)[\s\S])*<span class="link">@HSBC<\/span>’s rest of quote<\/span><\/a><div class="media">/);
   assert.ok(copyHtml.includes('data-hls-src="https://video.twimg.com/amplify_video/99/pl/movie.m3u8?tag=1"'));
   assert.ok(copyHtml.includes('controls preload="none" playsinline'));
-  assert.ok(copyHtml.includes('<meta name="sfeed-x-thread" content="3">'), '지금 방식의 사본이라는 표시를 단다.');
+  assert.ok(copyHtml.includes((await vite.ssrLoadModule('/src/shared/xThreadStyle.ts')).X_THREAD_MARK), '지금 방식의 사본이라는 표시를 단다.');
   const quotedPath = `/api/articles/${articleId}/x-post?url=${encodeURIComponent('https://x.com/quoted/status/1999')}`;
   assert.equal((await request(quotedPath)).status, 200);
   assert.equal((await request(quotedPath, null, other)).status, 404);
@@ -309,6 +314,19 @@ try {
   await fetchXThread('https://x.com/nasa/status/2000000000000000007');
   assert.equal(pageCalls(), pagesBefore + 1, '지워진 글 안내는 그 경로를 쉬게 하지 않는다.');
   await assert.rejects(fetchXThread('https://x.com/nasa'), /X 글 주소/);
+  // 인용한 글의 글쓴이 사진도 넣는다.
+  assert.match(copyHtml, /<span class="who"><img class="mini" src="https:\/\/pbs\.twimg\.com\/profile_images\/q\/quoted_mini\.jpg"/);
+  // 답글인데 미러가 원글을 못 불러오면 다른 미러를 보고, 그래도 없으면 안내를 단 사본을 저장하지 말라고 알린다.
+  const parentNow = Date.now; Date.now = () => parentNow() + 2 * 3600_000;
+  try {
+    pageMode = 'orphan-one'; pagesBefore = pageCalls();
+    const whole = await fetchXThread('https://x.com/nasa/status/2000000000000000008');
+    assert.equal(whole.partial, undefined); assert.equal(pageCalls(), pagesBefore + 2, '원글이 빠지면 다른 미러를 한 번 더 본다.');
+    assert.match(whole.html, /<article class="post before">[\s\S]*Parent text[\s\S]*<article class="post main">/); assert.doesNotMatch(whole.html, /earlier replies/);
+    pageMode = 'orphan';
+    const orphan = await fetchXThread('https://x.com/nasa/status/2000000000000000009');
+    assert.equal(orphan.partial, true); assert.match(orphan.html, /parent-missing/); assert.doesNotMatch(orphan.html, /class="post before"/);
+  } finally { Date.now = parentNow; pageMode = 'ok'; }
   // X 타임라인: X 폴더 판단, 실제 미러 RSS 모양의 글 해석, 목록 그리기.
   const { DOMParser } = await import('linkedom');
   const { xFolderIds, parseXPost, xFeedAccount, xTime } = await vite.ssrLoadModule('/src/client/xTimeline.ts');
@@ -349,6 +367,10 @@ try {
     const html = renderToStaticMarkup(React.createElement(XTimeline, { articles: [{ ...base, id: 'r1', title: 'RT by @NASA: x', feed_title: 'NASA (@NASA)', url: 'https://x.com/NASAAdmin/status/1', content_html: '<p>&lt;script&gt;alert(1)&lt;/script&gt; hello</p>' }], selectedArticleId: null, onSelectArticle() {}, onToggleRead() {}, onToggleSaved() {}, isDark: true, listRef: { current: null } }));
     for (const text of ['sfeed-list-items sfeed-x-timeline', 'data-article-id="r1"', 'NASA 님이 재게시함', '@NASAAdmin', '&lt;script&gt;alert(1)&lt;/script&gt; hello', 'aria-label="댓글 보기"', 'aria-label="X에서 열기"', 'href="https://x.com/NASAAdmin/status/1"']) assert.ok(html.includes(text), text);
     assert.doesNotMatch(html, /<script/);
+    // 목록의 인용 글 상자는 링크가 아니다. 누르면 글 줄을 눌렀을 때처럼 이 글이 먼저 열린다. 인용한 글쓴이 사진 자리가 있다.
+    const quotedRow = renderToStaticMarkup(React.createElement(XTimeline, { articles: [{ ...base, id: 'q1', title: '> hermes migrate grok-bot', url: 'https://x.com/NousResearch/status/2117326444669857941', content_html: '<p>hermes</p><hr/><blockquote><b>Elon Musk (@elonmusk)</b><p><p>The cost of serving Grok Bot</p></p><footer>— <cite><a href="https://x.com/elonmusk/status/2116992258520064397">https://x.com/elonmusk/status/2116992258520064397</a></cite></footer></blockquote>' }], selectedArticleId: null, onSelectArticle() {}, onToggleRead() {}, onToggleSaved() {}, isDark: false, listRef: { current: null } }));
+    assert.doesNotMatch(quotedRow, /href="https:\/\/x\.com\/elonmusk\/status\/2116992258520064397"/);
+    assert.match(quotedRow, /h-5 w-5[^"]*"[^>]*>E<\/span><span class="truncate font-bold[^"]*">Elon Musk/);
   } finally { globalThis.DOMParser = previous; }
   const { fetchAndParseFeed } = await vite.ssrLoadModule('/src/server/rssParser.ts');
   rssMode = 'fallback';
@@ -449,5 +471,22 @@ try {
     assert.equal(await readCount(), 25, '빠진 구간의 글은 새 글이라 안 읽은 글로 둔다.');
     assert.deepEqual({ ...await row() }, { cursor: null, pages: 4, failures: 0 }, '빠진 글 채우기는 예전 글 위치를 바꾸지 않는다.');
   } finally { Date.now = backfillNow; rssMode = 'ok'; }
+  // 인용·재게시 글쓴이의 프로필 사진: 받아 둔 X 피드에서 먼저 찾고, 없으면 그 계정의 미러 RSS 채널 그림을 쓴다.
+  {
+    const { resolveXAvatars } = await vite.ssrLoadModule('/src/server/xAvatars.ts');
+    const avatarNow = Date.now; Date.now = () => avatarNow() + 60 * 60_000;
+    rssMode = 'ok';
+    try {
+      await db.prepare('INSERT INTO feeds(id,xml_url,title,favicon_url,created_at) VALUES(?,?,?,?,?)').bind('feed-known-avatar', 'https://x.com/knownface', 'Known', 'https://pbs.twimg.com/profile_images/9/known.jpg', new Date().toISOString()).run();
+      const before = rssCalls.length;
+      assert.deepEqual(await resolveXAvatars(db, ['KnownFace', 'freshface', 'bad handle!', 42]), { avatars: { knownface: 'https://pbs.twimg.com/profile_images/9/known.jpg', freshface: 'https://pbs.twimg.com/profile_images/123/avatar.jpg' }, more: false });
+      assert.equal(rssCalls.length - before, 1, '받아 둔 피드에 있는 계정은 미러를 부르지 않는다.');
+      const many = await resolveXAvatars(db, ['a1', 'a2', 'a3', 'a4', 'a5', 'a6']);
+      assert.deepEqual([Object.keys(many.avatars).length, many.more], [4, true], '한 번에 네 계정까지만 미러로 찾고 나머지는 다시 묻게 한다.');
+      rssMode = 'limited';
+      assert.deepEqual(await resolveXAvatars(db, ['limitedface']), { avatars: {}, more: false }, '미러가 한도에 걸리면 찾지 못한 계정은 빼고 돌려준다.');
+    } finally { Date.now = avatarNow; rssMode = 'ok'; }
+  }
+
   console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, an X-style timeline for X folders, and paced backfill of older X posts with gap filling.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }

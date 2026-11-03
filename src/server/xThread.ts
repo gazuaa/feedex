@@ -15,10 +15,12 @@ type Node = { nodeType: number; nodeName: string; textContent: string | null };
 
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-export async function fetchXThread(url: string): Promise<{ html: string; url: string; thread: true }> {
+/** `partial`은 답글인데 미러가 원글을 불러오지 못한 사본이다. 기기는 저장하지 않고 다음에 다시 받는다. */
+export async function fetchXThread(url: string): Promise<{ html: string; url: string; thread: true; partial?: true }> {
   const match = STATUS.exec(url);
   if (!match) throw new Error('X 글 주소가 아닙니다.');
   const [, username, id] = match;
+  let partial: { html: string; url: string; thread: true; partial: true } | null = null;
   for (const provider of providers) {
     if (restingUntil(provider) || (pageless.get(provider) || 0) > Date.now()) continue;
     const controller = new AbortController();
@@ -36,12 +38,20 @@ export async function fetchXThread(url: string): Promise<{ html: string; url: st
         if (!document.querySelector('.error-panel')) pageless.set(provider, Date.now() + 3_600_000);
         continue;
       }
-      return { html: threadDocument(document as unknown as Element, main, provider, `https://x.com/${username}/status/${id}`), url: `https://x.com/${username}/status/${id}`, thread: true };
+      const result = { html: threadDocument(document as unknown as Element, main, provider, `https://x.com/${username}/status/${id}`), url: `https://x.com/${username}/status/${id}`, thread: true as const };
+      // 답글인데 원글이 없으면 그 미러가 대화를 불러오지 못한 것이다. 다른 미러를 한 번 더 보고, 그래도 없으면 원글 없이 보여 준다.
+      if (!missingParent(document as unknown as Element, main)) return result;
+      partial ??= { ...result, partial: true };
     } catch { /* 다음 경로를 쓴다. */ }
     finally { clearTimeout(timer); }
   }
+  if (partial) return partial;
   throw new Error('X 글 페이지를 받지 못했습니다.');
 }
+
+// 이 글 자신이 답글인데(인용한 글의 답글 표시가 아니라) 위쪽 대화에 글이 하나도 없다.
+const missingParent = (document: Element, main: Element) => [...main.querySelectorAll('.replying-to')].some((node) => !node.matches('.quote *'))
+  && !document.querySelector('.main-thread .before-tweet .timeline-item .tweet-header');
 
 function threadDocument(document: Element, main: Element, provider: string, statusUrl: string): string {
   const hosts = new Set([new URL(provider).hostname]);
@@ -96,7 +106,8 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     const href = link(box.querySelector('.quote-link')?.getAttribute('href') || null);
     const name = escape(box.querySelector('.fullname')?.textContent?.trim() || ''), user = escape(box.querySelector('.username')?.textContent?.trim() || '');
     const attachments = box.querySelector('.quote-media-container, .attachments');
-    return `<div class="quote"><a class="quote-post" href="${escape(href || statusUrl)}"><span class="who"><b>${name}</b> <span>${user}</span></span><span class="text">${rich(box.querySelector('.quote-text'), true)}</span></a>${attachments ? media(box, href || statusUrl, attachments) : ''}</div>`;
+    const avatar = link(box.querySelector('img.avatar')?.getAttribute('src') || null);
+    return `<div class="quote"><a class="quote-post" href="${escape(href || statusUrl)}"><span class="who">${avatar ? `<img class="mini" src="${escape(avatar)}" alt="" loading="lazy">` : ''}<b>${name}</b> <span>${user}</span></span><span class="text">${rich(box.querySelector('.quote-text'), true)}</span></a>${attachments ? media(box, href || statusUrl, attachments) : ''}</div>`;
   };
   const stats = (item: Element) => {
     const labels: Record<string, string> = { 'icon-comment': '댓글', 'icon-retweet': '재게시', 'icon-quote': '인용', 'icon-heart': '좋아요', 'icon-views': '조회' };
@@ -121,13 +132,14 @@ function threadDocument(document: Element, main: Element, provider: string, stat
       + (replying ? `<p class="replying">${rich(replying)}</p>` : '')
       + `<div class="text">${rich(own(item, '.tweet-content'))}</div>${media(item, href)}${card(item)}${quote(item)}${stats(item)}</div></article>`;
   };
-  const items = (selector: string, kind: string) => [...document.querySelectorAll(selector)].map((item) => post(item, kind)).join('');
+  // "이전 답글 더 보기" 같은 칸은 글이 아니므로 뺀다.
+  const items = (selector: string, kind: string) => [...document.querySelectorAll(selector)].filter((item) => item.querySelector('.tweet-header')).map((item) => post(item, kind)).join('');
   const replies = [...document.querySelectorAll('.replies .reply')].map((group) => `<div class="thread">${[...group.querySelectorAll('.timeline-item')].map((item) => post(item, 'reply')).join('')}</div>`).join('');
   const more = document.querySelector('.replies .show-more');
   const header = main.querySelector('.tweet-header');
   const title = escape(`${header?.querySelector('.fullname')?.textContent?.trim() || 'X'} (${header?.querySelector('.username')?.textContent?.trim() || ''}) X 글`);
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(statusUrl)}" target="_blank">${X_THREAD_MARK}<title>${title}</title><style>${X_THREAD_STYLE}${X_VIDEO_STYLE}</style></head><body><main>`
-    + items('.main-thread .before-tweet .timeline-item', 'before') + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
+    + (missingParent(document, main) ? '<p class="empty parent-missing">공개 미러가 이 답글의 원글을 불러오지 못했어요. X에서 열면 볼 수 있어요.</p>' : items('.main-thread .before-tweet .timeline-item', 'before')) + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
     + `<section class="replies"><h2>댓글</h2>${replies || '<p class="empty">아직 보이는 댓글이 없어요.</p>'}</section>`
     + `<p class="more"><a data-x-external href="${escape(statusUrl)}">${more ? '댓글 더 보기 · ' : ''}X에서 열기 (로그인한 상태로 보기·반응)</a></p>`
     + '</main></body></html>';

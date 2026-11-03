@@ -45,8 +45,9 @@ import { useScrollRead } from './client/scrollRead';
 import { UnreadSession } from './client/unreadSession';
 import { useAutoRefresh } from './client/autoRefresh';
 import { DEFAULT_AUTO_REFRESH_MINUTES } from './shared/preferences';
-import { isXProfileFeed, isXStatusUrl } from './shared/xFeed';
+import { isXProfileFeed, isXStatusUrl, xProfile } from './shared/xFeed';
 import { xFolderIds, parseXPost } from './client/xTimeline';
+import { rememberXAvatars } from './client/xAvatars';
 import { ReaderSync } from './client/readerSync';
 import { DesktopContextMenu, type AppContextAction, type AppContextTarget } from './components/DesktopContextMenu';
 import { ArticleResources } from './client/articleResources';
@@ -1079,6 +1080,13 @@ export const App: React.FC = () => {
   const selectedSubscription = subscriptions.find((sub) => sub.feed_id === selectedArticle?.feed_id);
   // X 폴더나 X 계정을 볼 때는 목록을 X 타임라인처럼 그린다.
   const xFolders = useMemo(() => xFolderIds(folders, subscriptions), [folders, subscriptions]);
+  // 구독한 X 계정의 피드 아이콘은 그 계정의 프로필 사진이다. 인용·재게시 글의 사진으로도 쓴다.
+  useEffect(() => {
+    rememberXAvatars(subscriptions.flatMap((sub): [string, string][] => {
+      const handle = xProfile(sub.xml_url)?.username;
+      return handle && sub.favicon_url && /^https:\/\/pbs\.twimg\.com\/profile_images\//.test(sub.favicon_url) ? [[handle, sub.favicon_url]] : [];
+    }));
+  }, [subscriptions]);
   const xTimeline = activeScope === 'folder' ? Boolean(activeFolderId && xFolders.has(activeFolderId))
     : activeScope === 'feed' && isXProfileFeed(subscriptions.find((sub) => sub.feed_id === activeFeedId)?.xml_url);
   // X 타임라인은 본문(사진·영상·인용 글)으로 줄을 그린다. 본문 없이 동기화돼 남은 글은 기기 저장본이나 서버에서 한 번에 받아 채운다.
@@ -1473,7 +1481,6 @@ export const App: React.FC = () => {
           layout={layout}
           selectedArticleId={selectedArticleId}
           onSelectArticle={handleSelectArticle}
-          onOpenXPost={handleOpenXPost}
           blockedArticleIds={blockedArticleIds}
           onToggleRead={handleToggleRead}
           onToggleSaved={handleToggleSaved}

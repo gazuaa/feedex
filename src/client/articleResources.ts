@@ -9,7 +9,8 @@ import { loadPublicWebCopy, PublicWebCopyError } from './publicWebCopy';
 
 type ReaderResult = { fullContentHtml: string; publishedAt?: string };
 // textOnly: 원래 배치를 받지 못해 본문만 보여 주는 사본. 다음에 열 때 원래 배치를 다시 받도록 저장하지 않는다.
-type WebResult = { html: string; url: string; phone?: boolean; textOnly?: boolean; thread?: boolean };
+// partial: 답글인데 미러가 원글을 불러오지 못한 X 사본. 역시 저장하지 않는다.
+type WebResult = { html: string; url: string; phone?: boolean; textOnly?: boolean; thread?: boolean; partial?: boolean };
 export class ArticleResources {
   private requests = new Map<string, Promise<unknown>>();
   private failures = new Map<string, number>();
@@ -104,7 +105,7 @@ export class ArticleResources {
         try { result = await this.request<WebResult>(`/api/articles/${article.id}/web-copy`); }
         catch (error) { throw deviceError || error; }
       }
-      if (!result.textOnly && this.current() && generation === cacheGeneration.get(this.account)) await writeContent(this.account, `web:${article.id}`, result);
+      if (!result.textOnly && !result.partial && this.current() && generation === cacheGeneration.get(this.account)) await writeContent(this.account, `web:${article.id}`, result);
       try { this.copyOrigins.add(new URL(article.url).origin); } catch {}
       return result;
     });

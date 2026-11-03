@@ -11,7 +11,7 @@ import { X_THREAD_MARK } from '../shared/xThreadStyle';
 import type { XPost } from '../client/xTimeline';
 
 export interface XPostTarget { articleId: string; url: string; quote?: XPost['quote'] }
-type Copy = { html: string; url: string; thread: true };
+type Copy = { html: string; url: string; thread: true; partial?: true };
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** 구독 목록을 바꾸지 않고 인용 글·댓글을 현재 본문 영역에서 읽는다. */
@@ -38,7 +38,8 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       const result = await apiRequest<Copy>(`/api/articles/${encodeURIComponent(source.id)}/x-post?url=${encodeURIComponent(url)}`, { signal: controller.signal });
       if (!active) return;
       setCopy({ url, html: result.html });
-      await writeContent(accountId, key, result);
+      // 원글을 못 불러온 답글 사본은 저장하지 않고 다음에 다시 받는다.
+      if (!result.partial) await writeContent(accountId, key, result);
     };
     void load().catch(() => { if (active) setError('글을 불러오지 못했어요. 다시 시도해 주세요.'); });
     return () => { active = false; controller.abort(); };
