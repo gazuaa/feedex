@@ -58,6 +58,7 @@ import { notifyNewArticles, useLocalNotifications } from './client/localNotifica
 import { shortcutKey } from './client/shortcutKey';
 import { compileArticleBlocks, useArticleBlocks, useArticleBlockAccountSync, syncArticleBlocks, visibleArticleNeighbors } from './client/articleBlocks';
 import { RssBuilderEditor } from './components/RssBuilderEditor';
+import { FeedHistoryDialog } from './components/FeedHistoryDialog';
 import { ArticleBlockDialog } from './components/ArticleBlockDialog';
 
 export const App: React.FC = () => {
@@ -129,6 +130,7 @@ export const App: React.FC = () => {
   const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [showBlockedArticles, setShowBlockedArticles] = useState(false);
   const [xPostTarget, setXPostTarget] = useState<XPostTarget | null>(null);
+  const [historyFeed, setHistoryFeed] = useState<{ accountId: string; feed: SubscriptionItem } | null>(null);
   const [builderEditor, setBuilderEditor] = useState<{ accountId: string; id: string } | null>(null);
   const [blockDialog, setBlockDialog] = useState<{ accountId: string; article: ArticleItem | null } | null>(null);
   const { blocked: blockedArticles, visible: unblockedArticles } = useMemo(() => {
@@ -226,7 +228,7 @@ export const App: React.FC = () => {
 
   useListAnchor(articleListRef, visibleArticles, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${committedSearch}:${articleSort}`);
   useEffect(() => { setShowBlockedArticles(false); }, [user?.id, activeScope, activeFolderId, activeFeedId]);
-  useEffect(() => { setBlockDialog(null); setBuilderEditor(null); }, [user?.id]);
+  useEffect(() => { setBlockDialog(null); setBuilderEditor(null); setHistoryFeed(null); }, [user?.id]);
 
   useLayoutEffect(() => {
     for (const article of articles) articleCache.current.set(article.id, article);
@@ -750,7 +752,7 @@ export const App: React.FC = () => {
     });
     for (const article of passed) void handleUpdateArticleState(article, { isRead: true }, persist);
   };
-  useScrollRead(articleListRef, markReadOnScroll && Boolean(user) && !loadingArticles && !loadingBootstrap && !refreshingFeeds && !(isMobile && (mobileSidebarOpen || selectedArticleId)) && !discoverOpen && !markReadTarget && !blockDialog && !builderEditor,
+  useScrollRead(articleListRef, markReadOnScroll && Boolean(user) && !loadingArticles && !loadingBootstrap && !refreshingFeeds && !(isMobile && (mobileSidebarOpen || selectedArticleId)) && !discoverOpen && !markReadTarget && !blockDialog && !builderEditor && !historyFeed,
     `${user?.id}:${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${committedSearch}:${layout}`, handleScrollRead);
 
   const handleSelectArticle = useCallback(
@@ -884,7 +886,7 @@ export const App: React.FC = () => {
     }
   }, [readerCache, activeScope, activeFeedId, fetchBootstrap, fetchArticles, releaseReadRows]);
 
-  const pullDistance = usePullRefresh(isMobile && Boolean(user) && !selectedArticleId && !discoverOpen && !markReadTarget, refreshingFeeds, handleRefreshFeeds);
+  const pullDistance = usePullRefresh(isMobile && Boolean(user) && !selectedArticleId && !discoverOpen && !markReadTarget && !historyFeed, refreshingFeeds, handleRefreshFeeds);
 
   const askMarkRead = (side?: 'above' | 'below', keyboard = false) => {
     setMarkReadError(null);
@@ -1332,6 +1334,7 @@ export const App: React.FC = () => {
       items.push({ id: 'block-title', label: '비슷한 글 숨기기…', separator: true, run: () => setBlockDialog({ accountId: user.id, article }) });
     } else if (feed) {
       if (feed.builder_id) items.push({ id: 'edit-builder', label: 'RSS 빌더 피드 수정…', run: () => setBuilderEditor({ accountId: user.id, id: feed.builder_id! }) });
+      items.push({ id: 'feed-history', label: '과거 글 불러오기…', run: () => setHistoryFeed({ accountId: user.id, feed }) });
       items.push({ id: 'open-feed', label: '피드 글 보기', run: () => openScope('feed', null, feed.feed_id) },
         { id: 'mark-feed', label: '피드 모두 읽음', run: () => { setMarkReadError(null); setMarkReadTarget({ scope: 'feed', feedId: feed.feed_id, folderId: null, name: feed.title, search: '', savedOnly: false }); } },
         { id: 'move-feed', label: '폴더 옮기기…', run: () => { setMoveError(null); setMoveTarget(feed); } },
@@ -1506,6 +1509,7 @@ export const App: React.FC = () => {
           />
         )}
       </ResizableWorkspace>
+      {historyFeed?.accountId === user.id && <FeedHistoryDialog key={`${user.id}:${historyFeed.feed.feed_id}`} feed={historyFeed.feed} isDark={isDark} onClose={() => setHistoryFeed(null)} onChanged={async () => { readerCache?.touch(); await Promise.all([fetchBootstrap(), fetchArticles()]); }} />}
       {builderEditor?.accountId === user.id && <RssBuilderEditor key={`${user.id}:${builderEditor.id}`} builderId={builderEditor.id} folders={folders} isDark={isDark} onClose={() => setBuilderEditor(null)} onSaved={async () => { readerCache?.touch(); await Promise.all([fetchBootstrap(), fetchArticles()]); }} />}
       {blockDialog?.accountId === user.id && <ArticleBlockDialog key={`${user.id}:${blockDialog.article?.id || 'manage'}`} accountId={user.id} article={blockDialog.article} articles={blockPreviewArticles} subscriptions={subscriptions} onClose={() => setBlockDialog(null)} onApplied={() => setNotice('차단 규칙을 저장했어요.')} />}
 

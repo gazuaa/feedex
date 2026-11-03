@@ -121,7 +121,7 @@ export function parseListedDate(raw: string | null | undefined, now = Date.now()
   return null;
 }
 
-function analysePicked(html: string, pageUrl: string, selector: string, pick: PickSelection & { rendered?: boolean }): BuilderAnalysis {
+export function analysePicked(html: string, pageUrl: string, selector: string, pick: PickSelection & { rendered?: boolean }): BuilderAnalysis {
   const source = new URL(pageUrl);
   const { document } = parseHTML(html);
   const title = pageTitle(document, source);
@@ -150,7 +150,7 @@ export async function builderSiteInfo(url: string): Promise<BuilderSite> {
   }
 }
 
-export function analyseBuilderHtml(html: string, sourceUrl: string, selector?: string): BuilderAnalysis {
+export function analyseBuilderHtml(html: string, sourceUrl: string, selector?: string, maxArticles = 40): BuilderAnalysis {
   const source = new URL(sourceUrl);
   const { document } = parseHTML(html);
   const title = pageTitle(document, source);
@@ -195,7 +195,7 @@ export function analyseBuilderHtml(html: string, sourceUrl: string, selector?: s
   const groups: BuilderGroup[] = [...buckets].filter(([, articles]) => selector ? articles.length > 0 : articles.length >= 2).map(([prefix, articles]) => ({
     selector: selector || `a[href^=${quoted(prefix)}], a[href^=${quoted(source.origin + prefix)}]`,
     label: prefix,
-    articles: articles.slice(0, 40),
+    articles: articles.slice(0, Math.min(100, maxArticles)),
   })).sort((a, b) => {
     const score = (group: BuilderGroup) => group.articles.length + (group.label.startsWith(source.pathname.replace(/\/$/, '') + '/') ? 100 : 0);
     return score(b) - score(a);

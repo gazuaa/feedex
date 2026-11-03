@@ -16,6 +16,7 @@ import { CURATED_FEEDS } from './curatedFeeds';
 import type { OpmlFeed } from '../shared/opml';
 import { normalizeFeedUrl } from '../shared/feedDiscovery';
 import { xRoutes } from './xConnection';
+import { feedHistoryRoutes } from './feedHistory';
 import { XFeedError } from './xFeed';
 import { inheritXView, saveXView } from './xViews';
 import { fetchXThread, xStatusUrl } from './xThread';
@@ -460,6 +461,7 @@ app.get('/api/bootstrap', async (c) => {
 });
 
 app.route('/api/x', xRoutes);
+app.route('/api/feeds', feedHistoryRoutes);
 
 function feedPreviewResponse(parsed: ParsedFeed) {
   return {
