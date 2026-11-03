@@ -348,8 +348,10 @@ export async function analyseBuilderPage(url: string, env: Env, selector?: strin
   // 페이지 사본을 함께 넣는다.
   const read = (page: { html: string; url: string }, rendered: boolean): BuilderAnalysis => {
     const result = { ...analyseBuilderHtml(page.html, page.url, selector), rendered };
-    if (selector) return rendered ? result : { ...result, nextPages: nextListPages(page.html, page.url, BUILDER_PAGES - 1) };
-    return { ...result, snapshot: pickerSnapshot(page.html, page.url, assets) };
+    // 다음 쪽은 서버가 받은 정적 페이지로만 읽으므로, 브라우저로 그린 페이지에는 찾지 않는다.
+    const pages = rendered ? {} : { nextPages: nextListPages(page.html, page.url, BUILDER_PAGES - 1) };
+    if (selector) return { ...result, ...pages };
+    return { ...result, ...pages, snapshot: pickerSnapshot(page.html, page.url, assets) };
   };
   let failure: unknown;
   let fallback: BuilderAnalysis | null = null;

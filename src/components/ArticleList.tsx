@@ -15,7 +15,7 @@ import {
   type ArticleItem,
   type LayoutMode,
 } from '../client/api';
-import { useArticleThumbnail } from '../client/thumbnails';
+import { shownThumbnail, useArticleThumbnail } from '../client/thumbnails';
 import { XTimeline } from './XTimeline';
 // 가까운 글의 이미지를 찾는 동안에는 사이트 로고를 보여 준다.
 export function FeedLogo({ article }: { article: ArticleItem }) {
@@ -28,7 +28,8 @@ export function FeedLogo({ article }: { article: ArticleItem }) {
 }
 function Thumbnail({ article, accountId, onUpdateArticleFields, card = false, isDark = false }: { article: ArticleItem; accountId: string; onUpdateArticleFields?: ArticleListProps['onUpdateArticleFields']; card?: boolean; isDark?: boolean }) {
   const [broken, setBroken] = useState<string | null>(null);
-  const { ref, url } = useArticleThumbnail<HTMLDivElement>(article, accountId, onUpdateArticleFields);
+  const { ref, url: found } = useArticleThumbnail<HTMLDivElement>(article, accountId, onUpdateArticleFields);
+  const url = shownThumbnail(found, article);
   return <div ref={ref} className={card ? 'h-full w-full' : `sfeed-magazine-thumbnail h-16 w-16 rounded-lg overflow-hidden shrink-0 border ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
     {url && url !== broken ? <img src={url} alt={article.title} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={() => setBroken(url)} /> : <FeedLogo article={article} />}
   </div>;

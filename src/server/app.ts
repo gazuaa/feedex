@@ -531,6 +531,32 @@ app.post('/api/rss-builder', async (c) => {
   } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'RSS 피드를 만들지 못했습니다.' }, 502); }
 });
 
+// RSS 빌더로 만든 피드를 다시 열어 고친다. 만든 사람만 바꿀 수 있고, 피드 주소와 받은 글은 그대로 둔다.
+app.get('/api/rss-builder/:id', async (c) => {
+  const row = await c.env.DB.prepare('SELECT id,source_url,selector,title FROM rss_builders WHERE id=? AND created_by=?').bind(c.req.param('id'), c.get('user').id).first<{ id: string; source_url: string; selector: string; title: string }>();
+  return row ? c.json({ id: row.id, sourceUrl: row.source_url, selector: row.selector, title: row.title }) : c.json({ error: '고칠 수 있는 RSS 빌더 피드가 아닙니다.' }, 404);
+});
+
+app.put('/api/rss-builder/:id', async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json<{ url?: string; selector?: string; title?: string }>().catch(() => null);
+  if (typeof body?.url !== 'string' || typeof body.selector !== 'string' || !body.selector.trim() || body.selector.length > 2000 || (body.title != null && typeof body.title !== 'string')) return c.json({ error: '웹사이트 주소와 수집할 글 목록을 선택해 주세요.' }, 400);
+  try { publicPageUrl(body.url); } catch (error) { return c.json({ error: (error as Error).message }, 400); }
+  const builder = await c.env.DB.prepare('SELECT b.id,b.feed_id,f.xml_url FROM rss_builders b JOIN feeds f ON f.id=b.feed_id WHERE b.id=? AND b.created_by=?').bind(c.req.param('id'), user.id).first<{ id: string; feed_id: string; xml_url: string }>();
+  if (!builder) return c.json({ error: '고칠 수 있는 RSS 빌더 피드가 아닙니다.' }, 404);
+  try {
+    const analysis = await analyseBuilderPage(body.url, c.env, body.selector);
+    const title = body.title?.trim().slice(0, 200) || analysis.title;
+    const parsed = builderParsedFeed(analysis, body.selector, builder.xml_url, title);
+    if (parsed.listPages) parsed.articles.push(...await builderListPageArticles(parsed.listPages, body.selector, parsed.articles));
+    await c.env.DB.prepare('UPDATE rss_builders SET source_url=?,selector=?,title=? WHERE id=?').bind(analysis.sourceUrl, body.selector, title, builder.id).run();
+    // 같은 피드 주소로 다시 저장하므로 피드와 구독, 읽음 기록은 그대로다. 새로 고른 목록의 글이 더해지고 썸네일·날짜가 채워진다.
+    const { insertedCount } = await upsertFeedAndArticles(c.env.DB, parsed);
+    await c.env.DB.prepare('UPDATE subscriptions SET custom_title=? WHERE user_id=? AND feed_id=?').bind(title, user.id, builder.feed_id).run();
+    return c.json({ rssUrl: builder.xml_url, feedId: builder.feed_id, title, insertedCount });
+  } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'RSS 피드를 고치지 못했습니다.' }, 502); }
+});
+
 app.get('/api/discover/feeds/:id/preview', async (c) => {
   const feed = CURATED_FEEDS.find((item) => item.id === c.req.param('id'));
   if (!feed) return c.json({ error: '추천 피드를 찾을 수 없습니다.' }, 404);

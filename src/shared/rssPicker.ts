@@ -279,6 +279,13 @@ export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, su
     const data = event.data;
     if (event.source !== parent || !data || data.source !== 'sfeed-app') return;
     if (data.type === 'field' && FIELDS.includes(data.field)) field = data.field;
+    // 이미 만든 피드를 고칠 때 저장된 선택을 다시 칠한다.
+    if (data.type === 'restore' && typeof data.selection?.item === 'string' && typeof data.selection.title === 'string') {
+      const restored: Selection = { item: data.selection.item, title: data.selection.title };
+      for (const name of ['summary', 'image', 'date'] as const) if (typeof data.selection[name] === 'string') restored[name] = data.selection[name];
+      selection = restored;
+      paint();
+    }
     if (data.type === 'clear' && selection && data.field !== 'title' && FIELDS.includes(data.field)) {
       const next: Selection = { ...selection };
       delete next[data.field as Exclude<Field, 'title'>];
@@ -319,8 +326,24 @@ export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, su
 }
 
 /** iframe srcdoc에 바로 넣을 수 있는, 고르기 도구를 더한 페이지 사본. */
-export function pickerDocument(snapshot: string, baseUrl: string, suggestUrl: string | null): string {
-  const code = `(${pickerRuntime.toString()})(${extractPicked.toString()}, ${JSON.stringify(baseUrl)}, ${JSON.stringify(suggestUrl)});`.replace(/<\/script/gi, '<\\/script');
+/** 함께 모을 목록 쪽(지금 쪽과 다음 쪽들)의 쪽 번호 링크에 파란 점선을 친다. 페이지 사본 안에서 돈다. */
+export function markListPages(baseUrl: string, pages: string[]) {
+  const wanted = new Set([baseUrl, ...pages].map((href) => { try { const url = new URL(href); url.hash = ''; return url.href; } catch { return href; } }));
+  const style = document.createElement('style');
+  style.textContent = '[data-sfeed-page]{outline:2px dashed #0ea5e9!important;outline-offset:2px!important;background-color:rgba(14,165,233,.16)!important;border-radius:4px!important}';
+  (document.head || document.documentElement).appendChild(style);
+  for (const link of Array.from(document.querySelectorAll('a[href]'))) {
+    try {
+      const url = new URL(link.getAttribute('href') || '', document.baseURI); url.hash = '';
+      // 1쪽 링크는 지금 주소에 쪽 번호 1이 붙은 모양일 수 있다.
+      const first = new URL(url.href); for (const key of Array.from(first.searchParams.keys())) if (first.searchParams.get(key) === '1') first.searchParams.delete(key);
+      if (wanted.has(url.href) || (wanted.has(first.href) && first.href !== url.href)) { link.setAttribute('data-sfeed-page', ''); link.setAttribute('title', '구독할 때 함께 모으는 쪽'); }
+    } catch { /* 읽을 수 없는 링크는 건너뛴다. */ }
+  }
+}
+
+export function pickerDocument(snapshot: string, baseUrl: string, suggestUrl: string | null, pages: string[] = []): string {
+  const code = `(${pickerRuntime.toString()})(${extractPicked.toString()}, ${JSON.stringify(baseUrl)}, ${JSON.stringify(suggestUrl)});${pages.length ? `(${markListPages.toString()})(${JSON.stringify(baseUrl)}, ${JSON.stringify(pages)});` : ''}`.replace(/<\/script/gi, '<\\/script');
   const script = `<script>${code}</script>`;
   return /<\/body>/i.test(snapshot) ? snapshot.replace(/<\/body>(?![\s\S]*<\/body>)/i, () => `${script}</body>`) : snapshot + script;
 }

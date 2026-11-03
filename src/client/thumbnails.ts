@@ -7,6 +7,15 @@ type ThumbnailResult = { thumbnailUrl: string | null; retryable?: boolean };
 type ThumbnailArticle = Pick<ArticleItem, 'id' | 'url' | 'thumbnail_url'>;
 const identity = (account: string, article: ThumbnailArticle) => JSON.stringify([account, article.id, article.url]);
 
+/**
+ * https 앱에서 http 그림은 막힌다(https가 없는 사이트는 그대로 깨진다). 서버에 저장된 글 썸네일이면
+ * 서버가 대신 받아 준다(serveArticleImage). 기기에서만 찾은 그림은 그대로 둔다.
+ */
+export function shownThumbnail(url: string | null | undefined, article: Pick<ArticleItem, 'id' | 'thumbnail_url'>): string | null | undefined {
+  if (!url || !/^http:\/\//i.test(url) || typeof location === 'undefined' || location.protocol !== 'https:' || url !== article.thumbnail_url) return url;
+  return `/article-image/${encodeURIComponent(article.id)}`;
+}
+
 /** 가까운 글의 빠진 이미지를 네 개씩 찾고, 답은 기기에 남긴다. */
 export class ThumbnailLoader {
   private requests = new Map<string, Promise<string | undefined>>();

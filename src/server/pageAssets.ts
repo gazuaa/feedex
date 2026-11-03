@@ -13,6 +13,8 @@ export type AssetProxy = (url: string) => string | undefined;
 const ASSET_PATH = '/page-asset/';
 const MAX_BYTES = 3_000_000;
 const TYPES = /^(?:image\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon|svg\+xml)|text\/css)$/i;
+const IMAGES = /^image\/(?:png|jpe?g|gif|webp|avif|bmp|svg\+xml)$/i;
+export const ARTICLE_IMAGE_PATH = '/article-image/';
 
 // 별도 비밀값을 따로 두지 않고, 서버 비밀값에서 이 용도의 키를 따로 뽑아 쓴다.
 function assetKey(env: Pick<Env, 'X_SETTINGS_SECRET'>): Buffer | null {
@@ -69,7 +71,12 @@ export async function servePageAsset(request: Request, env: Pick<Env, 'X_SETTING
   const key = assetKey(env), url = new URL(request.url), target = url.searchParams.get('u') || '';
   const given = Buffer.from(url.pathname.slice(ASSET_PATH.length)), expected = key && Buffer.from(sign(key, target));
   if (!expected || given.length !== expected.length || !timingSafeEqual(given, expected) || !/^http:\/\//i.test(target)) return fail(403);
-  const origin = url.origin;
+  return fetchHttpAsset(target, env, url.origin);
+}
+
+/** 공개 http 그림·스타일 하나를 받아 앱 출처에서 돌려준다. 스타일 안의 주소도 대신 받는 주소로 바꾼다. */
+async function fetchHttpAsset(target: string, env: Pick<Env, 'X_SETTINGS_SECRET'>, origin: string, only = TYPES): Promise<Response> {
+  const fail = (status: number) => new Response(null, { status, headers: { 'Cache-Control': 'no-store' } });
   let current = target;
   try {
     for (let hop = 0; hop < 4; hop++) {
@@ -78,7 +85,7 @@ export async function servePageAsset(request: Request, env: Pick<Env, 'X_SETTING
       const location = response.headers.get('location');
       if (response.status >= 300 && response.status < 400 && location) { await response.body?.cancel(); current = new URL(location, current).href; continue; }
       const type = (response.headers.get('content-type') || '').split(';')[0].trim();
-      if (!response.ok || !TYPES.test(type) || Number(response.headers.get('content-length') || 0) > MAX_BYTES) { await response.body?.cancel(); return fail(response.ok ? 415 : 502); }
+      if (!response.ok || !only.test(type) || Number(response.headers.get('content-length') || 0) > MAX_BYTES) { await response.body?.cancel(); return fail(response.ok ? 415 : 502); }
       const body = await readLimited(response);
       if (!body) return fail(413);
       const headers = {
@@ -95,6 +102,18 @@ export async function servePageAsset(request: Request, env: Pick<Env, 'X_SETTING
     }
     return fail(508);
   } catch { return fail(502); }
+}
+
+/**
+ * /article-image/<글 id>: 저장된 글 썸네일이 http 주소면 대신 받아 준다. https 앱의 글 목록은 http 그림을 막는다.
+ * 주소는 저장된 값에서만 꺼내므로 서명이 필요 없고, 그림만 돌려준다.
+ */
+export async function serveArticleImage(request: Request, env: Pick<Env, 'X_SETTINGS_SECRET' | 'DB'>): Promise<Response> {
+  const url = new URL(request.url), id = decodeURIComponent(url.pathname.slice(ARTICLE_IMAGE_PATH.length));
+  if (request.method !== 'GET' || !/^[\w-]{1,80}$/.test(id)) return new Response(null, { status: 404 });
+  const row = await env.DB.prepare('SELECT thumbnail_url FROM articles WHERE id=?').bind(id).first<{ thumbnail_url: string | null }>();
+  if (!row?.thumbnail_url || !/^http:\/\//i.test(row.thumbnail_url)) return new Response(null, { status: 404 });
+  return fetchHttpAsset(row.thumbnail_url, env, url.origin, IMAGES);
 }
 
 async function readLimited(response: Response): Promise<Uint8Array<ArrayBuffer> | null> {

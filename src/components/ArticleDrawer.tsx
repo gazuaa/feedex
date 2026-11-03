@@ -43,6 +43,7 @@ import { xThreadPreview } from '../client/xThreadPreview';
 import { retryChallenged } from '../client/publicWebCopy';
 import { useXPostFrame } from '../client/xPostFrame';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
+import { shownThumbnail } from '../client/thumbnails';
 
 const VIEW_MODES = [
   { id: 'feed', label: '피드', title: '피드 본문 — RSS에 담긴 내용', Icon: Rss },
@@ -1020,7 +1021,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             !bodyShowsImage(activeHtml, article.thumbnail_url) && (
               <div className="rounded-2xl overflow-hidden border border-slate-800/60">
                 <img
-                  src={article.thumbnail_url}
+                  src={shownThumbnail(article.thumbnail_url, article) || undefined}
                   alt={article.title}
                   className="w-full max-h-96 object-cover"
                   onError={(e) => {
