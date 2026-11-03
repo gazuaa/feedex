@@ -19,7 +19,7 @@ export async function findOriginalPublication(article: PublicationArticle): Prom
   try {
     const url = new URL(article.url);
     if (!['http:', 'https:'].includes(url.protocol)) return null;
-    const response = await fetch(url, { signal: AbortSignal.timeout(7000), headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'Mozilla/5.0 (compatible; FeedEx/1.0; +https://sfeed.jyk.workers.dev)' } });
+    const response = await fetch(url, { signal: AbortSignal.timeout(7000), headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'Mozilla/5.0 (compatible; FeedEx/1.0; +https://feedex.jyk.workers.dev)' } });
     if (!response.ok) return null;
     const text = await response.text();
     return extractOriginalPublishedAt(text, article.url);

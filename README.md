@@ -103,17 +103,17 @@ npm run db:migrate:remote
 FeedEx는 Google Identity Services(GIS) 버튼으로 ID 토큰을 받아 서버에서 RS256 서명을 검증합니다. 리디렉션 URI와 클라이언트 보안 비밀번호는 필요하지 않습니다.
 1. Google Cloud의 [Google 인증 플랫폼](https://console.cloud.google.com/auth/clients)에서 **OAuth 클라이언트 ID (웹 애플리케이션)**를 생성합니다. (현재: SFeed 프로젝트의 `Sfeed Web` 클라이언트)
 2. **승인된 JavaScript 원본**에 아래 주소를 추가합니다:
-   - 배포: `https://sfeed.jyk.workers.dev`
+   - 배포: `https://feedex.jyk.workers.dev` (기존 `https://sfeed.jyk.workers.dev` 접속 시 자동 리다이렉트)
    - 로컬: `http://localhost:5173`, `http://localhost`
 3. 발급된 클라이언트 ID를 `wrangler.toml`의 `GOOGLE_CLIENT_ID`에 넣습니다. 로컬에서는 `.dev.vars`로 덮어쓸 수 있습니다.
-4. 외부 사용자가 로그인하려면 **브랜딩**에 홈페이지, 개인정보처리방침 링크(`https://sfeed.jyk.workers.dev/privacy`), 승인된 도메인(`jyk.workers.dev`)을 입력한 뒤 **대상** 페이지에서 앱을 게시합니다.
+4. 외부 사용자가 로그인하려면 **브랜딩**에 홈페이지, 개인정보처리방침 링크(`https://feedex.jyk.workers.dev/privacy`), 승인된 도메인(`jyk.workers.dev`)을 입력한 뒤 **대상** 페이지에서 앱을 게시합니다.
 
 ### X 로그인 연동 설정 (선택)
 
 X 팔로우 목록 자동 가져오기는 [X 개발자 앱](https://developer.x.com/) 설정이 필요합니다. OAuth 로그인과 별도로 팔로우 조회 API의 이용 권한·요금이 적용됩니다. 최초 설정 전에도 운영자의 **X 로그인 · 연결 설정** 버튼은 활성화되며, 누르면 X 로그인 창과 FeedEx의 설정 안내가 열립니다. 개별 공개 계정 주소로 구독하는 기능은 별도 키 없이 사용할 수 있습니다.
 
 1. 개발자 콘솔에서 앱을 만들고 OAuth 2.0을 켭니다. 앱 유형은 서버에서 비밀키를 사용하는 **Web App**으로 설정합니다.
-2. Callback URI를 `https://sfeed.jyk.workers.dev/?x_callback=1`로 정확히 등록합니다. 로컬 테스트에는 `http://localhost:5173/?x_callback=1`을 별도로 등록합니다.
+2. Callback URI를 `https://feedex.jyk.workers.dev/?x_callback=1`로 정확히 등록합니다. 로컬 테스트에는 `http://localhost:5173/?x_callback=1`을 별도로 등록합니다.
 3. 읽기 권한을 허용합니다. 로그인 시 요청하는 범위는 `tweet.read users.read follows.read`이며, 쓰기·DM·오프라인 갱신 권한은 요청하지 않습니다.
 4. FeedEx의 **피드 추가 → X 팔로우**에서 OAuth 2.0 Client ID와 Client Secret을 입력한 뒤 **저장하고 X 계정 연결**을 누릅니다. 서버에 암호화해 저장한 뒤 계정 연결로 바로 이어집니다. 설정 완료 후에는 **X 계정 연결** 버튼으로 로그인합니다.
 

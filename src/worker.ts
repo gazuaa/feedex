@@ -6,12 +6,18 @@ import { checkFeedPublicationDates } from './server/articlePublication';
 import { backfillXFeeds } from './server/xBackfill';
 import { ARTICLE_IMAGE_PATH, serveArticleImage, servePageAsset } from './server/pageAssets';
 
+const LEGACY_HOST = 'sfeed.jyk.workers.dev';
+const PRIMARY_ORIGIN = 'https://feedex.jyk.workers.dev';
+
 export default {
   async fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
     const url = new URL(request.url);
 
     const rssId = /^\/rss\/([a-zA-Z0-9_-]+)\.xml$/.exec(url.pathname)?.[1];
     if (rssId && request.method === 'GET') return generatedRss(env, rssId);
+    if (url.hostname === LEGACY_HOST) {
+      return Response.redirect(`${PRIMARY_ORIGIN}${url.pathname}${url.search}`, 308);
+    }
     // 페이지 사본 속 http 그림·스타일. 사본이 앱 밖 출처의 샌드박스에서 부르므로 로그인 없이 서명으로 확인한다.
     if (url.pathname.startsWith('/page-asset/')) return servePageAsset(request, env);
     if (url.pathname.startsWith(ARTICLE_IMAGE_PATH)) return serveArticleImage(request, env);

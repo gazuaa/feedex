@@ -69,6 +69,9 @@ await clickNotification({ articleId: 'incomplete' }); assert.equal(opened.length
 const vite = await createServer({ configFile: false, server: { middlewareMode: true, ws: false }, appType: 'custom', logLevel: 'silent' });
 try {
   const { default: worker } = await vite.ssrLoadModule('/src/worker.ts');
+  const redirected = await worker.fetch(new Request('https://sfeed.jyk.workers.dev/privacy?from=old'), { ASSETS: { fetch: async () => new Response('asset') } }, {});
+  assert.equal(redirected.status, 308);
+  assert.equal(redirected.headers.get('location'), 'https://feedex.jyk.workers.dev/privacy?from=old');
   for (const path of ['/', '/sw.js', '/manifest.webmanifest', '/offline.js']) {
     const response = await worker.fetch(new Request('https://sfeed.test' + path), { ASSETS: { fetch: async () => new Response('asset') } }, {});
     assert.equal(response.headers.get('cache-control'), 'no-store');
