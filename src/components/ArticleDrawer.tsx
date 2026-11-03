@@ -807,9 +807,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     * 스크립트는 스크롤 알림용으로만 돈다. 사본은 정리돼 있고 보안 정책이 나머지를 막는다.
                     * allow-same-origin이 없으므로 앱에 닿을 수 없고, X 글 링크는 앱에 알리고, 나머지 링크는 새 탭에서 연다.
                     */}
+                  {/* 캐시 본문이 즉시 도착해도 미리보기 탐색과 겹치지 않도록 완성된 문서는 새 프레임에서 그린다. */}
                   <iframe
                     ref={copyRef}
-                    key={`copy-${article.id}`}
+                    key={`copy-${article.id}-${xWaiting ? 'preview' : 'ready'}`}
                     srcDoc={xWaiting ? xPreview : copyHtml}
                     title={article.title}
                     className="absolute left-0 top-0 border-0 bg-white"

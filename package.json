@@ -39,6 +39,7 @@
     "test:reader": "node scripts/verify-reader.mjs",
     "test:coindesk-web": "node scripts/verify-coindesk-web.mjs",
     "test:web-loading": "node scripts/verify-web-loading.mjs",
+    "test:x-reopen": "node scripts/verify-x-reopen.mjs",
     "test:feed-pause": "node scripts/verify-feed-pause.mjs"
   },
   "dependencies": {
