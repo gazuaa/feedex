@@ -38,6 +38,8 @@ import type { ArticleResources } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
 import { TextSizeControl } from './ReadingSettings';
 import { publicDeviceArticle } from '../shared/publicWebPage';
+import { isXStatusUrl } from '../shared/xFeed';
+import { xThreadPreview } from '../client/xThreadPreview';
 import { retryChallenged } from '../client/publicWebCopy';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 
@@ -217,6 +219,15 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // retrying: 보안 확인으로 막혀 잠시 뒤 자동으로 다시 받는 중.
   const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean; textOnly?: boolean; retrying?: boolean; thread?: boolean } | null>(null);
   const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html) : undefined, [webCopy?.html]);
+  // X 글은 미러에서 사본을 받는 몇 초 동안, 피드로 받은 글을 사본과 같은 모양으로 같은 프레임에 먼저 그린다.
+  // 사본을 받지 못하면 그 자리에 남기고 댓글 칸에만 알린다. 미러 대신 받은 x.com 화면 사본은 글도 댓글도
+  // 비어 있으므로 받지 못한 것으로 본다.
+  const xPost = Boolean(article && isXStatusUrl(article.url));
+  const copyFor = webCopy?.articleId === article?.id ? webCopy : null;
+  const copyReady = Boolean(copyFor?.html) && (!xPost || Boolean(copyFor?.thread));
+  const xWaiting = mode === 'web' && xPost && !copyReady && !(frame?.articleId === article?.id && frame?.embeddable);
+  const xFailed = Boolean(copyFor) && !copyReady;
+  const xPreview = useMemo(() => xWaiting && article ? framedCopy(xThreadPreview(article, xFailed)) : undefined, [xWaiting, xFailed, article?.id, article?.title, article?.content_html, article?.feed_title, article?.feed_favicon]);
   const [readingPreview, setReadingPreview] = useState(false);
   useEffect(() => { setReadingPreview(false); }, [article?.id, mode]);
   const [shareNotice, setShareNotice] = useState('');
@@ -288,7 +299,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   useEffect(() => {
     if (!article || mode !== 'web') return;
     let active = true, retry: { stop: () => void } | undefined;
-    const known = publicDeviceArticle(article.url) ? undefined : resources?.knownFrame(article.url);
+    // X는 다른 사이트의 프레임을 늘 거부하므로 묻지 않고 바로 사본을 받는다.
+    const known = publicDeviceArticle(article.url) ? undefined : isXStatusUrl(article.url) ? { embeddable: false, url: article.url, reason: 'framing' } : resources?.knownFrame(article.url);
     setFrame(known ? { articleId: article.id, ...known } : null);
     const load = async () => {
       const cached = await resources?.cachedWeb(article);
@@ -761,7 +773,51 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
         {mode === 'web' ? (
           <div className="sfeed-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
-            {!frame || frame.articleId !== article.id ? (
+            {xWaiting || (copyReady && !readingPreview && frame?.articleId === article.id && !frame.embeddable) ? (
+              <>
+                <div
+                  className={`px-4 py-1.5 border-b text-[11px] flex items-center justify-between gap-2 shrink-0 ${
+                    isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'
+                  }`}
+                >
+                  <span className="min-w-0">{xWaiting && xFailed ? '공개 미러에서 댓글을 받지 못했어요. 먼저 받은 글만 보여드려요.' : xWaiting || webCopy?.thread ? '공개 미러(Nitter)에서 받은 X 글과 댓글이에요. 로그인한 상태로 보려면 X에서 여세요.' : webCopy?.textOnly ? '사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.' : webCopy?.fitting ? '휴대폰 화면에 맞춘 사본을 준비하고 있어요.' : '사이트가 직접 표시를 막아 사본으로 보여드려요. 동영상·댓글은 원문에서 동작해요.'}</span>
+                  {!xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="shrink-0 hover:underline">원래 모양 다시 받기</button>}
+                  {xWaiting && xFailed && <button type="button" onClick={showWebCopy} className="shrink-0 hover:underline">다시 시도</button>}
+                  <a
+                    href={xWaiting ? article.url : frame?.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 inline-flex items-center gap-1 hover:underline"
+                  >
+                    {xWaiting || webCopy?.thread ? 'X에서 열기' : '새 창에서 열기'}
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <WebPager enabled={isMobile} onBack={onClose}>
+                <div className="relative flex-1 min-h-0 overflow-hidden bg-white">
+                  {/*
+                    * 스크립트는 스크롤 알림용으로만 돈다. 사본은 정리돼 있고 보안 정책이 나머지를 막는다.
+                    * allow-same-origin이 없으므로 앱에 닿을 수 없고, 링크는 새 탭에서 열린다.
+                    */}
+                  <iframe
+                    ref={copyRef}
+                    key={`copy-${article.id}`}
+                    srcDoc={xWaiting ? xPreview : copyHtml}
+                    title={article.title}
+                    className="absolute left-0 top-0 border-0 bg-white"
+                    style={{
+                      width: `${100 / webZoom}%`,
+                      height: `${100 / webZoom}%`,
+                      transform: `scale(${webZoom})`,
+                      transformOrigin: '0 0',
+                    }}
+                    sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                </WebPager>
+              </>
+            ) : !frame || frame.articleId !== article.id ? (
               <WebLoadingPreview article={article} isDark={isDark} onReady={() => setReadingPreview(false)} onReading={() => setReadingPreview(true)} />
             ) : frame.embeddable ? (
               <>
@@ -799,49 +855,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     onError={showWebCopy}
                     onLoad={() => setLoadedFrame(article.id)}
                     referrerPolicy="strict-origin-when-cross-origin"
-                  />
-                </div>
-                </WebPager>
-              </>
-            ) : webCopy?.articleId === article.id && webCopy.html && !readingPreview ? (
-              <>
-                <div
-                  className={`px-4 py-1.5 border-b text-[11px] flex items-center justify-between gap-2 shrink-0 ${
-                    isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'
-                  }`}
-                >
-                  <span className="min-w-0">{webCopy.thread ? '공개 미러(Nitter)에서 받은 X 글과 댓글이에요. 로그인한 상태로 보려면 X에서 여세요.' : webCopy.textOnly ? '사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.' : webCopy.fitting ? '휴대폰 화면에 맞춘 사본을 준비하고 있어요.' : '사이트가 직접 표시를 막아 사본으로 보여드려요. 동영상·댓글은 원문에서 동작해요.'}</span>
-                  {webCopy.textOnly && <button type="button" onClick={showWebCopy} className="shrink-0 hover:underline">원래 모양 다시 받기</button>}
-                  <a
-                    href={frame.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 inline-flex items-center gap-1 hover:underline"
-                  >
-                    {webCopy.thread ? 'X에서 열기' : '새 창에서 열기'}
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                <WebPager enabled={isMobile} onBack={onClose}>
-                <div className="relative flex-1 min-h-0 overflow-hidden bg-white">
-                  {/*
-                    * 스크립트는 스크롤 알림용으로만 돈다. 사본은 정리돼 있고 보안 정책이 나머지를 막는다.
-                    * allow-same-origin이 없으므로 앱에 닿을 수 없고, 링크는 새 탭에서 열린다.
-                    */}
-                  <iframe
-                    ref={copyRef}
-                    key={`copy-${article.id}`}
-                    srcDoc={copyHtml}
-                    title={article.title}
-                    className="absolute left-0 top-0 border-0 bg-white"
-                    style={{
-                      width: `${100 / webZoom}%`,
-                      height: `${100 / webZoom}%`,
-                      transform: `scale(${webZoom})`,
-                      transformOrigin: '0 0',
-                    }}
-                    sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-                    referrerPolicy="no-referrer"
                   />
                 </div>
                 </WebPager>

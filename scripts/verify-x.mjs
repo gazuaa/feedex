@@ -283,6 +283,12 @@ try {
   assert.deepEqual([reply.replyTo, reply.text, reply.media.length], ['NousResearch', 'github.com/NousResearch/herm…', 0]);
   assert.deepEqual(reply.card, { href: 'https://github.com/NousResearch/hermes-agent/pull/147724', image: 'https://pbs.twimg.com/card_img/2117/aC3?format=jpg&name=800x419', title: 'Grok Bot and OpenBot users can move to Hermes' });
   assert.equal(parse({ title: 'R to @someone: only the title', url: 'https://x.com/NousResearch/status/3', content_html: null }).text, 'only the title');
+  // 사본을 받는 동안 그리는 미리보기: 사본과 같은 모양, 글자는 모두 이스케이프, 댓글 자리는 불러오는 중.
+  const { xThreadPreview } = await vite.ssrLoadModule('/src/client/xThreadPreview.ts');
+  const draft = xThreadPreview({ ...base, title: 'Agents can now shop for domain names.', url: 'https://x.com/brian_armstrong/status/2115224970188185624', content_html: '<p>&lt;img src=x onerror=alert(1)&gt; see https://example.test/a?b=1&amp;c=2</p>\n<a href="https://x.com/brian_armstrong/status/2115224970188185624">\n<br>Video<br>\n  <img src="https://pbs.twimg.com/amplify_video_thumb/1/img/a.jpg" />\n</a>' }, false, DOMParser);
+  for (const text of ['class="post main"', '<base href="https://x.com/brian_armstrong/status/2115224970188185624" target="_blank">', '&lt;img src=x onerror=alert(1)&gt;', '<a href="https://example.test/a?b=1&amp;c=2">', 'class="photo video"', 'amplify_video_thumb/1/img/a.jpg', 'class="empty loading"', 'X에서 열기', 'Nov 2, 2026 · 6:42 PM UTC']) assert.ok(draft.includes(text), text);
+  assert.doesNotMatch(draft, /<img src=x/);
+  assert.match(xThreadPreview({ ...base, title: 'x', url: 'https://x.com/a/status/1', content_html: null }, true, DOMParser), /댓글을 불러오지 못했어요/);
   const now = Date.parse('2026-11-03T12:00:00Z');
   assert.deepEqual(['2026-11-03T11:59:30Z', '2026-11-03T11:15:00Z', '2026-11-03T02:00:00Z', '2026-10-02T12:00:00Z', '2025-12-31T12:00:00Z'].map((value) => xTime(value, now)), ['방금', '45분', '10시간', '10월 2일', '2025년 12월 31일']);
   const React = (await import('react')).default;

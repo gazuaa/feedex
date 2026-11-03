@@ -1,5 +1,6 @@
 import { parseHTML } from 'linkedom';
 import { originalUrl, providers, readFeed, restProvider, restingUntil } from './xFeed';
+import { X_THREAD_STYLE } from '../shared/xThreadStyle';
 export { isXStatusUrl as xStatusUrl } from '../shared/xFeed';
 
 // x.com은 로그인하지 않은 사람에게 댓글을 몇 개만 보여 주고, 다른 사이트의 프레임도 거부한다.
@@ -124,27 +125,9 @@ function threadDocument(document: Element, main: Element, provider: string, stat
   const more = document.querySelector('.replies .show-more');
   const header = main.querySelector('.tweet-header');
   const title = escape(`${header?.querySelector('.fullname')?.textContent?.trim() || 'X'} (${header?.querySelector('.username')?.textContent?.trim() || ''}) X 글`);
-  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(statusUrl)}" target="_blank"><title>${title}</title><style>${STYLE}</style></head><body><main>`
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(statusUrl)}" target="_blank"><title>${title}</title><style>${X_THREAD_STYLE}</style></head><body><main>`
     + items('.main-thread .before-tweet .timeline-item', 'before') + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
     + `<section class="replies"><h2>댓글</h2>${replies || '<p class="empty">아직 보이는 댓글이 없어요.</p>'}</section>`
     + `<p class="more"><a href="${escape(statusUrl)}">${more ? '댓글 더 보기 · ' : ''}X에서 열기 (로그인한 상태로 보기·반응)</a></p>`
     + '</main></body></html>';
 }
-
-const STYLE = `
-*{box-sizing:border-box}body{margin:0;background:#fff;color:#0f1419;font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
-main{max-width:640px;margin:0 auto;padding:8px 16px 32px}a{color:#1d9bf0;text-decoration:none}a:hover{text-decoration:underline}
-.quote,.card,.photo{text-decoration:none!important}
-.post{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #eff3f4}.post.main{padding:16px 0}.post.main .text{font-size:19px;line-height:1.4}
-.thread .post+.post{border-top:0}.thread{border-bottom:1px solid #eff3f4}.thread .post{border-bottom:0}
-.avatar{width:40px;height:40px;border-radius:50%;flex:none;background:#eff3f4;object-fit:cover}.body{min-width:0;flex:1}
-.who{margin:0 0 2px;color:#536471;font-size:14px;overflow-wrap:anywhere}.who b{color:#0f1419}.who a{color:#536471}
-.replying{margin:0 0 4px;color:#536471;font-size:14px}.text{white-space:pre-wrap;overflow-wrap:anywhere}
-.media{display:grid;gap:4px;margin-top:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.media img,.media video{width:100%;max-height:520px;object-fit:cover;border-radius:14px;border:1px solid #eff3f4;display:block}
-.photo{position:relative;display:block}.photo.video span{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.7);color:#fff;font-size:12px;padding:4px 8px;border-radius:99px}
-.card{display:block;margin-top:10px;border:1px solid #cfd9de;border-radius:14px;overflow:hidden;color:#0f1419}.card img{width:100%;max-height:320px;object-fit:cover;display:block}
-.card span{display:flex;flex-direction:column;gap:2px;padding:10px 12px}.card small{color:#536471}.card em{color:#536471;font-style:normal;font-size:13px}
-.quote{display:block;margin-top:10px;border:1px solid #cfd9de;border-radius:14px;padding:10px 12px;color:#0f1419}.quote .who{font-size:14px}.quote .text{display:block}.quote img{width:100%;margin-top:8px;border-radius:10px}
-.stats{margin:8px 0 0;color:#536471;font-size:13px}h2{font-size:17px;margin:20px 0 4px}.empty{color:#536471}
-.more{margin:20px 0 0;text-align:center}.more a{display:inline-block;padding:10px 16px;border:1px solid #cfd9de;border-radius:99px;font-weight:600}
-`;
