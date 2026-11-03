@@ -168,6 +168,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .sfeed-mobile-heading { display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 6px; }
   .sfeed-mobile-heading h1 { min-width: 0; flex: 1; margin: 0; font-size: 23px; font-weight: 750; line-height: 1.25; letter-spacing: -.7px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .sfeed-mobile-header-actions { display: flex; flex-shrink: 0; align-items: center; gap: 2px; }
+  .sfeed-mobile-sort { display: inline-flex; flex-shrink: 0; align-items: center; gap: 5px; height: 34px; margin-right: 2px; padding: 0 11px; border: 1px solid var(--sfeed-mobile-line); border-radius: 17px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+  .sfeed-mobile-sort:hover, .sfeed-mobile-sort:focus-visible { background: var(--sfeed-mobile-raised); }
   .sfeed-mobile-icon { width: 44px; height: 44px; display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; }
   .sfeed-mobile-icon:hover, .sfeed-mobile-icon:focus-visible { background: var(--sfeed-mobile-raised); }
   .sfeed-mobile-brand-icon { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; color: #022c22; border-radius: 11px; background: #10b981; }
