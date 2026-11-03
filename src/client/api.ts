@@ -196,3 +196,10 @@ export function formatArticleDate(article: Pick<ArticleItem, 'published_at' | 'd
   if (article.date_source === 'updated' || article.date_source === 'collected') return '발행일 미제공';
   return formatRelativeTime(article.published_at);
 }
+
+/** 정기 제목을 비교할 때 상대 시간이 아닌 원문 발행일과 시각을 보여 준다. */
+export function formatPublicationDate(article: Pick<ArticleItem, 'published_at' | 'date_source'>): string {
+  const date = new Date(article.published_at);
+  if (article.date_source === 'updated' || article.date_source === 'collected' || !Number.isFinite(date.getTime())) return '발행일 미제공';
+  return date.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}

@@ -44,6 +44,7 @@
   "dependencies": {
     "@cloudflare/puppeteer": "^1.4.0",
     "fast-xml-parser": "^5.0.8",
+    "hls.js": "^1.7.4",
     "hono": "^4.7.2",
     "linkedom": "^0.18.14",
     "lucide-react": "^0.475.0",

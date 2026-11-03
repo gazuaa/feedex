@@ -1,10 +1,35 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { createHash } from 'node:crypto';
 import { createServer } from 'vite';
 
 const vite = await createServer({ configFile: false, server: { middlewareMode: true, ws: false }, appType: 'custom', logLevel: 'silent' });
 const originalFetch = globalThis.fetch;
 try {
+  {
+  // 스트리밍을 기본 지원하지 않는 브라우저도 재생기를 클릭한 뒤 기기에서 직접 붙인다.
+  const events = {}, mediaEvents = {}, loaded = [];
+  const button = { hidden: false, disabled: false, textContent: '', addEventListener: (name, handler) => { events[name] = handler; } };
+  const box = { dataset: {}, querySelector: () => button };
+  let playCount = 0, attached = null, destroyed = false;
+  const video = { dataset: { hlsSrc: 'https://video.twimg.com/vid/movie.m3u8' }, parentElement: box, canPlayType: () => '', play: async () => { playCount++; }, addEventListener: (name, handler) => { mediaEvents[name] = handler; } };
+  class Hls {
+    static Events = { ERROR: 'error', MANIFEST_PARSED: 'manifest' };
+    static isSupported = () => true;
+    on(name, handler) { mediaEvents[name] = handler; }
+    loadSource(url) { loaded.push(url); }
+    attachMedia(target) { attached = target; }
+    destroy() { destroyed = true; }
+  }
+  const document = { currentScript: { dataset: { hls: 'https://sfeed.test/assets/hls.js' } }, querySelectorAll: () => [video], createElement: () => ({}), head: { append: (script) => queueMicrotask(() => script.onload()) } };
+  runInNewContext(readFileSync('src/client/xFramePlayer.js', 'utf8'), { document, window: { Hls }, addEventListener: (_, handler) => handler(), Promise, Error });
+  assert.deepEqual(loaded, [], '재생을 누르기 전에는 영상 데이터를 미리 받지 않는다.');
+  await events.click(); assert.equal(attached, video); assert.deepEqual(loaded, [video.dataset.hlsSrc]);
+  mediaEvents.manifest(); await Promise.resolve(); assert.equal(playCount, 1); assert.equal(button.hidden, true);
+  mediaEvents.error(null, { fatal: true }); assert.equal(destroyed, true); assert.equal(button.hidden, false); assert.equal(box.dataset.failed, '1');
+  }
+
   const { xProfile } = await vite.ssrLoadModule('/src/shared/xFeed.ts');
   const { normalizeFeedUrl } = await vite.ssrLoadModule('/src/shared/feedDiscovery.ts');
   for (const input of ['@NASA', 'https://x.com/NASA?lang=en', 'twitter.com/NASA/', 'https://mobile.twitter.com/NASA']) assert.equal(xProfile(input)?.url, 'https://x.com/nasa');
@@ -79,7 +104,7 @@ try {
     <div id="m" class="main-tweet"><div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><a class="tweet-avatar" href="/${user}"><img class="avatar round" src="/pic/profile_images%2F1%2Fme_bigger.jpg"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/${user}">Main &lt;b&gt;Name</a><a class="username" href="/${user}">@${user}</a></div><span class="tweet-date"><a href="/${user}/status/2000000000000000001#m" title="Nov 2, 2026 · 6:42 PM UTC">1h</a></span></div></div></div>
       <div class="tweet-content media-body">Main text &lt;script&gt;x&lt;/script&gt;<br><a href="/search?q=%23tag">#tag</a> <a href="javascript:alert(1)">bad</a> <a href="https://example.test/a" onclick="x()">site</a></div>
       <div class="attachments"><div class="gallery-row"><div class="attachment image"><a class="still-image" href="/pic/orig/media%2Fphoto.jpg"><img src="/pic/media%2Fphoto.jpg%3Fname%3Dsmall" onerror="x()"></a></div></div></div>
-      <div class="quote quote-big"><a class="quote-link" href="/quoted/status/1999#m"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/quoted">Quoted</a><a class="username" href="/quoted">@quoted</a></div></div><div class="quote-text">Quoted text <a href="/HSBC">@HSBC</a>’s rest of quote</div></div>
+      <div class="quote quote-big"><a class="quote-link" href="/quoted/status/1999#m"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/quoted">Quoted</a><a class="username" href="/quoted">@quoted</a></div></div><div class="quote-text">Quoted text <a href="/HSBC">@HSBC</a>’s rest of quote</div><div class="quote-media-container"><video poster="/pic/amplify_video_thumb%2F99%2Fimg%2Fquote.jpg" data-url="/video/SIGNED/https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F99%2Fpl%2Fmovie.m3u8%3Ftag%3D1"></video></div></div>
       <p class="tweet-published">Nov 2, 2026 · 6:42 PM UTC</p><div class="tweet-stats"><span class="tweet-stat"><div class="icon-container"><span class="icon-comment"></span> 2</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-heart"></span> 1,099</div></span></div></div></div></div></div>
     <div id="r" class="replies"><div class="reply thread thread-line"><div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><a class="tweet-avatar" href="/fan"><img class="avatar round" src="/pic/abs.twimg.com%2Fsticky%2Fdefault.png"></a><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/fan">Fan</a><a class="username" href="/fan">@fan</a></div><span class="tweet-date"><a href="/fan/status/2000000000000000002#m" title="t">5m</a></span></div></div></div><div class="replying-to">Replying to <a href="/${user}">@${user}</a></div><div class="tweet-content media-body">First reply</div><div class="attachments media-gif"><div class="attachment"><video class="gif" poster="/pic/tweet_video_thumb%2Fgif.jpg"><source src="/pic/video.twimg.com%2Ftweet_video%2Fgif.mp4" type="video/mp4"></video></div></div></div></div>
       <div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/other">Other</a><a class="username" href="/other">@other</a></div><span class="tweet-date"><a href="/other/status/2000000000000000003#m">4m</a></span></div></div></div><div class="tweet-content media-body">Nested reply</div></div></div></div>
@@ -256,8 +281,18 @@ try {
   assert.match(copyHtml, /<base href="https:\/\/x\.com\/nasa\/status\/2000000000000000001" target="_blank">/);
   assert.equal(copyHtml.match(/class="post reply"/g).length, 2);
   // 인용 글 상자 전체가 링크이므로, 그 안의 링크는 글자로 둔다. 링크가 겹치면 남은 글이 상자 밖으로 흘러나온다.
-  assert.match(copyHtml, /<a class="quote" href="https:\/\/x\.com\/quoted\/status\/1999">(?:(?!<a |<\/a>)[\s\S])*<span class="link">@HSBC<\/span>’s rest of quote<\/span><\/a>/);
-  assert.ok(copyHtml.includes('<meta name="sfeed-x-thread" content="2">'), '지금 방식의 사본이라는 표시를 단다.');
+  assert.match(copyHtml, /<div class="quote"><a class="quote-post" href="https:\/\/x\.com\/quoted\/status\/1999">(?:(?!<a |<\/a>)[\s\S])*<span class="link">@HSBC<\/span>’s rest of quote<\/span><\/a><div class="media">/);
+  assert.ok(copyHtml.includes('data-hls-src="https://video.twimg.com/amplify_video/99/pl/movie.m3u8?tag=1"'));
+  assert.ok(copyHtml.includes('controls preload="none" playsinline'));
+  assert.ok(copyHtml.includes('<meta name="sfeed-x-thread" content="3">'), '지금 방식의 사본이라는 표시를 단다.');
+  const quotedPath = `/api/articles/${articleId}/x-post?url=${encodeURIComponent('https://x.com/quoted/status/1999')}`;
+  assert.equal((await request(quotedPath)).status, 200);
+  assert.equal((await request(quotedPath, null, other)).status, 404);
+  assert.equal((await request(`/api/articles/${articleId}/x-post?url=${encodeURIComponent('http://127.0.0.1/private')}`)).status, 400);
+  const { xVideoSource, xVideoHtml } = await vite.ssrLoadModule('/src/shared/xMedia.ts');
+  for (const unsafe of ['http://video.twimg.com/a.mp4', 'https://evil.test/a.mp4', 'https://video.twimg.com@evil.test/a.mp4', 'https://video.twimg.com:444/a.mp4', 'https://video.twimg.com/a.html', 'javascript:alert(1)']) assert.equal(xVideoSource(unsafe), null);
+  assert.match(xVideoHtml('https://video.twimg.com/vid/a.mp4', null, 'https://x.com/a/status/1'), /controls preload="none" playsinline/);
+
   // 글 페이지에 봇 확인을 거는 경로는 우회하지 않고 다른 경로를 쓴 뒤 한동안 부르지 않는다.
   pageMode = 'challenge';
   const { fetchXThread } = await vite.ssrLoadModule('/src/server/xThread.ts');

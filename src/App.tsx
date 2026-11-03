@@ -23,6 +23,7 @@ import { HeaderBar } from './components/HeaderBar';
 import { ArticleList } from './components/ArticleList';
 import { LoadMoreArticles } from './components/LoadMoreArticles';
 import { ArticleDrawer } from './components/ArticleDrawer';
+import { XPostPanel, type XPostTarget } from './components/XPostPanel';
 import { ResizableWorkspace } from './components/ResizableWorkspace';
 import { DiscoverModal } from './components/DiscoverModal';
 import { MarkAllReadDialog } from './components/MarkAllReadDialog';
@@ -44,8 +45,8 @@ import { useScrollRead } from './client/scrollRead';
 import { UnreadSession } from './client/unreadSession';
 import { useAutoRefresh } from './client/autoRefresh';
 import { DEFAULT_AUTO_REFRESH_MINUTES } from './shared/preferences';
-import { isXProfileFeed } from './shared/xFeed';
-import { xFolderIds } from './client/xTimeline';
+import { isXProfileFeed, isXStatusUrl } from './shared/xFeed';
+import { xFolderIds, parseXPost } from './client/xTimeline';
 import { ReaderSync } from './client/readerSync';
 import { DesktopContextMenu, type AppContextAction, type AppContextTarget } from './components/DesktopContextMenu';
 import { ArticleResources } from './client/articleResources';
@@ -54,12 +55,13 @@ import { readDevicePreferences, saveDevicePreferences, readFeedPreference, feedV
 import { useListAnchor } from './client/listAnchor';
 import { notifyNewArticles, useLocalNotifications } from './client/localNotifications';
 import { shortcutKey } from './client/shortcutKey';
-import { compileArticleBlocks, useArticleBlocks, visibleArticleNeighbors } from './client/articleBlocks';
+import { compileArticleBlocks, useArticleBlocks, useArticleBlockAccountSync, syncArticleBlocks, visibleArticleNeighbors } from './client/articleBlocks';
 import { ArticleBlockDialog } from './components/ArticleBlockDialog';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const articleBlocks = useArticleBlocks(user?.id || '');
+  useArticleBlockAccountSync(user?.id || '');
   const isBlockedArticle = useMemo(() => compileArticleBlocks(articleBlocks), [articleBlocks]);
   const [authChecking, setAuthChecking] = useState(true);
   const authenticatedToken = useRef<string | null>(null);
@@ -124,12 +126,14 @@ export const App: React.FC = () => {
   // 글 목록과 리더 상태
   const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [showBlockedArticles, setShowBlockedArticles] = useState(false);
+  const [xPostTarget, setXPostTarget] = useState<XPostTarget | null>(null);
   const [blockDialog, setBlockDialog] = useState<{ accountId: string; article: ArticleItem | null } | null>(null);
   const { blocked: blockedArticles, visible: unblockedArticles } = useMemo(() => {
     const blocked: ArticleItem[] = [], visible: ArticleItem[] = [];
     for (const article of articles) (isBlockedArticle(article) ? blocked : visible).push(article);
     return { blocked, visible: blocked.length ? visible : articles };
   }, [articles, isBlockedArticle]);
+  const blockedArticleIds = useMemo(() => new Set(blockedArticles.map((article) => article.id)), [blockedArticles]);
   const visibleArticles = showBlockedArticles ? articles : unblockedArticles;
   const [loadingArticles, setLoadingArticles] = useState(false);
   const [hasMoreArticles, setHasMoreArticles] = useState(false);
@@ -366,7 +370,7 @@ export const App: React.FC = () => {
 
   // 백그라운드 동기화는 보이는 목록과 다음에 누를 목록이 준비되면 끝난다.
   // 그래서 새로고침 버튼이 멈추면 불러오기가 끝났다는 뜻이다.
-  const syncInBackground = useCallback(() => showSync(fetchBootstrap().then(() => publishSyncedPage.current()).then(() => warmListsRef.current())), [showSync, fetchBootstrap]);
+  const syncInBackground = useCallback(() => showSync(syncArticleBlocks(readerCache?.account || '').catch(() => {}).then(() => fetchBootstrap()).then(() => publishSyncedPage.current()).then(() => warmListsRef.current())), [showSync, fetchBootstrap, readerCache]);
 
   // 앱으로 돌아올 때 다른 기기의 변경을 반영한다. 다만 글을 누를 때마다 비싼
   // 전체 보관함 개수 조회를 돌리지는 않는다.
@@ -749,6 +753,7 @@ export const App: React.FC = () => {
   const handleSelectArticle = useCallback(
     (article: ArticleItem) => {
       articleCache.current.set(article.id, article);
+      setXPostTarget(null);
       setSelectedArticleId(article.id);
       if (!article.is_read) {
         handleUpdateArticleState(article, { isRead: true });
@@ -756,6 +761,14 @@ export const App: React.FC = () => {
     },
     [handleUpdateArticleState]
   );
+
+  const handleOpenXPost = (article: ArticleItem, url: string) => {
+    if (!isXStatusUrl(url)) return;
+    handleSelectArticle(article);
+    const quote = parseXPost(article).quote;
+    setXPostTarget({ articleId: article.id, url, quote: quote?.href === url ? quote : null });
+  };
+  useEffect(() => { setXPostTarget(null); }, [user?.id, activeScope, activeFeedId, activeFolderId]);
 
   const handleToggleRead = useCallback(
     (article: ArticleItem, e?: React.MouseEvent) => {
@@ -850,6 +863,7 @@ export const App: React.FC = () => {
     // 위쪽의 읽은 행은 새로고침하면 목록에서 빠지므로 맨 위부터 다시 시작한다.
     articleListRef.current?.scrollTo({ top: 0 });
     try {
+      await syncArticleBlocks(readerCache.account, true).catch(() => {});
       await apiRequest('/api/feeds/refresh', {
         method: 'POST',
         body: JSON.stringify({
@@ -1389,12 +1403,13 @@ export const App: React.FC = () => {
           </>
         }
         reader={
-          <ArticleDrawer
+          xPostTarget && selectedArticle?.id === xPostTarget.articleId ? <XPostPanel key={`${selectedArticle.id}:${xPostTarget.url}`} accountId={user.id} source={selectedArticle} target={xPostTarget} onBack={() => setXPostTarget(null)} isDark={isDark} /> : <ArticleDrawer
             key={selectedArticle?.id || 'empty-reader'}
             article={selectedArticle}
             resources={articleResources}
             accountId={user.id}
             onClose={() => setSelectedArticleId(null)}
+            onOpenXPost={(url) => selectedArticle && handleOpenXPost(selectedArticle, url)}
             onToggleRead={handleToggleRead}
             onToggleSaved={handleToggleSaved}
             onUpdateArticleFields={handleUpdateArticleFields}
@@ -1458,6 +1473,8 @@ export const App: React.FC = () => {
           layout={layout}
           selectedArticleId={selectedArticleId}
           onSelectArticle={handleSelectArticle}
+          onOpenXPost={handleOpenXPost}
+          blockedArticleIds={blockedArticleIds}
           onToggleRead={handleToggleRead}
           onToggleSaved={handleToggleSaved}
           onOpenDiscover={() => {

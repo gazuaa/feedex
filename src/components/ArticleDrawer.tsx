@@ -41,6 +41,7 @@ import { publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
 import { xThreadPreview } from '../client/xThreadPreview';
 import { retryChallenged } from '../client/publicWebCopy';
+import { useXPostFrame } from '../client/xPostFrame';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 
 const VIEW_MODES = [
@@ -67,7 +68,7 @@ function loadWebZoom(account: string, feed: string): number {
 }
 
 // 본문을 HTML로 넣으므로, 바뀔 때마다 그 자리에서 이미지를 보정한다.
-function ArticleBody({ html, base, title, className, style }: { html: string; base: string; title?: string; className: string; style: React.CSSProperties }) {
+function ArticleBody({ html, base, title, className, style, onOpenXPost }: { html: string; base: string; title?: string; className: string; style: React.CSSProperties; onOpenXPost?: (url: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (!ref.current) return;
@@ -76,7 +77,10 @@ function ArticleBody({ html, base, title, className, style }: { html: string; ba
     if (title) dropArticleChrome(ref.current, [titleKey(title)]);
     return bindArticleImages(ref.current, base);
   }, [html, base, title]);
-  return <div ref={ref} style={style} className={className} dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div ref={ref} style={style} className={className} onClick={(event) => {
+    const link = (event.target as Element).closest('a[href]') as HTMLAnchorElement | null;
+    if (onOpenXPost && link && isXStatusUrl(link.href) && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); onOpenXPost(link.href); }
+  }} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 /** 페이지를 불러오는 동안 기기에 이미 있는 내용으로 웹 탭을 선택된 채로 둔다. */
@@ -107,7 +111,7 @@ export function WebLoadingPreview({ article, isDark, ready = false, onReady, onR
  * 빈 페이지에 닿아도 손가락이 떨어지고 스크롤이 멈춘 뒤에 닫는다. iOS는 끌고 있는 이 페이저와
  * 손가락 아래 프레임을 그 자리에서 지우면, 돌아간 목록이 손가락 스크롤에 움직이지 않는다.
  */
-function WebPager({ enabled, onBack, children }: { enabled: boolean; onBack: () => void; children: React.ReactNode }) {
+export function WebPager({ enabled, onBack, children }: { enabled: boolean; onBack: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null), back = useRef(onBack);
   back.current = onBack;
   useLayoutEffect(() => {
@@ -154,6 +158,7 @@ interface ArticleDrawerProps {
   resources?: ArticleResources | null;
   article: ArticleItem | null;
   onClose: () => void;
+  onOpenXPost?: (url: string) => void;
   onToggleRead: (article: ArticleItem) => void;
   onToggleSaved: (article: ArticleItem) => void;
   onUpdateArticleFields: (
@@ -177,6 +182,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   accountId = '',
   resources,
   onClose,
+  onOpenXPost,
   onToggleRead,
   onToggleSaved,
   onUpdateArticleFields,
@@ -234,6 +240,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const isMobile = useMobileViewport();
   const topRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), copyRef = useRef<HTMLIFrameElement>(null);
+  useXPostFrame(copyRef, onOpenXPost);
   // 프레임 안 사이트의 스크롤은 손이 닿지 않으므로, 피드·리더·웹 사본만 막대를 숨긴다.
   const showingCopy = mode === 'web' && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
   const chromeHidden = useScrollChrome(bodyRef, isMobile && Boolean(article) && !mobileToolsOpen && !sizeToolsOpen, `${article?.id}:${mode}:${showingCopy}`, copyRef);
@@ -797,7 +804,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 <div className="relative flex-1 min-h-0 overflow-hidden bg-white">
                   {/*
                     * 스크립트는 스크롤 알림용으로만 돈다. 사본은 정리돼 있고 보안 정책이 나머지를 막는다.
-                    * allow-same-origin이 없으므로 앱에 닿을 수 없고, 링크는 새 탭에서 열린다.
+                    * allow-same-origin이 없으므로 앱에 닿을 수 없고, X 글 링크는 앱에 알리고, 나머지 링크는 새 탭에서 연다.
                     */}
                   <iframe
                     ref={copyRef}
@@ -1077,6 +1084,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           ) : (
             <ArticleBody
               html={activeHtml}
+              onOpenXPost={xPost ? onOpenXPost : undefined}
               base={article.url}
               title={showingReader ? article.title : undefined}
               style={{ fontSize: `calc(var(--sfeed-article-font) * ${fontScale})` }}

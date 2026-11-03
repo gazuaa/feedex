@@ -1,6 +1,7 @@
 import { parseHTML } from 'linkedom';
+import { xVideoHtml } from '../shared/xMedia';
 import { originalUrl, providers, readFeed, restProvider, restingUntil } from './xFeed';
-import { X_THREAD_MARK, X_THREAD_STYLE } from '../shared/xThreadStyle';
+import { X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
 export { isXStatusUrl as xStatusUrl } from '../shared/xFeed';
 
 // x.com은 로그인하지 않은 사람에게 댓글을 몇 개만 보여 주고, 다른 사이트의 프레임도 거부한다.
@@ -66,8 +67,8 @@ function threadDocument(document: Element, main: Element, provider: string, stat
   };
   // 인용한 글 안의 요소가 아니라 이 글 자신의 요소를 찾는다.
   const own = (item: Element, selector: string) => [...item.querySelectorAll(selector)].find((node) => !node.matches('.quote *')) || null;
-  const media = (item: Element, href: string) => {
-    const box = own(item, '.attachments');
+  const media = (item: Element, href: string, container?: Element | null) => {
+    const box = container || own(item, '.attachments');
     if (!box) return '';
     let html = '';
     for (const image of box.querySelectorAll('img')) {
@@ -75,10 +76,9 @@ function threadDocument(document: Element, main: Element, provider: string, stat
       if (src) html += `<a class="photo" href="${escape(full!)}"><img src="${escape(src)}" alt="" loading="lazy"></a>`;
     }
     for (const video of box.querySelectorAll('video')) {
-      const poster = link(video.getAttribute('poster')), source = link(video.querySelector('source')?.getAttribute('src') || null);
-      // GIF는 X 동영상 서버의 mp4라 바로 재생한다. 일반 동영상은 X에서 재생한다.
-      if (source && /^https:\/\/video\.twimg\.com\//.test(source)) html += `<video src="${escape(source)}"${poster ? ` poster="${escape(poster)}"` : ''} autoplay muted loop playsinline></video>`;
-      else if (poster) html += `<a class="photo video" href="${escape(href)}"><img src="${escape(poster)}" alt="" loading="lazy"><span>X에서 동영상 재생</span></a>`;
+      const poster = link(video.getAttribute('poster'));
+      const source = link(video.getAttribute('src') || video.querySelector('source')?.getAttribute('src') || video.getAttribute('data-url'));
+      html += xVideoHtml(source, poster, href, video.matches('video.gif'));
     }
     return html ? `<div class="media">${html}</div>` : '';
   };
@@ -95,8 +95,8 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     if (!box) return '';
     const href = link(box.querySelector('.quote-link')?.getAttribute('href') || null);
     const name = escape(box.querySelector('.fullname')?.textContent?.trim() || ''), user = escape(box.querySelector('.username')?.textContent?.trim() || '');
-    const images = [...box.querySelectorAll('.quote-media-container img, .attachments img')].map((image) => link(image.getAttribute('src'))).filter(Boolean);
-    return `<a class="quote" href="${escape(href || statusUrl)}"><span class="who"><b>${name}</b> <span>${user}</span></span><span class="text">${rich(box.querySelector('.quote-text'), true)}</span>${images.map((src) => `<img src="${escape(src!)}" alt="" loading="lazy">`).join('')}</a>`;
+    const attachments = box.querySelector('.quote-media-container, .attachments');
+    return `<div class="quote"><a class="quote-post" href="${escape(href || statusUrl)}"><span class="who"><b>${name}</b> <span>${user}</span></span><span class="text">${rich(box.querySelector('.quote-text'), true)}</span></a>${attachments ? media(box, href || statusUrl, attachments) : ''}</div>`;
   };
   const stats = (item: Element) => {
     const labels: Record<string, string> = { 'icon-comment': '댓글', 'icon-retweet': '재게시', 'icon-quote': '인용', 'icon-heart': '좋아요', 'icon-views': '조회' };
@@ -126,9 +126,9 @@ function threadDocument(document: Element, main: Element, provider: string, stat
   const more = document.querySelector('.replies .show-more');
   const header = main.querySelector('.tweet-header');
   const title = escape(`${header?.querySelector('.fullname')?.textContent?.trim() || 'X'} (${header?.querySelector('.username')?.textContent?.trim() || ''}) X 글`);
-  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(statusUrl)}" target="_blank">${X_THREAD_MARK}<title>${title}</title><style>${X_THREAD_STYLE}</style></head><body><main>`
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(statusUrl)}" target="_blank">${X_THREAD_MARK}<title>${title}</title><style>${X_THREAD_STYLE}${X_VIDEO_STYLE}</style></head><body><main>`
     + items('.main-thread .before-tweet .timeline-item', 'before') + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
     + `<section class="replies"><h2>댓글</h2>${replies || '<p class="empty">아직 보이는 댓글이 없어요.</p>'}</section>`
-    + `<p class="more"><a href="${escape(statusUrl)}">${more ? '댓글 더 보기 · ' : ''}X에서 열기 (로그인한 상태로 보기·반응)</a></p>`
+    + `<p class="more"><a data-x-external href="${escape(statusUrl)}">${more ? '댓글 더 보기 · ' : ''}X에서 열기 (로그인한 상태로 보기·반응)</a></p>`
     + '</main></body></html>';
 }

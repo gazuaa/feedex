@@ -479,3 +479,8 @@ html:not(.dark) .sfeed-login [class*="border-slate-8"] { border-color: var(--sfe
 /* X 타임라인은 줄이 가장자리까지 닿는다. 일반 목록의 안쪽 여백을 쓰지 않는다. */
 .sfeed-list-items.sfeed-x-timeline, .sfeed-feed-list .sfeed-list-items.sfeed-x-timeline { padding: 0; }
 .sfeed-x-post .sfeed-x-text { font-size: calc(15px * var(--sfeed-text-scale, 1)); }
+
+.sfeed-block-preview-meta{display:flex;flex-wrap:wrap;gap:4px 12px}.sfeed-block-preview-meta time{white-space:nowrap}
+@media(max-width:1023px){.sfeed-linked-post-header{padding-top:calc(12px + env(safe-area-inset-top))}}
+
+.sfeed-block-tag{display:inline-flex;flex-shrink:0;align-items:center;vertical-align:middle;padding:1px 6px;border:1px solid #fdba74;border-radius:5px;background:#fff7ed;color:#9a3412;font-size:10px;font-weight:600;line-height:16px;white-space:nowrap}html.dark .sfeed-block-tag{border-color:#92400e;background:#78350f55;color:#fcd34d}

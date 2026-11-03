@@ -1,50 +1,21 @@
-import { useSyncExternalStore } from 'react';
-import type { ArticleItem } from './api';
+import { useEffect, useSyncExternalStore } from 'react';
+import { apiRequest, getStoredToken, type ArticleItem } from './api';
+import { normalizeBlockTitle as normalize, validArticleBlockRule as validRule, type ArticleBlockRule } from '../shared/articleBlocks';
+export { parseBlockTerms, blockRuleError, type ArticleBlockRule } from '../shared/articleBlocks';
+import { parseBlockTerms } from '../shared/articleBlocks';
 
-export interface ArticleBlockRule {
-  id: string;
-  name: string;
-  feedId: string | null;
-  feedTitle: string;
-  all: string[];
-  any: string[];
-  enabled: boolean;
-  createdAt: string;
-}
 export type BlockArticle = Pick<ArticleItem, 'title' | 'feed_id'>;
 const EMPTY: readonly ArticleBlockRule[] = [];
 const snapshots = new Map<string, { raw: string | null; rules: readonly ArticleBlockRule[] }>();
 const listeners = new Set<() => void>();
+const memoryOnly = new Set<string>();
 const key = (account: string) => `sfeed_article_blocks_v1:${account}`;
-const normalize = (text: string) => text.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
-
-export function parseBlockTerms(text: string): string[] {
-  const terms = new Map<string, string>();
-  for (const term of text.split(/[,\n]/).map((term) => term.trim()).filter(Boolean)) if (!terms.has(normalize(term))) terms.set(normalize(term), term);
-  return [...terms.values()];
-}
-export function blockRuleError(rule: Pick<ArticleBlockRule, 'name' | 'all' | 'any'>): string | null {
-  if (!rule.name.trim() || rule.name.length > 120) return '규칙 이름을 120자 이내로 입력해 주세요.';
-  if (!rule.all.length && !rule.any.length) return '제목에 포함할 표현을 하나 이상 입력해 주세요.';
-  if (rule.all.length > 12 || rule.any.length > 12) return '각 조건에는 표현을 12개까지 넣을 수 있습니다.';
-  if ([...rule.all, ...rule.any].some((term) => !normalize(term) || term.length > 100)) return '각 표현은 1~100자로 입력해 주세요.';
-  return null;
-}
-function validRule(value: unknown): value is ArticleBlockRule {
-  if (!value || typeof value !== 'object') return false;
-  const rule = value as ArticleBlockRule;
-  return typeof rule.id === 'string' && rule.id.length > 0 && rule.id.length <= 100
-    && typeof rule.name === 'string' && (rule.feedId === null || (typeof rule.feedId === 'string' && rule.feedId.length > 0 && rule.feedId.length <= 200))
-    && typeof rule.feedTitle === 'string' && rule.feedTitle.length <= 200 && typeof rule.enabled === 'boolean'
-    && typeof rule.createdAt === 'string' && Number.isFinite(Date.parse(rule.createdAt))
-    && Array.isArray(rule.all) && Array.isArray(rule.any) && [...rule.all, ...rule.any].every((term) => typeof term === 'string')
-    && !blockRuleError(rule);
-}
 export function readArticleBlocks(account: string): readonly ArticleBlockRule[] {
   if (!account) return EMPTY;
   let raw: string | null;
   try { raw = localStorage.getItem(key(account)); } catch { return snapshots.get(account)?.rules || EMPTY; }
   const previous = snapshots.get(account);
+  if (memoryOnly.has(account) && previous) return previous.rules;
   if (previous?.raw === raw) return previous.rules;
   let rules: ArticleBlockRule[] = [];
   try {
@@ -55,22 +26,65 @@ export function readArticleBlocks(account: string): readonly ArticleBlockRule[] 
   snapshots.set(account, { raw, rules: result });
   return result;
 }
-function writeArticleBlocks(account: string, rules: readonly ArticleBlockRule[]) {
-  if (!account) throw new Error('로그인한 계정을 확인해 주세요.');
-  if (rules.length > 100 || rules.some((rule) => !validRule(rule))) throw new Error('차단 규칙을 확인해 주세요. 규칙은 100개까지 저장할 수 있습니다.');
-  const raw = JSON.stringify(rules);
-  if (raw.length > 350_000) throw new Error('규칙의 전체 길이가 너무 깁니다. 표현이나 규칙 수를 줄여 주세요.');
-  try { localStorage.setItem(key(account), raw); }
-  catch { throw new Error('이 기기에 규칙을 저장하지 못했습니다. 브라우저의 저장 공간과 설정을 확인해 주세요.'); }
-  snapshots.set(account, { raw, rules: [...rules] });
+interface AccountRules { rules: ArticleBlockRule[]; revision: number }
+const flights = new Map<string, Promise<void>>();
+const revisions = new Map<string, number>();
+const lastSync = new Map<string, number>();
+const syncKey = (account: string) => `sfeed_article_blocks_account_v1:${account}`;
+
+function cacheAccountRules(account: string, state: AccountRules) {
+  if ((revisions.get(account) ?? -1) > state.revision) return;
+  const raw = JSON.stringify(state.rules);
+  // 계정 저장이 끝난 뒤 기기 저장 공간이 부족해도 현재 화면에는 적용한다.
+  try { localStorage.setItem(key(account), raw); localStorage.setItem(syncKey(account), '1'); memoryOnly.delete(account); } catch { memoryOnly.add(account); }
+  snapshots.set(account, { raw, rules: state.rules.length ? state.rules : EMPTY });
+  revisions.set(account, state.revision);
   listeners.forEach((listener) => listener());
 }
-export function saveArticleBlock(account: string, rule: ArticleBlockRule) {
-  const rules = readArticleBlocks(account), exists = rules.some((item) => item.id === rule.id);
-  writeArticleBlocks(account, exists ? rules.map((item) => item.id === rule.id ? rule : item) : [...rules, rule]);
+
+/** 기존 기기 규칙을 한 번 가져오고, 이후에는 계정의 규칙을 로컬에 보관해 필터링한다. */
+export function syncArticleBlocks(account: string, force = false): Promise<void> {
+  if (!account) return Promise.resolve();
+  const running = flights.get(account); if (running) return running;
+  if (!force && Date.now() - (lastSync.get(account) || 0) < 60_000) return Promise.resolve();
+  const token = getStoredToken();
+  const work = (async () => {
+    let migrated = false;
+    try { migrated = localStorage.getItem(syncKey(account)) === '1'; } catch { /* 계정에서 다시 확인한다. */ }
+    const legacy = migrated ? [] : readArticleBlocks(account);
+    const state = await apiRequest<AccountRules>('/api/user/article-blocks', legacy.length ? { method: 'PUT', body: JSON.stringify({ action: 'import', rules: legacy }), signal: AbortSignal.timeout(8000) } : { signal: AbortSignal.timeout(8000) });
+    if (getStoredToken() !== token) return;
+    cacheAccountRules(account, state); lastSync.set(account, Date.now());
+  })().finally(() => { if (flights.get(account) === work) flights.delete(account); });
+  flights.set(account, work); return work;
 }
-export function removeArticleBlock(account: string, id: string) {
-  writeArticleBlocks(account, readArticleBlocks(account).filter((rule) => rule.id !== id));
+
+export function useArticleBlockAccountSync(account: string) {
+  useEffect(() => {
+    if (!account) return;
+    const sync = () => { if (document.visibilityState === 'visible') void syncArticleBlocks(account, true).catch(() => {}); };
+    void syncArticleBlocks(account, true).catch(() => {});
+    window.addEventListener('focus', sync); window.addEventListener('online', sync);
+    document.addEventListener('visibilitychange', sync);
+    const timer = window.setInterval(sync, 300_000);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', sync); window.removeEventListener('online', sync); document.removeEventListener('visibilitychange', sync); };
+  }, [account]);
+}
+async function changeAccountRule(account: string, action: object) {
+  if (!account) throw new Error('로그인한 계정을 확인해 주세요.');
+  const token = getStoredToken();
+  await syncArticleBlocks(account);
+  if (getStoredToken() !== token) throw new Error('계정이 변경되었습니다. 다시 로그인해 주세요.');
+  const state = await apiRequest<AccountRules>('/api/user/article-blocks', { method: 'PUT', body: JSON.stringify(action), signal: AbortSignal.timeout(8000) });
+  if (getStoredToken() !== token) throw new Error('계정이 변경되었습니다. 다시 로그인해 주세요.');
+  cacheAccountRules(account, state);
+}
+export async function saveArticleBlock(account: string, rule: ArticleBlockRule) {
+  if (!validRule(rule)) throw new Error('차단 규칙을 확인해 주세요.');
+  await changeAccountRule(account, { action: 'save', rule });
+}
+export async function removeArticleBlock(account: string, id: string) {
+  await changeAccountRule(account, { action: 'delete', id });
 }
 function subscribe(listener: () => void) {
   listeners.add(listener);

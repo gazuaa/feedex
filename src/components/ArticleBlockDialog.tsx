@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronRight, FilterX, Plus, X } from 'lucide-react';
-import type { ArticleItem, SubscriptionItem } from '../client/api';
+import { formatPublicationDate, type ArticleItem, type SubscriptionItem } from '../client/api';
 import { blockRuleError, compileArticleBlocks, parseBlockTerms, removeArticleBlock, saveArticleBlock, suggestArticleBlock, useArticleBlocks, type ArticleBlockRule } from '../client/articleBlocks';
 
 export function ArticleBlockSetting({ accountId, onManage }: { accountId: string; onManage: () => void }) {
@@ -18,6 +18,7 @@ export function ArticleBlockDialog({ accountId, article, articles, subscriptions
   const [allText, setAllText] = useState(() => draft?.all.join(', ') || '');
   const [anyText, setAnyText] = useState(() => draft?.any.join(', ') || '');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const [removed, setRemoved] = useState<ArticleBlockRule | null>(null);
   const ref = useRef<HTMLDialogElement>(null), titleId = useId();
   const condition = useMemo(() => draft ? { ...draft, all: parseBlockTerms(allText), any: parseBlockTerms(anyText) } : null, [draft, allText, anyText]);
@@ -35,9 +36,12 @@ export function ArticleBlockDialog({ accountId, article, articles, subscriptions
   useEffect(() => { ref.current?.querySelector<HTMLButtonElement>('.sfeed-block-heading button')?.focus(); }, [draft?.id]);
   const edit = (rule: ArticleBlockRule) => { setDraft({ ...rule }); setAllText(rule.all.join(', ')); setAnyText(rule.any.join(', ')); setError(''); };
   const back = () => { if (article) onClose(); else { setDraft(null); setError(''); } };
-  const attempt = (action: () => void) => {
-    try { action(); setError(''); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : '규칙을 저장하지 못했습니다.'); }
+  const attempt = async (action: () => void | Promise<void>) => {
+    if (busy) return;
+    setBusy(true); setError('');
+    try { await action(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '계정에 규칙을 저장하지 못했습니다. 연결 상태를 확인해 주세요.'); }
+    finally { setBusy(false); }
   };
   const feeds = [...new Map(subscriptions.map((feed) => [feed.feed_id, feed])).values()];
   return createPortal(<div className="sfeed-block-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -51,10 +55,10 @@ export function ArticleBlockDialog({ accountId, article, articles, subscriptions
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
     }}>
-      <header className="sfeed-block-heading"><div><h2 id={titleId}>{draft ? '비슷한 글 숨기기' : '기사 차단 규칙'}</h2><p>이 계정의 규칙을 이 기기에 저장합니다.</p></div><button type="button" aria-label="차단 규칙 닫기" onClick={onClose}><X size={21} /></button></header>
+      <header className="sfeed-block-heading"><div><h2 id={titleId}>{draft ? '비슷한 글 숨기기' : '기사 차단 규칙'}</h2><p>같은 계정으로 로그인한 기기에 동기화됩니다.</p></div><button type="button" aria-label="차단 규칙 닫기" onClick={onClose}><X size={21} /></button></header>
       {draft && condition ? <form className="sfeed-block-form" onSubmit={(event) => {
         event.preventDefault(); if (validation) return;
-        attempt(() => { saveArticleBlock(accountId, condition); onApplied(); if (article) onClose(); else setDraft(null); });
+        void attempt(async () => { await saveArticleBlock(accountId, condition); onApplied(); if (article) onClose(); else setDraft(null); });
       }}>
         <div className="sfeed-block-body">
           <label>규칙 이름<input value={draft.name} maxLength={120} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
@@ -66,23 +70,23 @@ export function ArticleBlockDialog({ accountId, article, articles, subscriptions
           <label>하나 이상 포함<textarea rows={2} maxLength={2400} value={anyText} onChange={(event) => setAnyText(event.target.value)} placeholder="순유입, 순유출" /><small>앞 조건과 함께, 이 중 하나가 있는 제목만 찾습니다. 비워 두어도 됩니다.</small></label>
           <label className="sfeed-block-toggle"><span>규칙 사용</span><input type="checkbox" role="switch" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} /></label>
           <section className="sfeed-block-preview" aria-label="차단 대상 미리보기"><h3>미리보기 <span>{matches.length.toLocaleString()}개</span></h3><p>불러온 기사 기준입니다. 같은 조건의 새 글에도 적용됩니다.</p>
-            {validation ? <p>{validation}</p> : matches.length ? <ul>{matches.slice(0, 20).map((item) => <li key={item.id}><strong>{item.title}</strong><small>{item.feed_title}</small></li>)}</ul> : <p>현재 불러온 기사 중 일치하는 제목이 없습니다.</p>}
+            {validation ? <p>{validation}</p> : matches.length ? <ul>{matches.slice(0, 20).map((item) => <li key={item.id}><strong>{item.title}</strong><small className="sfeed-block-preview-meta"><span>{item.feed_title}</span><time dateTime={item.date_source === 'updated' || item.date_source === 'collected' || !Number.isFinite(Date.parse(item.published_at)) ? undefined : item.published_at}>{formatPublicationDate(item)}</time></small></li>)}</ul> : <p>현재 불러온 기사 중 일치하는 제목이 없습니다.</p>}
             {matches.length > 20 && <p>앞의 20개만 표시했습니다.</p>}
           </section>
           <p className="sfeed-block-hint">목록과 새 글 알림에서 숨깁니다. 원래 글과 읽음·저장 상태는 유지됩니다. 피드 숫자는 숨김 전 전체 글 기준입니다.</p>
           {error && <p role="alert" className="sfeed-block-error">{error}</p>}
         </div>
-        <footer className="sfeed-block-footer"><button type="button" onClick={back}>취소</button><button type="submit" disabled={Boolean(validation)} className="sfeed-block-primary">{rules.some((rule) => rule.id === draft.id) ? '규칙 저장' : '차단 규칙 추가'}</button></footer>
+        <footer className="sfeed-block-footer"><button type="button" onClick={back}>취소</button><button type="submit" disabled={busy || Boolean(validation)} className="sfeed-block-primary">{busy ? '계정에 저장 중…' : rules.some((rule) => rule.id === draft.id) ? '규칙 저장' : '차단 규칙 추가'}</button></footer>
       </form> : <>
         <div className="sfeed-block-body">
           <button type="button" className="sfeed-block-add" onClick={() => edit({ id: `block_${crypto.randomUUID()}`, name: '제목 차단 규칙', feedId: null, feedTitle: '모든 피드', all: [], any: [], enabled: true, createdAt: new Date().toISOString() })}><Plus size={17} />새 규칙 추가</button>
           {!rules.length && <p className="sfeed-block-hint">기사에서 우클릭하거나 길게 누른 뒤 ‘비슷한 글 숨기기’를 선택해 보세요.</p>}
           <ul className="sfeed-block-rules">{rules.map((rule) => <li key={rule.id}>
-            <label className="sfeed-block-toggle"><span><strong>{rule.name}</strong><small>{rule.feedId ? rule.feedTitle : '모든 피드'}</small></span><input type="checkbox" role="switch" aria-label={`${rule.name} 사용`} checked={rule.enabled} onChange={(event) => attempt(() => saveArticleBlock(accountId, { ...rule, enabled: event.target.checked }))} /></label>
+            <label className="sfeed-block-toggle"><span><strong>{rule.name}</strong><small>{rule.feedId ? rule.feedTitle : '모든 피드'}</small></span><input type="checkbox" role="switch" aria-label={`${rule.name} 사용`} checked={rule.enabled} disabled={busy} onChange={(event) => void attempt(() => saveArticleBlock(accountId, { ...rule, enabled: event.target.checked }))} /></label>
             <p>{rule.all.length ? `모두: ${rule.all.join(' · ')}` : ''}{rule.all.length && rule.any.length ? ' / ' : ''}{rule.any.length ? `하나 이상: ${rule.any.join(' · ')}` : ''}</p>
-            <div className="sfeed-block-rule-actions"><button type="button" aria-label={`${rule.name} 수정`} onClick={() => edit(rule)}>수정</button><button type="button" aria-label={`${rule.name} 삭제`} onClick={() => attempt(() => { removeArticleBlock(accountId, rule.id); setRemoved(rule); })}>삭제</button></div>
+            <div className="sfeed-block-rule-actions"><button type="button" aria-label={`${rule.name} 수정`} onClick={() => edit(rule)}>수정</button><button type="button" aria-label={`${rule.name} 삭제`} disabled={busy} onClick={() => void attempt(async () => { await removeArticleBlock(accountId, rule.id); setRemoved(rule); })}>삭제</button></div>
           </li>)}</ul>
-          {removed && <p role="status" className="sfeed-block-undo">규칙을 삭제했습니다.<button type="button" onClick={() => attempt(() => { saveArticleBlock(accountId, removed); setRemoved(null); })}>실행 취소</button></p>}
+          {removed && <p role="status" className="sfeed-block-undo">규칙을 삭제했습니다.<button type="button" disabled={busy} onClick={() => void attempt(async () => { await saveArticleBlock(accountId, removed); setRemoved(null); })}>실행 취소</button></p>}
           {error && <p role="alert" className="sfeed-block-error">{error}</p>}
         </div>
         <footer className="sfeed-block-footer"><button type="button" onClick={onClose}>닫기</button></footer>

@@ -1,3 +1,4 @@
+import { ArticleBlockTag } from './ArticleBlockTag';
 import React, { useMemo, useState } from 'react';
 import { Bookmark, CheckCircle2, Circle, ExternalLink, MessageCircle, Play, Repeat2 } from 'lucide-react';
 import type { ArticleItem } from '../client/api';
@@ -7,21 +8,23 @@ interface Props {
   articles: ArticleItem[];
   selectedArticleId: string | null;
   onSelectArticle: (article: ArticleItem) => void;
+  onOpenXPost?: (article: ArticleItem, url: string) => void;
   onToggleRead: (article: ArticleItem, e: React.MouseEvent) => void;
   onToggleSaved: (article: ArticleItem, e: React.MouseEvent) => void;
   isDark: boolean;
   retainReadRows?: boolean;
+  blockedArticleIds?: ReadonlySet<string>;
   listRef: React.RefObject<HTMLDivElement | null>;
 }
 
 // X 폴더와 X 계정은 X 타임라인처럼 보여 준다. 글을 누르면 다른 목록처럼 리더에서 열린다.
-export function XTimeline({ articles, selectedArticleId, onSelectArticle, onToggleRead, onToggleSaved, isDark, retainReadRows, listRef }: Props) {
+export function XTimeline({ articles, selectedArticleId, onSelectArticle, onOpenXPost, onToggleRead, onToggleSaved, isDark, retainReadRows, blockedArticleIds, listRef }: Props) {
   return <div ref={listRef} className={`sfeed-list-items sfeed-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
-    {articles.map((article) => <XPostRow key={article.id} article={article} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} />)}
+    {articles.map((article) => <XPostRow blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onOpenXPost={onOpenXPost} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} />)}
   </div>;
 }
 
-function XPostRow({ article, selected, onSelectArticle, onToggleRead, onToggleSaved, isDark }: { article: ArticleItem; selected: boolean } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
+function XPostRow({ article, selected, blocked, onSelectArticle, onOpenXPost, onToggleRead, onToggleSaved, isDark }: { article: ArticleItem; selected: boolean; blocked: boolean } & Pick<Props, 'onSelectArticle' | 'onOpenXPost' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
   const post = useMemo(() => parseXPost(article), [article.id, article.title, article.content_html, article.feed_title, article.feed_favicon, article.feed_html_url, article.url]);
   const line = isDark ? 'border-slate-800' : 'border-slate-200';
   const strong = isDark ? 'text-slate-100' : 'text-slate-900';
@@ -44,6 +47,7 @@ function XPostRow({ article, selected, onSelectArticle, onToggleRead, onToggleSa
     <div className="min-w-0 flex-1">
       {post.repostedBy && <p className="-mt-0.5 mb-0.5 text-[13px] font-semibold text-slate-500">{post.repostedBy} 님이 재게시함</p>}
       <div className="flex min-w-0 items-center gap-1 text-[15px] leading-5">
+        <ArticleBlockTag blocked={blocked} />
         <span className={`truncate font-bold ${strong}`}>{post.name}</span>
         <span className="truncate text-slate-500">@{post.handle}</span>
         <span className="shrink-0 text-slate-500">· {xTime(article.published_at)}</span>
@@ -56,7 +60,7 @@ function XPostRow({ article, selected, onSelectArticle, onToggleRead, onToggleSa
         {post.card.image && <img src={post.card.image} alt="" loading="lazy" referrerPolicy="no-referrer" className="aspect-[1.91/1] w-full object-cover" />}
         <span className="block px-3 py-2"><span className="block truncate text-[13px] text-slate-500">{hostOf(post.card.href)}</span><span className={`block truncate text-[15px] ${strong}`}>{post.card.title}</span></span>
       </a>}
-      {post.quote && <a href={post.quote.href} target="_blank" rel="noopener noreferrer" onClick={stop} className={`mt-3 block rounded-2xl border px-3 py-2.5 ${line}`}>
+      {post.quote && <a href={post.quote.href} onClick={(event) => { stop(event); if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && onOpenXPost) { event.preventDefault(); onOpenXPost(article, post.quote!.href); } }} className={`mt-3 block rounded-2xl border px-3 py-2.5 ${line}`}>
         <span className="flex min-w-0 items-center gap-1 text-[15px]"><span className={`truncate font-bold ${strong}`}>{post.quote.name}</span>{post.quote.handle && <span className="truncate text-slate-500">@{post.quote.handle}</span>}</span>
         {/* block을 함께 주면 줄 수 제한(line-clamp)의 표시 방식을 덮어 긴 인용 글이 다 펼쳐진다. */}
         {post.quote.text && <span className={`mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-5 line-clamp-6 ${strong}`}>{post.quote.text}</span>}

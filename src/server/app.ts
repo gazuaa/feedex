@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { accountArticleBlocks, changeArticleBlocks, ArticleBlockError } from './articleBlocks';
 import { initialSyncCursor, readerDelta, syncHead } from './readerSync';
 import { pausedAtColumn, pauseSupported, shownToSubscriber } from './feedPause';
 import { DEFAULT_AUTO_REFRESH_MINUTES, validAutoRefresh } from '../shared/preferences';
@@ -27,6 +28,7 @@ import { checkEmbeddable } from './framing';
 import { fetchWebView } from './webView';
 import { fetchPreviewImage } from './previewImage';
 import { analyseBuilderPage, builderParsedFeed, builderSiteInfo, fetchPage, publicPageUrl, webCopy } from './rssBuilder';
+import { pageAssetProxy } from './pageAssets';
 import { refreshStoredFeeds, storedFeedColumns, type StoredFeed } from './feedLoader';
 import { extractOriginalPublishedAt } from './publicationDate';
 import { resolveArticlePublication, type PublicationArticle } from './articlePublication';
@@ -303,6 +305,25 @@ app.get('/api/user/me', (c) => {
   });
 });
 
+app.get('/api/user/article-blocks', (c) => {
+  c.header('Cache-Control', 'no-store');
+  const { rules, revision } = accountArticleBlocks(c.get('user').preferences_json);
+  return c.json({ rules, revision });
+});
+app.put('/api/user/article-blocks', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  if (Number(c.req.header('Content-Length')) > 400_000) return c.json({ error: '규칙 요청이 너무 큽니다.' }, 413);
+  try {
+    const text = await c.req.text();
+    if (text.length > 400_000) return c.json({ error: '규칙 요청이 너무 큽니다.' }, 413);
+    const { rules, revision } = await changeArticleBlocks(c.env.DB, c.get('user').id, JSON.parse(text));
+    return c.json({ rules, revision });
+  } catch (error) {
+    if (error instanceof SyntaxError || error instanceof ArticleBlockError) return c.json({ error: error instanceof ArticleBlockError ? error.message : '규칙 요청을 확인해 주세요.' }, 400);
+    throw error;
+  }
+});
+
 app.put('/api/user/preferences', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<Partial<UserPreferences>>();
@@ -319,7 +340,7 @@ app.put('/api/user/preferences', async (c) => {
     autoRefreshMinutes: validAutoRefresh(body.autoRefreshMinutes) ? body.autoRefreshMinutes : current.autoRefreshMinutes,
   };
 
-  await c.env.DB.prepare('UPDATE users SET preferences_json = ? WHERE id = ?')
+  await c.env.DB.prepare("UPDATE users SET preferences_json = json_patch(CASE WHEN json_valid(preferences_json) THEN preferences_json ELSE '{}' END, json(?)) WHERE id = ?")
     .bind(JSON.stringify(nextPrefs), user.id)
     .run();
 
@@ -461,7 +482,7 @@ app.post('/api/rss-builder/analyse', async (c) => {
   if (typeof body?.url !== 'string') return c.json({ error: '웹사이트 주소를 입력해 주세요.' }, 400);
   try { publicPageUrl(body.url); } catch (error) { return c.json({ error: (error as Error).message }, 400); }
   try {
-    const analysis = await analyseBuilderPage(body.url, c.env);
+    const analysis = await analyseBuilderPage(body.url, c.env, undefined, pageAssetProxy(c.env, new URL(c.req.url).origin));
     if (!analysis.groups.length && !analysis.snapshot) return c.json({ error: '반복되는 글 목록을 찾지 못했습니다. 개별 글이 아닌 블로그·뉴스 목록 주소를 입력해 주세요.' }, 422);
     return c.json(analysis);
   } catch (error) { return c.json({ error: error instanceof Error ? error.message : '글 목록을 분석하지 못했습니다.' }, 502); }
@@ -1142,6 +1163,18 @@ app.get('/api/articles/:id/embeddable', async (c) => {
   return c.json(await checkEmbeddable(article.url, new URL(c.req.url).origin));
 });
 
+// 인용 글과 댓글은 구독을 추가하지 않고 현재 본문 영역에서 연다.
+app.get('/api/articles/:id/x-post', async (c) => {
+  const url = c.req.query('url') || '';
+  if (!xStatusUrl(url)) return c.json({ error: 'X 글 주소를 확인해 주세요.' }, 400);
+  const source = await c.env.DB.prepare('SELECT a.url FROM articles a WHERE a.id=? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=a.feed_id AND s.user_id=?)')
+    .bind(c.req.param('id'), c.get('user').id).first<{ url: string }>();
+  if (!source || !xStatusUrl(source.url)) return c.json({ error: 'X 글을 찾을 수 없습니다.' }, 404);
+  c.header('Cache-Control', 'no-store');
+  try { return c.json(await fetchXThread(url)); }
+  catch { return c.json({ error: 'X 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' }, 502); }
+});
+
 // 프레임을 거부하는 사이트의 웹 보기: 스크립트 없는 페이지 사본.
 // ?layout=phone은 받은 페이지가 데스크톱에만 맞을 때 휴대폰 폭으로 배치한 사본을 요청한다.
 app.get('/api/articles/:id/web-copy', async (c) => {
@@ -1154,7 +1187,7 @@ app.get('/api/articles/:id/web-copy', async (c) => {
   // X 글은 공개 미러의 글 페이지로 글과 댓글을 보여 준다. 받지 못하면 원래 방식으로 x.com을 그린다.
   if (xStatusUrl(article.url)) try { return c.json(await fetchXThread(article.url)); } catch { /* 아래 원래 방식으로 넘어간다. */ }
   try {
-    return c.json(await fetchWebView(article.url, c.env, c.req.query('layout') === 'phone'));
+    return c.json(await fetchWebView(article.url, c.env, c.req.query('layout') === 'phone', pageAssetProxy(c.env, new URL(c.req.url).origin)));
   } catch {
     return c.json({ error: '원문 페이지를 불러오지 못했습니다.' }, 502);
   }

@@ -34,7 +34,8 @@ export function MobileSettings({ theme, onChangeTheme, layout, onChangeLayout, o
       </SettingGroup>
       {!library && <SettingGroup title="읽기"><ScrollReadSetting markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} /></SettingGroup>}
       <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
-      {accountId && <SettingGroup title="이 기기">{onManageArticleBlocks && <ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} />}<CacheSettings accountId={accountId} /></SettingGroup>}
+      {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} /></SettingGroup>}
+      {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} /></SettingGroup>}
       <SettingGroup title="기타">
         <button type="button" onClick={() => { close(); onOpenOpml(); }}><FileCode2 size={17} />OPML 가져오기 / 내보내기</button>
         <InstallAppButton />

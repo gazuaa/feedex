@@ -1,3 +1,4 @@
+import { ArticleBlockTag } from './ArticleBlockTag';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Bookmark,
@@ -42,6 +43,7 @@ interface ArticleListProps {
   layout: LayoutMode;
   selectedArticleId: string | null;
   onSelectArticle: (article: ArticleItem) => void;
+  onOpenXPost?: (article: ArticleItem, url: string) => void;
   onToggleRead: (article: ArticleItem, e: React.MouseEvent) => void;
   onToggleSaved: (article: ArticleItem, e: React.MouseEvent) => void;
   onOpenDiscover: () => void;
@@ -51,6 +53,7 @@ interface ArticleListProps {
   retainReadRows?: boolean;
   /** X 폴더·X 계정을 볼 때는 보기 설정과 상관없이 X 타임라인 모양으로 그린다. */
   timeline?: boolean;
+  blockedArticleIds?: ReadonlySet<string>;
 }
 
 export const ArticleList: React.FC<ArticleListProps> = ({
@@ -61,6 +64,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   layout,
   selectedArticleId,
   onSelectArticle,
+  onOpenXPost,
   onToggleRead,
   onToggleSaved,
   onOpenDiscover,
@@ -69,6 +73,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   hasSubscriptions,
   retainReadRows = false,
   timeline = false,
+  blockedArticleIds,
 }) => {
   const listRef = useRef<HTMLDivElement>(null), latestArticles = useRef(articles);
   latestArticles.current = articles;
@@ -144,7 +149,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     );
   }
 
-  if (timeline) return <XTimeline articles={articles} selectedArticleId={selectedArticleId} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} retainReadRows={retainReadRows} listRef={listRef} />;
+  if (timeline) return <XTimeline blockedArticleIds={blockedArticleIds} onOpenXPost={onOpenXPost} articles={articles} selectedArticleId={selectedArticleId} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} retainReadRows={retainReadRows} listRef={listRef} />;
 
   // 1. 간단한 목록 보기 (Feedly 제목만 보기)
   if (layout === 'list') {
@@ -236,6 +241,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
 
                 {/* 오른쪽 시각과 빠른 동작 */}
                 <div className="flex items-center gap-2 shrink-0">
+                  <ArticleBlockTag blocked={Boolean(blockedArticleIds?.has(article.id))} />
                   <span className="text-[11px] text-slate-500 whitespace-nowrap">
                     {formatArticleDate(article)}
                   </span>
@@ -318,6 +324,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-2 text-xs text-slate-400 mb-2">
                     <div className="flex items-center gap-1.5 truncate">
+                      <ArticleBlockTag blocked={Boolean(blockedArticleIds?.has(article.id))} />
                       {article.feed_favicon ? (
                         <img
                           src={article.feed_favicon}
@@ -447,6 +454,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                 * 구분 기호는 뒤 항목에 붙어 있어서 혼자 남지 않는다.
                 */}
               <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap text-xs text-slate-400">
+                <ArticleBlockTag blocked={Boolean(blockedArticleIds?.has(article.id))} />
                 {!article.is_read && (
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                 )}

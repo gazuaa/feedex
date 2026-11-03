@@ -65,7 +65,8 @@ export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefresh
       <SettingGroup title="보기"><TextSizeSetting /><LayoutSetting layout={layout} onChangeLayout={onChangeLayout} /></SettingGroup>
       <SettingGroup title="읽기"><ScrollReadSetting {...props} /></SettingGroup>
       <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
-      {accountId && <SettingGroup title="이 기기">{onManageArticleBlocks && <ArticleBlockSetting accountId={accountId} onManage={() => { if (ref.current) ref.current.open = false; onManageArticleBlocks(); }} />}<CacheSettings accountId={accountId} /></SettingGroup>}
+      {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { if (ref.current) ref.current.open = false; onManageArticleBlocks(); }} /></SettingGroup>}
+      {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} /></SettingGroup>}
     </div>
   </details>;
 }

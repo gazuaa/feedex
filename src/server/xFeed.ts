@@ -47,6 +47,11 @@ export function originalUrl(value: string, provider: string, hosts: ReadonlySet<
   try {
     const url = new URL(value, provider);
     if (!hosts.has(url.hostname)) return value;
+    // 스트리밍 주소는 미러의 서명 경로 안에 들어 있다. 영상 데이터는 기기가 X 영상 서버에서 받는다.
+    if (url.pathname.startsWith('/video/')) {
+      const source = decodeURIComponent(url.pathname.split('/').slice(3).join('/'));
+      if (/^https:\/\/video\.twimg\.com\//i.test(source)) return source;
+    }
     // 이미지 프록시 주소를 원래 공개 이미지 주소로 돌려 혼합 콘텐츠와 불필요한 경유를 줄인다.
     if (url.pathname.startsWith('/pic/')) {
       const path = decodeURIComponent(url.pathname.slice(5));
