@@ -290,8 +290,9 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
     </section>
   );
 
+  // 데스크톱 위쪽 막대(z-index 90)보다 위에 놓아야 막대까지 함께 어둡게 가려진다.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center sm:p-4">
       <div
         className="fixed inset-0 bg-black/65 backdrop-blur-xs"
         onClick={() => { if (!modalBusy) onClose(); }}
