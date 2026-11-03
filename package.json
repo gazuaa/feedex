@@ -1,5 +1,5 @@
 {
-  "name": "sfeed",
+  "name": "feedex",
   "private": true,
   "version": "1.0.0",
   "description": "Feedly-inspired Modern RSS Reader powered by React, Hono, Cloudflare D1 & Workers AI",

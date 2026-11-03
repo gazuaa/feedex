@@ -28,7 +28,7 @@ crons = ["*/15 * * * *"]
 
 [vars]
 OWNER_EMAIL = "jonyq659@gmail.com"
-GH_REPO = "gazuaa/sfeed"
+GH_REPO = "gazuaa/feedex"
 GOOGLE_CLIENT_ID = "649668487161-f4hutlff1sc7klvplnrm3dki5u3oh3ht.apps.googleusercontent.com"
 AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 
