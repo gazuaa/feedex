@@ -36,6 +36,7 @@ import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { presentReaderSlide } from '../client/swipeBack';
 import type { ArticleResources } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
+import { WebLoginActions } from './WebLoginActions';
 import { TextSizeControl } from './ReadingSettings';
 import { publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
@@ -781,6 +782,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
         {mode === 'web' ? (
           <div className="sfeed-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
+            {!xPost && <WebLoginActions key={article.id} url={article.url} isDark={isDark} onReload={() => {
+              setWebCopy(null); setReadingPreview(false); setLoadedFrame(null);
+              setFrame({ articleId: article.id, embeddable: true, url: article.url });
+              setFrameReloads(count => count + 1);
+            }} />}
             {xWaiting || (copyReady && !readingPreview && frame?.articleId === article.id && !frame.embeddable) ? (
               <>
                 <div
@@ -860,7 +866,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                       transform: `scale(${webZoom})`,
                       transformOrigin: '0 0',
                     }}
-                    sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms"
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-storage-access-by-user-activation"
                     onError={showWebCopy}
                     onLoad={() => setLoadedFrame(article.id)}
                     referrerPolicy="strict-origin-when-cross-origin"

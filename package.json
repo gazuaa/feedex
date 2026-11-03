@@ -40,6 +40,8 @@
     "test:coindesk-web": "node scripts/verify-coindesk-web.mjs",
     "test:web-loading": "node scripts/verify-web-loading.mjs",
     "test:x-reopen": "node scripts/verify-x-reopen.mjs",
+    "test:feed-editing": "node scripts/verify-feed-editing.mjs",
+    "test:original-login": "node scripts/verify-original-login.mjs",
     "test:feed-history": "node scripts/verify-feed-history.mjs",
     "test:feed-pause": "node scripts/verify-feed-pause.mjs"
   },

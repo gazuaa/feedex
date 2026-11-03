@@ -1,8 +1,22 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Archive, BookOpen, Bookmark, CheckCheck, CheckCircle2, Circle, Copy, ExternalLink, FolderInput, FolderOpen, FolderX, History, Link2, ListFilter, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, UserRoundMinus, type LucideIcon } from 'lucide-react';
 import { bindLongPress } from '../client/longPress';
 
 export interface AppContextTarget { articleId?: string; folderId?: string; feedId?: string; link?: string; selection?: string }
 export interface AppContextAction { id: string; label: string; run: () => void | Promise<unknown>; danger?: boolean; separator?: boolean }
+
+const MENU_ICONS: Record<string, LucideIcon> = {
+  'copy-text': Copy, 'open-article': BookOpen, read: CheckCircle2, save: Bookmark,
+  'block-title': ListFilter, 'edit-builder': Pencil, 'feed-history': History, 'rename-feed': Pencil,
+  'open-feed': Newspaper, 'mark-feed': CheckCheck, 'move-feed': FolderInput, updates: Pause,
+  unsubscribe: UserRoundMinus, 'open-folder': FolderOpen, 'mark-folder': CheckCheck, 'delete-folder': FolderX,
+  'open-original': ExternalLink, 'copy-link': Link2, all: Archive, refresh: RefreshCw, add: Plus,
+};
+export function contextMenuIcon(item: Pick<AppContextAction, 'id' | 'label'>): LucideIcon {
+  if (item.id === 'updates' && item.label.includes('다시')) return Play;
+  if (item.id === 'read' && item.label.startsWith('안 읽음')) return Circle;
+  return MENU_ICONS[item.id] || Rss;
+}
 
 export function DesktopContextMenu({ enabled, touch = false, actions }: { enabled: boolean; touch?: boolean; actions: (target: AppContextTarget) => AppContextAction[] }) {
   const latest = useRef(actions); latest.current = actions;
@@ -55,11 +69,11 @@ export function DesktopContextMenu({ enabled, touch = false, actions }: { enable
       if (event.key === 'Escape' || event.key === 'Tab') { setMenu(null); if (event.key === 'Escape') { event.preventDefault(); previousFocus.current?.focus(); } return; }
       const next = event.key === 'ArrowDown' ? (index + 1) % buttons.length : event.key === 'ArrowUp' ? (index + buttons.length - 1) % buttons.length : event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : null;
       if (next !== null) { event.preventDefault(); buttons[next]?.focus(); }
-    }}>{menu.items.map((item) => <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} data-separator={item.separator || undefined} onClick={() => {
+    }}>{menu.items.map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} data-separator={item.separator || undefined} onClick={() => {
       setMenu(null);
       try { void Promise.resolve(item.run()).catch(() => setNotice('작업을 완료하지 못했습니다. 다시 시도해 주세요.')); }
       catch { setNotice('작업을 완료하지 못했습니다. 다시 시도해 주세요.'); }
-    }}>{item.label}</button>)}</div>}
+    }}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>}
     {notice && <div role="status" className="sfeed-context-notice">{notice}</div>}
   </>;
 }

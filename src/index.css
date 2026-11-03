@@ -60,7 +60,8 @@ html.dark .sfeed-block-bar button, html.dark .sfeed-block-empty button, html.dar
 .sfeed-notice { position: fixed; z-index: 120; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: min(420px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 14px; background: #0f172aeb; color: #f8fafc; box-shadow: 0 8px 24px #0004; font-size: 13px; line-height: 1.45; text-align: center; pointer-events: none; }
 @media (min-width: 1024px) { .sfeed-notice { bottom: 24px; } }
 .sfeed-context-menu { position: fixed; z-index: 200; min-width: 210px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; padding: 5px; border: 1px solid var(--sfeed-border); border-radius: 13px; background: var(--sfeed-panel); color: var(--sfeed-text); box-shadow: 0 12px 38px #0003; }
-.sfeed-context-menu > button { display: block; width: 100%; min-height: 34px; padding: 7px 11px; border-radius: 8px; text-align: left; font-size: 13px; cursor: pointer; outline: none; }
+.sfeed-context-menu > button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; padding: 7px 11px; border-radius: 8px; text-align: left; font-size: 13px; cursor: pointer; outline: none; }
+.sfeed-context-menu > button > svg { flex: 0 0 auto; }
 .sfeed-context-menu > button:hover, .sfeed-context-menu > button:focus-visible { background: var(--sfeed-background); color: #10b981; }
 .sfeed-context-menu > button[data-danger] { color: #f43f5e; }
 .sfeed-context-menu > button[data-separator] { border-top: 1px solid var(--sfeed-border); margin-top: 4px; padding-top: 11px; border-radius: 0 0 8px 8px; }

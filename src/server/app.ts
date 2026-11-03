@@ -742,25 +742,19 @@ app.post('/api/subscriptions', async (c) => {
 app.put('/api/subscriptions/:id', async (c) => {
   const user = c.get('user');
   const subId = c.req.param('id');
-  const body = await c.req.json<{
-    folderId?: string | null;
-    customTitle?: string | null;
-  }>();
-  // 구독은 사용자 본인의 폴더로만 옮길 수 있다.
-  if (body.folderId && !(await c.env.DB.prepare('SELECT 1 FROM folders WHERE id = ? AND user_id = ?').bind(body.folderId, user.id).first())) {
-    return c.json({ error: '폴더를 찾을 수 없습니다.' }, 404);
-  }
-
-  await c.env.DB.prepare(
-    `UPDATE subscriptions
-     SET folder_id = ?,
-         custom_title = COALESCE(?, custom_title)
-     WHERE id = ? AND user_id = ?`
-  )
-    .bind(body.folderId ?? null, body.customTitle ?? null, subId, user.id)
-    .run();
-
-  return c.json({ success: true });
+  const subscription = await c.env.DB.prepare('SELECT f.title FROM subscriptions s JOIN feeds f ON f.id=s.feed_id WHERE s.id=? AND s.user_id=?').bind(subId, user.id).first<{ title: string }>();
+  if (!subscription) return c.json({ error: '구독을 찾을 수 없습니다.' }, 404);
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ error: '수정할 내용을 확인해 주세요.' }, 400);
+  const hasFolder = Object.hasOwn(body, 'folderId'), hasTitle = Object.hasOwn(body, 'customTitle');
+  if (!hasFolder && !hasTitle) return c.json({ error: '수정할 내용을 확인해 주세요.' }, 400);
+  if (hasFolder && body.folderId !== null && (typeof body.folderId !== 'string' || !body.folderId)) return c.json({ error: '폴더를 확인해 주세요.' }, 400);
+  if (hasTitle && body.customTitle !== null && (typeof body.customTitle !== 'string' || !body.customTitle.trim() || body.customTitle.trim().length > 200 || /[\u0000-\u001f\u007f]/.test(body.customTitle))) return c.json({ error: '피드 이름은 1~200자로 입력해 주세요.' }, 400);
+  // 생략한 값은 유지한다. 이름만 고칠 때 기존 폴더가 미분류로 바뀌면 안 된다.
+  if (hasFolder && body.folderId && !(await c.env.DB.prepare('SELECT 1 FROM folders WHERE id=? AND user_id=?').bind(body.folderId, user.id).first())) return c.json({ error: '폴더를 찾을 수 없습니다.' }, 404);
+  const title = hasTitle && body.customTitle !== null ? body.customTitle.trim() : null;
+  await c.env.DB.prepare(`UPDATE subscriptions SET folder_id=CASE WHEN ? THEN ? ELSE folder_id END, custom_title=CASE WHEN ? THEN ? ELSE custom_title END WHERE id=? AND user_id=?`).bind(Number(hasFolder), body.folderId ?? null, Number(hasTitle), title, subId, user.id).run();
+  return c.json({ success: true, ...(hasTitle ? { customTitle: title, title: title || subscription.title } : {}) });
 });
 
 // 구독 끊기
