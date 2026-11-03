@@ -14,7 +14,7 @@ try {
   };
   const owner = await login('history-owner@example.test'), other = await login('history-other@example.test');
   const date = days => new Date(Date.now() - days * 86400_000).toISOString();
-  const article = n => ({ guid: `rss-${n}`, title: `History article number ${n}`, url: `https://history.example.test/post/${n}`, author: null, summary: null, contentHtml: null, thumbnailUrl: null, publishedAt: date(1 + n % 2), dateSource: 'feed' });
+  const article = n => ({ guid: `rss-${n}`, title: `History article number ${n}`, url: n === 0 ? 'http://www.history.example.test/post/0/' : `https://history.example.test/post/${n}`, author: null, summary: null, contentHtml: null, thumbnailUrl: null, publishedAt: date(1 + n % 2), dateSource: 'feed' });
   const { feedId } = await upsertFeedAndArticles(db, { xmlUrl: 'https://history.example.test/feed', htmlUrl: 'https://history.example.test', title: 'History', faviconUrl: null, description: null, articles: [article(0)] });
   await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('sub-history', owner.userId, feedId, date(0)).run();
   const existing = await db.prepare('SELECT id FROM articles WHERE feed_id=?').bind(feedId).first();
@@ -41,15 +41,15 @@ try {
   await step(); assert.equal(job.added, 1); assert.equal(job.pages, 1);
   const before = requests.length; await owner(`${path}/step`, { revision: job.revision - 1 }); assert.equal(requests.length, before, 'stale requests never refetch');
   assert.deepEqual((await owner(path)).job, job, 'reopening restores progress without upstream requests');
-  await step(); await step(); await step();
+  for (let i = 0; i < 10 && job.reason === 'ready'; i++) await step();
   assert.equal(job.added, 100); assert.equal(job.reason, 'limit');
   assert.equal((await db.prepare('SELECT count(*) AS n FROM articles WHERE feed_id=?').bind(feedId).first()).n, 101);
-  assert.equal((await db.prepare('SELECT count(*) AS n FROM articles WHERE feed_id=? AND url LIKE ?').bind(feedId, '%post/0').first()).n, 1, 'web URL and RSS guid do not create copies');
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM articles WHERE feed_id=? AND url LIKE ?').bind(feedId, '%post/0%').first()).n, 1, 'web URL and RSS guid do not create copies');
   const originalState = await db.prepare('SELECT is_read,is_saved FROM article_states WHERE user_id=? AND article_id=?').bind(owner.userId, existing.id).first();
   assert.deepEqual([originalState.is_read, originalState.is_saved], [0, 1], 'existing unread and saved state stays intact');
   assert.equal((await db.prepare('SELECT count(*) AS n FROM article_states WHERE user_id=? AND is_read=1').bind(owner.userId).first()).n, 100);
   assert.equal((await db.prepare('SELECT count(*) AS n FROM article_states WHERE user_id=?').bind(other.userId).first()).n, 0, 'history read setting affects only the requesting account');
-  const expanded = await owner(path, { options: { ...options, limit: 500 } }); assert.equal(expanded.status, 200); job = expanded.job; await step();
+  const expanded = await owner(path, { options: { ...options, limit: 500 } }); assert.equal(expanded.status, 200); job = expanded.job; for (let i = 0; i < 10 && job.reason === 'ready'; i++) await step();
   assert.equal(job.added, 120); assert.equal(job.status, 'done');
   assert.equal((await db.prepare('SELECT count(*) AS n FROM articles WHERE feed_id=?').bind(feedId).first()).n, 121, 'resume continues from the middle of a page');
   job = (await owner(path, { options, restart: true })).job; limited = true; await step();

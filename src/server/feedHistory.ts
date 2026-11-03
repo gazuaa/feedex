@@ -104,7 +104,7 @@ routes.post('/:id/history/step', async c => {
           let index = offset;
           // 한 요청의 데이터베이스 작업량도 제한한다. 페이지 중간에서 멈추면 항목 위치를 보관한다.
           const candidates: ParsedArticle[] = [];
-          const room = Math.min(80, state.options.limit - state.added);
+          const room = Math.min(40, state.options.limit - state.added);
           for (; index < page.articles.length && candidates.length < room; index++) {
             const article = page.articles[index]; state.checked++;
             try { publicPageUrl(article.url); } catch { continue; }

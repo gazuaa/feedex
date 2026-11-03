@@ -20,7 +20,7 @@ export function canonicalHistoryUrl(value: string): string {
 }
 export function historyUrlVariants(value: string): string[] {
   const original = new URL(value), normal = new URL(canonicalHistoryUrl(value)), result = new Set([original.href, normal.href]);
-  for (const scheme of ['https:', 'http:']) for (const www of ['', 'www.']) { const next = new URL(normal); next.protocol = scheme; next.hostname = www + normal.hostname; result.add(next.href); }
+  for (const scheme of ['https:', 'http:']) for (const www of ['', 'www.']) { const next = new URL(normal); next.protocol = scheme; next.hostname = www + normal.hostname; result.add(next.href); if (!next.search && next.pathname !== '/' && !/\.[a-z0-9]+$/i.test(next.pathname)) { next.pathname += '/'; result.add(next.href); } }
   return [...result];
 }
 async function readPage(input: string, accept: string): Promise<{ text: string; url: string; links: string }> {
