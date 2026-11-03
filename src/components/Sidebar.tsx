@@ -104,8 +104,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setCreatingFolder(false);
   };
 
-  const visibleSubscriptions = libraryTab === 'unread' ? subscriptions.filter((sub) => sub.unread_count > 0) : subscriptions;
-  const visibleFolders = libraryTab === 'unread' ? folders.filter((folder) => visibleSubscriptions.some((sub) => sub.folder_id === folder.id)) : folders;
+  // 안 읽음 탭은 안 읽은 글이 있는 피드만 보인다. 지금 고른 폴더·피드는 안 읽은 글이 없어도 남긴다.
+  const visibleSubscriptions = libraryTab === 'unread' ? subscriptions.filter((sub) => sub.unread_count > 0 || (activeScope === 'feed' && sub.feed_id === activeFeedId)) : subscriptions;
+  const visibleFolders = libraryTab === 'unread' ? folders.filter((folder) => visibleSubscriptions.some((sub) => sub.folder_id === folder.id) || (activeScope === 'folder' && folder.id === activeFolderId)) : folders;
   const uncategorizedSubs = visibleSubscriptions.filter(
     (s) => !s.folder_id || !folders.some((f) => f.id === s.folder_id)
   );

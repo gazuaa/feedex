@@ -60,6 +60,7 @@ try {
   const desktopUnread = renderToStaticMarkup(React.createElement(Sidebar, { ...shared, libraryTab: 'unread' }));
   assert.ok(!desktopUnread.includes('Zero folder') && !desktopUnread.includes('Zero feed')); assert.match(desktopUnread, /Unread feed/);
   assert.match(renderToStaticMarkup(React.createElement(Sidebar, { ...shared, libraryTab: 'all' })), /Zero folder/);
+  assert.match(renderToStaticMarkup(React.createElement(Sidebar, { ...shared, libraryTab: 'unread', activeScope: 'folder', activeFolderId: 'empty-folder' })), /Zero folder/, 'the open folder stays in the unread tab even with nothing unread');
   const { ArticleList } = await vite.ssrLoadModule('/src/components/ArticleList.tsx');
   const article = { id: 'no-image', feed_id: 'unread', feed_title: 'Example', feed_favicon: 'https://example.test/logo.svg', feed_html_url: 'https://example.test', title: 'No thumbnail', url: 'https://example.test/post', thumbnail_url: '', published_at: new Date().toISOString(), is_read: false, is_saved: false };
   for (const layout of ['magazine', 'cards']) {

@@ -627,14 +627,20 @@ export const App: React.FC = () => {
     savePreferences({ unreadOnly: unread });
     handleSelectScope(tab === 'saved' ? 'saved' : 'all');
   };
-  const handleSelectDesktopScope = (scope: ScopeType, folderId: string | null = null, feedId: string | null = null) => {
+  const handleSelectDesktopScope = (scope: ScopeType, folderId: string | null = null, feedId: string | null = null, tab: LibraryTab = desktopLibraryTab) => {
     unreadSessions.forEach((session) => session.clear());
     if (retainReadRows) setArticles((rows) => rows.filter((article) => !article.is_read));
-    const unread = desktopLibraryTab === 'unread';
-    setUnreadOnly(unread); setSavedOnly(desktopLibraryTab === 'saved' && (scope === 'folder' || scope === 'feed'));
+    const unread = tab === 'unread';
+    setUnreadOnly(unread); setSavedOnly(tab === 'saved' && (scope === 'folder' || scope === 'feed'));
     if (unread !== unreadOnly) void savePreferences({ unreadOnly: unread });
     // 검색어는 지우기 전까지 남아서, 다음에 고른 목록도 좁혀 보여 준다.
-    handleSelectScope(scope === 'all' && desktopLibraryTab === 'saved' ? 'saved' : scope, folderId, feedId);
+    handleSelectScope(scope === 'all' && tab === 'saved' ? 'saved' : scope, folderId, feedId);
+  };
+  // 사이드바 위 탭(전체·안 읽음·저장)은 고른 폴더·피드를 그대로 두고, 그 목록을 새 탭으로 거른다.
+  const handleSelectDesktopTab = (tab: LibraryTab) => {
+    if (tab === desktopLibraryTab) return;
+    setDesktopLibraryTab(tab);
+    handleSelectDesktopScope(activeScope === 'saved' ? 'all' : activeScope, activeFolderId, activeFeedId, tab);
   };
 
   const handleUpdateArticleState = useCallback(
@@ -1334,7 +1340,7 @@ export const App: React.FC = () => {
             activeFolderId={activeFolderId}
             activeFeedId={activeFeedId}
             onSelectScope={handleSelectDesktopScope}
-            onSelectLibraryTab={setDesktopLibraryTab}
+            onSelectLibraryTab={handleSelectDesktopTab}
             onOpenDiscover={(tab = 'curated') => {
               setDiscoverTab(tab);
               setDiscoverOpen(true);
