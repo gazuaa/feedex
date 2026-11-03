@@ -85,6 +85,17 @@ try {
       <div class="timeline-item"><div class="tweet-body"><div><div class="tweet-header"><div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="/other">Other</a><a class="username" href="/other">@other</a></div><span class="tweet-date"><a href="/other/status/2000000000000000003#m">4m</a></span></div></div></div><div class="tweet-content media-body">Nested reply</div></div></div></div>
       <div class="show-more"><a href="?cursor=abc#r">Load more</a></div></div></div></body></html>`;
   const xml = (provider, username) => `<?xml version="1.0"?><rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Example / @${username}</title><link>${provider}/${username}</link><image><url>${provider}/pic/https%3A%2F%2Fpbs.twimg.com%2Fprofile_images%2F123%2Favatar.jpg</url></image><item><guid>2000000000000000001</guid><title>A real post</title><link>${provider}/${username}/status/2000000000000000001#m</link><dc:creator>@${username}</dc:creator><pubDate>Mon, 02 Nov 2026 10:00:00 GMT</pubDate><description><![CDATA[<p>Real post body</p><img src="${provider}/pic/media%2Fphoto.jpg"/><a href="https://example.test/?a=1&amp;b=2">link</a><cite><a href="${provider}/quoted/status/1999#m">${provider}/quoted/status/1999#m</a></cite>]]></description></item><item><title>Unsafe post</title><link>https://evil.test/a</link></item></channel></rss>`;
+  // 쪽으로 나뉜 미러 RSS: 한 쪽에 20개, Min-Id 헤더가 다음(더 옛날) 쪽의 위치다. 글 번호가 클수록 최근 글이다.
+  let historyNewest = 45, pagedLimited = false;
+  const pagedResponse = (url) => {
+    const cursor = url.searchParams.get('cursor');
+    if (cursor && pagedLimited) return new Response('', { status: 429 });
+    const top = cursor ? Number(/^cursor-(\d+)$/.exec(cursor)?.[1] || 0) : historyNewest;
+    const ids = Array.from({ length: Math.max(0, Math.min(20, top)) }, (_, i) => top - i);
+    const items = ids.map((n) => `<item><title>History ${n}</title><link>${url.origin}/history/status/3000000000000000${String(n).padStart(3, '0')}#m</link><pubDate>${new Date(Date.now() - (100 - n) * 3600_000).toUTCString()}</pubDate><description><![CDATA[<p>History ${n}</p>]]></description></item>`).join('');
+    const next = ids.length ? `cursor-${ids.at(-1) - 1}` : cursor;
+    return new Response(`<?xml version="1.0"?><rss version="2.0"><channel><title>History / @history</title><link>${url.origin}/history</link>${items}</channel></rss>`, { headers: { 'Min-Id': next || 'cursor-0' } });
+  };
   globalThis.fetch = async (input, options = {}) => {
     const url = new URL(input);
     if (url.hostname === 'api.x.com') {
@@ -117,6 +128,7 @@ try {
       if (pageMode === 'down') return new Response('', { status: 503 });
       return new Response(statusPage(url.pathname.split('/')[1]));
     }
+    if (rssMode === 'paged') return pagedResponse(url);
     if (rssMode === 'limited') return new Response('', { status: 429, headers: { 'Retry-After': '60' } });
     if (rssMode === 'fallback' && url.hostname === 'nitter.mie.foundation') return new Response('', { status: 503 });
     if (rssMode === 'one-limited' && url.hostname === 'nitter.mie.foundation') return new Response('<html>Instance has been rate limited</html>', { status: 429 });
@@ -367,5 +379,40 @@ try {
   let stopped = false; runs = 0;
   outcome = await importWithinLimits(async () => { runs++; return limitedResult; }, { pause: { wait: async () => { stopped = true; }, cancel: () => {} }, stopped: () => stopped, onWait: () => {} });
   assert.deepEqual([outcome.limited, runs], [true, 1], '기다리는 중에 중단하면 다시 요청하지 않는다.');
-  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, and an X-style timeline for X folders.');
+  // 예전 글 채우기: 미러의 다음 쪽을 계정마다 기억하고, 새로고침 뒤에 한 쪽씩 받는다.
+  const backfillNow = Date.now; Date.now = () => backfillNow() + 11 * 60_000;
+  try {
+    rssMode = 'paged';
+    const { fetchAndParseFeed: fetchFeed } = await vite.ssrLoadModule('/src/server/rssParser.ts');
+    const { upsertFeedAndArticles } = await vite.ssrLoadModule('/src/server/seedService.ts');
+    const { refreshStoredFeeds } = await vite.ssrLoadModule('/src/server/feedLoader.ts');
+    const { noteXFeed, backfillXFeeds } = await vite.ssrLoadModule('/src/server/xBackfill.ts');
+    const first = await fetchFeed('@history');
+    assert.equal(first.articles.length, 20); assert.equal(first.xOlder.cursor, 'cursor-25');
+    const { feedId } = await upsertFeedAndArticles(db, first);
+    const reader = (await db.prepare('SELECT id FROM users LIMIT 1').first()).id;
+    await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('sub-history', reader, feedId, new Date().toISOString()).run();
+    await noteXFeed(db, feedId, first, 20);
+    const row = () => db.prepare('SELECT cursor,pages,failures FROM x_backfill WHERE feed_id=?').bind(feedId).first();
+    assert.deepEqual({ ...await row() }, { cursor: 'cursor-25', pages: 1, failures: 0 }, '처음 받은 계정은 다음 쪽 위치를 기억한다.');
+    const count = async () => (await db.prepare('SELECT COUNT(*) AS n FROM articles WHERE feed_id=?').bind(feedId).first()).n;
+    const readCount = async () => (await db.prepare('SELECT COUNT(*) AS n FROM article_states st JOIN articles a ON a.id=st.article_id WHERE a.feed_id=? AND st.is_read=1').bind(feedId).first()).n;
+    pagedLimited = true; const callsBefore = rssCalls.length;
+    assert.equal(await backfillXFeeds(db), 0); assert.equal(rssCalls.length, callsBefore + 1);
+    assert.deepEqual({ ...await row() }, { cursor: 'cursor-25', pages: 1, failures: 0 }, '미러가 한도를 알리면 위치를 그대로 두고 그만 받는다.');
+    pagedLimited = false; Date.now = () => backfillNow() + 22 * 60_000;
+    assert.equal(await backfillXFeeds(db), 20); assert.deepEqual({ ...await row() }, { cursor: 'cursor-5', pages: 2, failures: 0 });
+    assert.equal(await backfillXFeeds(db), 5); assert.deepEqual({ ...await row() }, { cursor: 'cursor-0', pages: 3, failures: 0 });
+    assert.equal(await backfillXFeeds(db), 0); assert.deepEqual({ ...await row() }, { cursor: null, pages: 4, failures: 0 }, '빈 쪽이 오면 끝까지 받은 것이다.');
+    const calls = rssCalls.length; await backfillXFeeds(db); assert.equal(rssCalls.length, calls, '다 받은 계정은 다시 부르지 않는다.');
+    assert.equal(await count(), 45);
+    assert.equal(await readCount(), 25, '뒤늦게 채운 예전 글은 읽은 글로 두고, 처음 받은 글은 그대로 둔다.');
+    // 새로고침 사이에 25개가 올라오면 첫 쪽이 모두 새 글이다. 다음 쪽으로 이미 받은 글이 나올 때까지 채운다.
+    historyNewest = 70; Date.now = () => backfillNow() + 40 * 60_000;
+    await refreshStoredFeeds(env, [{ id: feedId, xml_url: 'https://x.com/history', builder_source_url: null, builder_selector: null, builder_title: null }]);
+    assert.equal(await count(), 70, '빠진 글 다섯 개도 채운다.');
+    assert.equal(await readCount(), 25, '빠진 구간의 글은 새 글이라 안 읽은 글로 둔다.');
+    assert.deepEqual({ ...await row() }, { cursor: null, pages: 4, failures: 0 }, '빠진 글 채우기는 예전 글 위치를 바꾸지 않는다.');
+  } finally { Date.now = backfillNow; rssMode = 'ok'; }
+  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, an X-style timeline for X folders, and paced backfill of older X posts with gap filling.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }

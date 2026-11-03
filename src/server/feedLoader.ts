@@ -3,6 +3,7 @@ import { fetchAndParseFeed } from './rssParser';
 import { analyseBuilderPage, builderParsedFeed } from './rssBuilder';
 import { upsertFeedAndArticles } from './seedService';
 import { xProfile } from '../shared/xFeed';
+import { noteXFeed } from './xBackfill';
 
 export interface StoredFeed { id: string; xml_url: string; builder_source_url: string | null; builder_selector: string | null; builder_title: string | null }
 export const storedFeedColumns = 'f.id, f.xml_url, b.source_url AS builder_source_url, b.selector AS builder_selector, b.title AS builder_title';
@@ -17,8 +18,12 @@ export async function loadStoredFeed(env: Env, feed: StoredFeed) {
 export async function refreshStoredFeeds(env: Env, feeds: StoredFeed[]): Promise<number> {
   let inserted = 0;
   const refresh = async (feed: StoredFeed) => {
-    try { const result = await upsertFeedAndArticles(env.DB, await loadStoredFeed(env, feed)); inserted += result.insertedCount; }
-    catch (error) { await env.DB.prepare('UPDATE feeds SET last_error = ?, last_fetched_at = ? WHERE id = ?').bind(error instanceof Error ? error.message : 'Refresh failed', new Date().toISOString(), feed.id).run(); }
+    try {
+      const parsed = await loadStoredFeed(env, feed), result = await upsertFeedAndArticles(env.DB, parsed);
+      inserted += result.insertedCount;
+      // X 계정의 예전 글 위치와 빠진 글 채우기는 새로고침 성공에 영향을 주지 않는다.
+      if (parsed.xOlder) await noteXFeed(env.DB, result.feedId, parsed, result.insertedCount).catch(() => {});
+    } catch (error) { await env.DB.prepare('UPDATE feeds SET last_error = ?, last_fetched_at = ? WHERE id = ?').bind(error instanceof Error ? error.message : 'Refresh failed', new Date().toISOString(), feed.id).run(); }
   };
   const xFeeds = feeds.filter((feed) => !feed.builder_source_url && xProfile(feed.xml_url));
   let nextX = 0;

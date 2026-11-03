@@ -3,7 +3,7 @@ import type { OpmlFeed } from '../shared/opml';
 import { CURATED_FEEDS } from './curatedFeeds';
 import { extractOriginalPublishedAt, extractSummaryPublishedAt, parsePublicationDate } from './publicationDate';
 import { xProfile } from '../shared/xFeed';
-import { fetchXFeed } from './xFeed';
+import { fetchXFeed, type XOlderPage } from './xFeed';
 
 export interface ParsedArticle {
   guid: string;
@@ -25,6 +25,8 @@ export interface ParsedFeed {
   description: string | null;
   faviconUrl: string | null;
   articles: ParsedArticle[];
+  /** X 계정 피드만: 미러가 알려 준 더 옛날 글 쪽. */
+  xOlder?: XOlderPage;
 }
 
 const xmlParser = new XMLParser({

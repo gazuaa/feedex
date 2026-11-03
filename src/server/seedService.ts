@@ -85,11 +85,17 @@ export async function upsertFeedAndArticles(
       .run();
   }
 
+  const { insertedCount } = await saveFeedArticles(db, feedId, parsed.articles, now);
+  return { feedId, insertedCount };
+}
+
+/** 피드 하나의 글을 저장한다. 새로 들어간 글의 id도 돌려준다(X 예전 글 채우기가 읽음 표시에 쓴다). */
+export async function saveFeedArticles(db: D1DatabaseLike, feedId: string, articles: ParsedFeed['articles'], now = new Date().toISOString()): Promise<{ insertedCount: number; insertedIds: string[] }> {
   // 기존 행을 한꺼번에 가져오고, 한 문장에 글을 최대 여덟 개까지 쓴다.
   // 그래서 피드 새로고침이 Workers/D1 쿼리 한도 아래에 머문다 (매개변수 최대 96개).
   const existing = new Map<string, ExistingArticle>();
-  for (let offset = 0; offset < parsed.articles.length; offset += 80) {
-    const chunk = parsed.articles.slice(offset, offset + 80);
+  for (let offset = 0; offset < articles.length; offset += 80) {
+    const chunk = articles.slice(offset, offset + 80);
     const rows = await db.prepare(
       `SELECT a.id,a.guid,a.published_at,a.created_at,d.source AS date_source,
               (a.thumbnail_url IS NULL OR a.thumbnail_url = '') AS no_thumbnail,a.content_html IS NULL AS no_content
@@ -100,7 +106,7 @@ export async function upsertFeedAndArticles(
 
   // 피드는 몇 분마다 새로고침하므로 바뀌는 것만 쓴다: 새 글, 그리고 아래 ON CONFLICT 절이
   // 나아지게 할 기존 행. 새로고침마다 모든 항목을 다시 쓰면 매번 D1 행 쓰기 비용이 든다.
-  const toWrite = parsed.articles.filter((article) => {
+  const toWrite = articles.filter((article) => {
     const row = existing.get(article.guid);
     if (!row) return true;
     return (
@@ -119,6 +125,7 @@ export async function upsertFeedAndArticles(
   // 저장된 날짜가 피드 날짜보다 정확히 9시간 뒤면, 이미 지난 시각이어도 같은 KST 오독이다.
   // 날짜가 없는 항목은 "지금"으로 대신하는데, 이 값은 더 이를 수 없으므로 날짜를 덮어쓰지 않는다.
   let insertedCount = 0;
+  const insertedIds: string[] = [];
   const seenGuids = new Set(existing.keys());
   const articleIds = new Map([...existing].map(([guid, row]) => [guid, row.id]));
   const statements = [];
@@ -127,9 +134,11 @@ export async function upsertFeedAndArticles(
     const originalDateGuids = chunk.filter((article) => article.originalPublishedAt).map((article) => article.guid);
     const values: unknown[] = [];
     for (const article of chunk) {
-      if (!seenGuids.has(article.guid)) insertedCount++;
+      const fresh = !seenGuids.has(article.guid);
+      if (fresh) insertedCount++;
       seenGuids.add(article.guid);
       const id = articleIds.get(article.guid) || generateId('art');
+      if (fresh) insertedIds.push(id);
       articleIds.set(article.guid, id);
       values.push(
         id, feedId, article.guid, article.title, article.url,
@@ -158,7 +167,7 @@ export async function upsertFeedAndArticles(
   }
   if (statements.length > 0) await db.batch(statements);
 
-  const dates = parsed.articles.filter((article) => {
+  const dates = articles.filter((article) => {
     const previous = existing.get(article.guid)?.date_source;
     return !previous || (previous !== 'original' && previous !== (article.dateSource || 'feed'));
   });
@@ -169,5 +178,5 @@ export async function upsertFeedAndArticles(
   }
   if (dateStatements.length) await db.batch(dateStatements);
 
-  return { feedId, insertedCount };
+  return { insertedCount, insertedIds };
 }

@@ -3,6 +3,7 @@ import { pruneReaderChanges } from './server/readerSync';
 import type { Env } from './server/types';
 import { generatedRss, refreshStoredFeeds, storedFeedColumns, type StoredFeed } from './server/feedLoader';
 import { checkFeedPublicationDates } from './server/articlePublication';
+import { backfillXFeeds } from './server/xBackfill';
 
 export default {
   async fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
@@ -51,6 +52,8 @@ export default {
 
     const feeds = res.results || [];
     await refreshStoredFeeds(env, feeds);
+    // X 계정의 예전 글은 새로고침이 끝난 뒤 몇 쪽씩 채운다.
+    await backfillXFeeds(env.DB).catch(() => 0);
     await checkFeedPublicationDates(env.DB, feeds.map((feed) => feed.id));
     await pruneReaderChanges(env.DB);
   },

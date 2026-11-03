@@ -1,4 +1,4 @@
-import type { ParsedFeed } from './rssParser';
+import type { ParsedArticle, ParsedFeed } from './rssParser';
 import { xProfile } from '../shared/xFeed';
 
 export const providers = ['https://nitter.mie.foundation', 'https://nitter.mizuki.st'];
@@ -67,7 +67,65 @@ function profileImage(xml: string, provider: string, hosts: ReadonlySet<string>)
   return /^https:\/\/pbs\.twimg\.com\/profile_images\//.test(url) ? url : null;
 }
 
-export async function fetchXFeed(input: string, parse: (xml: string, url: string) => ParsedFeed): Promise<ParsedFeed> {
+type Parse = (xml: string, url: string) => ParsedFeed;
+/** 미러가 알려 준 더 옛날 글 쪽. 미러마다 위치 값이 다를 수 있어 그 미러와 함께 기억한다. */
+export interface XOlderPage { provider: string; cursor: string }
+// 미러 RSS는 Min-Id 헤더로 다음 쪽(더 옛날 글)의 위치를 알려 준다.
+const olderPage = (response: Response, provider: string): XOlderPage | undefined => {
+  const cursor = response.headers.get('Min-Id');
+  return cursor && /^[\w-]{8,500}$/.test(cursor) ? { provider, cursor } : undefined;
+};
+
+// 미러 RSS 한 쪽을 읽는다. 다른 계정이나 보안 확인 페이지면 null이다. 글 주소와 본문의 미러 주소는 X 주소로 바꾼다.
+function readXPage(xml: string, provider: string, profile: { username: string; url: string }, parse: Parse) {
+  if (!/<rss[\s>]/i.test(xml) || !/<channel[\s>]/i.test(xml)) return null;
+  const parsed = parse(xml, `${provider}/${profile.username}/rss`);
+  // 어떤 경로는 다른 공개 주소 이름으로 피드를 만든다. 피드가 채널 주소로 밝힌 호스트도 같은 경로로 본다.
+  const hosts = new Set([new URL(provider).hostname]);
+  try { if (parsed.htmlUrl) hosts.add(new URL(parsed.htmlUrl, provider).hostname); } catch { /* 채널 주소가 없으면 요청한 호스트만 쓴다. */ }
+  // 다른 계정이나 보안 확인 페이지를 피드로 잘못 저장하지 않는다.
+  const source = originalUrl(parsed.htmlUrl || '', provider, hosts);
+  if (xProfile(source)?.url !== profile.url) return null;
+  const articles: ParsedArticle[] = parsed.articles.flatMap((article) => {
+    const url = originalUrl(article.url, provider, hosts);
+    if (!/^https:\/\/x\.com\/[a-z\d_]{1,15}\/status\/\d+$/i.test(url)) return [];
+    return [{ ...article, guid: `x:${url.split('/').at(-1)}`, url,
+      thumbnailUrl: article.thumbnailUrl ? originalUrl(article.thumbnailUrl, provider, hosts) : null,
+      contentHtml: article.contentHtml?.replace(/((?:href|src)=["'])([^"']+)(["'])/gi, (_all, before, value, after) => `${before}${originalUrl(value.replace(/&amp;/gi, '&'), provider, hosts).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}${after}`)
+        // 인용 글 링크처럼 글자로 적힌 미러 주소도 X 주소로 바꾼다.
+        .replace(/https?:\/\/([a-z\d.-]+)(\/[^\s<>"']*)?/gi, (all, host) => hosts.has(host.toLowerCase()) ? originalUrl(all, provider, hosts).replace(/#m$/, '') : all) || null,
+    }];
+  });
+  return { parsed, hosts, articles };
+}
+
+/**
+ * 미러가 알려 준 다음 쪽(더 옛날 글 약 20개)을 받는다. `limited`는 미러가 쉬는 중이라 나중에 다시 받을 것,
+ * `failed`는 이 쪽을 받지 못한 것이다. 다음 쪽이 없으면 `older`가 비어 있다.
+ */
+export async function fetchXOlderPage(profileUrl: string, page: XOlderPage, parse: Parse): Promise<{ articles: ParsedArticle[]; older?: XOlderPage } | 'limited' | 'failed'> {
+  const profile = xProfile(profileUrl);
+  if (!profile || !providers.includes(page.provider)) return 'failed';
+  if (restingUntil(page.provider)) return 'limited';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`${page.provider}/${profile.username}/rss?cursor=${encodeURIComponent(page.cursor)}`, {
+      headers: { Accept: 'application/rss+xml, application/xml;q=0.9', 'User-Agent': 'SFeedRSS/1.0' },
+      redirect: 'manual', credentials: 'omit', signal: controller.signal,
+    });
+    if (response.status === 429) { restProvider(page.provider, response.headers.get('Retry-After')); await response.body?.cancel(); return 'limited'; }
+    if (!response.ok) { await response.body?.cancel(); return 'failed'; }
+    const read = readXPage(await readFeed(response), page.provider, profile, parse);
+    if (!read) return 'failed';
+    const older = olderPage(response, page.provider);
+    // 글이 없는 쪽이나 같은 위치를 다시 알려 주면 끝까지 받은 것이다.
+    return { articles: read.articles, older: read.articles.length && older?.cursor !== page.cursor ? older : undefined };
+  } catch { return 'failed'; }
+  finally { clearTimeout(timer); }
+}
+
+export async function fetchXFeed(input: string, parse: Parse): Promise<ParsedFeed> {
   const profile = xProfile(input);
   if (!profile) throw new XFeedError('X 계정의 프로필 주소를 입력해 주세요.');
   const cached = cache.get(profile.url);
@@ -98,29 +156,16 @@ export async function fetchXFeed(input: string, parse: (xml: string, url: string
         }
         if (!response.ok) { await response.body?.cancel(); continue; }
         const xml = await readFeed(response);
-        if (!/<rss[\s>]/i.test(xml) || !/<channel[\s>]/i.test(xml)) continue;
-        const parsed = parse(xml, `${provider}/${profile.username}/rss`);
-        // 어떤 경로는 다른 공개 주소 이름으로 피드를 만든다. 피드가 채널 주소로 밝힌 호스트도 같은 경로로 본다.
-        const hosts = new Set([new URL(provider).hostname]);
-        try { if (parsed.htmlUrl) hosts.add(new URL(parsed.htmlUrl, provider).hostname); } catch { /* 채널 주소가 없으면 요청한 호스트만 쓴다. */ }
-        // 다른 계정이나 보안 확인 페이지를 피드로 잘못 저장하지 않는다.
-        const source = originalUrl(parsed.htmlUrl || '', provider, hosts);
-        if (xProfile(source)?.url !== profile.url) continue;
+        const read = readXPage(xml, provider, profile, parse);
+        if (!read) continue;
+        const { parsed, hosts } = read;
         const feed: ParsedFeed = {
           ...parsed, xmlUrl: profile.url, htmlUrl: profile.url,
           description: `@${profile.username}의 공개 X 게시물`,
           // 채널 이미지는 계정의 프로필 사진이다. 목록과 X 타임라인의 얼굴로 쓴다.
           faviconUrl: profileImage(xml, provider, hosts) || 'https://abs.twimg.com/favicons/twitter.3.ico',
-          articles: parsed.articles.flatMap((article) => {
-            const url = originalUrl(article.url, provider, hosts);
-            if (!/^https:\/\/x\.com\/[a-z\d_]{1,15}\/status\/\d+$/i.test(url)) return [];
-            return [{ ...article, guid: `x:${url.split('/').at(-1)}`, url,
-              thumbnailUrl: article.thumbnailUrl ? originalUrl(article.thumbnailUrl, provider, hosts) : null,
-              contentHtml: article.contentHtml?.replace(/((?:href|src)=["'])([^"']+)(["'])/gi, (_all, before, value, after) => `${before}${originalUrl(value.replace(/&amp;/gi, '&'), provider, hosts).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}${after}`)
-                // 인용 글 링크처럼 글자로 적힌 미러 주소도 X 주소로 바꾼다.
-                .replace(/https?:\/\/([a-z\d.-]+)(\/[^\s<>"']*)?/gi, (all, host) => hosts.has(host.toLowerCase()) ? originalUrl(all, provider, hosts).replace(/#m$/, '') : all) || null,
-            }];
-          }),
+          articles: read.articles,
+          xOlder: olderPage(response, provider),
         };
         cachedBytes -= cache.get(profile.url)?.bytes || 0;
         cache.delete(profile.url);
