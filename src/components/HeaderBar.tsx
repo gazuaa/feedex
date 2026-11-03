@@ -33,6 +33,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   sort,
   onToggleSort,
   accountId,
+  onManageArticleBlocks,
   searchQuery,
   onSearchChange,
   layout,
@@ -124,7 +125,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         </div>
           <div aria-hidden="true" className="sfeed-header-divider" />
           <div className="sfeed-global-controls flex shrink-0 items-center justify-end gap-2 px-4">
-            <DesktopReadingSettings accountId={accountId} layout={layout} onChangeLayout={onChangeLayout} markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />
+            <DesktopReadingSettings accountId={accountId} onManageArticleBlocks={onManageArticleBlocks} layout={layout} onChangeLayout={onChangeLayout} markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />
             <InstallAppButton />
             {/* 피드 새로고침 */}
             <button

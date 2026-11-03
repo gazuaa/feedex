@@ -5,12 +5,14 @@ import { InstallAppButton } from './PwaInstall';
 import { ScrollReadSetting, TextSizeSetting, LayoutSetting, AutoRefreshSetting, SettingGroup, SettingRow, type ScrollReadSettingsProps, type RefreshSettingsProps, type SortSettingProps } from './ReadingSettings';
 import { LocalNotificationSetting } from './LocalNotificationSetting';
 import { CacheSettings } from './CacheSettings';
+import { ArticleBlockSetting } from './ArticleBlockDialog';
 import { RefreshIcon } from './RefreshIcon';
 import { useOutsideDismiss } from '../client/outsideDismiss';
 
 export type LibraryTab = 'all' | 'unread' | 'saved';
 export interface MobileSettingsProps extends ScrollReadSettingsProps, RefreshSettingsProps, Partial<SortSettingProps> {
   accountId?: string;
+  onManageArticleBlocks?: () => void;
   theme: ThemeMode;
   onChangeTheme: (theme: ThemeMode) => void;
   layout: LayoutMode;
@@ -18,7 +20,7 @@ export interface MobileSettingsProps extends ScrollReadSettingsProps, RefreshSet
   onOpenOpml: () => void;
 }
 
-export function MobileSettings({ theme, onChangeTheme, layout, onChangeLayout, onOpenOpml, library, markReadOnScroll, onChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes, accountId }: MobileSettingsProps & { library?: boolean }) {
+export function MobileSettings({ theme, onChangeTheme, layout, onChangeLayout, onOpenOpml, library, markReadOnScroll, onChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes, accountId, onManageArticleBlocks }: MobileSettingsProps & { library?: boolean }) {
   const ref = useRef<HTMLDetailsElement>(null);
   const close = () => { if (ref.current) ref.current.open = false; };
   useOutsideDismiss(ref);
@@ -32,7 +34,7 @@ export function MobileSettings({ theme, onChangeTheme, layout, onChangeLayout, o
       </SettingGroup>
       {!library && <SettingGroup title="읽기"><ScrollReadSetting markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} /></SettingGroup>}
       <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
-      {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} /></SettingGroup>}
+      {accountId && <SettingGroup title="이 기기">{onManageArticleBlocks && <ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} />}<CacheSettings accountId={accountId} /></SettingGroup>}
       <SettingGroup title="기타">
         <button type="button" onClick={() => { close(); onOpenOpml(); }}><FileCode2 size={17} />OPML 가져오기 / 내보내기</button>
         <InstallAppButton />

@@ -3,6 +3,7 @@ import { Minus, Plus, Settings2, LayoutList, LayoutGrid, AlignJustify } from 'lu
 import type { LayoutMode } from '../client/api';
 import { LocalNotificationSetting } from './LocalNotificationSetting';
 import { CacheSettings } from './CacheSettings';
+import { ArticleBlockSetting } from './ArticleBlockDialog';
 import { FONT_SCALES, useTextSize } from '../client/textSize';
 import { AUTO_REFRESH_OPTIONS } from '../shared/preferences';
 import { useOutsideDismiss } from '../client/outsideDismiss';
@@ -54,8 +55,8 @@ export function SortSetting({ sort, onChangeSort }: SortSettingProps) {
 export function AutoRefreshSetting({ autoRefreshMinutes, onChangeAutoRefreshMinutes }: RefreshSettingsProps) {
   return <div><label className="sfeed-auto-refresh-setting"><span>자동 새로고침<small>바뀐 내용만 가볍게 확인해요</small></span><select aria-label="자동 새로고침 주기" value={autoRefreshMinutes} onChange={(event) => onChangeAutoRefreshMinutes(Number(event.target.value))}>{AUTO_REFRESH_OPTIONS.map((minutes) => <option key={minutes} value={minutes}>{minutes ? `${minutes}분마다` : '수동'}</option>)}</select></label></div>;
 }
-export interface DesktopSettingsProps extends ScrollReadSettingsProps, RefreshSettingsProps, LayoutSettingsProps { accountId?: string }
-export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefreshMinutes, layout, onChangeLayout, accountId, ...props }: DesktopSettingsProps) {
+export interface DesktopSettingsProps extends ScrollReadSettingsProps, RefreshSettingsProps, LayoutSettingsProps { accountId?: string; onManageArticleBlocks?: () => void }
+export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefreshMinutes, layout, onChangeLayout, accountId, onManageArticleBlocks, ...props }: DesktopSettingsProps) {
   const ref = useRef<HTMLDetailsElement>(null);
   useOutsideDismiss(ref);
   return <details ref={ref} className="sfeed-desktop-settings" onKeyDown={(event) => { if (event.key === 'Escape' && ref.current) { ref.current.open = false; ref.current.querySelector('summary')?.focus(); } }}>
@@ -64,7 +65,7 @@ export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefresh
       <SettingGroup title="보기"><TextSizeSetting /><LayoutSetting layout={layout} onChangeLayout={onChangeLayout} /></SettingGroup>
       <SettingGroup title="읽기"><ScrollReadSetting {...props} /></SettingGroup>
       <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
-      {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} /></SettingGroup>}
+      {accountId && <SettingGroup title="이 기기">{onManageArticleBlocks && <ArticleBlockSetting accountId={accountId} onManage={() => { if (ref.current) ref.current.open = false; onManageArticleBlocks(); }} />}<CacheSettings accountId={accountId} /></SettingGroup>}
     </div>
   </details>;
 }

@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { ArticleItem } from './api';
+import { compileArticleBlocks, readArticleBlocks } from './articleBlocks';
 
 const settingKey = (account: string) => `sfeed_local_notifications:${account}`;
 const seenKey = (account: string) => `sfeed_notified_articles:${account}`;
@@ -32,7 +33,8 @@ export async function notifyNewArticles(account: string, articles: ArticleItem[]
     if (!localNotificationsEnabled(account) || !current()) return;
     let previous: string[] = [];
     try { previous = JSON.parse(localStorage.getItem(seenKey(account)) || '[]'); if (!Array.isArray(previous)) previous = []; } catch { /* 형식이 잘못된 기록은 무시한다 */ }
-    const seen = new Set(previous), fresh = articles.filter((article) => !seen.has(article.id));
+    let rules = readArticleBlocks(account), blocked = compileArticleBlocks(rules);
+    const seen = new Set(previous), fresh = articles.filter((article) => !seen.has(article.id) && !blocked(article));
     if (!fresh.length) return;
     let display = show;
     if (!display) {
@@ -42,6 +44,9 @@ export async function notifyNewArticles(account: string, articles: ArticleItem[]
     }
     for (const article of fresh) {
       if (!localNotificationsEnabled(account) || !current()) break;
+      const latest = readArticleBlocks(account);
+      if (latest !== rules) { rules = latest; blocked = compileArticleBlocks(rules); }
+      if (blocked(article)) continue;
       if (seen.has(article.id)) continue;
       seen.add(article.id);
       try { localStorage.setItem(seenKey(account), JSON.stringify([...seen].slice(-1000))); } catch { /* 알림 태그로도 중복을 거른다 */ }

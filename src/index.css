@@ -15,6 +15,46 @@ body { margin: 0; min-height: 100dvh; background: var(--sfeed-background); color
 .sfeed-feed-list { padding-bottom: env(safe-area-inset-bottom); }
 /* 목록의 글은 선택 동작을 막고, 별도 본문 영역에서는 텍스트 선택을 유지한다. */
 .sfeed-feed-list [data-article-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.sfeed-block-setting { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 34px; font-size: 13px; cursor: pointer; text-align: left; }
+.sfeed-block-setting > span:nth-of-type(2) { margin-left: auto; color: var(--sfeed-muted); font-size: 12px; }
+.sfeed-block-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; font-size: 12px; border-bottom: 1px solid var(--sfeed-border); color: var(--sfeed-muted); }
+.sfeed-block-bar > span { flex: 1; min-width: 140px; }
+.sfeed-block-bar button, .sfeed-block-empty button { color: #059669; cursor: pointer; font-weight: 600; }
+.sfeed-block-empty { padding: 64px 24px; text-align: center; color: var(--sfeed-muted); font-size: 13px; line-height: 1.8; }
+.sfeed-block-overlay { position: fixed; inset: 0; z-index: 260; display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); background: #02061780; }
+.sfeed-block-dialog { position: relative; inset: auto; display: flex; flex-direction: column; margin: 0; padding: 0; width: min(600px, 100%); max-height: min(850px, 94dvh); border: 1px solid var(--sfeed-border); border-radius: 20px; background: var(--sfeed-panel); color: var(--sfeed-text); box-shadow: 0 24px 80px #0004; overflow: hidden; }
+.sfeed-block-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border-bottom: 1px solid var(--sfeed-border); }
+.sfeed-block-heading h2 { font-size: 17px; font-weight: 700; }
+.sfeed-block-heading p, .sfeed-block-hint { margin-top: 6px; font-size: 12px; color: var(--sfeed-muted); line-height: 1.6; }
+.sfeed-block-heading > button { padding: 5px; border-radius: 8px; cursor: pointer; }
+.sfeed-block-form { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.sfeed-block-body { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 20px; }
+.sfeed-block-body > label { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; font-size: 13px; font-weight: 600; }
+.sfeed-block-body label > input:not([type=checkbox]), .sfeed-block-body select, .sfeed-block-body textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--sfeed-border); border-radius: 10px; background: var(--sfeed-background); color: var(--sfeed-text); font-size: 16px; font-weight: 400; }
+.sfeed-block-body small { font-size: 11px; font-weight: 400; color: var(--sfeed-muted); line-height: 1.5; }
+.sfeed-block-body .sfeed-block-toggle { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; cursor: pointer; }
+.sfeed-block-toggle input { flex-shrink: 0; width: 20px; height: 20px; accent-color: #059669; }
+.sfeed-block-preview { padding: 14px; border: 1px solid var(--sfeed-border); border-radius: 12px; }
+.sfeed-block-preview h3 { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; }
+.sfeed-block-preview h3 span { color: #059669; }
+.sfeed-block-preview > p { margin: 7px 0; font-size: 12px; line-height: 1.6; color: var(--sfeed-muted); }
+.sfeed-block-preview ul { max-height: 240px; overflow-y: auto; margin-top: 10px; }
+.sfeed-block-preview li { padding: 9px 0; border-top: 1px solid var(--sfeed-border); font-size: 12px; line-height: 1.6; }
+.sfeed-block-preview strong { display: block; font-weight: 500; }
+.sfeed-block-footer { display: flex; flex-shrink: 0; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--sfeed-border); }
+.sfeed-block-footer button, .sfeed-block-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 13px; border: 1px solid var(--sfeed-border); border-radius: 10px; font-size: 13px; cursor: pointer; }
+.sfeed-block-footer .sfeed-block-primary { background: #059669; color: #fff; border-color: #059669; font-weight: 600; }
+.sfeed-block-footer button:disabled { opacity: .4; cursor: default; }
+.sfeed-block-rules > li { padding: 16px 0; border-bottom: 1px solid var(--sfeed-border); }
+.sfeed-block-rules strong, .sfeed-block-rules small { display: block; font-size: 13px; }
+.sfeed-block-rules small { font-size: 11px; margin-top: 3px; }
+.sfeed-block-rules p { font-size: 12px; color: var(--sfeed-muted); margin-top: 5px; overflow-wrap: anywhere; }
+.sfeed-block-rule-actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 8px; font-size: 12px; }
+.sfeed-block-rule-actions button, .sfeed-block-undo button { cursor: pointer; color: #059669; }
+.sfeed-block-undo { margin-top: 12px; font-size: 12px; }
+.sfeed-block-undo button { margin-left: 12px; font-weight: 600; }
+.sfeed-block-error { margin-top: 12px; color: #f43f5e; font-size: 12px; }
+html.dark .sfeed-block-bar button, html.dark .sfeed-block-empty button, html.dark .sfeed-block-rule-actions button, html.dark .sfeed-block-undo button, html.dark .sfeed-block-preview h3 span { color: #34d399; }
 .sfeed-pull-refresh { display: none; }
 /* 모바일 하단 막대 위에 뜨는 짧은 확인 안내. */
 .sfeed-notice { position: fixed; z-index: 120; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: min(420px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 14px; background: #0f172aeb; color: #f8fafc; box-shadow: 0 8px 24px #0004; font-size: 13px; line-height: 1.45; text-align: center; pointer-events: none; }

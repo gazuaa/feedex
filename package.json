@@ -25,6 +25,7 @@
     "test:cache": "node scripts/verify-reader-cache.mjs",
     "test:sync": "node scripts/verify-reader-sync.mjs",
     "test:reader-ui": "node scripts/verify-reader-ui.mjs",
+    "test:article-blocks": "node scripts/verify-article-blocks.mjs",
     "test:device-reader": "node scripts/verify-device-reader.mjs",
     "test:thumbnails": "node scripts/verify-thumbnails.mjs",
     "test:pull-refresh": "node scripts/verify-pull-refresh.mjs",

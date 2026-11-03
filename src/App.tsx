@@ -54,9 +54,13 @@ import { readDevicePreferences, saveDevicePreferences, readFeedPreference, feedV
 import { useListAnchor } from './client/listAnchor';
 import { notifyNewArticles, useLocalNotifications } from './client/localNotifications';
 import { shortcutKey } from './client/shortcutKey';
+import { compileArticleBlocks, useArticleBlocks, visibleArticleNeighbors } from './client/articleBlocks';
+import { ArticleBlockDialog } from './components/ArticleBlockDialog';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const articleBlocks = useArticleBlocks(user?.id || '');
+  const isBlockedArticle = useMemo(() => compileArticleBlocks(articleBlocks), [articleBlocks]);
   const [authChecking, setAuthChecking] = useState(true);
   const authenticatedToken = useRef<string | null>(null);
   const readerCache = useMemo(() => user ? new ReaderCache(user.id) : null, [user?.id]);
@@ -119,6 +123,14 @@ export const App: React.FC = () => {
 
   // 글 목록과 리더 상태
   const [articles, setArticles] = useState<ArticleItem[]>([]);
+  const [showBlockedArticles, setShowBlockedArticles] = useState(false);
+  const [blockDialog, setBlockDialog] = useState<{ accountId: string; article: ArticleItem | null } | null>(null);
+  const { blocked: blockedArticles, visible: unblockedArticles } = useMemo(() => {
+    const blocked: ArticleItem[] = [], visible: ArticleItem[] = [];
+    for (const article of articles) (isBlockedArticle(article) ? blocked : visible).push(article);
+    return { blocked, visible: blocked.length ? visible : articles };
+  }, [articles, isBlockedArticle]);
+  const visibleArticles = showBlockedArticles ? articles : unblockedArticles;
   const [loadingArticles, setLoadingArticles] = useState(false);
   const [hasMoreArticles, setHasMoreArticles] = useState(false);
   const [loadingMoreArticles, setLoadingMoreArticles] = useState(false);
@@ -129,6 +141,7 @@ export const App: React.FC = () => {
   const articleListRef = useRef<HTMLElement>(null);
   const pendingScroll = useRef<number | null>(null);
   const articleCache = useRef(new Map<string, ArticleItem>());
+  const blockPreviewArticles = useMemo(() => blockDialog ? [...new Map([...articleCache.current.values(), ...articles].map((article) => [article.id, article])).values()] : [], [articles, blockDialog]);
   const [restoredArticle, setRestoredArticle] = useState<ArticleItem | null>(null);
   const [refreshingFeeds, setRefreshingFeeds] = useState(false);
   const refreshingFeedsRef = useRef(false);
@@ -204,7 +217,9 @@ export const App: React.FC = () => {
     if (pendingScroll.current === null) articleListRef.current?.scrollTo({ top: 0 });
   }, [activeScope, activeFolderId, activeFeedId, unreadOnly, savedOnly, searchQuery, articleSort]);
 
-  useListAnchor(articleListRef, articles, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${committedSearch}:${articleSort}`);
+  useListAnchor(articleListRef, visibleArticles, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${committedSearch}:${articleSort}`);
+  useEffect(() => { setShowBlockedArticles(false); }, [user?.id, activeScope, activeFolderId, activeFeedId]);
+  useEffect(() => { setBlockDialog(null); }, [user?.id]);
 
   useLayoutEffect(() => {
     for (const article of articles) articleCache.current.set(article.id, article);
@@ -523,8 +538,8 @@ export const App: React.FC = () => {
     if (!articleResources || selectedArticleId || mobileSidebarOpen || (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) return;
     void articleResources.preload([article], () => document.visibilityState === 'visible' && nearby(), (row) => preloadModesRef.current.get(row.feed_id) || 'feed');
   }, [articleResources, selectedArticleId, mobileSidebarOpen]);
-  const preloadStart = selectedArticleId ? articles.findIndex((article) => article.id === selectedArticleId) + 1 : 0;
-  const preloadRows = selectedArticleId ? articles.slice(preloadStart, preloadStart + 2) : articles.slice(0, 5);
+  const preloadStart = selectedArticleId ? visibleArticles.findIndex((article) => article.id === selectedArticleId) + 1 : 0;
+  const preloadRows = selectedArticleId ? visibleArticles.slice(preloadStart, preloadStart + 2) : visibleArticles.slice(0, 5);
   const preloadArticleIds = preloadRows.map((article) => `${article.id}:${preloadModes.get(article.feed_id)}`).join(':');
   useEffect(() => {
     if (!articleResources || loadingArticles || loadingBootstrap || refreshingFeeds || mobileSidebarOpen) return;
@@ -718,7 +733,7 @@ export const App: React.FC = () => {
   const handleScrollRead = (ids: string[]) => {
     const cache = readerCache, token = authenticatedToken.current;
     if (!cache?.active || !markReadOnScroll) return;
-    const passed = ids.map((id) => articleCache.current.get(id)).filter((article): article is ArticleItem => Boolean(article && !article.is_read));
+    const passed = ids.map((id) => articleCache.current.get(id)).filter((article): article is ArticleItem => Boolean(article && !article.is_read && (showBlockedArticles || !isBlockedArticle(article))));
     if (!passed.length) return;
     const preceding = passed.map((article) => stateWrites.current.get(article.id)).filter(Boolean);
     let batch: Promise<unknown> | undefined;
@@ -728,7 +743,7 @@ export const App: React.FC = () => {
     });
     for (const article of passed) void handleUpdateArticleState(article, { isRead: true }, persist);
   };
-  useScrollRead(articleListRef, markReadOnScroll && Boolean(user) && !loadingArticles && !loadingBootstrap && !refreshingFeeds && !(isMobile && (mobileSidebarOpen || selectedArticleId)) && !discoverOpen && !markReadTarget,
+  useScrollRead(articleListRef, markReadOnScroll && Boolean(user) && !loadingArticles && !loadingBootstrap && !refreshingFeeds && !(isMobile && (mobileSidebarOpen || selectedArticleId)) && !discoverOpen && !markReadTarget && !blockDialog,
     `${user?.id}:${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${committedSearch}:${layout}`, handleScrollRead);
 
   const handleSelectArticle = useCallback(
@@ -1055,7 +1070,7 @@ export const App: React.FC = () => {
   // X 타임라인은 본문(사진·영상·인용 글)으로 줄을 그린다. 본문 없이 동기화돼 남은 글은 기기 저장본이나 서버에서 한 번에 받아 채운다.
   // 받지 못한 글은 1분 뒤에, 서버에도 없던 글은 다시 부르지 않는다.
   const xBodyRetry = useRef(new Map<string, number>());
-  const deferredXIds = xTimeline ? articles.filter((article) => article.body_deferred && !article.content_html && (xBodyRetry.current.get(article.id) || 0) <= Date.now()).map((article) => article.id).join(',') : '';
+  const deferredXIds = xTimeline ? visibleArticles.filter((article) => article.body_deferred && !article.content_html && (xBodyRetry.current.get(article.id) || 0) <= Date.now()).map((article) => article.id).join(',') : '';
   useEffect(() => {
     const cache = readerCache, resources = articleResources;
     if (!deferredXIds || !cache || !resources) return;
@@ -1107,27 +1122,17 @@ export const App: React.FC = () => {
     saveFeedViewMode(selectedSubscription.feed_id, legacy, true);
   }, [user?.id, selectedSubscription, importedFeedViews]);
 
-  const selectedIndex = useMemo(
-    () => articles.findIndex((a) => a.id === selectedArticleId),
-    [articles, selectedArticleId]
+  const articleNeighbors = useMemo(
+    () => visibleArticleNeighbors(articles, visibleArticles, selectedArticleId),
+    [articles, visibleArticles, selectedArticleId]
   );
 
   const handleNavigateRelative = useCallback(
     (direction: 'prev' | 'next') => {
-      if (articles.length === 0) return;
-      if (selectedIndex === -1) {
-        handleSelectArticle(articles[0]);
-        return;
-      }
-      const nextIdx =
-        direction === 'next'
-          ? Math.min(articles.length - 1, selectedIndex + 1)
-          : Math.max(0, selectedIndex - 1);
-      if (nextIdx !== selectedIndex) {
-        handleSelectArticle(articles[nextIdx]);
-      }
+      const next = articleNeighbors[direction];
+      if (next) handleSelectArticle(next);
     },
-    [articles, selectedIndex, handleSelectArticle]
+    [articleNeighbors, handleSelectArticle]
   );
 
   const handleCopyLink = useCallback(async (article: ArticleItem) => {
@@ -1283,7 +1288,8 @@ export const App: React.FC = () => {
     if (activeScope === 'folder' || activeScope === 'feed') applyMobileFilter(tab);
     else selectMobileTab(tab);
   };
-  const mobileSettings = { theme, onChangeTheme: handleChangeTheme, layout, onChangeLayout: handleChangeLayout, onOpenOpml: () => openMobileDiscover('opml'), sort: articleSort, onChangeSort: setArticleSort, markReadOnScroll, onChangeMarkReadOnScroll: handleChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes: handleChangeAutoRefreshMinutes, accountId: user.id };
+  const onManageArticleBlocks = () => setBlockDialog({ accountId: user.id, article: null });
+  const mobileSettings = { theme, onChangeTheme: handleChangeTheme, layout, onChangeLayout: handleChangeLayout, onOpenOpml: () => openMobileDiscover('opml'), sort: articleSort, onChangeSort: setArticleSort, markReadOnScroll, onChangeMarkReadOnScroll: handleChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes: handleChangeAutoRefreshMinutes, accountId: user.id, onManageArticleBlocks };
 
   const contextActions = (target: AppContextTarget): AppContextAction[] => {
     const items: AppContextAction[] = [];
@@ -1299,6 +1305,7 @@ export const App: React.FC = () => {
       items.push({ id: 'open-article', label: '앱에서 글 열기', run: () => handleSelectArticle(article) },
         { id: 'read', label: article.is_read ? '안 읽음으로 표시' : '읽음으로 표시', run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
         { id: 'save', label: article.is_saved ? '저장 취소' : '나중에 읽기', run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
+      items.push({ id: 'block-title', label: '비슷한 글 숨기기…', separator: true, run: () => setBlockDialog({ accountId: user.id, article }) });
     } else if (feed) {
       items.push({ id: 'open-feed', label: '피드 글 보기', run: () => openScope('feed', null, feed.feed_id) },
         { id: 'mark-feed', label: '피드 모두 읽음', run: () => { setMarkReadError(null); setMarkReadTarget({ scope: 'feed', feedId: feed.feed_id, folderId: null, name: feed.title, search: '', savedOnly: false }); } },
@@ -1362,6 +1369,7 @@ export const App: React.FC = () => {
             sort={articleSort}
             onToggleSort={() => setArticleSort((sort) => sort === 'newest' ? 'oldest' : 'newest')}
             accountId={user.id}
+            onManageArticleBlocks={onManageArticleBlocks}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             layout={layout}
@@ -1395,8 +1403,8 @@ export const App: React.FC = () => {
             onNavigateRelative={handleNavigateRelative}
             onCopyLink={handleCopyLink}
             onNotice={setNotice}
-            hasPrev={selectedIndex > 0}
-            hasNext={selectedIndex >= 0 && selectedIndex < articles.length - 1}
+            hasPrev={Boolean(articleNeighbors.prev)}
+            hasNext={Boolean(articleNeighbors.next)}
             isDark={isDark}
           />
         }
@@ -1441,11 +1449,12 @@ export const App: React.FC = () => {
           </footer>
         }
       >
-        <ArticleList
+        {articleBlocks.some((rule) => rule.enabled) && <div className="sfeed-block-bar"><span title="피드와 폴더의 숫자는 차단 전 전체 글 기준입니다.">{showBlockedArticles ? `차단 대상 ${blockedArticles.length}개 표시 중` : `불러온 글 중 ${blockedArticles.length}개 숨김`}</span><button type="button" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles((value) => !value)}>{showBlockedArticles ? '차단 적용' : '숨긴 글 보기'}</button><button type="button" onClick={onManageArticleBlocks}>규칙 관리</button></div>}
+        {!showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap ? <div className="sfeed-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기</button></div> : <ArticleList
           accountId={user.id}
           onUpdateArticleFields={handleUpdateArticleFields}
           onPrepareArticle={handlePrepareArticle}
-          articles={articles}
+          articles={visibleArticles}
           layout={layout}
           selectedArticleId={selectedArticleId}
           onSelectArticle={handleSelectArticle}
@@ -1460,15 +1469,17 @@ export const App: React.FC = () => {
           hasSubscriptions={subscriptions.length > 0}
           retainReadRows={retainReadRows}
           timeline={xTimeline}
-        />
+        />}
         {hasMoreArticles && articles.length > 0 && !loadingArticles && !loadingBootstrap && (
           <LoadMoreArticles
+            auto={visibleArticles.length > 0}
             loading={loadingMoreArticles}
             isDark={isDark}
             onLoadMore={loadMoreArticles}
           />
         )}
       </ResizableWorkspace>
+      {blockDialog?.accountId === user.id && <ArticleBlockDialog key={`${user.id}:${blockDialog.article?.id || 'manage'}`} accountId={user.id} article={blockDialog.article} articles={blockPreviewArticles} subscriptions={subscriptions} onClose={() => setBlockDialog(null)} onApplied={() => setNotice('차단 규칙을 저장했어요.')} />}
 
       {isMobile && <div className="sfeed-mobile-library-host" data-open={mobileSidebarOpen || undefined}><MobileLibrary visible={mobileSidebarOpen} user={user} folders={folders} subscriptions={subscriptions} counts={counts} countTab={mobileTab} onChangeCountTab={applyMobileFilter} onSelectTab={selectMobileTab} onSelectFolder={(id) => { handleSelectScope('folder', id); setMobileSidebarOpen(false); }} onSelectFeed={(id) => { handleSelectScope('feed', null, id); setMobileSidebarOpen(false); }} onAdd={() => openMobileDiscover()} onRefresh={handleRefreshFeeds} refreshing={refreshingFeeds} syncing={backgroundSyncs > 0} onCreateFolder={handleCreateFolder} onDeleteFolder={handleDeleteFolder} onUnsubscribe={handleUnsubscribe} onToggleUpdates={handleToggleFeedUpdates} onLogout={handleLogout} {...mobileSettings} /></div>}
       {isMobile && !selectedArticle && <PullRefreshIndicator distance={pullDistance} refreshing={refreshingFeeds} />}

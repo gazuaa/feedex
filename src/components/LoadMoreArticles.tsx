@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 
 interface LoadMoreArticlesProps {
   loading: boolean;
+  auto?: boolean;
   isDark: boolean;
   onLoadMore: () => void;
 }
@@ -11,6 +12,7 @@ interface LoadMoreArticlesProps {
 // 버튼은 직접 누르는 대체 수단으로 남긴다.
 export const LoadMoreArticles: React.FC<LoadMoreArticlesProps> = ({
   loading,
+  auto = true,
   isDark,
   onLoadMore,
 }) => {
@@ -18,7 +20,7 @@ export const LoadMoreArticles: React.FC<LoadMoreArticlesProps> = ({
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || loading) return;
+    if (!el || loading || !auto) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) onLoadMore();
@@ -27,7 +29,7 @@ export const LoadMoreArticles: React.FC<LoadMoreArticlesProps> = ({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loading, onLoadMore]);
+  }, [loading, onLoadMore, auto]);
 
   return (
     <div ref={sentinelRef} className="flex justify-center pb-10 pt-2">
