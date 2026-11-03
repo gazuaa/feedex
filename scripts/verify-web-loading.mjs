@@ -109,9 +109,11 @@ try {
   // X 글: 댓글 자리만 회색으로 남은 예전 사본은 버리고, 글과 댓글 사본은 저장해 다시 쓴다.
   const xArticle={...articles[0],id:'x-1',url:'https://x.com/nasa/status/2000000000000000001'};
   let xCalls=0;
-  const xResources=new ArticleResources('x-owner',()=>true,async()=>{xCalls++;return {html:'<!doctype html><html><body><main>Post and replies</main></body></html>',url:xArticle.url,thread:true};});
+  const xResources=new ArticleResources('x-owner',()=>true,async()=>{xCalls++;return {html:'<!doctype html><html><head><meta name="sfeed-x-thread" content="2"></head><body><main>Post and replies</main></body></html>',url:xArticle.url,thread:true};});
   await writeContent('x-owner','web:x-1',{html:'<!doctype html><html><body><main>Old skeleton</main></body></html>',url:xArticle.url});
   assert.equal(await xResources.cachedWeb(xArticle),undefined,'an old X copy without replies is not shown again');
+  await writeContent('x-owner','web:x-1',{html:'<!doctype html><html><body><main>Broken quote box</main></body></html>',url:xArticle.url,thread:true});
+  assert.equal(await xResources.cachedWeb(xArticle),undefined,'a saved X copy from before the quote fix is fetched again');
   assert.match((await xResources.web(xArticle)).html,/Post and replies/); assert.equal(xCalls,1);
   assert.equal((await xResources.cachedWeb(xArticle)).thread,true); await xResources.web(xArticle);
   assert.equal(xCalls,1,'the X copy with replies is saved and reopened without another request');

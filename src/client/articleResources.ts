@@ -4,6 +4,7 @@ import { cacheGeneration } from './cachePolicy';
 import { revealCopyImages } from './articleImages';
 import { publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
+import { X_THREAD_MARK } from '../shared/xThreadStyle';
 import { loadPublicWebCopy, PublicWebCopyError } from './publicWebCopy';
 
 type ReaderResult = { fullContentHtml: string; publishedAt?: string };
@@ -36,8 +37,8 @@ export class ArticleResources {
   }
   async cachedWeb(article: ArticleItem): Promise<WebResult | undefined> {
     const stored = await readContent(this.account, `web:${article.id}`);
-    // 예전 X 글 사본은 댓글 자리만 회색으로 남은 x.com 화면이다. 글과 댓글을 담은 사본을 새로 받게 한다.
-    if (!stored || !('html' in stored.data) || (isXStatusUrl(article.url) && !stored.data.thread)) { this.preparedCopies.delete(article.id); return; }
+    // 예전 X 글 사본은 댓글 자리만 회색으로 남은 x.com 화면이거나, 인용 글 상자가 깨진 사본이다. 지금 방식의 사본을 새로 받게 한다.
+    if (!stored || !('html' in stored.data) || (isXStatusUrl(article.url) && (!stored.data.thread || !stored.data.html.includes(X_THREAD_MARK)))) { this.preparedCopies.delete(article.id); return; }
     try { this.copyOrigins.add(new URL(article.url).origin); } catch {}
     const prepared = this.preparedCopies.get(article.id);
     if (prepared?.source === stored.data) return prepared.result;
