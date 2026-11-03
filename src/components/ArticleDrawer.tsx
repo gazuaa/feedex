@@ -542,42 +542,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               )}
             </button>
 
-            {/* 기사 새로고침 */}
-            <button
-              type="button"
-              onClick={() => void refreshArticle()}
-              disabled={refreshing}
-              aria-label="기사 새로고침"
-              title="기사 새로고침"
-              className={`sfeed-reader-icon disabled:cursor-default ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
-
-            {/* 저장 / 북마크 전환 */}
-            <button
-              type="button"
-              onClick={() => onToggleSaved(article)}
-              aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'}
-              aria-pressed={article.is_saved}
-              title="나중에 읽기 북마크 (S)"
-              className={`sfeed-reader-icon ${
-                article.is_saved
-                  ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-400'
-                  : isDark
-                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <Bookmark
-                className={`w-4 h-4 ${article.is_saved ? 'fill-current' : ''}`}
-              />
-            </button>
-
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -608,10 +572,46 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
+            {/* 기사 새로고침 */}
+            <button
+              type="button"
+              onClick={() => void refreshArticle()}
+              disabled={refreshing}
+              aria-label="기사 새로고침"
+              title="기사 새로고침"
+              className={`sfeed-reader-icon disabled:cursor-default ${
+                isDark
+                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <RotateCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+
           </div>
 
           {/* 글 도구 */}
           <div className={`sfeed-reader-tools flex flex-wrap items-center gap-1 border-l pl-2 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+            {/* 저장 / 북마크 전환 */}
+            <button
+              type="button"
+              onClick={() => onToggleSaved(article)}
+              aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'}
+              aria-pressed={article.is_saved}
+              title="나중에 읽기 북마크 (S)"
+              className={`sfeed-reader-icon ${
+                article.is_saved
+                  ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-400'
+                  : isDark
+                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Bookmark
+                className={`w-4 h-4 ${article.is_saved ? 'fill-current' : ''}`}
+              />
+            </button>
+
             {/* 글자 크기 (피드·리더 보기) */}
             {mode !== 'web' && <TextSizeControl />}
 
@@ -695,6 +695,26 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <ExternalLink className="w-4 h-4" />
             </a>
 
+            {/* AI 요약 버튼 */}
+            {mode !== 'web' && <button
+              type="button"
+              onClick={toggleAiSummary}
+              aria-label={aiAction}
+              aria-pressed={aiOpen}
+              title={aiAction}
+              className={`shrink-0 h-8 px-2.5 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                aiOpen
+                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                  : 'bg-emerald-500 hover:bg-emerald-400 border-emerald-500 text-slate-950 shadow-xs'
+              }`}
+            >
+              {summarizing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5" />
+              )}
+              <span className="sfeed-reader-control-label">AI 핵심 요약</span>
+            </button>}
           </div>
 
           {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
@@ -736,27 +756,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               );
             })}
           </div>
-
-          {/* AI 요약 버튼 */}
-          {mode !== 'web' && <button
-            type="button"
-            onClick={toggleAiSummary}
-            aria-label={aiAction}
-            aria-pressed={aiOpen}
-            title={aiAction}
-            className={`shrink-0 h-8 px-2.5 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 border transition cursor-pointer ${
-              aiOpen
-                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                : 'bg-emerald-500 hover:bg-emerald-400 border-emerald-500 text-slate-950 shadow-xs'
-            }`}
-          >
-            {summarizing ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="w-3.5 h-3.5" />
-            )}
-            <span className="sfeed-reader-control-label">AI 핵심 요약</span>
-          </button>}
 
         </div>
 
