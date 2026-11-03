@@ -89,8 +89,8 @@ routes.post('/:id/history/step', async c => {
   const locked = await c.env.DB.prepare('UPDATE feed_history_jobs SET lease_token=?,lease_until=? WHERE user_id=? AND feed_id=? AND revision=? AND lease_until<=?').bind(lease, Date.now() + 60_000, userId, feedId, state.revision, Date.now()).run();
   if (!Number(locked.meta?.changes)) return c.json({ error: '다른 창에서 이 피드를 불러오는 중입니다.' }, 409);
   try {
-    if (state.added >= state.options.limit) finish(state, 'limit', '선택한 최대 개수까지 추가했습니다. 개수를 늘리면 이어받을 수 있습니다.', false);
-    else if (state.pages >= 500) { state.source = null; finish(state, 'source_limit', '한 번에 확인할 수 있는 500페이지에 도달했습니다.'); }
+    if (state.options.limit > 0 && state.added >= state.options.limit) finish(state, 'limit', '선택한 최대 개수까지 추가했습니다. 개수를 늘리면 이어받을 수 있습니다.', false);
+    else if (state.pages >= 5000) { state.source = null; finish(state, 'source_limit', '한 번에 확인할 수 있는 5,000페이지에 도달했습니다.'); }
     else {
       const source = state.source!, page = await readHistorySource(source, c.env), offset = source.offset || 0;
       const pageKey = await hash(JSON.stringify({ ...source, offset: 0 }));
@@ -104,7 +104,7 @@ routes.post('/:id/history/step', async c => {
           let index = offset;
           // 한 요청의 데이터베이스 작업량도 제한한다. 페이지 중간에서 멈추면 항목 위치를 보관한다.
           const candidates: ParsedArticle[] = [];
-          const room = Math.min(40, state.options.limit - state.added);
+          const room = state.options.limit > 0 ? Math.min(40, state.options.limit - state.added) : 40;
           for (; index < page.articles.length && candidates.length < room; index++) {
             const article = page.articles[index]; state.checked++;
             try { publicPageUrl(article.url); } catch { continue; }
@@ -125,10 +125,10 @@ routes.post('/:id/history/step', async c => {
           finish(state, 'ready', '공개된 과거 목록을 확인하고 있습니다.', false);
           if (index < page.articles.length) state.source = { ...source, offset: index };
           else {
-            state.pages++; state.visited.push(pageKey); if (fingerprint) state.fingerprints.push(fingerprint);
+            state.pages++; state.visited = [...state.visited.slice(-1999), pageKey]; if (fingerprint) state.fingerprints = [...state.fingerprints.slice(-1999), fingerprint];
             advance(state, feed, page.next, page.sourceLimit);
           }
-          if (state.source && state.added >= state.options.limit) finish(state, 'limit', '선택한 최대 개수까지 추가했습니다. 개수를 늘리면 이어받을 수 있습니다.', false);
+          if (state.source && state.options.limit > 0 && state.added >= state.options.limit) finish(state, 'limit', '선택한 최대 개수까지 추가했습니다. 개수를 늘리면 이어받을 수 있습니다.', false);
         }
       }
       state.retryAt = null;

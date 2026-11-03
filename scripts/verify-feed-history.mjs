@@ -7,6 +7,12 @@ try {
   const { LocalD1Database } = await vite.ssrLoadModule('/src/server/localD1.ts');
   const { upsertFeedAndArticles } = await vite.ssrLoadModule('/src/server/seedService.ts');
   const { readHistorySource } = await vite.ssrLoadModule('/src/server/feedHistorySources.ts');
+  const { HISTORY_DAYS, HISTORY_LIMITS, historyDaysLabel, historyLimitLabel, validHistoryOptions } = await vite.ssrLoadModule('/src/shared/feedHistory.ts');
+  assert.deepEqual(HISTORY_DAYS, [0, 7, 14, 30, 60, 90, 180, 365, 730, 1095, 1825, 3650]);
+  assert.deepEqual(HISTORY_LIMITS, [0, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000, 20000, 50000]);
+  assert.equal(historyDaysLabel(0), '전체 기간'); assert.equal(historyDaysLabel(7), '최근 7일 (1주)'); assert.equal(historyDaysLabel(3650), '최근 10년 (3,650일)');
+  assert.equal(historyLimitLabel(0), '전체 개수'); assert.equal(historyLimitLabel(50000), '50,000개');
+  for (const days of HISTORY_DAYS) for (const limit of HISTORY_LIMITS) assert.equal(validHistoryOptions({ days, limit, markRead: true }), true);
   const db = new LocalD1Database(':memory:', 'migrations/0001_schema.sql'), env = { DB: db, ALLOW_QUICK_LOGIN: 'true' };
   const login = async email => {
     const { user, token } = await (await app.request('/api/auth/google/quick', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }) }, env)).json();
@@ -49,9 +55,9 @@ try {
   assert.deepEqual([originalState.is_read, originalState.is_saved], [0, 1], 'existing unread and saved state stays intact');
   assert.equal((await db.prepare('SELECT count(*) AS n FROM article_states WHERE user_id=? AND is_read=1').bind(owner.userId).first()).n, 100);
   assert.equal((await db.prepare('SELECT count(*) AS n FROM article_states WHERE user_id=?').bind(other.userId).first()).n, 0, 'history read setting affects only the requesting account');
-  const expanded = await owner(path, { options: { ...options, limit: 500 } }); assert.equal(expanded.status, 200); job = expanded.job; for (let i = 0; i < 10 && job.reason === 'ready'; i++) await step();
+  const expanded = await owner(path, { options: { ...options, limit: 0 } }); assert.equal(expanded.status, 200); job = expanded.job; for (let i = 0; i < 10 && job.reason === 'ready'; i++) await step();
   assert.equal(job.added, 120); assert.equal(job.status, 'done');
-  assert.equal((await db.prepare('SELECT count(*) AS n FROM articles WHERE feed_id=?').bind(feedId).first()).n, 121, 'resume continues from the middle of a page');
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM articles WHERE feed_id=?').bind(feedId).first()).n, 121, 'resume continues from the middle of a page and unlimited count collects to completion');
   job = (await owner(path, { options, restart: true })).job; limited = true; await step();
   assert.equal(job.reason, 'rate_limit'); const calls = requests.length; await step(); assert.equal(requests.length, calls, 'retry-after is respected on the server');
   limited = false;
