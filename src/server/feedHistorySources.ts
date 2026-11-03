@@ -27,7 +27,7 @@ async function readPage(input: string, accept: string): Promise<{ text: string; 
   let url = publicPageUrl(input);
   const signal = AbortSignal.timeout(12000);
   for (let hop = 0; hop < 5; hop++) {
-    const response = await fetch(url, { redirect: 'manual', credentials: 'omit', signal, headers: { Accept: accept, 'User-Agent': 'Mozilla/5.0 (compatible; SFeed/1.0)', ...(accept === 'application/json' ? { 'X-Requested-With': 'XMLHttpRequest', Referer: new URL('/news/articleList.html', url).href } : {}) } });
+    const response = await fetch(url, { redirect: 'manual', credentials: 'omit', signal, headers: { Accept: accept, 'User-Agent': 'Mozilla/5.0 (compatible; FeedEx/1.0)', ...(accept === 'application/json' ? { 'X-Requested-With': 'XMLHttpRequest', Referer: new URL('/news/articleList.html', url).href } : {}) } });
     if (response.status >= 300 && response.status < 400 && response.headers.get('location')) { await response.body?.cancel(); url = publicPageUrl(new URL(response.headers.get('location')!, url).href); continue; }
     if (response.status === 429) {
       const wait = response.headers.get('Retry-After') || '', seconds = /^\d+$/.test(wait) ? Number(wait) : (Date.parse(wait) - Date.now()) / 1000;

@@ -51,7 +51,7 @@ export async function scrapeFullArticle(url: string, fallbackHtml: string | null
   try { publicPageUrl(url); } catch { return unavailable(); }
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SFeed/1.0)', Accept: 'text/html,application/xhtml+xml' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FeedEx/1.0)', Accept: 'text/html,application/xhtml+xml' },
       signal: AbortSignal.timeout(7000), redirect: 'follow',
     });
     if (res.ok && res.headers.get('x-vercel-mitigated') !== 'challenge' && res.headers.get('cf-mitigated') !== 'challenge') {

@@ -4,8 +4,8 @@ import vm from 'node:vm';
 import { createServer } from 'vite';
 
 const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'));
-assert.equal(manifest.short_name, 'SFeed');
-assert.ok(manifest.name.startsWith('SFeed'));
+assert.equal(manifest.short_name, 'FeedEx');
+assert.ok(manifest.name.startsWith('FeedEx'));
 assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.start_url, '/');
 assert.equal(manifest.id, '/');

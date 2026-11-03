@@ -3,7 +3,7 @@
 // Feedly는 피드마다 몇 년 치 글을 보관하지만 RSS에는 최근 몇 개만 있다. 인증 없는
 // 스트림 엔드포인트는 한 번에 최대 50개만 주고 이어받기 토큰도 없지만, `ranked=oldest`와
 // `newerThan`(Feedly 수집 시각, ms)을 함께 쓰면 스트림을 첫 글부터 지금까지 따라갈 수 있다.
-// 글은 originId == articles.guid로 SFeed 행과 맞추므로 이미 있는 글은 건너뛴다.
+// 글은 originId == articles.guid로 FeedEx 행과 맞추므로 이미 있는 글은 건너뛴다.
 //
 //   npm run import:feedly -- download  --db remote --user <userId> [--feed <url part>]
 //   npm run import:feedly -- write     --db remote --user <userId>

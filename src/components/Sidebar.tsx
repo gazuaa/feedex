@@ -309,7 +309,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 isDark ? 'text-white' : 'text-slate-900'
               }`}
             >
-              SFeed
+              FeedEx
             </span>
           </div>
 

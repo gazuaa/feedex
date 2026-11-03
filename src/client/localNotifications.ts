@@ -50,7 +50,7 @@ export async function notifyNewArticles(account: string, articles: ArticleItem[]
       if (seen.has(article.id)) continue;
       seen.add(article.id);
       try { localStorage.setItem(seenKey(account), JSON.stringify([...seen].slice(-1000))); } catch { /* 알림 태그로도 중복을 거른다 */ }
-      const feed = article.feed_title?.trim() || 'SFeed';
+      const feed = article.feed_title?.trim() || 'FeedEx';
       // macOS는 제목과 본문 사이에 브라우저 출처 부제를 넣는다. 글 내용은 모두 그 위에 둔다.
       // iPad의 데스크톱 UA도 여전히 모바일이다.
       const mac = /Macintosh|Mac OS X/.test(navigator.userAgent || '') && !/iPhone|iPad|iPod/.test(navigator.userAgent || '') && !(navigator.maxTouchPoints > 1);

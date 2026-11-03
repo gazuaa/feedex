@@ -31,7 +31,7 @@ export async function fetchPreviewImage(pageUrl: string): Promise<string | null 
   try {
     const res = await fetch(pageUrl, {
       redirect: 'follow',
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SfeedReader/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FeedExReader/1.0)' },
       signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) {

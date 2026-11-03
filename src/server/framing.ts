@@ -1,4 +1,4 @@
-// 웹 보기 지원: 원문 페이지를 SFeed 리더 영역 안에 보여 줘도 되는지 판단한다.
+// 웹 보기 지원: 원문 페이지를 FeedEx 리더 영역 안에 보여 줘도 되는지 판단한다.
 // 사이트는 X-Frame-Options나 CSP frame-ancestors로 거부할 수 있고, 그러면 브라우저가
 // 앱이 알아챌 수 없는 오류 페이지를 그린다. 그래서 헤더를 미리 확인하고 대신
 // "새 창에서 열기"를 권한다.
@@ -33,7 +33,7 @@ export async function checkEmbeddable(url: string, appOrigin: string): Promise<E
   try {
     const res = await fetch(url, {
       redirect: 'follow',
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SfeedReader/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FeedExReader/1.0)' },
       signal: AbortSignal.timeout(6000),
     });
     await res.body?.cancel();

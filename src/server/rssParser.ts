@@ -437,7 +437,7 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
 
   const headers = {
     'User-Agent':
-      'Mozilla/5.0 (compatible; SFeedRSS/1.0; +https://cloudflare.com) AppleWebKit/537.36',
+      'Mozilla/5.0 (compatible; FeedExRSS/1.0; +https://cloudflare.com) AppleWebKit/537.36',
     Accept:
       'application/rss+xml, application/atom+xml, application/xml, text/xml, text/html;q=0.9, */*;q=0.8',
   };
@@ -577,7 +577,7 @@ export function generateOpml(
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<opml version="2.0">',
     '  <head>',
-    `    <title>SFeed Subscriptions - ${escapeXmlAttr(userName)}</title>`,
+    `    <title>FeedEx Subscriptions - ${escapeXmlAttr(userName)}</title>`,
     `    <dateCreated>${new Date().toUTCString()}</dateCreated>`,
     '  </head>',
     '  <body>',

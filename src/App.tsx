@@ -1282,7 +1282,7 @@ export const App: React.FC = () => {
   if (authChecking) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-sm">
-        SFeed 워크스페이스를 불러오는 중...
+        FeedEx 워크스페이스를 불러오는 중...
       </div>
     );
   }

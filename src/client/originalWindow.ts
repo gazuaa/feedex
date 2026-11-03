@@ -1,9 +1,9 @@
-// 로그인 쿠키는 원문 사이트의 창에서만 사용한다. SFeed 서버로 복사하지 않는다.
+// 로그인 쿠키는 원문 사이트의 창에서만 사용한다. FeedEx 서버로 복사하지 않는다.
 const windows = new Map<string, Window>();
 export function originalArticleUrl(value: string): URL | null {
   try { const url = new URL(value); return /^https?:$/.test(url.protocol) && !url.username && !url.password ? url : null; } catch { return null; }
 }
-/** 같은 사이트의 로그인·기사 창을 재사용하되, 원문에는 SFeed를 조작할 opener를 주지 않는다. */
+/** 같은 사이트의 로그인·기사 창을 재사용하되, 원문에는 FeedEx를 조작할 opener를 주지 않는다. */
 export function openOriginalArticle(value: string, browser: Pick<Window, 'open'> = window): boolean {
   const url = originalArticleUrl(value); if (!url) return false;
   const existing = windows.get(url.origin);

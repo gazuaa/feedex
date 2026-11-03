@@ -62,7 +62,7 @@ export function DesktopContextMenu({ enabled, touch = false, actions }: { enable
   }, [menu]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 3000); return () => clearTimeout(timer); }, [notice]);
   return <>
-    {enabled && menu && <div ref={ref} role="menu" aria-label="SFeed 메뉴" className="sfeed-context-menu" style={{ left: menu.x, top: menu.y }} onKeyDown={(event) => {
+    {enabled && menu && <div ref={ref} role="menu" aria-label="FeedEx 메뉴" className="sfeed-context-menu" style={{ left: menu.x, top: menu.y }} onKeyDown={(event) => {
       const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')];
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
       // Esc는 메뉴만 닫고 뒤에 열린 글은 닫지 않는다.

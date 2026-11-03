@@ -206,7 +206,7 @@ export function analyseBuilderHtml(html: string, sourceUrl: string, selector?: s
 export async function fetchPage(url: string, accept = 'text/html,application/xhtml+xml', limit = 2_000_000): Promise<{ html: string; url: string }> {
   let current = publicPageUrl(url);
   for (let i = 0; i < 5; i++) {
-    const response = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SFeed/1.0)', Accept: accept } });
+    const response = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FeedEx/1.0)', Accept: accept } });
     if (response.status >= 300 && response.status < 400 && response.headers.get('location')) { current = publicPageUrl(new URL(response.headers.get('location')!, current).href); continue; }
     if (!response.ok) throw new Error(`사이트 응답 오류 (HTTP ${response.status})`);
     return { html: (await response.text()).slice(0, limit), url: current };

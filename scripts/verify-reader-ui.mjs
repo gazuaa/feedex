@@ -19,7 +19,7 @@ try {
   assert.equal(notifications[0].title, 'GeekNews (긱뉴스)'); assert.equal(notifications[0].options.body, '새 글 제목', 'feed name and article title appear on separate notification lines');
   assert.equal(notifications[0].options.data.account, 'owner');
   await notifyNewArticles('owner', [{ id: 'no-feed-name', feed_title: '  ', title: '피드명이 없는 글' }]);
-  assert.equal(notifications[1].title, 'SFeed'); assert.equal(notifications[1].options.body, '피드명이 없는 글');
+  assert.equal(notifications[1].title, 'FeedEx'); assert.equal(notifications[1].options.body, '피드명이 없는 글');
   navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/156.0.0.0 Safari/537.36'; navigator.maxTouchPoints = 0;
   await notifyNewArticles('owner', [{ id: 'mac', feed_title: 'Decrypt', title: 'Bithumb Says Hackers Accessed Internal System' }]);
   assert.equal(notifications[2].title, 'Decrypt · Bithumb Says Hackers Accessed Internal System');

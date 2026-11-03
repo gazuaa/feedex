@@ -116,7 +116,7 @@ export async function fetchXOlderPage(profileUrl: string, page: XOlderPage, pars
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const response = await fetch(`${page.provider}/${profile.username}/rss?cursor=${encodeURIComponent(page.cursor)}`, {
-      headers: { Accept: 'application/rss+xml, application/xml;q=0.9', 'User-Agent': 'SFeedRSS/1.0' },
+      headers: { Accept: 'application/rss+xml, application/xml;q=0.9', 'User-Agent': 'FeedExRSS/1.0' },
       redirect: 'manual', credentials: 'omit', signal: controller.signal,
     });
     if (response.status === 429) { restProvider(page.provider, response.headers.get('Retry-After')); await response.body?.cancel(); return 'limited'; }
@@ -150,7 +150,7 @@ export async function fetchXFeed(input: string, parse: Parse): Promise<ParsedFee
       const timer = setTimeout(() => controller.abort(), Math.min(5000, Math.max(1, deadline - Date.now())));
       try {
         const response = await fetch(`${provider}/${profile.username}/rss`, {
-          headers: { Accept: 'application/rss+xml, application/xml;q=0.9', 'User-Agent': 'SFeedRSS/1.0' },
+          headers: { Accept: 'application/rss+xml, application/xml;q=0.9', 'User-Agent': 'FeedExRSS/1.0' },
           redirect: 'manual', credentials: 'omit', signal: controller.signal,
         });
         if (response.status === 429) {

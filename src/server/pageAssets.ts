@@ -81,7 +81,7 @@ async function fetchHttpAsset(target: string, env: Pick<Env, 'X_SETTINGS_SECRET'
   try {
     for (let hop = 0; hop < 4; hop++) {
       current = publicPageUrl(current);
-      const response = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SFeed/1.0)', Accept: 'image/*,text/css;q=0.9,*/*;q=0.5' } });
+      const response = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FeedEx/1.0)', Accept: 'image/*,text/css;q=0.9,*/*;q=0.5' } });
       const location = response.headers.get('location');
       if (response.status >= 300 && response.status < 400 && location) { await response.body?.cancel(); current = new URL(location, current).href; continue; }
       const type = (response.headers.get('content-type') || '').split(';')[0].trim();

@@ -1511,7 +1511,7 @@ app.get('/api/opml/export', async (c) => {
   return new Response(xml, {
     headers: {
       'Content-Type': 'text/x-opml; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="sfeed-subscriptions.opml"',
+      'Content-Disposition': 'attachment; filename="feedex-subscriptions.opml"',
     },
   });
 });

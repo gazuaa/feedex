@@ -27,7 +27,7 @@ export async function fetchXThread(url: string): Promise<{ html: string; url: st
     const timer = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(`${provider}/${username}/status/${id}`, {
-        headers: { Accept: 'text/html', 'User-Agent': 'SFeedRSS/1.0' }, redirect: 'manual', credentials: 'omit', signal: controller.signal,
+        headers: { Accept: 'text/html', 'User-Agent': 'FeedExRSS/1.0' }, redirect: 'manual', credentials: 'omit', signal: controller.signal,
       });
       if (response.status === 429) { restProvider(provider, response.headers.get('Retry-After')); await response.body?.cancel(); continue; }
       if (!response.ok) { await response.body?.cancel(); continue; }

@@ -117,7 +117,7 @@ export function createFeedlyClient({
       save(state);
       try {
         response = await fetchImpl(`https://cloud.feedly.com/v3/streams/contents?${params}`, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Sfeed history import)' },
+          headers: { 'User-Agent': 'Mozilla/5.0 (FeedEx history import)' },
           signal: AbortSignal.timeout(30_000),
         });
       } catch (error) {

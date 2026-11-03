@@ -117,7 +117,7 @@ async function clientConfig(env: Env, user: UserRecord, requestUrl: string) {
 xRoutes.get('/config', async (c) => c.json(await clientConfig(c.env, c.get('user'), c.req.url)));
 
 xRoutes.put('/settings', async (c) => {
-  if (!canManageX(c.env, c.get('user'))) throw new XConnectionError('X 연결 설정은 SFeed 운영자만 변경할 수 있습니다.', 403);
+  if (!canManageX(c.env, c.get('user'))) throw new XConnectionError('X 연결 설정은 FeedEx 운영자만 변경할 수 있습니다.', 403);
   // 환경 변수로 관리 중인 설치에서는 화면 설정으로 덮어쓰지 않는다.
   if (c.env.X_CLIENT_ID?.trim() && c.env.X_CLIENT_SECRET?.trim()) throw new XConnectionError('이 연결 정보는 서버에서 관리 중입니다.', 400);
   const input = await c.req.json<{ clientId?: unknown; clientSecret?: unknown }>().catch(() => null);
