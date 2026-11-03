@@ -27,6 +27,8 @@ export interface ParsedFeed {
   articles: ParsedArticle[];
   /** X 계정 피드만: 미러가 알려 준 더 옛날 글 쪽. */
   xOlder?: XOlderPage;
+  /** RSS 빌더 피드만: 웹사이트 목록의 다음 쪽 주소들. */
+  listPages?: string[];
 }
 
 const xmlParser = new XMLParser({

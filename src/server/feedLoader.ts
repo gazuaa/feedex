@@ -1,7 +1,7 @@
 import type { Env } from './types';
-import { fetchAndParseFeed } from './rssParser';
-import { analyseBuilderPage, builderParsedFeed } from './rssBuilder';
-import { upsertFeedAndArticles } from './seedService';
+import { fetchAndParseFeed, type ParsedFeed } from './rssParser';
+import { analyseBuilderPage, builderListPageArticles, builderParsedFeed } from './rssBuilder';
+import { saveFeedArticles, upsertFeedAndArticles } from './seedService';
 import { xProfile } from '../shared/xFeed';
 import { noteXFeed } from './xBackfill';
 
@@ -23,6 +23,7 @@ export async function refreshStoredFeeds(env: Env, feeds: StoredFeed[]): Promise
       inserted += result.insertedCount;
       // X 계정의 예전 글 위치와 빠진 글 채우기는 새로고침 성공에 영향을 주지 않는다.
       if (parsed.xOlder) await noteXFeed(env.DB, result.feedId, parsed, result.insertedCount).catch(() => {});
+      if (parsed.listPages && feed.builder_selector) inserted += await fillBuilderGap(env, result.feedId, feed.builder_selector, parsed, result.insertedCount).catch(() => 0);
     } catch (error) { await env.DB.prepare('UPDATE feeds SET last_error = ?, last_fetched_at = ? WHERE id = ?').bind(error instanceof Error ? error.message : 'Refresh failed', new Date().toISOString(), feed.id).run(); }
   };
   const xFeeds = feeds.filter((feed) => !feed.builder_source_url && xProfile(feed.xml_url));
@@ -34,6 +35,16 @@ export async function refreshStoredFeeds(env: Env, feeds: StoredFeed[]): Promise
     (async () => { for (const feed of feeds.filter((item) => item.builder_source_url)) await refresh(feed); })(),
   ]);
   return inserted;
+}
+
+// 웹사이트 목록의 첫 쪽이 모두 새 글이면 지난 새로고침과의 사이에 글이 더 올라온 것이다.
+// 이미 받은 글이 나올 때까지 다음 쪽을 두 쪽까지 읽어 빠진 글을 채운다.
+async function fillBuilderGap(env: Env, feedId: string, selector: string, parsed: ParsedFeed, insertedCount: number): Promise<number> {
+  if (!insertedCount || insertedCount < parsed.articles.length) return 0;
+  const stored = await env.DB.prepare('SELECT COUNT(*) AS count FROM articles WHERE feed_id=?').bind(feedId).first<{ count: number }>();
+  if (Number(stored?.count || 0) <= insertedCount) return 0;
+  const more = await builderListPageArticles(parsed.listPages!.slice(0, 2), selector, parsed.articles);
+  return more.length ? (await saveFeedArticles(env.DB, feedId, more)).insertedCount : 0;
 }
 
 const escapeXml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');

@@ -42,6 +42,37 @@ try {
   assert.match(unsafe, /src="\/lazy\.png"/);
   assert.equal(pickerSnapshot('<a href="/one">One</a>', source), undefined, 'a page without links has nothing to pick');
 
+  // 목록 아래 쪽 번호 링크에서 다음 쪽 주소를 찾는다. 분류 번호처럼 숫자만 다른 링크와 구분한다.
+  const { nextListPages, builderListPageArticles } = await vite.ssrLoadModule('/src/server/rssBuilder.ts');
+  const pager = (links) => `<html><body>${links.map((href) => `<a href="${href}">x</a>`).join('')}</body></html>`;
+  assert.deepEqual(nextListPages(pager(['/news_kr?page=2', '/news_kr?page=3', '/news_kr?page=915', '/news_kr/123']), 'https://list.example.test/news_kr', 2), ['https://list.example.test/news_kr?page=2', 'https://list.example.test/news_kr?page=3']);
+  assert.deepEqual(nextListPages(pager(['/src/go.php?c=19&amp;s=news', '/src/go.php?c=20&amp;s=news', '/src/go.php?n=21614&amp;m=view&amp;s=news', '?s=news&amp;p=2', '?s=news&amp;p=3']), 'http://old.example.test/src/go.php?s=news', 2), ['http://old.example.test/src/go.php?s=news&p=2', 'http://old.example.test/src/go.php?s=news&p=3'], 'category numbers are not page numbers');
+  assert.deepEqual(nextListPages(pager(['/blog/page/4/', '/blog/page/5/']), 'https://wp.example.test/blog/page/3/', 2), ['https://wp.example.test/blog/page/4/', 'https://wp.example.test/blog/page/5/']);
+  assert.deepEqual(nextListPages(pager(['/news?cat=2', '/news?cat=7']), 'https://list.example.test/news', 2), [], 'an unknown name needs the next two pages');
+  assert.deepEqual(nextListPages(pager(['/news/1', '/news/2']), 'https://list.example.test/news', 2), []);
+  // 게시판은 2쪽부터 글 링크에 목록의 쪽 번호를 붙인다. 떼어서 같은 글은 같은 주소가 되게 한다.
+  const secondPage = '<html><body><main>' + [1, 2, 3].map((n) => `<article><h3><a href="/board/${n}?page=2">Second page post ${n}</a></h3></article>`).join('') + '</main></body></html>';
+  const secondGroups = analyseBuilderHtml(secondPage, 'https://list.example.test/board?page=2').groups;
+  assert.deepEqual(secondGroups[0].articles.map((article) => article.url), [1, 2, 3].map((n) => `https://list.example.test/board/${n}`), 'carried page numbers are dropped and the posts stay one list');
+  assert.deepEqual(extractPicked(parseHTML(secondPage).document, { item: 'article', title: 'h3' }, 'https://list.example.test/board?page=2').map((item) => item.url), [1, 2, 3].map((n) => `https://list.example.test/board/${n}`));
+  assert.equal(analyseBuilderHtml('<main>' + [1, 2].map((n) => `<article><h3><a href="/view?id=${n}&amp;s=news">Kept query post ${n}</a></h3></article>`).join('') + '</main>', 'https://list.example.test/list?s=news&p=2').groups[0].articles[0].url, 'https://list.example.test/view?id=1&s=news', 'other shared query values stay');
+
+  // 다음 쪽 글을 더 받는다. 이미 받은 글만 나오면 멈추고, 날짜 없는 글은 앞 쪽 글보다 아래에 놓인다.
+  const listed = (ids) => `<html><head><title>List</title></head><body><main>${ids.map((id) => `<article><h2><a href="/post/${id}">Post number ${id} headline</a></h2><p>Summary ${id}</p></article>`).join('')}</main></body></html>`;
+  const listPages = { 'https://list.example.test/news?page=2': listed([6, 7, 8, 9, 10]), 'https://list.example.test/news?page=3': listed([11, 12, 13, 14, 15]), 'https://list.example.test/news?page=4': listed([11, 12, 13, 14, 15]) };
+  const first = analyseBuilderHtml(listed([1, 2, 3, 4, 5]), 'https://list.example.test/news');
+  const groupSelector = first.groups[0].selector;
+  const pageFetch = globalThis.fetch, asked = [];
+  globalThis.fetch = async (input) => { const url = String(input); asked.push(url); return listPages[url] ? new Response(listPages[url], { headers: { 'content-type': 'text/html' } }) : new Response('', { status: 404 }); };
+  try {
+    const current = first.groups[0].articles.map((article) => ({ ...article, guid: article.url }));
+    const more = await builderListPageArticles(Object.keys(listPages), groupSelector, current);
+    assert.deepEqual(more.map((article) => article.url.split('/').at(-1)), ['6', '7', '8', '9', '10', '11', '12', '13', '14', '15']);
+    assert.equal(asked.length, 3, 'a page with only known posts ends the walk');
+    const oldestFirst = Math.min(...current.map((article) => Date.parse(article.publishedAt)));
+    assert.ok(more.every((article, index) => Date.parse(article.publishedAt) < oldestFirst && (!index || Date.parse(article.publishedAt) < Date.parse(more[index - 1].publishedAt))), 'undated older pages sort below the first page');
+  } finally { globalThis.fetch = pageFetch; }
+
   // https 앱 안에서 막히는 http 그림·스타일은 서명한 앱 주소로 바꾸고, 서명이 맞는 것만 대신 받는다.
   const { pageAssetProxy, servePageAsset } = await vite.ssrLoadModule('/src/server/pageAssets.ts');
   const secretEnv = { X_SETTINGS_SECRET: 'page-asset-test-secret-0123456789abcdef' };

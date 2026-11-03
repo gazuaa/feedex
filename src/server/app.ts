@@ -27,7 +27,7 @@ import { READER_FALLBACK_MARK, realFullContent, scrapeFullArticle } from './read
 import { checkEmbeddable } from './framing';
 import { fetchWebView } from './webView';
 import { fetchPreviewImage } from './previewImage';
-import { analyseBuilderPage, builderParsedFeed, builderSiteInfo, fetchPage, publicPageUrl, webCopy } from './rssBuilder';
+import { analyseBuilderPage, builderListPageArticles, builderParsedFeed, builderSiteInfo, fetchPage, publicPageUrl, webCopy } from './rssBuilder';
 import { pageAssetProxy } from './pageAssets';
 import { refreshStoredFeeds, storedFeedColumns, type StoredFeed } from './feedLoader';
 import { extractOriginalPublishedAt } from './publicationDate';
@@ -509,6 +509,8 @@ app.post('/api/rss-builder', async (c) => {
     const rssUrl = existing?.xml_url || `${new URL(c.req.url).origin}/rss/${id}.xml`;
     const title = body.title?.trim().slice(0, 200) || analysis.title;
     const parsed = builderParsedFeed(analysis, body.selector, rssUrl, title);
+    // 목록이 여러 쪽이면 만들 때 예전 글도 몇 쪽 더 받아 둔다.
+    if (parsed.listPages) parsed.articles.push(...await builderListPageArticles(parsed.listPages, body.selector, parsed.articles));
     const { feedId, insertedCount } = await upsertFeedAndArticles(c.env.DB, parsed);
     await c.env.DB.prepare('INSERT INTO rss_builders(id,feed_id,source_url,selector,title,created_by,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title').bind(id, feedId, analysis.sourceUrl, body.selector, title, user.id, new Date().toISOString()).run();
     if (!folderId && body.folderName?.trim()) {

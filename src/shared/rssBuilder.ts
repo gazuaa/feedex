@@ -20,6 +20,8 @@ export interface BuilderAnalysis {
   fromSitemap?: boolean;
   /** 클릭으로 고르기용 페이지의 정적 사본 (첫 보기에만). */
   snapshot?: string;
+  /** 고른 목록의 다음 쪽 주소들. 목록 아래 쪽 번호 링크에서 찾았다. */
+  nextPages?: string[];
 }
 export interface BuilderSite {
   url: string;

@@ -59,6 +59,9 @@ export function extractPicked(root: ParentNode, selection: PickSelection, baseUr
     const url = new URL(href);
     url.hash = '';
     for (const key of Array.from(url.searchParams.keys())) if (/^(?:utm_|fbclid|gclid)/i.test(key)) url.searchParams.delete(key);
+    // 게시판은 2쪽부터 글 링크에도 목록의 쪽 번호(?page=2)를 붙인다. 떼지 않으면 같은 글이 쪽마다 다른 글이 된다.
+    // 이 함수는 고르기 화면 안에서도 돌므로 바깥 값을 쓰지 않고 쪽 번호 이름을 여기 적는다.
+    try { new URL(baseUrl).searchParams.forEach((value, key) => { if (/^(?:page|p|pg|paged|pageno|page_no|pagenum|pageindex|cpage|curpage|currentpage|pn)$/i.test(key) && url.searchParams.get(key) === value) url.searchParams.delete(key); }); } catch { /* 기준 주소가 없으면 그대로 둔다. */ }
     return url.href;
   };
   const text = (node: Element | null) => (node?.textContent || '').replace(/\s+/g, ' ').trim();

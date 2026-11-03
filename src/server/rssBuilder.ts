@@ -10,7 +10,7 @@ import { dropConsentBanners } from '../shared/consentBanners';
 import { PICK_SELECTOR, decodePick, extractPicked, type PickSelection } from '../shared/rssPicker';
 import { parsePublicationDate } from './publicationDate';
 import { decodeHtmlEntities } from './rssParser';
-import type { ParsedFeed } from './rssParser';
+import type { ParsedArticle, ParsedFeed } from './rssParser';
 import type { Env } from './types';
 
 export function publicPageUrl(value: string): string {
@@ -32,6 +32,8 @@ function articleUrl(href: string | null, source: URL): string | null {
     if (!/^https?:$/.test(url.protocol) || url.origin !== source.origin || skippedPath.test(url.pathname) || fileExtension.test(url.pathname)) return null;
     url.hash = '';
     for (const key of [...url.searchParams.keys()]) if (/^(?:utm_|fbclid|gclid)/i.test(key)) url.searchParams.delete(key);
+    // 게시판은 2쪽부터 글 링크에도 목록의 쪽 번호(?page=2)를 붙인다. 떼지 않으면 같은 글이 쪽마다 다른 글이 된다.
+    for (const [key, value] of source.searchParams) if (PAGE_PARAM.test(key) && url.searchParams.get(key) === value) url.searchParams.delete(key);
     if (url.href.replace(/\/$/, '') === source.href.replace(/\/$/, '') || url.pathname === '/') return null;
     return url.href;
   } catch { return null; }
@@ -340,13 +342,14 @@ export async function analyseBuilderPage(url: string, env: Env, selector?: strin
     const pick = decodePick(selector);
     if (!pick) throw new Error('선택한 글 목록 정보가 올바르지 않습니다. 다시 선택해 주세요.');
     const page = pick.rendered ? await renderPage(source, env) : await fetchPage(source);
-    return analysePicked(page.html, page.url, selector, pick);
+    return { ...analysePicked(page.html, page.url, selector, pick), ...(pick.rendered ? {} : { nextPages: nextListPages(page.html, page.url, BUILDER_PAGES - 1) }) };
   }
   // 선택자가 없으면 만들기 도구의 첫 보기다. 목록을 찾지 못했어도 사람이 고를 수 있게
   // 페이지 사본을 함께 넣는다.
   const read = (page: { html: string; url: string }, rendered: boolean): BuilderAnalysis => {
     const result = { ...analyseBuilderHtml(page.html, page.url, selector), rendered };
-    return selector ? result : { ...result, snapshot: pickerSnapshot(page.html, page.url, assets) };
+    if (selector) return rendered ? result : { ...result, nextPages: nextListPages(page.html, page.url, BUILDER_PAGES - 1) };
+    return { ...result, snapshot: pickerSnapshot(page.html, page.url, assets) };
   };
   let failure: unknown;
   let fallback: BuilderAnalysis | null = null;
@@ -372,8 +375,82 @@ export async function analyseBuilderPage(url: string, env: Env, selector?: strin
   return { sourceUrl: source, title: new URL(source).hostname, groups: [], rendered: false };
 }
 
+const builderArticles = (analysis: BuilderAnalysis, selector: string): ParsedArticle[] => (analysis.groups.find((item) => item.selector === selector)?.articles ?? [])
+  .map((article) => ({ ...article, guid: article.url, contentHtml: article.summary ? `<p>${article.summary.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>` : null, author: null }));
+
 export function builderParsedFeed(analysis: BuilderAnalysis, selector: string, xmlUrl: string, title?: string): ParsedFeed {
-  const group = analysis.groups.find((item) => item.selector === selector);
-  if (!group?.articles.length) throw new Error('수집할 글 목록을 찾지 못했습니다. 다른 목록을 선택해 주세요.');
-  return { xmlUrl, htmlUrl: analysis.sourceUrl, title: title?.trim() || analysis.title, description: 'RSS 빌더로 만든 웹사이트 글 목록', faviconUrl: `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(analysis.sourceUrl).hostname)}&sz=64`, articles: group.articles.map((article) => ({ ...article, guid: article.url, contentHtml: article.summary ? `<p>${article.summary.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>` : null, author: null })) };
+  const articles = builderArticles(analysis, selector);
+  if (!articles.length) throw new Error('수집할 글 목록을 찾지 못했습니다. 다른 목록을 선택해 주세요.');
+  return { xmlUrl, htmlUrl: analysis.sourceUrl, title: title?.trim() || analysis.title, description: 'RSS 빌더로 만든 웹사이트 글 목록', faviconUrl: `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(analysis.sourceUrl).hostname)}&sz=64`, articles, ...(analysis.nextPages?.length ? { listPages: analysis.nextPages } : {}) };
+}
+
+/** 만들 때 받는 목록 쪽 수(첫 쪽 포함). 한 쪽은 대개 10~20개다. */
+export const BUILDER_PAGES = 5;
+// 쪽 번호로 흔히 쓰는 질의 이름. 다른 이름이어도 링크에 다음 두 쪽이 함께 있으면 쪽 번호로 본다.
+const PAGE_PARAM = /^(?:page|p|pg|paged|pageno|page_no|pagenum|pageindex|cpage|curpage|currentpage|pn)$/i;
+
+/**
+ * 목록 아래의 쪽 번호 링크에서 다음 쪽들의 주소를 만든다. `?page=2`처럼 질의 값 하나만 다른 링크나
+ * `/page/2` 같은 경로를 쓴다. 스크립트로 더 불러오는 목록처럼 쪽 주소가 없으면 빈 배열이다.
+ */
+export function nextListPages(html: string, pageUrl: string, count: number): string[] {
+  const { document } = parseHTML(html);
+  const base = new URL(pageUrl);
+  const pathPage = (path: string) => /^(.*?)\/page\/(\d{1,5})(\/?)$/.exec(path);
+  const baseMatch = pathPage(base.pathname);
+  const basePath = (baseMatch ? baseMatch[1] : base.pathname).replace(/\/$/, '');
+  const params = new Map<string, Set<number>>(), paths = new Set<number>();
+  let slash = '';
+  for (const anchor of document.querySelectorAll('a[href]')) {
+    let url: URL;
+    try { url = new URL(anchor.getAttribute('href') || '', base); } catch { continue; }
+    if (url.origin !== base.origin) continue;
+    const linked = pathPage(url.pathname);
+    if (linked && linked[1].replace(/\/$/, '') === basePath && url.search === base.search) { paths.add(Number(linked[2])); slash ||= linked[3]; continue; }
+    if (url.pathname !== base.pathname) continue;
+    const changed = [...new Set([...url.searchParams.keys(), ...base.searchParams.keys()])].filter((key) => url.searchParams.get(key) !== base.searchParams.get(key));
+    const value = changed.length === 1 ? url.searchParams.get(changed[0]) : null;
+    if (!value || !/^\d{1,5}$/.test(value)) continue;
+    params.set(changed[0], (params.get(changed[0]) ?? new Set()).add(Number(value)));
+  }
+  const pages = (current: number, make: (page: number) => string) => Array.from({ length: count }, (_, index) => make(current + index + 1));
+  // 다음 쪽 링크가 있어야 하고, 흔한 이름이 아니면 그다음 쪽 링크도 있어야 쪽 번호로 본다(분류 번호 같은 값과 구분).
+  const named = [...params].sort(([a], [b]) => Number(PAGE_PARAM.test(b)) - Number(PAGE_PARAM.test(a))).find(([name, values]) => {
+    const current = Number(base.searchParams.get(name)) || 1;
+    return values.has(current + 1) && (PAGE_PARAM.test(name) || values.has(current + 2));
+  });
+  if (named) {
+    const [name] = named, current = Number(base.searchParams.get(name)) || 1;
+    return pages(current, (page) => { const url = new URL(base); url.searchParams.set(name, String(page)); url.hash = ''; return url.href; });
+  }
+  const current = baseMatch ? Number(baseMatch[2]) : 1;
+  if (paths.has(current + 1)) return pages(current, (page) => `${base.origin}${basePath}/page/${page}${slash}${base.search}`);
+  return [];
+}
+
+/**
+ * 목록의 다음 쪽들에서 같은 목록의 글을 더 받는다. 다음 쪽은 서버가 받은 정적 페이지로만 읽고,
+ * 이미 받은 글만 나오거나 글이 없는 쪽에서 멈춘다. 날짜가 없는 글은 앞 쪽 글보다 아래에 놓이도록 시각을 조금씩 당긴다.
+ */
+export async function builderListPageArticles(pages: string[], selector: string, current: ParsedArticle[]): Promise<ParsedArticle[]> {
+  const known = new Set(current.map((article) => article.guid)), found: ParsedArticle[] = [];
+  const pick = selector.startsWith(PICK_SELECTOR) ? decodePick(selector) : null;
+  if (selector.startsWith(SITEMAP_SELECTOR) || (selector.startsWith(PICK_SELECTOR) && !pick)) return [];
+  let floor = Math.min(Date.now(), ...current.map((article) => Date.parse(article.publishedAt)).filter(Number.isFinite));
+  for (const url of pages) {
+    let articles: ParsedArticle[];
+    try {
+      const page = await fetchPage(url);
+      articles = builderArticles(pick ? analysePicked(page.html, page.url, selector, pick) : analyseBuilderHtml(page.html, page.url, selector), selector);
+    } catch { break; }
+    const fresh = articles.filter((article) => !known.has(article.guid));
+    if (!fresh.length) break;
+    for (const article of fresh) {
+      known.add(article.guid);
+      if (article.dateSource === 'collected') article.publishedAt = new Date(floor -= 1000).toISOString();
+      else floor = Math.min(floor, Date.parse(article.publishedAt) || floor);
+      found.push(article);
+    }
+  }
+  return found;
 }
