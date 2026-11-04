@@ -4,6 +4,7 @@ import type { Env } from './server/types';
 import { generatedRss, refreshStoredFeeds, storedFeedColumns, type StoredFeed } from './server/feedLoader';
 import { checkFeedPublicationDates } from './server/articlePublication';
 import { backfillXFeeds } from './server/xBackfill';
+import { refreshQueryStats } from './server/queryStats';
 import { ARTICLE_IMAGE_PATH, serveArticleImage, servePageAsset } from './server/pageAssets';
 
 const LEGACY_HOST = 'sfeed.jyk.workers.dev';
@@ -63,6 +64,8 @@ export default {
     const feeds = res.results || [];
     // 한 단계가 실패해도 다음 단계는 돈다. 실패는 로그에 남기고 다음 예약 실행이 이어받는다.
     const step = (name: string, work: () => Promise<unknown>) => work().catch((error) => console.error(`예약 실행 ${name} 실패:`, error instanceof Error ? error.message : error));
+    // 통계가 없으면 다른 쿼리가 모두 무거워지므로 가장 먼저 한다.
+    await step('쿼리 통계', () => refreshQueryStats(env.DB));
     await step('피드 새로고침', () => refreshStoredFeeds(env, feeds));
     // X 계정의 예전 글은 새로고침이 끝난 뒤 몇 쪽씩 채운다.
     await step('X 예전 글 채우기', () => backfillXFeeds(env.DB));

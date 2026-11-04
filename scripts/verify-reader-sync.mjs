@@ -172,5 +172,24 @@ try {
   assert.deepEqual(network, ['/api/bootstrap'], '기존 빌더 캐시에 수정 권한이 없으면 한 번 갱신해 메뉴를 표시한다.');
   network = []; await reopenedSync.check(() => true, async () => {});
   assert.deepEqual(network, ['/api/sync'], '권한을 채운 뒤에는 가벼운 변경 확인으로 돌아간다.');
+  // 글 id로 찾는 쿼리는 통계가 없어도 글부터 찾는다. 구독부터 읽으면 글 40개를 찾으려고 전체를 훑는다.
+  const planCursor = (await request('/api/bootstrap')).syncCursor;
+  const planIds = Array.from({ length: 40 }, (_, index) => `plan-${index}`);
+  for (const id of planIds) await insert(id, 'one');
+  const firstPlanStep = async () => {
+    const query = sql.find((statement) => /a\.id IN \(\?(,\?){39}\)/.test(statement));
+    assert.ok(query, 'the lookup by article id must run');
+    return (await db.prepare(`EXPLAIN QUERY PLAN ${query}`).bind(...query.match(/\?/g).map(() => 'x')).all()).results[0].detail;
+  };
+  sql = [];
+  const planDelta = await request('/api/sync', { method: 'POST', body: JSON.stringify({ cursor: planCursor }) });
+  assert.equal(planDelta.articles.length, 40);
+  assert.match(await firstPlanStep(), /^SEARCH a /, 'sync must look articles up by id first');
+  sql = [];
+  assert.equal((await request(`/api/articles?articleIds=${planIds.join(',')}`)).articles.length, 40);
+  assert.match(await firstPlanStep(), /^SEARCH a /, 'fetching article bodies must look articles up by id first');
+  sql = [];
+  await request('/api/articles/mark-read', { method: 'POST', body: JSON.stringify({ articleIds: planIds }) });
+  assert.match(await firstPlanStep(), /^SEARCH a /, 'marking articles read must look articles up by id first');
   console.log('PASS: two indexed reads/no counts for idle sync; delta-only new/state/metadata/deletion updates; local cached tabs and relaunch; count expiry, account isolation, deferred bodies and bounded cursor recovery.');
 } finally { Date.now = originalNow; await vite.close(); }

@@ -76,13 +76,14 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
   const ids = [...articleIds].filter((id) => !removed.has(id));
   for (let at = 0; at < ids.length; at += 40) {
     const chunk = ids.slice(at, at + 40);
+    // CROSS JOIN으로 글 id부터 찾게 고정한다. 통계가 없으면 SQLite가 구독부터 읽어 글 40개를 찾으려고 전체를 훑는다.
     const rows = await db.prepare(`SELECT a.id,a.feed_id,COALESCE(s.custom_title,f.title) AS feed_title,
       f.favicon_url AS feed_favicon,f.html_url AS feed_html_url,s.folder_id,fl.name AS folder_name,
       a.guid,a.title,a.url,a.author,a.summary,a.ai_summary,a.thumbnail_url,a.published_at,a.created_at AS collected_at,
       CASE WHEN f.xml_url LIKE 'https://x.com/%' AND length(a.content_html)<=20000 THEN a.content_html END AS x_body,
       COALESCE(dc.source,'feed') AS date_source,
       COALESCE(st.is_read,CASE WHEN a.published_at<? THEN 1 ELSE 0 END) AS is_read,COALESCE(st.is_saved,0) AS is_saved
-      FROM articles a JOIN subscriptions s ON s.feed_id=a.feed_id AND s.user_id=? JOIN feeds f ON f.id=a.feed_id
+      FROM articles a CROSS JOIN subscriptions s ON s.feed_id=a.feed_id AND s.user_id=? JOIN feeds f ON f.id=a.feed_id
       LEFT JOIN folders fl ON fl.id=s.folder_id LEFT JOIN article_states st ON st.article_id=a.id AND st.user_id=s.user_id
       LEFT JOIN article_date_checks dc ON dc.article_id=a.id WHERE ${shown} AND a.id IN (${chunk.map(() => '?').join(',')})`)
       .bind(new Date(now - 30 * DAY).toISOString(), userId, ...chunk).all<Record<string, unknown>>();

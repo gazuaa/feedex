@@ -920,6 +920,7 @@ app.get('/api/articles', async (c) => {
   // 한 행을 더 받아서, 더 오래된 페이지가 있는지 클라이언트에 알린다.
   params.push(limit + 1);
 
+  // 글 id로 찾을 때는 CROSS JOIN으로 글부터 찾게 고정한다. 통계가 없으면 구독부터 읽어 전체를 훑는다.
   const sql = `
     SELECT
       a.id,
@@ -943,7 +944,7 @@ app.get('/api/articles', async (c) => {
       COALESCE(st.is_read, CASE WHEN a.published_at < ? THEN 1 ELSE 0 END) as is_read,
       COALESCE(st.is_saved, 0) as is_saved
     FROM articles a
-    JOIN subscriptions s ON s.feed_id = a.feed_id
+    ${exact ? 'CROSS ' : ''}JOIN subscriptions s ON s.feed_id = a.feed_id
     JOIN feeds f ON f.id = a.feed_id
     LEFT JOIN folders fl ON fl.id = s.folder_id
     LEFT JOIN article_states st ON st.article_id = a.id AND st.user_id = s.user_id
@@ -996,7 +997,7 @@ app.post('/api/articles/mark-read', async (c) => {
   const userId = c.get('user').id;
   await c.env.DB.prepare(`INSERT INTO article_states (user_id, article_id, is_read, read_at)
     SELECT ?, a.id, 1, ? FROM articles a
-    JOIN subscriptions s ON s.feed_id = a.feed_id
+    CROSS JOIN subscriptions s ON s.feed_id = a.feed_id
     WHERE s.user_id = ? AND a.id IN (${ids.map(() => '?').join(',')})
     ON CONFLICT(user_id, article_id) DO UPDATE SET is_read = 1, read_at = excluded.read_at`)
     .bind(userId, new Date().toISOString(), userId, ...ids).run();

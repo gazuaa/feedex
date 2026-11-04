@@ -168,6 +168,15 @@ try {
   assert.equal(await hasCheck(bigRows[PUBLICATION_CHECK_RECENT - 1].id), true, 'the last recent article is still checked');
   await checkFeedPublicationDates(checkDb, [bigFeed]);
   assert.equal(await hasCheck(bigRows[PUBLICATION_CHECK_RECENT].id), false, 'articles past the recent window are left to the reader path');
+  // 쿼리 통계는 없으면 만들고, 이미 있으면 글이 조금 늘어도 다시 만들지 않는다.
+  const { refreshQueryStats } = await vite.ssrLoadModule('/src/server/queryStats.ts');
+  const queryStats = async () => (await checkDb.prepare('SELECT tbl,idx,stat FROM sqlite_stat1 ORDER BY tbl,idx').all()).results;
+  await refreshQueryStats(checkDb);
+  const firstStats = await queryStats();
+  assert.ok(firstStats.some((row) => row.tbl === 'articles'), 'query statistics are collected');
+  await feedOf('after-stats', 5);
+  await refreshQueryStats(checkDb);
+  assert.deepEqual(await queryStats(), firstStats, 'existing query statistics are left alone');
   // 과부하면 그 회차는 바로 멈추고, 다른 오류는 그 피드만 건너뛴다.
   const originalConsoleError = console.error;
   const logged = [];
@@ -202,6 +211,8 @@ try {
     };
     logged.length = 0;
     await worker.scheduled({}, { DB: down }, {});
+    assert.ok(attempted[0].includes('PRAGMA optimize'), 'query statistics come first in a scheduled run');
+    assert.ok(logged.some((line) => line.includes('쿼리 통계')), 'a failed statistics step is logged');
     assert.ok(attempted.some((sql) => sql.includes('recent JOIN articles')), 'the publication step still runs after earlier failures');
     assert.ok(attempted.some((sql) => sql.includes('reader_sync')), 'the prune step still runs after earlier failures');
     assert.ok(logged.some((line) => line.includes('동기화 기록 정리')), 'a failed step is logged');
