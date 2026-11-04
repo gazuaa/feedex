@@ -191,5 +191,59 @@ try {
   sql = [];
   await request('/api/articles/mark-read', { method: 'POST', body: JSON.stringify({ articleIds: planIds }) });
   assert.match(await firstPlanStep(), /^SEARCH a /, 'marking articles read must look articles up by id first');
+  // 글 목록은 조건별로 정한 순서로 읽는다. 통계 유무에 흔들리면 한 번에 100만 행 넘게 읽는다.
+  const wide = await login('wide-sync@example.test');
+  await db.prepare('INSERT INTO folders(id,user_id,name,created_at) VALUES(?,?,?,?)').bind('wide-folder', wide.user.id, 'Wide', stamp()).run();
+  for (let index = 0; index < 25; index++) {
+    await db.prepare('INSERT INTO feeds(id,xml_url,title,created_at) VALUES(?,?,?,?)').bind(`wide-${index}`, `https://example.test/wide-${index}`, `wide-${index}`, stamp()).run();
+    await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,folder_id,created_at) VALUES(?,?,?,?,?)').bind(`sub-wide-${index}`, wide.user.id, `wide-${index}`, index < 2 ? 'wide-folder' : null, stamp()).run();
+  }
+  for (let index = 0; index < 5; index++) await insert(`wide-article-${index}`, `wide-${index % 3}`, now - (index + 1) * 60000);
+  const listPlan = async (query, token) => {
+    sql = [];
+    const body = await request(`/api/articles?${query}`, {}, token);
+    const statement = sql.find((text) => text.includes('ORDER BY a.published_at'));
+    const plan = (await db.prepare(`EXPLAIN QUERY PLAN ${statement}`).bind(...statement.match(/\?/g).map(() => 'x')).all()).results[0].detail;
+    return { plan, ids: body.articles.map((article) => article.id), hasMore: body.hasMore };
+  };
+  const newestFirst = [0, 1, 2, 3, 4].map((index) => `wide-article-${index}`);
+  for (const query of ['scope=all', 'scope=all&unreadOnly=true', 'scope=today', 'scope=folder']) {
+    const { plan, ids } = await listPlan(`${query}&limit=20`, wide.token);
+    assert.match(plan, /^(SCAN|SEARCH) a USING INDEX idx_articles_pub_id/, `${query} must walk the newest-first index`);
+    assert.deepEqual(ids, newestFirst, `${query} must keep the same articles and order`);
+  }
+  assert.deepEqual((await listPlan('scope=all&sort=oldest&limit=20', wide.token)).ids, [...newestFirst].reverse());
+  const folderList = await listPlan('scope=folder&folderId=wide-folder&limit=20', wide.token);
+  assert.match(folderList.plan, / s /, 'a folder must start from its subscriptions');
+  assert.deepEqual(folderList.ids, newestFirst.filter((id) => Number(id.at(-1)) % 3 < 2));
+  assert.match((await listPlan('scope=feed&feedId=wide-0&limit=20', wide.token)).plan, / s /, 'a feed must start from its subscription');
+  assert.match((await listPlan('scope=all&limit=20')).plan, / s /, 'an account with few subscriptions must start from them');
+  // 저장 글은 저장 표에서 먼저 찾고, 범위가 같으면 같은 글을 돌려준다.
+  for (const id of ['wide-article-1', 'wide-article-3']) await request(`/api/articles/${id}/state`, { method: 'POST', body: JSON.stringify({ isSaved: true }) }, wide.token);
+  for (const query of ['scope=saved', 'scope=folder&folderId=wide-folder&savedOnly=true', 'scope=all&savedOnly=true']) {
+    const { plan, ids } = await listPlan(`${query}&limit=20`, wide.token);
+    assert.match(plan, /^SEARCH st /, `${query} must start from saved articles`);
+    assert.deepEqual(ids, ['wide-article-1', 'wide-article-3'], `${query} must return only saved articles`);
+  }
+  assert.deepEqual((await listPlan('scope=feed&feedId=wide-0&savedOnly=true&limit=20', wide.token)).ids, ['wide-article-3']);
+  // 다음 쪽은 어떤 순서로 읽어도 빠짐없이 이어진다. 발행 시각이 같은 글이 쪽 경계에 걸려도 마찬가지다.
+  for (const id of ['wide-tie-a', 'wide-tie-b', 'wide-tie-c']) {
+    await insert(id, 'wide-0', now - 150000);
+    await request(`/api/articles/${id}/state`, { method: 'POST', body: JSON.stringify({ isSaved: true }) }, wide.token);
+  }
+  for (const query of ['scope=all', 'scope=folder&folderId=wide-folder', 'scope=saved', 'scope=all&sort=oldest', 'scope=saved&sort=oldest', 'scope=folder&folderId=wide-folder&sort=oldest']) {
+    const whole = (await listPlan(`${query}&limit=20`, wide.token)).ids;
+    const paged = [];
+    let after = '';
+    for (let page = 0; page < 10; page++) {
+      const body = await request(`/api/articles?${query}&limit=1${after}`, {}, wide.token);
+      paged.push(...body.articles.map((article) => article.id));
+      if (!body.hasMore) break;
+      const last = body.articles.at(-1);
+      after = `&before=${encodeURIComponent(last.published_at)}&beforeId=${encodeURIComponent(last.id)}`;
+    }
+    assert.deepEqual(paged, whole, `${query} paging must not skip or repeat articles`);
+    assert.equal(whole.filter((id) => id.startsWith('wide-tie-')).length, 3, `${query} must include every article with the same time`);
+  }
   console.log('PASS: two indexed reads/no counts for idle sync; delta-only new/state/metadata/deletion updates; local cached tabs and relaunch; count expiry, account isolation, deferred bodies and bounded cursor recovery.');
 } finally { Date.now = originalNow; await vite.close(); }

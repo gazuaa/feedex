@@ -850,6 +850,10 @@ app.post('/api/sync', async (c) => {
 const SEARCH_MATCH = '(a.title LIKE ? OR a.summary LIKE ? OR a.author LIKE ? OR f.title LIKE ?)';
 const searchParams = (search: string) => Array<string>(4).fill(`%${search}%`);
 
+// 구독이 이만큼 많으면 최신순 인덱스를 따라 읽는 편이 빠르다. 구독이 적으면 내 글을 찾기까지
+// 다른 사람의 글을 한참 지나쳐야 하므로 구독부터 읽는다.
+const ARTICLES_FIRST_SUBSCRIPTIONS = 20;
+
 // 필터·검색·배치를 지원하며 글을 가져온다
 app.get('/api/articles', async (c) => {
   const user = c.get('user');
@@ -878,6 +882,16 @@ app.get('/api/articles', async (c) => {
   const conditions: string[] = ['s.user_id = ?', shownToSubscriber(await pauseSupported(c.env.DB))];
   // 첫 자리표시자는 SELECT 목록에 있다: 나이에 따른 기본 읽음 상태.
   const params: unknown[] = [cutoff, user.id];
+  // 저장한 글은 저장 표에서 먼저 찾는다. 글 전체에서 저장된 글을 골라내면 수십만 행을 읽는다.
+  const savedFirst = !exact && (scope === 'saved' || savedOnly) && !(scope === 'feed' && feedId);
+  const requireSaved = () => {
+    if (savedFirst) {
+      conditions.push('st.user_id = ? AND st.is_saved = 1');
+      params.push(user.id);
+    } else {
+      conditions.push('COALESCE(st.is_saved, 0) = 1');
+    }
+  };
 
   if (articleId) {
     conditions.push('a.id = ?');
@@ -892,7 +906,7 @@ app.get('/api/articles', async (c) => {
     conditions.push('s.feed_id = ?');
     params.push(feedId);
   } else if (scope === 'saved') {
-    conditions.push('COALESCE(st.is_saved, 0) = 1');
+    requireSaved();
   } else if (scope === 'today') {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     conditions.push('a.published_at >= ?');
@@ -900,7 +914,7 @@ app.get('/api/articles', async (c) => {
   }
 
   if (!exact && savedOnly && scope !== 'saved') {
-    conditions.push('COALESCE(st.is_saved, 0) = 1');
+    requireSaved();
   }
   if (!exact && unreadOnly && !savedOnly && scope !== 'saved') {
     conditions.push('a.published_at >= ? AND COALESCE(st.is_read, 0) = 0');
@@ -913,14 +927,28 @@ app.get('/api/articles', async (c) => {
   }
 
   if (!exact && before) {
-    conditions.push(oldest ? '(a.published_at > ? OR (a.published_at = ? AND a.id > ?))' : '(a.published_at < ? OR (a.published_at = ? AND a.id < ?))');
-    params.push(before, before, beforeId);
+    // 앞의 범위 조건은 결과를 바꾸지 않고, 뒤쪽 쪽을 볼 때 인덱스로 바로 그 자리부터 읽게 한다.
+    conditions.push(oldest ? 'a.published_at >= ? AND (a.published_at > ? OR (a.published_at = ? AND a.id > ?))' : 'a.published_at <= ? AND (a.published_at < ? OR (a.published_at = ? AND a.id < ?))');
+    params.push(before, before, before, beforeId);
   }
 
   // 한 행을 더 받아서, 더 오래된 페이지가 있는지 클라이언트에 알린다.
   params.push(limit + 1);
 
-  // 글 id로 찾을 때는 CROSS JOIN으로 글부터 찾게 고정한다. 통계가 없으면 구독부터 읽어 전체를 훑는다.
+  // 읽는 순서를 조건별로 코드에서 정한다. CROSS JOIN은 SQLite가 표 순서를 바꾸지 못하게 한다.
+  // 통계에 맡기면 구독부터 읽고 글 전체를 정렬해 한 번에 100만 행 넘게 읽을 수 있다.
+  const scoped = (scope === 'folder' && folderId) || (scope === 'feed' && feedId);
+  const articlesFirst = exact || (!scoped && !savedFirst && Number((await c.env.DB.prepare('SELECT COUNT(*) AS n FROM subscriptions WHERE user_id = ?').bind(user.id).first<{ n: number }>())?.n) >= ARTICLES_FIRST_SUBSCRIPTIONS);
+  const source = savedFirst ? `article_states st
+    CROSS JOIN articles a ON a.id = st.article_id
+    CROSS JOIN subscriptions s ON s.feed_id = a.feed_id AND s.user_id = st.user_id
+    JOIN feeds f ON f.id = a.feed_id
+    LEFT JOIN folders fl ON fl.id = s.folder_id
+    LEFT JOIN article_date_checks dc ON dc.article_id = a.id` : `${articlesFirst ? 'articles a CROSS JOIN subscriptions s ON s.feed_id = a.feed_id' : 'subscriptions s CROSS JOIN articles a ON a.feed_id = s.feed_id'}
+    JOIN feeds f ON f.id = a.feed_id
+    LEFT JOIN folders fl ON fl.id = s.folder_id
+    LEFT JOIN article_states st ON st.article_id = a.id AND st.user_id = s.user_id
+    LEFT JOIN article_date_checks dc ON dc.article_id = a.id`;
   const sql = `
     SELECT
       a.id,
@@ -943,12 +971,7 @@ app.get('/api/articles', async (c) => {
       COALESCE(dc.source, 'feed') AS date_source,
       COALESCE(st.is_read, CASE WHEN a.published_at < ? THEN 1 ELSE 0 END) as is_read,
       COALESCE(st.is_saved, 0) as is_saved
-    FROM articles a
-    ${exact ? 'CROSS ' : ''}JOIN subscriptions s ON s.feed_id = a.feed_id
-    JOIN feeds f ON f.id = a.feed_id
-    LEFT JOIN folders fl ON fl.id = s.folder_id
-    LEFT JOIN article_states st ON st.article_id = a.id AND st.user_id = s.user_id
-    LEFT JOIN article_date_checks dc ON dc.article_id = a.id
+    FROM ${source}
     WHERE ${conditions.join(' AND ')}
     ORDER BY a.published_at ${oldest ? 'ASC' : 'DESC'}, a.id ${oldest ? 'ASC' : 'DESC'}
     LIMIT ?
