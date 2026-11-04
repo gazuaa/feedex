@@ -39,10 +39,11 @@ export class ArticleResources {
   async cachedWeb(article: ArticleItem): Promise<WebResult | undefined> {
     const stored = await readContent(this.account, `web:${article.id}`);
     // 예전 X 글 사본은 댓글 자리만 회색으로 남은 x.com 화면이거나, 인용 글 상자가 깨진 사본이다. 지금 방식의 사본을 새로 받게 한다.
-    // 대리 경로(/page-asset/) 없이 http 그림·스타일이 그대로 남은 사본도 혼합 콘텐츠로 깨지므로 다시 받는다.
+    // 대리 경로(/page-asset/) 없이 http 그림·스타일이 그대로 남은 사본이나, 유튜브 임베드 변환 전에 만든 http 사본도 다시 받는다.
     if (!stored || !('html' in stored.data)
       || (isXStatusUrl(article.url) && (!stored.data.thread || !stored.data.html.includes(X_THREAD_MARK)))
-      || /<(?:link|img)\b[^>]+(?:href|src)=["']http:\/\//i.test(stored.data.html)) {
+      || /<(?:link|img)\b[^>]+(?:href|src)=["']http:\/\//i.test(stored.data.html)
+      || (/^http:\/\//i.test(article.url) && stored.data.html.includes('<base ') && !stored.data.html.includes('data-sfeed-copy="2"'))) {
       this.preparedCopies.delete(article.id);
       return;
     }

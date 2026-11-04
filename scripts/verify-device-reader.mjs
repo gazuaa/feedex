@@ -51,6 +51,8 @@ try {
   assert.equal(requests.length, 0, 'a cached website copy opens locally');
   await content.writeContent('owner', 'web:http-broken', { html: '<html><head><link rel="stylesheet" href="http://image.rhythmer.net/css/common.css"></head><body>Broken copy</body></html>', url: 'http://board.rhythmer.net/src/go.php?n=21637' });
   assert.equal(await new ArticleResources('owner', () => true, request).cachedWeb({ id: 'http-broken', feed_id: 'one', url: 'http://board.rhythmer.net/src/go.php?n=21637' }), undefined, 'unproxied http stylesheet/image copies are discarded and refetched');
+  await content.writeContent('owner', 'web:http-old-copy', { html: '<html><head><base href="http://board.rhythmer.net/src/go.php?n=21637" target="_blank"></head><body>Old copy without YouTube cards</body></html>', url: 'http://board.rhythmer.net/src/go.php?n=21637' });
+  assert.equal(await new ArticleResources('owner', () => true, request).cachedWeb({ id: 'http-old-copy', feed_id: 'one', url: 'http://board.rhythmer.net/src/go.php?n=21637' }), undefined, 'older http web copies before YouTube card preservation are discarded and refetched');
   const restarted = await createServer({ configFile: false, server: { middlewareMode: true, ws: false }, appType: 'custom', logLevel: 'silent' });
   try {
     const diskContent = await restarted.ssrLoadModule('/src/client/deviceContent.ts');

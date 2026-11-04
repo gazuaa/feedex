@@ -8,8 +8,11 @@ import { dropConsentBanners } from '../shared/consentBanners';
 // photo-300x200.jpg와 photo.jpg는 같은 그림이다.
 function imageStem(url: string) {
   try {
-    const name = decodeURIComponent(new URL(url, 'https://sfeed.invalid').pathname.split('/').pop() || '').toLowerCase();
-    return name.replace(/\.[a-z0-9]{2,5}$/, '').replace(/@\dx$/, '').replace(/(?:[-_](?:\d+x\d+|[a-z]\d{1,2}|thumb(?:nail)?|small|medium|large|scaled|cropped|resized))+$/, '');
+    const parsed = new URL(url, 'https://sfeed.invalid');
+    const name = decodeURIComponent(parsed.pathname.split('/').pop() || '').toLowerCase();
+    const stem = name.replace(/\.[a-z0-9]{2,5}$/, '').replace(/@\dx$/, '').replace(/(?:[-_](?:\d+x\d+|[a-z]\d{1,2}|thumb(?:nail)?|small|medium|large|scaled|cropped|resized))+$/, '');
+    if (/^(?:hq|mq|sd|maxres)default$/.test(stem)) return parsed.pathname.toLowerCase();
+    return stem;
   } catch { return ''; }
 }
 

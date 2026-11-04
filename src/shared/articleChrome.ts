@@ -1,4 +1,4 @@
-const MEDIA = 'img,picture,video,audio';
+const MEDIA = 'img,picture,video,audio,iframe';
 const DATE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b|\b\d{4}[-./]\d{1,2}[-./]\d{1,2}\b|\d{4}년\s*\d{1,2}월\s*\d{1,2}일/i;
 const BYLINE = /^\s*(?:by|written by|posted by)\s+\p{Lu}/u;
 

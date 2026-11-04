@@ -2,6 +2,7 @@ import { parseHTML } from 'linkedom';
 import type { BuilderAnalysis, BuilderArticle, BuilderGroup, BuilderSite } from '../shared/rssBuilder';
 import { normalizeFeedUrl } from '../shared/feedDiscovery';
 import { revealLazyImages } from '../shared/lazyImages';
+import { replaceYouTubeIframesWithCards } from '../shared/youtubeEmbed';
 import { dropEmptySlots } from '../shared/emptySlots';
 import { plainCopyStyles } from '../shared/copyStyles';
 import { proxyPageAssets, type AssetProxy } from './pageAssets';
@@ -77,6 +78,7 @@ export function webCopy(html: string, pageUrl: string, assets?: AssetProxy): str
 // `assets`는 https 앱 안에서 막히는 http 그림·스타일을 앱이 대신 받는 주소로 바꾼다(pageAssets 참고).
 function pageCopy(html: string, pageUrl: string, { minLinks = 0, linkTarget, articleOnly, assets }: { minLinks?: number; linkTarget?: string; articleOnly?: boolean; assets?: AssetProxy }): string | undefined {
   const { document } = parseHTML(html);
+  if (articleOnly) replaceYouTubeIframesWithCards(document, pageUrl);
   stripActiveContent(document);
   if (document.querySelectorAll('a[href]').length < minLinks) return undefined;
   revealLazyImages(document);
@@ -89,6 +91,7 @@ function pageCopy(html: string, pageUrl: string, { minLinks = 0, linkTarget, art
   const base = document.createElement('base');
   base.setAttribute('href', pageUrl);
   if (linkTarget) base.setAttribute('target', linkTarget);
+  if (articleOnly) base.setAttribute('data-sfeed-copy', '2');
   const charset = document.createElement('meta');
   charset.setAttribute('charset', 'utf-8');
   head.prepend(charset, base);

@@ -4,6 +4,7 @@ import { extractOriginalPublishedAt } from './publicationDate';
 import { extractPreviewImage } from './previewImage';
 import { publicPageUrl, renderPage } from './rssBuilder';
 import { revealLazyImages } from '../shared/lazyImages';
+import { preserveYouTubeIframes } from '../shared/youtubeEmbed';
 import { dropSiteClasses } from '../shared/siteClasses';
 import { dropArticleChrome, pageTitles } from '../shared/articleChrome';
 import type { Env } from './types';
@@ -26,12 +27,15 @@ export function extractReaderContent(html: string, url: string, fallbackHtml: st
   const leadImageUrl = extractPreviewImage(html, url);
   const originalPublishedAt = extractOriginalPublishedAt(html, url) || extractOriginalPublishedAt(fallbackHtml, url);
   const titles = pageTitles(document);
-  document.querySelectorAll('script,style,noscript,template,nav,header,footer,aside,form,iframe,object,embed,svg,math,link,meta,base,[hidden],[aria-hidden="true"]').forEach((node) => node.remove());
+  document.querySelectorAll('script,style,noscript,template,nav,header,footer,aside,form,object,embed,svg,math,link,meta,base,[hidden],[aria-hidden="true"]').forEach((node) => node.remove());
+  preserveYouTubeIframes(document, url);
   revealLazyImages(document, url);
-  const readable = (node: { textContent: string | null }) => (node.textContent || '').replace(/\s+/g, ' ').trim().length > 120;
-  const candidates = [...document.querySelectorAll('[itemprop="articleBody"],article,.entry-content,.article-content,.prose')].filter(readable).sort((a, b) => (b.textContent?.length || 0) - (a.textContent?.length || 0));
+  const readable = (node: { textContent: string | null; querySelector?(selector: string): unknown }) =>
+    (node.textContent || '').replace(/\s+/g, ' ').trim().length > 120 ||
+    (Boolean(node.querySelector?.('iframe[src*="youtube.com/embed/"]')) && (node.textContent || '').replace(/\s+/g, ' ').trim().length > 20);
+  const candidates = [...document.querySelectorAll('[itemprop="articleBody"],article,.entry-content,.article-content,.prose,#contents,#article-view-content-div,.article_view,.view_content')].filter(readable).sort((a, b) => (b.textContent?.length || 0) - (a.textContent?.length || 0));
   const content = candidates[0] || document.querySelector('main');
-  const blocks = [...(content || document).querySelectorAll('p,h2,h3,blockquote,pre,ul,ol')];
+  const blocks = [...(content || document).querySelectorAll('p,h2,h3,blockquote,pre,ul,ol,iframe')];
   const candidate = candidates[0]?.innerHTML || (content && readable(content) ? content.innerHTML : blocks.slice(0, 80).map((node) => node.outerHTML).join('\n'));
   const { document: safe } = parseHTML(`<div id="reader-body">${candidate}</div>`);
   for (const element of safe.querySelectorAll('*')) {
@@ -42,7 +46,7 @@ export function extractReaderContent(html: string, url: string, fallbackHtml: st
   dropArticleChrome(safe.querySelector('#reader-body')!, titles);
   dropSiteClasses(safe.querySelector('#reader-body')!);
   const sanitized = sanitizeContentHtml(safe.querySelector('#reader-body')?.innerHTML || '', url);
-  if (!sanitized || sanitized.replace(/<[^>]+>/g, '').trim().length <= 120) return null;
+  if (!sanitized || (sanitized.replace(/<[^>]+>/g, '').trim().length <= 120 && !sanitized.includes('youtube.com/embed/'))) return null;
   return { fullContentHtml: sanitized, leadImageUrl, scrapedFromWeb: true, originalPublishedAt };
 }
 

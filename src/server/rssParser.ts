@@ -3,6 +3,7 @@ import type { OpmlFeed } from '../shared/opml';
 import { CURATED_FEEDS } from './curatedFeeds';
 import { extractOriginalPublishedAt, extractSummaryPublishedAt, parsePublicationDate } from './publicationDate';
 import { xProfile } from '../shared/xFeed';
+import { sanitizeYouTubeIframesInHtml } from '../shared/youtubeEmbed';
 import { fetchXFeed, type XOlderPage } from './xFeed';
 
 export interface ParsedArticle {
@@ -84,10 +85,12 @@ export function stripHtmlToSummary(html: string, maxLength = 260): string {
 
 export function sanitizeContentHtml(html: string, baseUrl?: string): string {
   if (!html) return '';
-  let result = html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+  let result = sanitizeYouTubeIframesInHtml(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, ''),
+    baseUrl
+  )
     .replace(/\son\w+="[^"]*"/gi, '')
     .replace(/\son\w+='[^']*'/gi, '');
 

@@ -1,6 +1,7 @@
 import { fetchPublicWebPage, preparePublicWebPage, type PublicContent } from '../shared/publicWebPage';
 import { markdownArticleHtml } from '../shared/markdownArticle';
 import { revealLazyImages } from '../shared/lazyImages';
+import { replaceYouTubeIframesWithCards } from '../shared/youtubeEmbed';
 import { dropSidebars } from '../shared/sidebars';
 import { dropEmptySlots } from '../shared/emptySlots';
 import { plainCopyStyles } from '../shared/copyStyles';
@@ -17,6 +18,7 @@ export function sanitizePublicWebCopy(html: string, url: string): string {
   if (/"isAccessibleForFree"\s*:\s*false/.test(html)) throw new PublicWebCopyError('restricted', '원문 사이트의 구독 권한이 필요한 기사입니다.');
   const article = document.querySelector('article,main,[itemprop="articleBody"]');
   if (((article ? article.textContent : document.body?.textContent) || '').trim().length < 120) throw new Error('웹 사본의 본문이 비어 있습니다.');
+  replaceYouTubeIframesWithCards(document, url);
   document.querySelectorAll('script,noscript,iframe,frame,frameset,object,embed,applet,template,base,meta[http-equiv],link[rel~="preload"],link[rel~="modulepreload"],link[rel~="prefetch"]').forEach((node) => node.remove());
   for (const element of document.querySelectorAll('*')) for (const { name, value } of Array.from(element.attributes)) {
     if (/^on/i.test(name) || /^srcdoc$/i.test(name) || (/^(?:href|src|action|formaction|xlink:href)$/i.test(name) && /^\s*(?:javascript|vbscript|data:text\/html)/i.test(value))) element.removeAttribute(name);

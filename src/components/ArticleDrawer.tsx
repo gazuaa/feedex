@@ -42,7 +42,8 @@ import { publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
 import { xThreadPreview } from '../client/xThreadPreview';
 import { retryChallenged } from '../client/publicWebCopy';
-import { useXPostFrame } from '../client/xPostFrame';
+import { useXPostFrame, useYouTubeCopyFrame } from '../client/xPostFrame';
+import { youtubeEmbedSrc } from '../shared/youtubeEmbed';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 import { shownThumbnail } from '../client/thumbnails';
 
@@ -243,6 +244,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const isMobile = useMobileViewport();
   const topRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), copyRef = useRef<HTMLIFrameElement>(null);
   useXPostFrame(copyRef, onOpenXPost);
+  const { activeYouTube, ytOverlayRef, closeYouTube } = useYouTubeCopyFrame(copyRef, webZoom, `${article?.id}:${mode}:${Boolean(copyHtml)}`);
   // 프레임 안 사이트의 스크롤은 손이 닿지 않으므로, 피드·리더·웹 사본만 막대를 숨긴다.
   const showingCopy = mode === 'web' && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
   const chromeHidden = useScrollChrome(bodyRef, isMobile && Boolean(article) && !mobileToolsOpen && !sizeToolsOpen, `${article?.id}:${mode}:${showingCopy}`, copyRef);
@@ -829,6 +831,37 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
                     referrerPolicy="no-referrer"
                   />
+                  {activeYouTube && (
+                    <div
+                      ref={ytOverlayRef}
+                      className="absolute z-10 overflow-hidden rounded-xl bg-black shadow-lg"
+                      style={{
+                        left: `${activeYouTube.rect[0] * webZoom}px`,
+                        top: `${activeYouTube.rect[1] * webZoom}px`,
+                        width: `${activeYouTube.rect[2] * webZoom}px`,
+                        height: `${activeYouTube.rect[3] * webZoom}px`,
+                      }}
+                    >
+                      <iframe
+                        key={`${activeYouTube.id}:${activeYouTube.start}`}
+                        src={youtubeEmbedSrc(activeYouTube.id, activeYouTube.start, true)}
+                        title="YouTube 동영상"
+                        className="h-full w-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        referrerPolicy="strict-origin-when-cross-origin"
+                      />
+                      <button
+                        type="button"
+                        onClick={closeYouTube}
+                        aria-label="동영상 닫기"
+                        title="동영상 닫기"
+                        className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-slate-950/80 text-xs font-bold text-white hover:bg-slate-900 cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                 </div>
                 </WebPager>
               </>

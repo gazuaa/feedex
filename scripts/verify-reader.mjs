@@ -80,6 +80,19 @@ try {
   assert.ok(!/onetrust|our partners store|We use cookies|Accept All/.test(consent), 'consent managers and cookie dialogs go');
   assert.ok(consent.includes('Share this story') && consent.includes('Paragraph text.'), 'other dialogs and the article stay');
   assert.ok(pickerSnapshot(`<html><body><div class="body"><p>${'Paragraph text. '.repeat(20)}</p></div><aside>${Array.from({ length: 12 }, (_, i) => `<a href="/s${i}">Story ${i}</a>`).join('')}</aside></body></html>`, url)?.includes('Story 11'), 'the RSS picker keeps side columns, whose links can be picked');
+  // 리드머식 기사: #contents 본문 안의 공개 YouTube 임베드는 리더 보기에서 표준 iframe으로 보존하고, 웹 사본에서는 제자리 재생 카드로 바꾼다.
+  const rhythmerHtml = `<html><head><title>Playlist</title></head><body><div class="contents" id="contents"><p>${'Rhythmer hip-hop playlist review body. '.repeat(8)}</p><iframe width="560" height="315" src="https://www.youtube.com/embed/Bk6YI1qcGiQ?origin=https%3A%2F%2Fwww.rhythmer.net&amp;widget_referrer=https%3A%2F%2Fwww.rhythmer.net" title="Track 1"></iframe><iframe width="560" height="315" src="https://www.youtube.com/embed/8m5b9c0d1e2?start=42" title="Track 2"></iframe><iframe src="https://evil.example.test/embed"></iframe></div></body></html>`;
+  const rhythmerReader = extractReaderContent(rhythmerHtml, 'http://board.rhythmer.net/src/go.php?n=21637&m=view&s=news', null).fullContentHtml;
+  assert.match(rhythmerReader, /<iframe src="https:\/\/www\.youtube\.com\/embed\/Bk6YI1qcGiQ\?rel=0"[^>]*title="Track 1"/);
+  assert.match(rhythmerReader, /<iframe src="https:\/\/www\.youtube\.com\/embed\/8m5b9c0d1e2\?start=42&amp;rel=0"[^>]*title="Track 2"/);
+  assert.doesNotMatch(rhythmerReader, /evil\.example\.test|widget_referrer/);
+  const rhythmerCopy = webCopy(rhythmerHtml, 'http://board.rhythmer.net/src/go.php?n=21637&m=view&s=news');
+  assert.ok(rhythmerCopy.includes('class="sfeed-yt-embed"') && rhythmerCopy.includes('data-yt-id="Bk6YI1qcGiQ"'));
+  assert.ok(rhythmerCopy.includes('data-yt-id="8m5b9c0d1e2"') && rhythmerCopy.includes('data-yt-start="42"'));
+  assert.doesNotMatch(rhythmerCopy, /<iframe/i);
+  const { document: ytThumbs } = parseHTML(`<div id="yt"><p><img src="https://i.ytimg.com/vi/Bk6YI1qcGiQ/hqdefault.jpg"></p><p><img src="https://i.ytimg.com/vi/8m5b9c0d1e2/hqdefault.jpg"></p></div>`);
+  dropRepeatedImages(ytThumbs.getElementById('yt'));
+  assert.equal(ytThumbs.querySelectorAll('img').length, 2, 'distinct YouTube video thumbnails named hqdefault.jpg are never treated as duplicates');
   globalThis.fetch = async () => new Response('challenge', { status: 429, headers: { 'x-vercel-mitigated': 'challenge' } });
   assert.equal((await checkEmbeddable(url, 'https://sfeed.example.test')).reason, 'challenge');
   assert.equal((await scrapeFullArticle(url, '<p>Short feed preview</p>', 'Title')).fullContentHtml, null);
