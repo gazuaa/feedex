@@ -36,13 +36,33 @@ export async function resolveArticlePublication(db: D1DatabaseLike, article: Pub
   return { publishedAt: publishedAt || article.published_at, dateSource };
 }
 
+// 예약 실행 한 번에 확인하는 피드 수와, 피드마다 살펴보는 최근 글 수.
+// D1은 10초 단위로 부하를 재서, 한꺼번에 많이 읽으면 그 순간의 사용자 요청까지 함께 실패한다.
+export const PUBLICATION_CHECK_FEEDS = 25;
+export const PUBLICATION_CHECK_RECENT = 200;
+
 // 큰 뉴스 피드가 확인을 독차지하지 않도록 모든 피드에 차례를 준다.
-// 예약 새로고침 때마다 피드당 확인 안 된 글 하나씩.
+// 예약 실행 때마다 피드 몇 개를 무작위로 골라 하나씩 차례로, 피드당 확인 안 된 최근 글 하나를 확인한다.
+// 목록은 새로고침이 오래된 순이라, 자리로 고르면 같은 자리에 돌아오는 피드가 계속 빠질 수 있다.
 export async function checkFeedPublicationDates(db: D1DatabaseLike, feedIds: string[]) {
-  for (let offset = 0; offset < feedIds.length; offset += 4) {
-    await Promise.all(feedIds.slice(offset, offset + 4).map(async (feedId) => {
-      const article = await db.prepare(`SELECT a.id,a.url,a.title,a.content_html,a.summary,a.published_at,d.source AS date_source,d.checked_at FROM articles a LEFT JOIN article_date_checks d ON d.article_id=a.id WHERE a.feed_id=? AND (d.checked_at IS NULL OR d.checked_at<?) AND COALESCE(d.source,'feed')<>'original' ORDER BY a.published_at DESC LIMIT 1`).bind(feedId, new Date(Date.now() - 86400000).toISOString()).first<PublicationArticle>();
+  const picked = [...feedIds];
+  const count = Math.min(PUBLICATION_CHECK_FEEDS, picked.length);
+  const since = new Date(Date.now() - 86400000).toISOString();
+  for (let index = 0; index < count; index++) {
+    const swap = index + Math.floor(Math.random() * (picked.length - index));
+    [picked[index], picked[swap]] = [picked[swap], picked[index]];
+    try {
+      const article = await db.prepare(`SELECT a.id,a.url,a.title,a.content_html,a.summary,a.published_at,d.source AS date_source,d.checked_at
+        FROM (SELECT id FROM articles WHERE feed_id=? ORDER BY published_at DESC,id DESC LIMIT ?) recent JOIN articles a ON a.id=recent.id
+        LEFT JOIN article_date_checks d ON d.article_id=a.id
+        WHERE (d.checked_at IS NULL OR d.checked_at<?) AND COALESCE(d.source,'feed')<>'original' ORDER BY a.published_at DESC LIMIT 1`)
+        .bind(picked[index], PUBLICATION_CHECK_RECENT, since).first<PublicationArticle>();
       if (article) await resolveArticlePublication(db, article);
-    }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('발행일 확인 실패:', message);
+      // DB가 과부하면 사용자 요청에 자리를 내주고 다음 예약 실행으로 넘긴다. 다른 오류는 이 피드만 건너뛴다.
+      if (/overloaded/i.test(message)) return;
+    }
   }
 }

@@ -61,10 +61,12 @@ export default {
     ).all<StoredFeed>();
 
     const feeds = res.results || [];
-    await refreshStoredFeeds(env, feeds);
+    // 한 단계가 실패해도 다음 단계는 돈다. 실패는 로그에 남기고 다음 예약 실행이 이어받는다.
+    const step = (name: string, work: () => Promise<unknown>) => work().catch((error) => console.error(`예약 실행 ${name} 실패:`, error instanceof Error ? error.message : error));
+    await step('피드 새로고침', () => refreshStoredFeeds(env, feeds));
     // X 계정의 예전 글은 새로고침이 끝난 뒤 몇 쪽씩 채운다.
-    await backfillXFeeds(env.DB).catch(() => 0);
-    await checkFeedPublicationDates(env.DB, feeds.map((feed) => feed.id));
-    await pruneReaderChanges(env.DB);
+    await step('X 예전 글 채우기', () => backfillXFeeds(env.DB));
+    await step('발행일 확인', () => checkFeedPublicationDates(env.DB, feeds.map((feed) => feed.id)));
+    await step('동기화 기록 정리', () => pruneReaderChanges(env.DB));
   },
 };

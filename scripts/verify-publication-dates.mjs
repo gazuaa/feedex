@@ -130,6 +130,84 @@ try {
   assert.notEqual(formatArticleDate({ published_at: published, date_source: 'original' }), '발행일 미제공');
   const privateArticle = await app.request(`/api/articles/${row.id}/publication-date`, { method: 'POST', headers: { authorization: `Bearer ${token}` } }, env);
   assert.equal(privateArticle.status, 404, 'unsubscribed articles must not be fetched through another account');
+  // 예약 실행의 발행일 확인: 한 번에 조금씩, 하나씩 차례로, 실패해도 정기 실행은 끝까지 돈다.
+  const { checkFeedPublicationDates, PUBLICATION_CHECK_FEEDS, PUBLICATION_CHECK_RECENT } = await vite.ssrLoadModule('/src/server/articlePublication.ts');
+  const { default: worker } = await vite.ssrLoadModule('/src/worker.ts');
+  const checkDb = new LocalD1Database(':memory:', 'migrations/0001_schema.sql');
+  const feedOf = async (name, count = 1) => (await upsertFeedAndArticles(checkDb, parseXmlFeedContent(
+    `<rss><channel><title>${name}</title><link>https://example.test/${name}</link>${Array.from({ length: count }, (_, index) => `<item><guid>${name}-${index}</guid><title>${name} ${index}</title><link>https://example.test/${name}/${index}</link><pubDate>${new Date(Date.UTC(2026, 0, 1) + index * 3600000).toUTCString()}</pubDate></item>`).join('')}</channel></rss>`,
+    `https://example.test/${name}.xml`,
+  ))).feedId;
+  const feedIds = [];
+  for (let index = 0; index < PUBLICATION_CHECK_FEEDS * 2 + 10; index++) feedIds.push(await feedOf(`check-${index}`));
+  assert.equal(new Set(feedIds).size, feedIds.length);
+  const checkedCount = async () => (await checkDb.prepare('SELECT COUNT(*) AS n FROM article_date_checks').first()).n;
+  // 저장할 때 남는 기록을 지워, 아직 확인 안 한 글로 만든다.
+  await checkDb.prepare('DELETE FROM article_date_checks').run();
+  let inFlight = 0, mostInFlight = 0;
+  globalThis.fetch = async () => {
+    mostInFlight = Math.max(mostInFlight, ++inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    inFlight--;
+    return new Response('', { status: 404 });
+  };
+  await checkFeedPublicationDates(checkDb, feedIds);
+  assert.equal(await checkedCount(), PUBLICATION_CHECK_FEEDS, 'one scheduled run checks a limited number of feeds');
+  assert.equal(mostInFlight, 1, 'publication checks run one at a time');
+  // 자리와 상관없이 모든 피드에 차례가 돌아온다.
+  for (let run = 0; run < 60 && await checkedCount() < feedIds.length; run++) await checkFeedPublicationDates(checkDb, feedIds);
+  assert.equal(await checkedCount(), feedIds.length, 'every feed eventually gets a turn');
+  // 오래된 글까지 훑지 않도록 피드마다 최근 글만 본다.
+  const bigFeed = await feedOf('big', PUBLICATION_CHECK_RECENT + 1);
+  const bigRows = (await checkDb.prepare('SELECT id FROM articles WHERE feed_id=? ORDER BY published_at DESC,id DESC').bind(bigFeed).all()).results;
+  assert.equal(bigRows.length, PUBLICATION_CHECK_RECENT + 1);
+  await checkDb.prepare('DELETE FROM article_date_checks WHERE article_id IN (SELECT id FROM articles WHERE feed_id=?)').bind(bigFeed).run();
+  for (const row of bigRows.slice(0, PUBLICATION_CHECK_RECENT - 1)) await checkDb.prepare("INSERT INTO article_date_checks(article_id,source,checked_at) VALUES(?,'original',?)").bind(row.id, new Date().toISOString()).run();
+  const hasCheck = async (id) => Boolean(await checkDb.prepare('SELECT 1 AS found FROM article_date_checks WHERE article_id=?').bind(id).first());
+  await checkFeedPublicationDates(checkDb, [bigFeed]);
+  assert.equal(await hasCheck(bigRows[PUBLICATION_CHECK_RECENT - 1].id), true, 'the last recent article is still checked');
+  await checkFeedPublicationDates(checkDb, [bigFeed]);
+  assert.equal(await hasCheck(bigRows[PUBLICATION_CHECK_RECENT].id), false, 'articles past the recent window are left to the reader path');
+  // 과부하면 그 회차는 바로 멈추고, 다른 오류는 그 피드만 건너뛴다.
+  const originalConsoleError = console.error;
+  const logged = [];
+  console.error = (...values) => logged.push(values.join(' '));
+  try {
+    let selects = 0;
+    const failingSelect = (message, failOn = () => true) => ({
+      prepare(sql) {
+        if (!sql.includes('recent JOIN articles')) return checkDb.prepare(sql);
+        return { bind: (...values) => ({ first: async () => {
+          selects++;
+          if (failOn(selects)) throw new Error(message);
+          return checkDb.prepare(sql).bind(...values).first();
+        } }) };
+      },
+      batch: (statements) => checkDb.batch(statements),
+    });
+    await checkFeedPublicationDates(failingSelect('D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window'), feedIds);
+    assert.equal(selects, 1, 'an overloaded database stops the run at once');
+    selects = 0;
+    await checkFeedPublicationDates(failingSelect('D1_ERROR: some other failure', (count) => count === 1), feedIds);
+    assert.equal(selects, PUBLICATION_CHECK_FEEDS, 'any other failure only skips that feed');
+    // 어느 단계가 실패해도 정기 실행은 오류로 끝나지 않고 뒤 단계까지 돈다.
+    const attempted = [];
+    const down = {
+      prepare(sql) {
+        if (sql.includes('rss_builders b')) return checkDb.prepare(sql);
+        attempted.push(sql);
+        throw new Error('D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window');
+      },
+      batch: () => { throw new Error('D1_ERROR: D1 DB is overloaded.'); },
+    };
+    logged.length = 0;
+    await worker.scheduled({}, { DB: down }, {});
+    assert.ok(attempted.some((sql) => sql.includes('recent JOIN articles')), 'the publication step still runs after earlier failures');
+    assert.ok(attempted.some((sql) => sql.includes('reader_sync')), 'the prune step still runs after earlier failures');
+    assert.ok(logged.some((line) => line.includes('동기화 기록 정리')), 'a failed step is logged');
+  } finally {
+    console.error = originalConsoleError;
+  }
   console.log('PASS: original publisher/card dates precede generator and modification times; KST and valid RSS/Atom dates preserved; unrelated/invalid dates rejected; existing IDs/read/bookmarks preserved; Reader View persists and returns original dates; D1 <=100 parameters.');
 } finally {
   globalThis.fetch = originalFetch;
