@@ -5,7 +5,7 @@ const vite = await createServer({ configFile: false, server: { middlewareMode: t
 const originalFetch = globalThis.fetch;
 try {
   const { extractReaderContent, scrapeFullArticle } = await vite.ssrLoadModule('/src/server/readerScraper.ts');
-  const { checkEmbeddable } = await vite.ssrLoadModule('/src/server/framing.ts');
+  const { checkEmbeddable, declaredLayoutWidth } = await vite.ssrLoadModule('/src/server/framing.ts');
   const { app } = await vite.ssrLoadModule('/src/server/app.ts');
   const { LocalD1Database } = await vite.ssrLoadModule('/src/server/localD1.ts');
   const { upsertFeedAndArticles } = await vite.ssrLoadModule('/src/server/seedService.ts');
@@ -98,6 +98,15 @@ try {
   assert.equal((await scrapeFullArticle(url, '<p>Short feed preview</p>', 'Title')).fullContentHtml, null);
   globalThis.fetch = async () => new Response(html, { headers: { 'x-frame-options': 'DENY' } });
   assert.equal((await checkEmbeddable(url, 'https://sfeed.example.test')).reason, 'framing');
+  // 사이트가 viewport로 밝힌 고정 폭을 읽는다. 스스로 맞추는 사이트에는 없다.
+  assert.equal(declaredLayoutWidth('<meta charset="utf-8"><META content="width=1080" name="viewport">'), 1080);
+  assert.equal(declaredLayoutWidth('<meta name="viewport" content="initial-scale=1, width=1200">'), 1200);
+  for (const page of ['<meta name="viewport" content="width=device-width, initial-scale=1">', '<meta name="viewport" content="width=320">', '<meta name="description" content="width=1080">', '<p>none</p>']) assert.equal(declaredLayoutWidth(page), undefined, page);
+  globalThis.fetch = async () => new Response('<html><head><meta name="viewport" content="width=1080"></head><body>x</body></html>');
+  assert.deepEqual(await checkEmbeddable(url, 'https://sfeed.example.test'), { embeddable: true, url, layoutWidth: 1080 });
+  globalThis.fetch = async () => new Response('<html><head><meta name="viewport" content="width=device-width"></head></html>');
+  assert.deepEqual(await checkEmbeddable(url, 'https://sfeed.example.test'), { embeddable: true, url });
+  globalThis.fetch = async () => new Response(html, { headers: { 'x-frame-options': 'DENY' } });
   assert.ok((await scrapeFullArticle(url, null, 'Title')).fullContentHtml, 'framing restrictions must not prevent ordinary public reader extraction');
   globalThis.fetch = async () => new Response('Gone', { status: 404 });
   assert.equal((await checkEmbeddable(url, 'https://sfeed.example.test')).reason, 'http');

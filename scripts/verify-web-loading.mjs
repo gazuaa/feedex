@@ -107,6 +107,16 @@ try {
   assert.deepEqual(frames.knownFrame('http://open.example.test/b'),{embeddable:true,url:'https://open.example.test/b'});
   for(const reason of ['challenge','http','mixed-content']) frames.rememberFrame('https://flaky.example.test/a',{embeddable:false,reason});
   assert.equal(frames.knownFrame('https://flaky.example.test/b'),undefined,'passing failures are asked again');
+  // 고정 폭 사이트: 같은 사이트의 다음 글은 처음부터 칸에 맞춘다. 칸이 넓거나 휴대폰이면 줄이지 않는다.
+  frames.rememberFrame('https://fixed.example.test/a',{embeddable:true,layoutWidth:1080});
+  assert.deepEqual(frames.knownFrame('https://fixed.example.test/b'),{embeddable:true,url:'https://fixed.example.test/b',layoutWidth:1080});
+  const { fixedLayoutFit } = await vite.ssrLoadModule('/src/components/ArticleDrawer.tsx');
+  const desktop='Mozilla/5.0 (Macintosh) Chrome/130.0 Safari/537.36';
+  assert.equal(fixedLayoutFit(1080,550,desktop),0.5,'a narrow pane scales the declared width, with room for a scrollbar');
+  assert.equal(fixedLayoutFit(1080,1400,desktop),1,'a wide pane stays at full size');
+  assert.equal(fixedLayoutFit(undefined,550,desktop),1,'sites that fit themselves are left alone');
+  assert.equal(fixedLayoutFit(1080,0,desktop),1,'an unmeasured pane is left alone');
+  assert.equal(fixedLayoutFit(1080,375,'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148 Safari/604.1'),1,'phones get the layout the site sends them');
   // X 글: 댓글 자리만 회색으로 남은 예전 사본은 버리고, 글과 댓글 사본은 저장해 다시 쓴다.
   const xArticle={...articles[0],id:'x-1',url:'https://x.com/nasa/status/2000000000000000001'};
   let xCalls=0;

@@ -57,6 +57,18 @@ const VIEW_MODES = [
 // 크기를 바꾼다: (영역 크기 ÷ 배율)로 배치한 뒤 scale(배율)을 건다.
 // 알맞은 배율은 화면에 따라 다르므로 기기마다 기억한다.
 const WEB_ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5];
+const frameScaleStyle = (scale: number): React.CSSProperties => ({ width: `${100 / scale}%`, height: `${100 / scale}%`, transform: `scale(${scale})`, transformOrigin: '0 0' });
+// 세로 스크롤 막대가 자리를 차지하는 브라우저에서도 옆으로 넘치지 않게 그만큼 넓게 배치한다.
+const FRAME_SCROLLBAR = 20;
+/**
+ * 폭을 고정한 사이트(viewport width=1080 등)는 칸보다 좁게 배치되면 옆으로 넘친다. 프레임 안 페이지는 앱이 고칠 수
+ * 없으므로, 사이트가 밝힌 폭으로 배치한 뒤 칸에 맞게 줄인다. 휴대폰 브라우저가 이 값을 따르는 것과 같다.
+ * 휴대폰에서는 같은 사이트가 스스로 맞추는 화면을 보내기도 해서 서버가 받은 폭을 쓰지 않는다.
+ */
+export function fixedLayoutFit(layoutWidth: number | undefined, paneWidth: number, userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent): number {
+  if (!layoutWidth || !paneWidth || /iPhone|iPod|Android.*Mobile/i.test(userAgent)) return 1;
+  return Math.min(1, paneWidth / (layoutWidth + FRAME_SCROLLBAR));
+}
 /** 프레임 안 사이트 위로 꺼낸 막대가 다시 접히기 전까지 머무는 시간. */
 const PEEK_MS = 4000;
 
@@ -203,7 +215,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [refreshing, setRefreshing] = useState(false);
   const [frameReloads, setFrameReloads] = useState(0);
   const shownArticleId = useRef(article?.id); shownArticleId.current = article?.id;
-  const [frame, setFrame] = useState<{ articleId: string; embeddable: boolean; url: string; reason?: string } | null>(null);
+  const [frame, setFrame] = useState<{ articleId: string; embeddable: boolean; url: string; reason?: string; layoutWidth?: number } | null>(null);
   const [readerRetry, setReaderRetry] = useState(0);
   const mode = viewMode;
   const [checkingDate, setCheckingDate] = useState(false);
@@ -222,6 +234,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   }, [summaryScope]);
   const [fontScale] = useTextSize();
   const [webZoom, setWebZoom] = useState(() => loadWebZoom(accountId, article?.feed_id || ''));
+  const [framePaneWidth, setFramePaneWidth] = useState(0);
+  const framePaneRef = React.useCallback((pane: HTMLDivElement | null) => {
+    if (!pane) return;
+    setFramePaneWidth(pane.clientWidth);
+    const observer = new ResizeObserver(() => setFramePaneWidth(pane.clientWidth));
+    observer.observe(pane);
+    return () => observer.disconnect();
+  }, []);
   const [sizeToolsOpen, setSizeToolsOpen] = useState(false);
   // 프레임을 거부하는 사이트는 서버가 받아 온 스크립트 없는 사본으로 보여 준다.
   // textOnly: 원문 사이트가 원래 배치를 잠시 막아 받은 본문만 보여 주는 사본.
@@ -330,7 +350,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       let result = known && !known.embeddable ? known : undefined;
       if (!result) {
         try {
-          result = await apiRequest<{ embeddable: boolean; url: string; reason?: string }>(`/api/articles/${article.id}/embeddable`);
+          result = await apiRequest<{ embeddable: boolean; url: string; reason?: string; layoutWidth?: number }>(`/api/articles/${article.id}/embeddable`);
           resources?.rememberFrame(article.url, result);
         } catch {
           // 판단하지 못했으면 사본부터 받아 본다. 사본도 안 되면 "원본 다시 표시"로 프레임을 띄울 수 있다.
@@ -887,18 +907,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                   </a>
                 </div>
                 <WebPager enabled={isMobile} onBack={onClose}>
-                <div className="relative flex-1 min-h-0 overflow-hidden bg-white">
+                <div ref={framePaneRef} className="relative flex-1 min-h-0 overflow-hidden bg-white">
                   <iframe
                     key={`${article.id}:${frameReloads}`}
                     src={frame.url}
                     title={article.title}
                     className="absolute left-0 top-0 border-0 bg-white"
-                    style={{
-                      width: `${100 / webZoom}%`,
-                      height: `${100 / webZoom}%`,
-                      transform: `scale(${webZoom})`,
-                      transformOrigin: '0 0',
-                    }}
+                    style={frameScaleStyle(webZoom * fixedLayoutFit(frame.layoutWidth, framePaneWidth))}
                     sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-storage-access-by-user-activation"
                     onError={showWebCopy}
                     onLoad={() => setLoadedFrame(article.id)}

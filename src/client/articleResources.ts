@@ -21,20 +21,20 @@ export class ArticleResources {
   private readerPreloadFlight: Promise<unknown> | null = null;
   private backgroundWeb = new Set<string>();
   // 사이트(출처)별로 원문을 프레임에 넣어도 되는지. 사이트 정책은 글마다 바뀌지 않으므로 앱을 켜 둔 동안 기억한다.
-  private frameDecisions = new Map<string, boolean>();
+  private frameDecisions = new Map<string, { embeddable: boolean; layoutWidth?: number }>();
   constructor(readonly account: string, private current: () => boolean, private request = apiRequest) {}
   hydrate(article: ArticleItem) { return cachedArticle(this.account, article); }
   /** 이미 판단한 사이트면 그 결과. 처음 보는 사이트면 undefined. */
-  knownFrame(url: string): { embeddable: boolean; url: string; reason?: string } | undefined {
+  knownFrame(url: string): { embeddable: boolean; url: string; reason?: string; layoutWidth?: number } | undefined {
     try {
-      const embeddable = this.frameDecisions.get(new URL(url).origin);
-      return embeddable === undefined ? undefined : { embeddable, url: url.replace(/^http:/, 'https:'), ...(embeddable ? {} : { reason: 'framing' }) };
+      const known = this.frameDecisions.get(new URL(url).origin);
+      return known && { embeddable: known.embeddable, url: url.replace(/^http:/, 'https:'), ...(known.embeddable ? {} : { reason: 'framing' }), ...(known.layoutWidth ? { layoutWidth: known.layoutWidth } : {}) };
     } catch { return undefined; }
   }
   /** 보안 확인·HTTP 오류처럼 잠깐인 결과는 기억하지 않는다. */
-  rememberFrame(url: string, result: { embeddable: boolean; reason?: string }) {
+  rememberFrame(url: string, result: { embeddable: boolean; reason?: string; layoutWidth?: number }) {
     if (!result.embeddable && result.reason !== 'framing') return;
-    try { this.frameDecisions.set(new URL(url).origin, result.embeddable); } catch {}
+    try { this.frameDecisions.set(new URL(url).origin, { embeddable: result.embeddable, ...(result.layoutWidth ? { layoutWidth: result.layoutWidth } : {}) }); } catch {}
   }
   async cachedWeb(article: ArticleItem): Promise<WebResult | undefined> {
     const stored = await readContent(this.account, `web:${article.id}`);
