@@ -4,7 +4,7 @@
 const CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
 const ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
 
-// SFeed Google Cloud 프로젝트의 "Sfeed Web" OAuth 클라이언트
+// FeedEx Google Cloud 프로젝트의 "FeedEx Web" OAuth 클라이언트
 export const DEFAULT_GOOGLE_CLIENT_ID =
   '649668487161-f4hutlff1sc7klvplnrm3dki5u3oh3ht.apps.googleusercontent.com';
 

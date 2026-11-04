@@ -101,7 +101,7 @@ npm run db:migrate:remote
 
 ### 2단계: Google 로그인 설정
 FeedEx는 Google Identity Services(GIS) 버튼으로 ID 토큰을 받아 서버에서 RS256 서명을 검증합니다. 리디렉션 URI와 클라이언트 보안 비밀번호는 필요하지 않습니다.
-1. Google Cloud의 [Google 인증 플랫폼](https://console.cloud.google.com/auth/clients)에서 **OAuth 클라이언트 ID (웹 애플리케이션)**를 생성합니다. (현재: SFeed 프로젝트의 `Sfeed Web` 클라이언트)
+1. Google Cloud의 [Google 인증 플랫폼](https://console.cloud.google.com/auth/clients)에서 **OAuth 클라이언트 ID (웹 애플리케이션)**를 생성합니다. (현재: FeedEx 프로젝트의 `FeedEx Web` 클라이언트)
 2. **승인된 JavaScript 원본**에 아래 주소를 추가합니다:
    - 배포: `https://feedex.jyk.workers.dev` (기존 `https://sfeed.jyk.workers.dev` 접속 시 자동 리다이렉트)
    - 로컬: `http://localhost:5173`, `http://localhost`
