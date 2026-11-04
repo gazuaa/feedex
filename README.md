@@ -93,7 +93,7 @@ npx wrangler login
 # D1 데이터베이스 생성
 npx wrangler d1 create sfeed-db
 ```
-출력된 `database_id` 값을 [wrangler.toml](file:///Users/jongyoon/Documents/Projects/Sfeed/wrangler.toml)의 `database_id` 항목에 붙여넣은 뒤, 원격 DB에 테이블을 생성합니다:
+출력된 `database_id` 값을 [wrangler.toml](wrangler.toml)의 `database_id` 항목에 붙여넣은 뒤, 원격 DB에 테이블을 생성합니다:
 
 ```bash
 npm run db:migrate:remote
