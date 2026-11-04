@@ -46,7 +46,7 @@ try {
   assert.equal(touch('touchend', 100, 200).defaultPrevented, true);
   const ghostClick = new Event('click', { cancelable: true }); doc.dispatchEvent(ghostClick); assert.equal(ghostClick.defaultPrevented, true, 'releasing a long press does not also open the article');
   const menuClick = new Event('click', { cancelable: true });
-  Object.defineProperty(menuClick, 'target', { value: { closest: (selector) => selector === '.sfeed-context-menu' ? {} : null } });
+  Object.defineProperty(menuClick, 'target', { value: { closest: (selector) => selector === '.feedex-context-menu' ? {} : null } });
   doc.dispatchEvent(menuClick); assert.equal(menuClick.defaultPrevented, false, 'a menu item can be tapped immediately after a long press');
   touch('touchstart', 100, 200); touch('touchmove', 100, 230); await new Promise((resolve) => setTimeout(resolve, 480)); assert.equal(opened, 1, 'scrolling cancels a long press');
   target.control = true; touch('touchstart', 100, 200); target.control = false;
@@ -65,7 +65,7 @@ try {
   const article = { id: 'no-image', feed_id: 'unread', feed_title: 'Example', feed_favicon: 'https://example.test/logo.svg', feed_html_url: 'https://example.test', title: 'No thumbnail', url: 'https://example.test/post', thumbnail_url: '', published_at: new Date().toISOString(), is_read: false, is_saved: false };
   for (const layout of ['magazine', 'cards']) {
     const html = renderToStaticMarkup(React.createElement(ArticleList, { articles: [article], layout, hasSubscriptions: true }));
-    assert.match(html, /sfeed-feed-logo/); assert.match(html, /https:\/\/example.test\/logo.svg/);
+    assert.match(html, /feedex-feed-logo/); assert.match(html, /https:\/\/example.test\/logo.svg/);
   }
   const { patchPage } = await vite.ssrLoadModule('/src/client/syncPages.ts');
   const page = { articles: [{ ...article, id: 'new', published_at: '2026-10-27' }, { ...article, id: 'old', published_at: '2026-01-01' }], hasMore: false };

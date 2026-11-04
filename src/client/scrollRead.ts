@@ -8,7 +8,7 @@ export function bindScrollRead(root: HTMLElement, options: ScrollReadOptions) {
   const observed = new Set<HTMLElement>(), seen = new Set<HTMLElement>(), pending = new Set<string>();
   let top = Math.max(0, root.scrollTop), intentUntil = 0, downward = false, frame = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const allowed = () => options.canRead() && doc.visibilityState !== 'hidden' && !root.closest('[inert], [aria-hidden="true"]') && !doc.querySelector('dialog[open], .sfeed-mobile-settings[open], .sfeed-desktop-settings[open]');
+  const allowed = () => options.canRead() && doc.visibilityState !== 'hidden' && !root.closest('[inert], [aria-hidden="true"]') && !doc.querySelector('dialog[open], .feedex-mobile-settings[open], .feedex-desktop-settings[open]');
   const flush = () => {
     timer = undefined;
     if (!allowed()) { pending.clear(); return; }

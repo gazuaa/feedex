@@ -174,7 +174,7 @@ export const App: React.FC = () => {
   const isMobile = useMobileViewport();
   const chromeHidden = useScrollChrome(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${searchQuery}`);
   const [textSize] = useTextSize();
-  useEffect(() => { document.documentElement.style.setProperty('--sfeed-text-scale', String(textSize)); }, [textSize]);
+  useEffect(() => { document.documentElement.style.setProperty('--feedex-text-scale', String(textSize)); }, [textSize]);
   useMobileNavigation(isMobile && !authChecking ? user?.id ?? null : null, {
     scope: activeScope, folderId: activeFolderId, feedId: activeFeedId,
     search: searchQuery, unread: unreadOnly, saved: savedOnly, articleId: selectedArticleId, library: mobileSidebarOpen,
@@ -220,7 +220,7 @@ export const App: React.FC = () => {
     },
     beforeSwap: () => {
       const source = resumeSource.current; if (!source.account) return;
-      keepResumePoint({ ...source, at: Date.now(), listScroll: articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.sfeed-reader-content')?.scrollTop ?? 0 });
+      keepResumePoint({ ...source, at: Date.now(), listScroll: articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.feedex-reader-content')?.scrollTop ?? 0 });
     },
   }), []);
 
@@ -291,7 +291,7 @@ export const App: React.FC = () => {
     };
     const timer = setInterval(() => {
       if (reach(articleListRef.current, want.list)) want.list = 0;
-      if (reach(document.querySelector<HTMLElement>('.sfeed-reader-content'), want.reader)) want.reader = 0;
+      if (reach(document.querySelector<HTMLElement>('.feedex-reader-content'), want.reader)) want.reader = 0;
       if ((!want.list && !want.reader) || ++tries >= 50) { clearInterval(timer); setResumePlace(null); }
     }, 100);
     return () => clearInterval(timer);
@@ -1486,8 +1486,8 @@ export const App: React.FC = () => {
           </footer>
         }
       >
-        {articleBlocks.some((rule) => rule.enabled) && <div className="sfeed-block-bar"><span title="피드와 폴더의 숫자는 차단 전 전체 글 기준입니다.">{showBlockedArticles ? `차단 대상 ${blockedArticles.length}개 표시 중` : `불러온 글 중 ${blockedArticles.length}개 숨김`}</span><button type="button" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles((value) => !value)}>{showBlockedArticles ? '차단 적용' : '숨긴 글 보기'}</button><button type="button" onClick={onManageArticleBlocks}>규칙 관리</button></div>}
-        {!showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap ? <div className="sfeed-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기</button></div> : <ArticleList
+        {articleBlocks.some((rule) => rule.enabled) && <div className="feedex-block-bar"><span title="피드와 폴더의 숫자는 차단 전 전체 글 기준입니다.">{showBlockedArticles ? `차단 대상 ${blockedArticles.length}개 표시 중` : `불러온 글 중 ${blockedArticles.length}개 숨김`}</span><button type="button" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles((value) => !value)}>{showBlockedArticles ? '차단 적용' : '숨긴 글 보기'}</button><button type="button" onClick={onManageArticleBlocks}>규칙 관리</button></div>}
+        {!showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기</button></div> : <ArticleList
           accountId={user.id}
           onUpdateArticleFields={handleUpdateArticleFields}
           onPrepareArticle={handlePrepareArticle}
@@ -1530,7 +1530,7 @@ export const App: React.FC = () => {
       {builderEditor?.accountId === user.id && <RssBuilderEditor key={`${user.id}:${builderEditor.id}`} builderId={builderEditor.id} folders={folders} isDark={isDark} onClose={() => setBuilderEditor(null)} onSaved={async () => { readerCache?.touch(); await Promise.all([fetchBootstrap(), fetchArticles()]); }} />}
       {blockDialog?.accountId === user.id && <ArticleBlockDialog key={`${user.id}:${blockDialog.article?.id || 'manage'}`} accountId={user.id} article={blockDialog.article} articles={blockPreviewArticles} subscriptions={subscriptions} onClose={() => setBlockDialog(null)} onApplied={() => setNotice('차단 규칙을 저장했어요.')} />}
 
-      {isMobile && <div className="sfeed-mobile-library-host" data-open={mobileSidebarOpen || undefined}><MobileLibrary visible={mobileSidebarOpen} user={user} folders={folders} subscriptions={subscriptions} counts={counts} countTab={mobileTab} onChangeCountTab={applyMobileFilter} onSelectTab={selectMobileTab} onSelectFolder={(id) => { handleSelectScope('folder', id); setMobileSidebarOpen(false); }} onSelectFeed={(id) => { handleSelectScope('feed', null, id); setMobileSidebarOpen(false); }} onAdd={() => openMobileDiscover()} onRefresh={handleRefreshFeeds} refreshing={refreshingFeeds} syncing={backgroundSyncs > 0} onCreateFolder={handleCreateFolder} onDeleteFolder={handleDeleteFolder} onUnsubscribe={handleUnsubscribe} onToggleUpdates={handleToggleFeedUpdates} onLogout={handleLogout} {...mobileSettings} /></div>}
+      {isMobile && <div className="feedex-mobile-library-host" data-open={mobileSidebarOpen || undefined}><MobileLibrary visible={mobileSidebarOpen} user={user} folders={folders} subscriptions={subscriptions} counts={counts} countTab={mobileTab} onChangeCountTab={applyMobileFilter} onSelectTab={selectMobileTab} onSelectFolder={(id) => { handleSelectScope('folder', id); setMobileSidebarOpen(false); }} onSelectFeed={(id) => { handleSelectScope('feed', null, id); setMobileSidebarOpen(false); }} onAdd={() => openMobileDiscover()} onRefresh={handleRefreshFeeds} refreshing={refreshingFeeds} syncing={backgroundSyncs > 0} onCreateFolder={handleCreateFolder} onDeleteFolder={handleDeleteFolder} onUnsubscribe={handleUnsubscribe} onToggleUpdates={handleToggleFeedUpdates} onLogout={handleLogout} {...mobileSettings} /></div>}
       {isMobile && !selectedArticle && <PullRefreshIndicator distance={pullDistance} refreshing={refreshingFeeds} />}
       {!mobileSidebarOpen && !selectedArticle && <MobileDock hidden={chromeHidden} active={mobileTab} onSelect={filterMobileList} onRefresh={handleRefreshFeeds} refreshing={refreshingFeeds} syncing={backgroundSyncs > 0} onMarkAllRead={handleMarkAllRead} onAdd={() => openMobileDiscover()} />}
 
@@ -1582,7 +1582,7 @@ export const App: React.FC = () => {
         </ConfirmDialog>
       )}
 
-      {notice && <div className="sfeed-notice" role="status" aria-live="polite">{notice}</div>}
+      {notice && <div className="feedex-notice" role="status" aria-live="polite">{notice}</div>}
 
       {/* 피드 찾기 / 피드 추가 / OPML 창 */}
       <DiscoverModal

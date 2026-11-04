@@ -20,7 +20,7 @@ assert.match(html, /viewport-fit=cover/);
 assert.match(html, /apple-mobile-web-app-capable/);
 assert.match(html, /name="apple-mobile-web-app-status-bar-style" content="default"/);
 assert.ok(!html.includes('content="black-translucent"'), 'avoid the iOS standalone viewport offset that leaves an unreachable bottom strip');
-assert.ok(html.indexOf('class="sfeed-glass-sample"') < html.indexOf('id="root"'), 'the opaque edge must exist outside React before the app mounts');
+assert.ok(html.indexOf('class="feedex-glass-sample"') < html.indexOf('id="root"'), 'the opaque edge must exist outside React before the app mounts');
 const handlers = {}, storage = new Map(), deleted = [], fetched = [];
 const messages = [], focused = [], opened = [];
 let clientWindows = [];

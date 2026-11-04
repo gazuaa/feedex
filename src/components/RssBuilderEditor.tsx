@@ -32,8 +32,8 @@ export function RssBuilderEditor({ builderId, folders, isDark, onClose, onSaved 
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
     }}>
-      <header className={`sfeed-discover-header flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}><h2 id={titleId} className="text-base font-bold">RSS 빌더 피드 수정</h2><button type="button" aria-label="RSS 빌더 수정 닫기" disabled={busy} onClick={onClose} className="rounded-lg p-2 disabled:opacity-40"><X size={21} /></button></header>
-      <div className="sfeed-discover-body min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
+      <header className={`feedex-discover-header flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}><h2 id={titleId} className="text-base font-bold">RSS 빌더 피드 수정</h2><button type="button" aria-label="RSS 빌더 수정 닫기" disabled={busy} onClick={onClose} className="rounded-lg p-2 disabled:opacity-40"><X size={21} /></button></header>
+      <div className="feedex-discover-body min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
         {error ? <div role="alert" className="space-y-3 text-sm text-rose-500"><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)} className="font-semibold underline">다시 불러오기</button></div> : builder ? <RssBuilder key={builder.id} url={builder.sourceUrl} edit={builder} folders={folders} isDark={isDark} onBack={onClose} onSubscribed={onSaved} onBusyChange={setBusy} /> : <p role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400"><Loader2 size={17} className="animate-spin" />저장된 피드 설정을 불러오는 중…</p>}
       </div>
     </dialog>

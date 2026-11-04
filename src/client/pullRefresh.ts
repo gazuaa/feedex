@@ -7,13 +7,13 @@ export function bindPullRefresh(doc: Document, options: PullOptions) {
   let gesture: { x: number; y: number; root: HTMLElement; distance: number } | null = null;
   let refreshing = false, active = true;
   const reset = () => { gesture = null; if (active) options.onProgress(0); };
-  const allowed = () => options.canRefresh() && !refreshing && doc.visibilityState !== 'hidden' && !doc.querySelector('dialog[open], .sfeed-mobile-settings[open]') && (doc.defaultView?.visualViewport?.scale ?? 1) <= 1;
+  const allowed = () => options.canRefresh() && !refreshing && doc.visibilityState !== 'hidden' && !doc.querySelector('dialog[open], .feedex-mobile-settings[open]') && (doc.defaultView?.visualViewport?.scale ?? 1) <= 1;
   const start = (event: TouchEvent) => {
     reset();
     if (event.touches.length !== 1 || !allowed()) return;
     const target = event.target as Element | null;
     if (target?.closest?.('input, textarea, select, a, [contenteditable="true"]')) return;
-    const root = target?.closest?.('.sfeed-mobile-library-scroll, #feed-article-list') as HTMLElement | null;
+    const root = target?.closest?.('.feedex-mobile-library-scroll, #feed-article-list') as HTMLElement | null;
     if (!root || root.scrollTop > 0 || root.closest('[inert], [aria-hidden="true"]')) return;
     gesture = { x: event.touches[0].clientX, y: event.touches[0].clientY, root, distance: 0 };
   };

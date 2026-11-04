@@ -310,7 +310,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
       >
         {/* 창 머리글 */}
         <div
-          className={`sfeed-discover-header px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-b flex items-center justify-between gap-3 ${
+          className={`feedex-discover-header px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-b flex items-center justify-between gap-3 ${
             isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
           }`}
         >
@@ -391,7 +391,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
         )}
 
         {/* 창 본문 */}
-        <div ref={bodyRef} className="sfeed-discover-body flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
+        <div ref={bodyRef} className="feedex-discover-body flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
           {/* 피드 검색과 주소 미리 보기를 한곳에서 */}
           {tab === 'curated' && <form role="search" aria-label="피드 검색" onSubmit={(event) => { event.preventDefault(); if (previewUrl) setPreviewRetry((value) => value + 1); }} className="mb-5">
             <label htmlFor="feed-discovery-search" className="sr-only">피드 이름 또는 RSS·웹사이트 주소</label>

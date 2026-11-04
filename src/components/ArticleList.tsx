@@ -24,13 +24,13 @@ export function FeedLogo({ article }: { article: ArticleItem }) {
   try { origin = new URL(article.feed_html_url || article.url).origin; } catch {}
   const candidates = [...new Set([article.feed_favicon, origin ? `${origin}/favicon.ico` : null].filter(Boolean))] as string[];
   const logo = candidates[failed];
-  return <div className="sfeed-feed-logo" aria-label={`${article.feed_title} 로고`}>{logo ? <img src={logo} alt="" loading="lazy" onError={() => setFailed((value) => value + 1)} /> : <span>{(article.feed_title || 'RSS').slice(0, 2)}</span>}</div>;
+  return <div className="feedex-feed-logo" aria-label={`${article.feed_title} 로고`}>{logo ? <img src={logo} alt="" loading="lazy" onError={() => setFailed((value) => value + 1)} /> : <span>{(article.feed_title || 'RSS').slice(0, 2)}</span>}</div>;
 }
 function Thumbnail({ article, accountId, onUpdateArticleFields, card = false, isDark = false }: { article: ArticleItem; accountId: string; onUpdateArticleFields?: ArticleListProps['onUpdateArticleFields']; card?: boolean; isDark?: boolean }) {
   const [broken, setBroken] = useState<string | null>(null);
   const { ref, url: found } = useArticleThumbnail<HTMLDivElement>(article, accountId, onUpdateArticleFields);
   const url = shownThumbnail(found, article);
-  return <div ref={ref} className={card ? 'h-full w-full' : `sfeed-magazine-thumbnail h-16 w-16 rounded-lg overflow-hidden shrink-0 border ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+  return <div ref={ref} className={card ? 'h-full w-full' : `feedex-magazine-thumbnail h-16 w-16 rounded-lg overflow-hidden shrink-0 border ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
     {url && url !== broken ? <img src={url} alt={article.title} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={() => setBroken(url)} /> : <FeedLogo article={article} />}
   </div>;
 }
@@ -153,7 +153,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   // 1. 간단한 목록 보기 (Feedly 제목만 보기)
   if (layout === 'list') {
     return (
-      <div ref={listRef} className="sfeed-list-items p-4 lg:p-8 max-w-6xl mx-auto" data-retain-read={retainReadRows || undefined}>
+      <div ref={listRef} className="feedex-list-items p-4 lg:p-8 max-w-6xl mx-auto" data-retain-read={retainReadRows || undefined}>
         <div
           className={`rounded-2xl border overflow-hidden divide-y ${
             isDark
@@ -169,7 +169,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                 data-article-id={article.id}
                 data-article-read={article.is_read}
                 onClick={() => onSelectArticle(article)}
-                className={`sfeed-compact-row group flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition cursor-pointer ${
+                className={`feedex-compact-row group flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition cursor-pointer ${
                   isSelected
                     ? isDark
                       ? 'bg-emerald-500/10'
@@ -179,7 +179,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                     : 'hover:bg-slate-50'
                 }`}
               >
-                <div className="sfeed-compact-content flex items-center gap-3 min-w-0 flex-1">
+                <div className="feedex-compact-content flex items-center gap-3 min-w-0 flex-1">
                   {/* 안 읽음 / 읽음 상태 전환 */}
                   <button
                     type="button"
@@ -195,7 +195,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                   </button>
 
                   {/* 피드 출처 */}
-                  <div className="sfeed-compact-source flex items-center gap-1.5 w-32 sm:w-40 shrink-0 truncate">
+                  <div className="feedex-compact-source flex items-center gap-1.5 w-32 sm:w-40 shrink-0 truncate">
                     {article.feed_favicon ? (
                       <img
                         src={article.feed_favicon}
@@ -211,7 +211,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                   </div>
 
                   {/* 제목과 한 줄 요약 */}
-                  <div className="sfeed-compact-title min-w-0 flex-1 truncate">
+                  <div className="feedex-compact-title min-w-0 flex-1 truncate">
                     <span
                       className={`${
                         article.is_read
@@ -284,7 +284,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   // 2. 카드 보기 (격자 배치)
   if (layout === 'cards') {
     return (
-      <div ref={listRef} className="sfeed-list-items sfeed-article-cards p-4 lg:p-8 max-w-7xl mx-auto grid grid-cols-1 gap-5" data-retain-read={retainReadRows || undefined}>
+      <div ref={listRef} className="feedex-list-items feedex-article-cards p-4 lg:p-8 max-w-7xl mx-auto grid grid-cols-1 gap-5" data-retain-read={retainReadRows || undefined}>
         {articles.map((article) => {
           const isSelected = selectedArticleId === article.id;
           return (
@@ -422,7 +422,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
 
   // 3. 매거진 보기 (Feedly 기본 클래식 배치)
   return (
-    <div ref={listRef} className="sfeed-list-items p-3 lg:p-4 max-w-5xl mx-auto space-y-2" data-retain-read={retainReadRows || undefined}>
+    <div ref={listRef} className="feedex-list-items p-3 lg:p-4 max-w-5xl mx-auto space-y-2" data-retain-read={retainReadRows || undefined}>
       {articles.map((article) => {
         const isSelected = selectedArticleId === article.id;
         return (
@@ -435,7 +435,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
             tabIndex={0}
             aria-label={article.title}
             onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectArticle(article); } }}
-            className={`sfeed-magazine-row group rounded-xl border p-3 flex flex-row items-start gap-3 transition duration-150 cursor-pointer ${
+            className={`feedex-magazine-row group rounded-xl border p-3 flex flex-row items-start gap-3 transition duration-150 cursor-pointer ${
               isSelected
                 ? isDark
                   ? 'border-emerald-500/60 bg-emerald-500/5'
@@ -447,7 +447,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
           >
             <MagazineThumbnail article={article} accountId={accountId} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />
 
-            <div className="sfeed-magazine-copy flex-1 min-w-0">
+            <div className="feedex-magazine-copy flex-1 min-w-0">
               {/*
                 * 언제나 한 줄: 출처와 글쓴이는 줄을 바꾸지 않고 잘린다.
                 * 구분 기호는 뒤 항목에 붙어 있어서 혼자 남지 않는다.
@@ -475,7 +475,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                 </span>
                 <span className="shrink-0">· {formatArticleDate(article)}</span>
                 {article.author && (
-                  <span className="sfeed-magazine-author truncate min-w-0">· {article.author}</span>
+                  <span className="feedex-magazine-author truncate min-w-0">· {article.author}</span>
                 )}
               </div>
 

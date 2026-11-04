@@ -22,7 +22,7 @@ export function XTimeline({ articles, selectedArticleId, onSelectArticle, onTogg
   // 인용한 글과 재게시한 글은 글쓴이가 구독 계정이 아닐 수 있어 프로필 사진을 따로 찾는다.
   const posts = useMemo(() => new Map(articles.map((article) => [article.id, parseXPost(article)])), [articles]);
   const avatarOf = useXAvatars([...posts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
-  return <div ref={listRef} className={`sfeed-list-items sfeed-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
+  return <div ref={listRef} className={`feedex-list-items feedex-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
     {articles.map((article) => <XPostRow blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id)!} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} />)}
   </div>;
 }
@@ -40,7 +40,7 @@ function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle,
     aria-label={`${post.name}: ${post.text.slice(0, 80)}`}
     onClick={() => onSelectArticle(article)}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelectArticle(article); } }}
-    className={`sfeed-x-post flex gap-3 px-4 pt-3 pb-1 border-b cursor-pointer transition ${line} ${selected ? isDark ? 'bg-sky-500/10' : 'bg-sky-50' : isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]'}`}
+    className={`feedex-x-post flex gap-3 px-4 pt-3 pb-1 border-b cursor-pointer transition ${line} ${selected ? isDark ? 'bg-sky-500/10' : 'bg-sky-50' : isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]'}`}
   >
     <div className="flex w-10 shrink-0 flex-col items-end gap-1">
       {post.repostedBy && <Repeat2 aria-hidden="true" className="h-4 w-4 text-slate-500" />}
@@ -56,7 +56,7 @@ function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle,
         {!article.is_read && <span role="img" aria-label="안 읽음" className="ml-1 h-2 w-2 shrink-0 rounded-full bg-sky-500" />}
       </div>
       {post.replyTo && <p className="text-[15px] leading-5 text-slate-500"><span className="text-sky-500">@{post.replyTo}</span> 님에게 보내는 답글</p>}
-      {post.text && <p className={`sfeed-x-text mt-0.5 whitespace-pre-wrap break-words leading-snug line-clamp-[14] ${strong}`}>{post.text}</p>}
+      {post.text && <p className={`feedex-x-text mt-0.5 whitespace-pre-wrap break-words leading-snug line-clamp-[14] ${strong}`}>{post.text}</p>}
       <MediaGrid media={post.media} line={line} />
       {post.card && <a href={post.card.href} target="_blank" rel="noopener noreferrer" onClick={stop} className={`mt-3 block overflow-hidden rounded-2xl border ${line}`}>
         {post.card.image && <img src={post.card.image} alt="" loading="lazy" referrerPolicy="no-referrer" className="aspect-[1.91/1] w-full object-cover" />}

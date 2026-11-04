@@ -99,7 +99,7 @@ export function WebLoadingPreview({ article, isDark, ready = false, onReady, onR
     <section aria-label="웹 보기 미리보기" tabIndex={0} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-5" onScroll={(event) => { if (event.currentTarget.scrollTop > 24) onReading(); }}>
       <p className="text-sm font-medium text-emerald-500">{article.feed_title}</p>
       <h1 className="text-2xl sm:text-3xl font-bold leading-snug">{article.title}</h1>
-      {html ? <ArticleBody html={html} base={article.url} title={article.title} style={{ fontSize: 'var(--sfeed-article-font)' }} className={`sfeed-article-content ${isDark ? 'text-slate-300' : 'text-slate-700'}`} /> : article.summary ? <p className="text-base leading-relaxed">{article.summary}</p> : null}
+      {html ? <ArticleBody html={html} base={article.url} title={article.title} style={{ fontSize: 'var(--feedex-article-font)' }} className={`feedex-article-content ${isDark ? 'text-slate-300' : 'text-slate-700'}`} /> : article.summary ? <p className="text-base leading-relaxed">{article.summary}</p> : null}
     </section>
   </div>;
 }
@@ -150,8 +150,8 @@ export function WebPager({ enabled, onBack, children }: { enabled: boolean; onBa
     return () => { observer.disconnect(); window.clearTimeout(timer); pager.removeEventListener('scroll', scroll); pager.removeEventListener('scrollend', leave); rest(); };
   }, [enabled]);
   if (!enabled) return <>{children}</>;
-  return <div ref={ref} className="sfeed-web-pager">
-    <div className="sfeed-web-pager-back" aria-hidden="true" />
+  return <div ref={ref} className="feedex-web-pager">
+    <div className="feedex-web-pager-back" aria-hidden="true" />
     {children}
   </div>;
 }
@@ -265,7 +265,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   useLayoutEffect(() => {
     const top = topRef.current;
     if (!top) return;
-    const measure = () => top.style.setProperty('--sfeed-reader-top-height', `${top.offsetHeight}px`);
+    const measure = () => top.style.setProperty('--feedex-reader-top-height', `${top.offsetHeight}px`);
     const observer = new ResizeObserver(measure);
     observer.observe(top); measure();
     return () => observer.disconnect();
@@ -506,7 +506,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   };
 
   return (
-    <div className="sfeed-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto h-full min-w-0 min-h-0 flex justify-end">
+    <div className="feedex-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto h-full min-w-0 min-h-0 flex justify-end">
       {/* 배경 */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity lg:hidden"
@@ -516,34 +516,34 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       {/* 데스크톱의 본문 안 리더와 모바일의 전체 화면 리더 */}
       <div
         data-article-id={article.id}
-        className={`sfeed-reader relative z-10 w-full max-w-3xl lg:max-w-none h-full min-w-0 min-h-0 flex flex-col border-l lg:border-l-0 shadow-2xl lg:shadow-none overflow-hidden ${
+        className={`feedex-reader relative z-10 w-full max-w-3xl lg:max-w-none h-full min-w-0 min-h-0 flex flex-col border-l lg:border-l-0 shadow-2xl lg:shadow-none overflow-hidden ${
           isDark
             ? 'bg-slate-950 border-slate-800 text-slate-100'
             : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
-        <div ref={topRef} className="sfeed-mobile-reader-top lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
-          <button className="sfeed-mobile-icon" onClick={onClose} aria-label="목록으로 돌아가기"><ChevronDown size={24} /></button>
-          <div role="radiogroup" aria-label="본문 보기 방식" className="sfeed-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}<span>{label}</span></button>)}</div>
-          <button className="sfeed-mobile-icon" aria-label="본문 도구" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((value) => !value)}><MoreHorizontal size={22} /></button>
-          {mobileToolsOpen && <div className="sfeed-mobile-reader-menu">
+        <div ref={topRef} className="feedex-mobile-reader-top lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
+          <button className="feedex-mobile-icon" onClick={onClose} aria-label="목록으로 돌아가기"><ChevronDown size={24} /></button>
+          <div role="radiogroup" aria-label="본문 보기 방식" className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}<span>{label}</span></button>)}</div>
+          <button className="feedex-mobile-icon" aria-label="본문 도구" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((value) => !value)}><MoreHorizontal size={22} /></button>
+          {mobileToolsOpen && <div className="feedex-mobile-reader-menu">
             <button aria-pressed={aiOpen} onClick={() => { setMobileToolsOpen(false); toggleAiSummary(); }}><Sparkles size={18} />{aiAction}</button>
             <button disabled={refreshing} onClick={() => { setMobileToolsOpen(false); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />기사 새로고침</button>
-            <p className="sfeed-mobile-menu-label">{mode === 'web' ? '사이트 확대·축소' : '글자 크기'}</p>
-            {sizeControl('sfeed-mobile-zoom')}
+            <p className="feedex-mobile-menu-label">{mode === 'web' ? '사이트 확대·축소' : '글자 크기'}</p>
+            {sizeControl('feedex-mobile-zoom')}
             <a href={article.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={18} />원문 사이트 열기</a>
           </div>}
         </div>
         {/* 상단 동작 막대 */}
         <div
-          className={`sfeed-reader-toolbar px-4 sm:px-6 py-3 border-b flex flex-wrap items-center gap-2 shrink-0 ${
+          className={`feedex-reader-toolbar px-4 sm:px-6 py-3 border-b flex flex-wrap items-center gap-2 shrink-0 ${
             isDark
               ? 'bg-slate-900/90 border-slate-800'
               : 'bg-slate-50 border-slate-200'
           }`}
         >
-          <div className="sfeed-reader-navigation flex shrink-0 items-center gap-1">
-            <button type="button" onClick={onClose} aria-label="목록으로 돌아가기" title="목록으로 돌아가기" className={`sfeed-reader-back sfeed-reader-icon ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-700 hover:bg-slate-100'}`}><ArrowLeft className="w-4 h-4" /></button>
+          <div className="feedex-reader-navigation flex shrink-0 items-center gap-1">
+            <button type="button" onClick={onClose} aria-label="목록으로 돌아가기" title="목록으로 돌아가기" className={`feedex-reader-back feedex-reader-icon ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-700 hover:bg-slate-100'}`}><ArrowLeft className="w-4 h-4" /></button>
 
             {/* 읽음/안 읽음 전환 */}
             <button
@@ -552,7 +552,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'}
               aria-pressed={article.is_read}
               title={article.is_read ? '안읽음으로 표시 (M)' : '읽음으로 표시 (M)'}
-              className={`sfeed-reader-icon ${
+              className={`feedex-reader-icon ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -572,7 +572,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 onClick={() => onNavigateRelative('prev')}
                 aria-label="이전 아티클"
                 title="이전 아티클 (↑)"
-                className={`sfeed-reader-icon disabled:opacity-30 ${
+                className={`feedex-reader-icon disabled:opacity-30 ${
                   isDark
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-800'
                     : 'border-slate-200 text-slate-700 hover:bg-slate-200/70'
@@ -586,7 +586,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 onClick={() => onNavigateRelative('next')}
                 aria-label="다음 아티클"
                 title="다음 아티클 (↓)"
-                className={`sfeed-reader-icon disabled:opacity-30 ${
+                className={`feedex-reader-icon disabled:opacity-30 ${
                   isDark
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-800'
                     : 'border-slate-200 text-slate-700 hover:bg-slate-200/70'
@@ -602,7 +602,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               disabled={refreshing}
               aria-label="기사 새로고침"
               title="기사 새로고침"
-              className={`sfeed-reader-icon disabled:cursor-default ${
+              className={`feedex-reader-icon disabled:cursor-default ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -614,7 +614,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>
 
           {/* 글 도구 */}
-          <div className={`sfeed-reader-tools flex flex-wrap items-center gap-1 border-l pl-2 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+          <div className={`feedex-reader-tools flex flex-wrap items-center gap-1 border-l pl-2 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
             {/* 저장 / 북마크 전환 */}
             <button
               type="button"
@@ -622,7 +622,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'}
               aria-pressed={article.is_saved}
               title="나중에 읽기 북마크 (S)"
-              className={`sfeed-reader-icon ${
+              className={`feedex-reader-icon ${
                 article.is_saved
                   ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-400'
                   : isDark
@@ -693,7 +693,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               onClick={() => onCopyLink(article)}
               aria-label="링크 복사"
               title="링크 복사 (C)"
-              className={`sfeed-reader-icon ${
+              className={`feedex-reader-icon ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -709,7 +709,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               rel="noopener noreferrer"
               aria-label="원문 사이트 새 탭에서 열기"
               title="원문 사이트 새 탭에서 열기 (O)"
-              className={`sfeed-reader-icon ${
+              className={`feedex-reader-icon ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -736,7 +736,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               ) : (
                 <Sparkles className="w-3.5 h-3.5" />
               )}
-              <span className="sfeed-reader-control-label">AI 핵심 요약</span>
+              <span className="feedex-reader-control-label">AI 핵심 요약</span>
             </button>}
           </div>
 
@@ -744,7 +744,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <div
             role="radiogroup"
             aria-label="본문 보기 방식"
-            className={`sfeed-reader-view ml-auto flex shrink-0 items-center rounded-xl border p-0.5 ${
+            className={`feedex-reader-view ml-auto flex shrink-0 items-center rounded-xl border p-0.5 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
             }`}
           >
@@ -774,7 +774,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                   ) : (
                     <Icon className="w-3.5 h-3.5" />
                   )}
-                  <span className="sfeed-reader-control-label">{label}</span>
+                  <span className="feedex-reader-control-label">{label}</span>
                 </button>
               );
             })}
@@ -783,7 +783,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         </div>
 
         {mode === 'web' ? (
-          <div className="sfeed-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
+          <div className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
             {!xPost && <WebLoginActions key={article.id} url={article.url} isDark={isDark} onReload={() => {
               setWebCopy(null); setReadingPreview(false); setLoadedFrame(null);
               setFrame({ articleId: article.id, embeddable: true, url: article.url });
@@ -917,8 +917,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 </p>
                 {webCopy?.articleId === article.id && webCopy.retrying && <p className={`-mt-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>사이트가 잠깐 막은 것일 수 있어요. 이 글을 보고 계시는 동안 잠시 뒤 자동으로 다시 받아 볼게요.</p>}
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  <button type="button" className="sfeed-cache-clear" onClick={showWebCopy}>웹 사본 다시 시도</button>
-                  <button type="button" className="sfeed-cache-clear" onClick={() => setFrame({ articleId: article.id, embeddable: true, url: article.url })}>원본 다시 표시</button>
+                  <button type="button" className="feedex-cache-clear" onClick={showWebCopy}>웹 사본 다시 시도</button>
+                  <button type="button" className="feedex-cache-clear" onClick={() => setFrame({ articleId: article.id, embeddable: true, url: article.url })}>원본 다시 표시</button>
                   <a
                     href={frame.url}
                     target="_blank"
@@ -945,7 +945,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             )}
           </div>
         ) : (
-        <div ref={bodyRef} tabIndex={0} aria-label="본문 내용" className="sfeed-reader-content flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-6">
+        <div ref={bodyRef} tabIndex={0} aria-label="본문 내용" className="feedex-reader-content flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-6">
           {article.body_deferred && <div role="status" className="flex items-center gap-2 text-sm text-slate-400">{article.body_load_error ? <><span>본문을 가져오지 못했습니다.</span><button className="text-emerald-500" onClick={() => onUpdateArticleFields(article.id, { body_load_error: false })}>다시 시도</button></> : <><Loader2 size={16} className="animate-spin" /><span>본문 불러오는 중…</span></>}</div>}
           {/* 글 정보 머리글 */}
           <div className="space-y-3 border-b pb-6 border-slate-800/60">
@@ -1128,8 +1128,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               onOpenXPost={xPost ? onOpenXPost : undefined}
               base={article.url}
               title={showingReader ? article.title : undefined}
-              style={{ fontSize: `calc(var(--sfeed-article-font) * ${fontScale})` }}
-              className={`sfeed-article-content ${
+              style={{ fontSize: `calc(var(--feedex-article-font) * ${fontScale})` }}
+              className={`feedex-article-content ${
                 isDark ? 'text-slate-200' : 'text-slate-800'
               }`}
             />
@@ -1158,9 +1158,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>
         </div>
         )}
-        {shareNotice && <p role="status" className="sfeed-mobile-share-notice lg:hidden">{shareNotice}</p>}
-        {framed && barsHidden && <button type="button" className="sfeed-web-peek lg:hidden" aria-label="메뉴 보이기" onClick={() => setPeek(1)}><ChevronUp size={22} /></button>}
-        <nav aria-label="본문 조작" className="sfeed-mobile-dock sfeed-mobile-reader-dock lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
+        {shareNotice && <p role="status" className="feedex-mobile-share-notice lg:hidden">{shareNotice}</p>}
+        {framed && barsHidden && <button type="button" className="feedex-web-peek lg:hidden" aria-label="메뉴 보이기" onClick={() => setPeek(1)}><ChevronUp size={22} /></button>}
+        <nav aria-label="본문 조작" className="feedex-mobile-dock feedex-mobile-reader-dock lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
           <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={22} /> : <Circle size={22} />}</button>
           <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={22} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
           <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={24} /></button>
@@ -1168,7 +1168,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <button aria-label="글 공유" onClick={() => void shareArticle()}><Share2 size={21} /></button>
           <button aria-label={mode === 'web' ? '사이트 확대·축소' : '글자 크기'} aria-expanded={sizeToolsOpen} onClick={() => setSizeToolsOpen((open) => !open)}><Type size={22} /></button>
         </nav>
-        {sizeToolsOpen && sizeControl('sfeed-mobile-size-popover lg:hidden')}
+        {sizeToolsOpen && sizeControl('feedex-mobile-size-popover lg:hidden')}
       </div>
     </div>
   );

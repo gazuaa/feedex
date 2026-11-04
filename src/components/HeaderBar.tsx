@@ -54,14 +54,14 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
   return (
     <header
-      className={`sfeed-header shrink-0 z-30 border-b backdrop-blur-md py-3.5 transition-colors ${
+      className={`feedex-header shrink-0 z-30 border-b backdrop-blur-md py-3.5 transition-colors ${
         isDark
           ? 'bg-slate-950/85 border-slate-800/80 text-slate-100'
           : 'bg-white/90 border-slate-200 text-slate-900'
       }`}
     >
-      <div className="sfeed-header-sections">
-        <div className="sfeed-list-controls flex min-w-0 items-center gap-2 px-4">
+      <div className="feedex-header-sections">
+        <div className="feedex-list-controls flex min-w-0 items-center gap-2 px-4">
         {/* 모바일 메뉴 */}
         <button
           type="button"
@@ -104,7 +104,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             )}
           </div>
 
-          <button type="button" onClick={onToggleSort} aria-label={`정렬: ${sort === 'oldest' ? '오래된순, 최신순으로 전환' : '최신순, 오래된순으로 전환'}`} title="클릭하여 최신순 / 오래된순 전환" className="sfeed-sort-button"><ArrowDownUp size={16} /><span>{sort === 'oldest' ? '오래된순' : '최신순'}</span></button>
+          <button type="button" onClick={onToggleSort} aria-label={`정렬: ${sort === 'oldest' ? '오래된순, 최신순으로 전환' : '최신순, 오래된순으로 전환'}`} title="클릭하여 최신순 / 오래된순 전환" className="feedex-sort-button"><ArrowDownUp size={16} /><span>{sort === 'oldest' ? '오래된순' : '최신순'}</span></button>
 
           {/* 모두 읽음 */}
           <button
@@ -123,8 +123,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
         </div>
         </div>
-          <div aria-hidden="true" className="sfeed-header-divider" />
-          <div className="sfeed-global-controls flex shrink-0 items-center justify-end gap-2 px-4">
+          <div aria-hidden="true" className="feedex-header-divider" />
+          <div className="feedex-global-controls flex shrink-0 items-center justify-end gap-2 px-4">
             <DesktopReadingSettings accountId={accountId} onManageArticleBlocks={onManageArticleBlocks} layout={layout} onChangeLayout={onChangeLayout} markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />
             <InstallAppButton />
             {/* 피드 새로고침 */}

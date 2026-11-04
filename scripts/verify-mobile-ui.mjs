@@ -43,9 +43,9 @@ try {
   assert.match(list, /매거진 뷰/);
   assert.ok(!renderToStaticMarkup(React.createElement(MobileSettings, { ...settings, sort: 'oldest', onChangeSort() {} })).includes('오래된순'), 'the article order is not hidden in the settings menu');
   const header = (fields) => renderToStaticMarkup(React.createElement(MobileHeader, { ...settings, title: 'X', search: '', onSearch() {}, onAdd() {}, onChangeSort() {}, ...fields }));
-  assert.match(header({ sort: 'oldest' }), /class="sfeed-mobile-sort"[^>]*aria-label="정렬: 오래된순, 최신순으로 전환"[\s\S]*?<span>오래된순<\/span><\/button><details[^>]*sfeed-mobile-settings/, 'a list shows its current order as a button just left of the settings');
+  assert.match(header({ sort: 'oldest' }), /class="feedex-mobile-sort"[^>]*aria-label="정렬: 오래된순, 최신순으로 전환"[\s\S]*?<span>오래된순<\/span><\/button><details[^>]*feedex-mobile-settings/, 'a list shows its current order as a button just left of the settings');
   assert.match(header({ sort: 'newest' }), /<span>최신순<\/span>/);
-  assert.ok(!header({ sort: 'newest', library: true }).includes('sfeed-mobile-sort'), 'the library has no article order button');
+  assert.ok(!header({ sort: 'newest', library: true }).includes('feedex-mobile-sort'), 'the library has no article order button');
   assert.match(list, /스크롤 시 읽음 처리/); assert.match(list, /자동 새로고침/);
   const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const storage = new Map([['sfeed_font_scale', '1.2']]);

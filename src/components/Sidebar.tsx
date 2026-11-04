@@ -284,7 +284,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         id="feed-channel-pane"
         aria-label="피드 채널"
-        className={`sfeed-sidebar fixed lg:static inset-y-0 left-0 z-50 w-72 min-h-0 shrink-0 flex flex-col overflow-hidden border-r lg:border-r-0 transition-transform duration-200 ${
+        className={`feedex-sidebar fixed lg:static inset-y-0 left-0 z-50 w-72 min-h-0 shrink-0 flex flex-col overflow-hidden border-r lg:border-r-0 transition-transform duration-200 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${
           isDark
@@ -354,12 +354,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             type="button"
             aria-current={isAllArticlesActive ? 'page' : undefined}
             onClick={() => { onSelectScope('all', null, null); onCloseMobile(); }}
-            className={`sfeed-desktop-all-articles flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition cursor-pointer ${isAllArticlesActive ? 'border-transparent bg-emerald-500/15 text-emerald-400 font-semibold' : isDark ? 'border-slate-800 hover:bg-slate-800' : 'border-slate-200 hover:bg-white'}`}
+            className={`feedex-desktop-all-articles flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition cursor-pointer ${isAllArticlesActive ? 'border-transparent bg-emerald-500/15 text-emerald-400 font-semibold' : isDark ? 'border-slate-800 hover:bg-slate-800' : 'border-slate-200 hover:bg-white'}`}
           ><Archive size={17} className={isAllArticlesActive ? 'text-emerald-400' : 'text-emerald-500'} /><span>전체 글</span><span className="ml-auto text-xs text-slate-400">{libraryCount.toLocaleString('ko-KR')}</span><ChevronRight size={15} /></button>
         </div>
 
         {/* 스크롤되는 내비게이션 트리 */}
-        <div aria-label="구독 피드 채널" role="navigation" tabIndex={0} className="sfeed-channel-list flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 space-y-5 pb-4">
+        <div aria-label="구독 피드 채널" role="navigation" tabIndex={0} className="feedex-channel-list flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 space-y-5 pb-4">
           {/* X 구역: X 계정만 담은 폴더 */}
           {xVisibleFolders.length > 0 && (
             <section aria-label="X 계정">
@@ -529,7 +529,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* 사용자 바닥글 */}
         <div
-          className={`sfeed-sidebar-footer p-3 shrink-0 border-t flex items-center justify-between gap-2 ${
+          className={`feedex-sidebar-footer p-3 shrink-0 border-t flex items-center justify-between gap-2 ${
             isDark ? 'border-slate-800/80 bg-slate-950/50' : 'border-slate-200 bg-slate-100/70'
           }`}
         >

@@ -171,7 +171,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
   };
 
   return (
-    <div className="sfeed-login min-h-screen bg-slate-950 text-slate-100 flex flex-col lg:flex-row">
+    <div className="feedex-login min-h-screen bg-slate-950 text-slate-100 flex flex-col lg:flex-row">
       {/* 왼쪽 소개 영역 */}
       <div className="lg:w-7/12 p-8 lg:p-16 flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/30">
         <div className="relative z-10">

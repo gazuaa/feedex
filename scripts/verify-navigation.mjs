@@ -68,7 +68,7 @@ try {
   doc.defaultView = view; doc.querySelector = () => null; doc.getSelection = () => null;
   const container = {};
   const target = { parentElement: null, scrollWidth: 100, clientWidth: 100, horizontal: false, control: false,
-    closest(selector) { return selector.startsWith('.sfeed-feed-list') ? container : this.control ? {} : null; } };
+    closest(selector) { return selector.startsWith('.feedex-feed-list') ? container : this.control ? {} : null; } };
   let backs = 0, allowed = true;
   const unbind = bindSwipeBack(doc, { canGoBack: () => allowed, back: () => backs++ });
   const touch = (type, x, y, time, options = {}) => {

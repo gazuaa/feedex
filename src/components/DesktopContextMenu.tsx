@@ -28,7 +28,7 @@ export function DesktopContextMenu({ enabled, touch = false, actions }: { enable
     if (!enabled) { setMenu(null); return; }
     const open = (target: Element, x: number, y: number, prevent: () => void) => {
       if (target.closest('input,textarea,select,[contenteditable="true"],dialog')) return;
-      if (touch && target.closest('.sfeed-reader-content')) return;
+      if (touch && target.closest('.feedex-reader-content')) return;
       const context: AppContextTarget = { articleId: target.closest<HTMLElement>('[data-article-id]')?.dataset.articleId,
         folderId: target.closest<HTMLElement>('[data-folder-id]')?.dataset.folderId,
         feedId: target.closest<HTMLElement>('[data-feed-id]')?.dataset.feedId,
@@ -62,7 +62,7 @@ export function DesktopContextMenu({ enabled, touch = false, actions }: { enable
   }, [menu]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 3000); return () => clearTimeout(timer); }, [notice]);
   return <>
-    {enabled && menu && <div ref={ref} role="menu" aria-label="FeedEx 메뉴" className="sfeed-context-menu" style={{ left: menu.x, top: menu.y }} onKeyDown={(event) => {
+    {enabled && menu && <div ref={ref} role="menu" aria-label="FeedEx 메뉴" className="feedex-context-menu" style={{ left: menu.x, top: menu.y }} onKeyDown={(event) => {
       const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')];
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
       // Esc는 메뉴만 닫고 뒤에 열린 글은 닫지 않는다.
@@ -74,6 +74,6 @@ export function DesktopContextMenu({ enabled, touch = false, actions }: { enable
       try { void Promise.resolve(item.run()).catch(() => setNotice('작업을 완료하지 못했습니다. 다시 시도해 주세요.')); }
       catch { setNotice('작업을 완료하지 못했습니다. 다시 시도해 주세요.'); }
     }}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>}
-    {notice && <div role="status" className="sfeed-context-notice">{notice}</div>}
+    {notice && <div role="status" className="feedex-context-notice">{notice}</div>}
   </>;
 }

@@ -25,8 +25,8 @@ export function useScrollChrome(ref: RefObject<HTMLElement | null>, enabled: boo
       const resized = height !== viewport;
       viewport = height;
       if (resized && top >= max - 1) { position = { ...position, top: Math.max(0, top), travel: 0 }; return; }
-      const shell = (element ?? copy)!.closest('.sfeed-mobile-library, .sfeed-workspace');
-      const locked = Boolean(document.querySelector('dialog[open]') || shell?.querySelector('.sfeed-mobile-settings[open]')) || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName ?? '');
+      const shell = (element ?? copy)!.closest('.feedex-mobile-library, .feedex-workspace');
+      const locked = Boolean(document.querySelector('dialog[open]') || shell?.querySelector('.feedex-mobile-settings[open]')) || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName ?? '');
       position = scrollChrome(position, top, max, locked);
       setHidden(position.hidden);
     };

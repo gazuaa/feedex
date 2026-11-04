@@ -24,9 +24,9 @@ interface SwipeScene { top: HTMLElement[]; under: HTMLElement[]; revealLibrary: 
 function readerScene(document: Document): SwipeScene | null {
   const view = document.defaultView;
   if (!view || view.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return null;
-  const reader = document.querySelector<HTMLElement>('.sfeed-article-reader');
-  if (!reader || view.getComputedStyle(reader).position !== 'fixed' || !reader.querySelector('.sfeed-reader')) return null;
-  const under = [document.querySelector<HTMLElement>('.sfeed-workspace-header'), document.querySelector<HTMLElement>('.sfeed-feed-list')];
+  const reader = document.querySelector<HTMLElement>('.feedex-article-reader');
+  if (!reader || view.getComputedStyle(reader).position !== 'fixed' || !reader.querySelector('.feedex-reader')) return null;
+  const under = [document.querySelector<HTMLElement>('.feedex-workspace-header'), document.querySelector<HTMLElement>('.feedex-feed-list')];
   return { top: [reader], under: under.filter((node): node is HTMLElement => Boolean(node)), revealLibrary: false };
 }
 
@@ -35,10 +35,10 @@ function findScene(document: Document, navigation: SwipeNavigation): SwipeScene 
   if (!view || view.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return null;
   const reader = readerScene(document);
   if (reader) return reader;
-  const workspace = document.querySelector<HTMLElement>('.sfeed-workspace');
+  const workspace = document.querySelector<HTMLElement>('.feedex-workspace');
   if (!workspace || navigation.backTarget?.() !== 'library') return null;
-  const docks = Array.from(document.querySelectorAll<HTMLElement>('.sfeed-mobile-dock')).filter((dock) => !dock.closest('.sfeed-mobile-library') && !dock.classList.contains('sfeed-mobile-reader-dock'));
-  const library = document.querySelector<HTMLElement>('.sfeed-mobile-library');
+  const docks = Array.from(document.querySelectorAll<HTMLElement>('.feedex-mobile-dock')).filter((dock) => !dock.closest('.feedex-mobile-library') && !dock.classList.contains('feedex-mobile-reader-dock'));
+  const library = document.querySelector<HTMLElement>('.feedex-mobile-library');
   return { top: [workspace, ...docks], under: library ? [library] : [], revealLibrary: true };
 }
 
@@ -125,8 +125,8 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
     cancel();
     if (settling || event.touches.length !== 1 || !navigation.canGoBack() || (view.visualViewport?.scale ?? 1) > 1.05 || document.querySelector('dialog[open], [aria-modal="true"]') || document.getSelection()?.isCollapsed === false) return;
     const target = event.target as HTMLElement | null;
-    const container = target?.closest('.sfeed-feed-list, .sfeed-mobile-library-scroll, .sfeed-reader-content');
-    if (!container || target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"], video, audio, iframe, summary, button:not(.sfeed-mobile-library-row)')) return;
+    const container = target?.closest('.feedex-feed-list, .feedex-mobile-library-scroll, .feedex-reader-content');
+    if (!container || target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"], video, audio, iframe, summary, button:not(.feedex-mobile-library-row)')) return;
     // 가로로 넓은 코드 블록, 표, 캐러셀은 그대로 둔다.
     for (let node = target; node && node !== container; node = node.parentElement) {
       if (node.scrollWidth > node.clientWidth + 4 && /auto|scroll/.test(view.getComputedStyle(node).overflowX)) return;

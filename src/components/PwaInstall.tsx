@@ -38,7 +38,7 @@ function InstallPromptContent({ prompt }: { prompt: ReturnType<typeof useInstall
 export function InstallCard() {
   const prompt = useInstallPrompt();
   if (!prompt.visible) return null;
-  return <aside className="sfeed-install-card" aria-label="앱 설치 안내"><InstallPromptContent prompt={prompt} /></aside>;
+  return <aside className="feedex-install-card" aria-label="앱 설치 안내"><InstallPromptContent prompt={prompt} /></aside>;
 }
 
 export function InstallAppButton() {
@@ -67,12 +67,12 @@ export function PwaInstall() {
     catch { addressInput.current?.focus(); addressInput.current?.select(); setCopyStatus('아래 주소를 길게 눌러 복사한 뒤 Safari에서 열어 주세요.'); }
   };
   return <>
-    {prompt.visible && <aside className="sfeed-install-banner" aria-label="앱 설치 안내"><InstallPromptContent prompt={prompt} /></aside>}
-    <dialog ref={dialog} aria-labelledby="install-title" className="sfeed-install-dialog" onCancel={() => setOpen(false)} onClose={() => setOpen(false)} onClick={(event) => { if (event.target === dialog.current) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) setOpen(false); } }}>
+    {prompt.visible && <aside className="feedex-install-banner" aria-label="앱 설치 안내"><InstallPromptContent prompt={prompt} /></aside>}
+    <dialog ref={dialog} aria-labelledby="install-title" className="feedex-install-dialog" onCancel={() => setOpen(false)} onClose={() => setOpen(false)} onClick={(event) => { if (event.target === dialog.current) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) setOpen(false); } }}>
       <div className="flex items-center gap-3 mb-5"><img src="/icons/icon-192.png" alt="" width="44" height="44" /><h2 id="install-title" className="text-xl font-bold">{ios ? '홈 화면에 추가' : 'FeedEx 앱 설치'}</h2></div>
       <p className="text-sm text-slate-400 leading-6 mb-5">{ios ? needsSafari ? 'Safari로 열기를 누르면 설치할 수 있는 브라우저로 이동합니다. 이동되지 않으면 아래 주소를 복사해 Safari에서 열어 주세요.' : 'Safari의 공유 메뉴에서 홈 화면에 추가할 수 있어요.' : '홈 화면이나 Dock에서 브라우저 주소창 없이 FeedEx를 열 수 있어요.'}</p>
       {needsSafari && <button type="button" onClick={openInstallHelp} className="mb-4 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-slate-950">Safari로 열기</button>}
-      {ios && <div className="sfeed-install-address"><label htmlFor="sfeed-install-address">Safari에서 열 주소</label><div><input id="sfeed-install-address" ref={addressInput} readOnly value={address} onFocus={(event) => event.target.select()} /><button type="button" onClick={() => { void copyAddress(); }}><Copy size={16} />주소 복사</button></div>{copyStatus && <p role="status">{copyStatus}</p>}</div>}
+      {ios && <div className="feedex-install-address"><label htmlFor="feedex-install-address">Safari에서 열 주소</label><div><input id="feedex-install-address" ref={addressInput} readOnly value={address} onFocus={(event) => event.target.select()} /><button type="button" onClick={() => { void copyAddress(); }}><Copy size={16} />주소 복사</button></div>{copyStatus && <p role="status">{copyStatus}</p>}</div>}
       <ol className="list-decimal pl-5 space-y-3 text-sm leading-6">
         {ios ? <><li>Safari에서 <strong>FeedEx 주소</strong>를 여세요.</li><li><Share2 size={16} className="inline-block align-text-bottom mr-1" /><strong>공유 → 홈 화면에 추가</strong>를 선택하세요. 공유 버튼이 없으면 주소창의 페이지 메뉴(⋯)를 먼저 누르세요.</li><li><strong>웹 앱으로 열기</strong>가 보이면 켠 뒤 <strong>추가</strong>를 누르세요.</li><li>홈 화면의 <strong>FeedEx 아이콘</strong>을 눌러 실행하세요.</li></> : target === 'mac-safari' ? <><li>Safari 메뉴 막대에서 <strong>파일 → Dock에 추가…</strong>를 선택하세요.</li><li>이름을 확인하고 <strong>추가</strong>를 누르세요.</li></> : target === 'android' ? <><li>브라우저 메뉴 <strong>⋮</strong>를 누르세요.</li><li><strong>앱 설치</strong> 또는 <strong>홈 화면에 추가</strong>를 선택하세요.</li><li>설치 버튼이 보이면 눌러 완료하세요.</li></> : <><li>주소창 오른쪽의 <strong>설치 아이콘</strong>이나 브라우저 메뉴를 여세요.</li><li><strong>FeedEx 설치</strong> 또는 <strong>앱 설치</strong>를 선택하세요.</li><li>설치 메뉴가 없으면 Chrome·Edge 또는 Safari에서 열어 주세요.</li></>}
       </ol>
