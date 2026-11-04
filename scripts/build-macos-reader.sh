@@ -17,5 +17,5 @@ done
 xcrun lipo -create "$temp/reader-arm64" "$temp/reader-x86_64" -output "$bundle/Contents/MacOS/FeedExReader"
 codesign --force --sign "${FEEDEX_MAC_SIGN_IDENTITY:--}" "$bundle"
 codesign --verify --strict "$bundle"
-ditto -c -k --keepParent "$bundle" "$output/FeedEx-Reader-macOS.zip"
+ditto -c -k --norsrc --noextattr --noacl --keepParent "$bundle" "$output/FeedEx-Reader-macOS.zip"
 printf '%s\n' "$output/FeedEx-Reader-macOS.zip"

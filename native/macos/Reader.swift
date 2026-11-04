@@ -25,6 +25,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
     private let status = NSTextField(labelWithString: "")
     private let back = NSButton(title: "이전", target: nil, action: nil)
     private let forward = NSButton(title: "다음", target: nil, action: nil)
+    private let returnToArticle = NSButton(title: "기사로 돌아가기", target: nil, action: nil)
     private var observers: [NSKeyValueObservation] = []
     private var requestedArticle: URL?
     var onClose: (() -> Void)?
@@ -55,9 +56,12 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
         back.action = #selector(goBack)
         forward.target = self
         forward.action = #selector(goForward)
+        returnToArticle.target = self
+        returnToArticle.action = #selector(reopenArticle)
+        returnToArticle.isHidden = true
         let reload = NSButton(title: "새로고침", target: self, action: #selector(reloadPage))
         let open = NSButton(title: "열기", target: self, action: #selector(openAddress))
-        let controls = NSStackView(views: [back, forward, reload, address, open])
+        let controls = NSStackView(views: [back, forward, reload, address, open, returnToArticle])
         controls.spacing = 8
         controls.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
 
@@ -94,7 +98,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
 
     func display(_ url: URL) {
         showWindow(nil)
-        if requestedArticle != url || browser.url == nil {
+        if requestedArticle != url || browser.url == nil || browser.title == nil {
             load(url)
         }
         window?.makeKeyAndOrderFront(nil)
@@ -111,6 +115,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
         if let url = browser.url { address.stringValue = url.absoluteString }
         back.isEnabled = browser.canGoBack
         forward.isEnabled = browser.canGoForward
+        returnToArticle.isHidden = requestedArticle == nil || browser.url == requestedArticle
     }
 
     @objc private func openAddress() {
@@ -124,6 +129,10 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
 
     @objc private func goBack() { browser.goBack() }
     @objc private func goForward() { browser.goForward() }
+    @objc private func reopenArticle() {
+        guard let url = requestedArticle else { return }
+        load(url)
+    }
     @objc private func reloadPage() {
         if browser.url != nil { browser.reload() }
         else if let url = requestedArticle { load(url) }
@@ -161,7 +170,6 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
 
     private func showError(_ error: Error) {
         if (error as NSError).code == NSURLErrorCancelled { return }
-        requestedArticle = nil
         status.stringValue = "원문을 열지 못했습니다. \(error.localizedDescription)"
     }
 
