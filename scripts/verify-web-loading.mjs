@@ -14,6 +14,7 @@ try {
   const { ArticleResources } = await vite.ssrLoadModule('/src/client/articleResources.ts');
   const { readContent, writeContent, maintainDeviceCache } = await vite.ssrLoadModule('/src/client/deviceContent.ts');
   const { ArticleDrawer, WebLoadingPreview } = await vite.ssrLoadModule('/src/components/ArticleDrawer.tsx');
+  const { WebStatusBar, WebLabel } = await vite.ssrLoadModule('/src/components/WebStatusBar.tsx');
   const { X_THREAD_MARK } = await vite.ssrLoadModule('/src/shared/xThreadStyle.ts');
   const page = '<!doctype html><html><head><title>Public page</title></head><body><main><h1>Original web layout</h1><p>'+'Real article text. '.repeat(30)+'</p><img src="https://cdn.example.test/photo.jpg"></main></body></html>';
   const articles = Array.from({length:8},(_,n)=>({id:'fast-'+n,feed_id:'coindesk',url:`https://www.coindesk.com/tech/2026/11/02/public-article-${n}`,title:'Available article '+n,feed_title:'CoinDesk',content_html:'<p>Feed body already received.</p>',full_content_html:'<p>Prepared reader body.</p>',is_read:false,is_saved:false}));
@@ -66,8 +67,25 @@ try {
   const initialDocument=new DOMParser().parseFromString(initial,'text/html');
   assert.match(initialDocument.querySelector('[role="radio"][aria-checked="true"]').textContent,/웹/);
   assert.match(initial,/Available article 0/); assert.match(initial,/Prepared reader body/); assert.match(initial,/웹 보기 미리보기/);
-  const ready=renderToStaticMarkup(React.createElement(WebLoadingPreview,{article:articles[0],isDark:false,ready:true,onReady(){},onReading(){}}));
-  assert.match(ready,/웹 페이지 보기/); assert.match(ready,/Prepared reader body/,'a person reading the preview can keep their position when the website becomes ready');
+  const preview=renderToStaticMarkup(React.createElement(WebLoadingPreview,{article:articles[0],isDark:false,onReading(){}}));
+  assert.match(preview,/Prepared reader body/,'a person reading the preview can keep their position when the website becomes ready');
+  assert.doesNotMatch(preview,/role="status"/,'the preview does not add its own notice row');
+  // 웹 보기 상단은 어느 상태에서도 한 줄이다. 좁은 칸은 짧은 이름, 넓은 칸은 긴 이름을 쓰고 줄바꿈하지 않는다.
+  assert.equal(initialDocument.querySelectorAll('.feedex-web-status').length,1,'the web view has one status bar');
+  assert.equal(initialDocument.querySelectorAll('[role="status"]').length,1);
+  assert.match(initialDocument.querySelector('.feedex-web-status').textContent,/웹 페이지 준비 중/);
+  assert.match(initialDocument.querySelector('.feedex-web-status').textContent,/원문 열기/);
+  const statusBar=(props)=>renderToStaticMarkup(React.createElement(WebStatusBar,{url:'https://example.test/a',isDark:false,hidden:false,canLogin:true,notice:'긴 안내 문구',shortNotice:'짧은 안내',onReload(){},...props},React.createElement('a',{href:'https://example.test/a'},React.createElement(WebLabel,{short:'새 창',long:'새 창에서 열기'}))));
+  const shownBar=statusBar();
+  for(const [short,long] of [['짧은 안내','긴 안내 문구'],['새 창','새 창에서 열기'],['로그인','로그인해서 읽기']]){
+    assert.ok(shownBar.includes(`class="@3xl:hidden">${short}<`),`${short} is the narrow label`);
+    assert.ok(shownBar.includes(`class="hidden @3xl:inline">${long}<`),`${long} is the wide label`);
+  }
+  assert.match(shownBar,/role="status" class="min-w-0 flex-1 truncate" title="긴 안내 문구"/,'a cut-off notice keeps its full text');
+  assert.match(shownBar,/whitespace-nowrap/,'actions never wrap into a second row');
+  assert.doesNotMatch(statusBar({canLogin:false}),/로그인해서 읽기/,'X posts have no sign-in action');
+  assert.match(statusBar({hidden:true}),/class="feedex-web-status [^"]*\bhidden\b/,'the bar folds away with the other bars');
+  assert.match(statusBar({busy:true}),/animate-spin/,'loading shows a spinner in the same row');
   assert.match(initial,/aria-label="기사 새로고침"/,'the article toolbar offers a refresh');
 
   // 기사 새로고침: 저장된 사본·본문을 건너뛰고 다시 받아 바꾼다. 피드 보기는 서버의 최신 정보를 받는다.

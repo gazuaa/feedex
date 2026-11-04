@@ -36,7 +36,7 @@ import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { presentReaderSlide } from '../client/swipeBack';
 import type { ArticleResources } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
-import { WebLoginActions } from './WebLoginActions';
+import { WebLabel, WebStatusBar } from './WebStatusBar';
 import { TextSizeControl } from './ReadingSettings';
 import { publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
@@ -99,15 +99,9 @@ function ArticleBody({ html, base, title, className, style, onOpenXPost }: { htm
 }
 
 /** 페이지를 불러오는 동안 기기에 이미 있는 내용으로 웹 탭을 선택된 채로 둔다. */
-export function WebLoadingPreview({ article, isDark, ready = false, onReady, onReading }: { article: ArticleItem; isDark: boolean; ready?: boolean; onReady: () => void; onReading: () => void }) {
+export function WebLoadingPreview({ article, isDark, onReading }: { article: ArticleItem; isDark: boolean; onReading: () => void }) {
   const html = article.full_content_html || article.content_html;
   return <div className="flex-1 min-h-0 flex flex-col">
-    <div role="status" className={`shrink-0 px-4 py-2 border-b text-xs flex items-center gap-2 ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
-      {!ready && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />}
-      <span className="flex-1">{ready ? '웹 페이지가 준비됐어요.' : '웹 페이지를 준비하는 동안 먼저 받은 내용을 보여드려요.'}</span>
-      {ready && <button type="button" className="shrink-0 font-semibold text-emerald-500" onClick={onReady}>웹 페이지 보기</button>}
-      <a href={article.url} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1">원문 열기<ExternalLink className="w-3 h-3" /></a>
-    </div>
     <section aria-label="웹 보기 미리보기" tabIndex={0} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-5" onScroll={(event) => { if (event.currentTarget.scrollTop > 24) onReading(); }}>
       <p className="text-sm font-medium text-emerald-500">{article.feed_title}</p>
       <h1 className="text-2xl sm:text-3xl font-bold leading-snug">{article.title}</h1>
@@ -190,6 +184,19 @@ interface ArticleDrawerProps {
   hasPrev: boolean;
   hasNext: boolean;
   isDark: boolean;
+}
+
+// 웹 보기 상단 안내: [전체 문구, 좁은 칸용 짧은 문구]
+function webCopyNotice(xWaiting: boolean, xFailed: boolean, copy: { thread?: boolean; textOnly?: boolean; fitting?: boolean } | null): [string, string] {
+  if (xWaiting && xFailed) return ['공개 미러에서 댓글을 받지 못했어요. 먼저 받은 글만 보여드려요.', '댓글을 받지 못했어요'];
+  if (xWaiting || copy?.thread) return ['공개 미러(Nitter)에서 받은 X 글과 댓글이에요. 로그인한 상태로 보려면 X에서 여세요.', '공개 미러로 받은 글과 댓글'];
+  if (copy?.textOnly) return ['사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.', '본문만 보여드려요'];
+  if (copy?.fitting) return ['휴대폰 화면에 맞춘 사본을 준비하고 있어요.', '화면에 맞추는 중'];
+  return ['사이트가 직접 표시를 막아 사본으로 보여드려요. 동영상·댓글은 원문에서 동작해요.', '사본 · 영상·댓글은 원문에서'];
+}
+
+function siteHost(url: string) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }
 
 export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
@@ -280,6 +287,19 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   }, [peek, mobileToolsOpen, sizeToolsOpen]);
   const keepPeeking = () => { if (peek) setPeek((value) => value + 1); };
   const barsHidden = chromeHidden || (framed && !peek && !mobileToolsOpen && !sizeToolsOpen);
+  // 웹 보기에 지금 사본과 사이트 프레임 중 무엇이 보이는지. 상단 막대와 본문이 같은 값을 쓴다.
+  const webCopyShown = xWaiting || (copyReady && !readingPreview && frame?.articleId === article?.id && !frame?.embeddable);
+  const webFrameShown = !webCopyShown && frame?.articleId === article?.id && frame?.embeddable === true;
+  // 사본이나 프레임이 준비되기 전이거나, 미리보기를 읽던 중에 사본이 도착해 기다리는 중.
+  const webPreviewShown = !webCopyShown && (!frame || frame.articleId !== article?.id || (!frame.embeddable && (webCopy?.articleId !== article?.id || Boolean(webCopy?.html && readingPreview))));
+  const webPreviewReady = webPreviewShown && frame?.articleId === article?.id && Boolean(copyFor?.html);
+  const webStatus = webCopyShown
+    ? (() => { const [notice, short] = webCopyNotice(xWaiting, xFailed, copyFor); return { notice, short, openUrl: xWaiting ? article?.url : frame?.url, openLong: '새 창에서 열기', openX: xWaiting || Boolean(webCopy?.thread) }; })()
+    : webFrameShown
+      ? { notice: frame.url, short: siteHost(frame.url), openUrl: frame.url, openLong: '사이트가 보이지 않으면 새 창에서 열기', openX: false }
+      : webPreviewShown
+        ? { notice: webPreviewReady ? '웹 페이지가 준비됐어요.' : '웹 페이지를 준비하는 동안 먼저 받은 내용을 보여드려요.', short: webPreviewReady ? '웹 페이지 준비됨' : '웹 페이지 준비 중', openUrl: article?.url, openLong: '원문 열기', openX: false }
+        : null;
   const hasArticle = Boolean(article);
   // 접힌 상단 막대는 자기 높이만큼 올라간다. 높이는 안전 영역과 글자 크기에 따라 다르다.
   useLayoutEffect(() => {
@@ -804,31 +824,34 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
         {mode === 'web' ? (
           <div className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
-            {!xPost && <WebLoginActions key={article.id} url={article.url} isDark={isDark} onReload={() => {
-              setWebCopy(null); setReadingPreview(false); setLoadedFrame(null);
-              setFrame({ articleId: article.id, embeddable: true, url: article.url });
-              setFrameReloads(count => count + 1);
-            }} />}
-            {xWaiting || (copyReady && !readingPreview && frame?.articleId === article.id && !frame.embeddable) ? (
+            <WebStatusBar
+              key={article.id}
+              url={article.url}
+              isDark={isDark}
+              hidden={barsHidden}
+              canLogin={!xPost}
+              busy={webPreviewShown && !webPreviewReady}
+              notice={webStatus?.notice ?? ''}
+              shortNotice={webStatus?.short ?? ''}
+              onReload={() => {
+                setWebCopy(null); setReadingPreview(false); setLoadedFrame(null);
+                setFrame({ articleId: article.id, embeddable: true, url: article.url });
+                setFrameReloads(count => count + 1);
+              }}
+            >
+              {webCopyShown && !xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="원래 모양" long="원래 모양 다시 받기" /></button>}
+              {webCopyShown && xWaiting && xFailed && <button type="button" onClick={showWebCopy} className="hover:underline">다시 시도</button>}
+              {webFrameShown && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="사본으로" long="웹 사본으로 보기" /></button>}
+              {webPreviewReady && <button type="button" onClick={() => setReadingPreview(false)} className={`font-semibold hover:underline ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>웹 페이지 보기</button>}
+              {webStatus?.openUrl && (
+                <a href={webStatus.openUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
+                  {webStatus.openX ? 'X에서 열기' : <WebLabel short="새 창" long={webStatus.openLong} />}
+                  <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                </a>
+              )}
+            </WebStatusBar>
+            {webCopyShown ? (
               <>
-                <div
-                  className={`px-4 py-1.5 border-b text-[11px] flex items-center justify-between gap-2 shrink-0 ${
-                    isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'
-                  }`}
-                >
-                  <span className="min-w-0">{xWaiting && xFailed ? '공개 미러에서 댓글을 받지 못했어요. 먼저 받은 글만 보여드려요.' : xWaiting || webCopy?.thread ? '공개 미러(Nitter)에서 받은 X 글과 댓글이에요. 로그인한 상태로 보려면 X에서 여세요.' : webCopy?.textOnly ? '사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.' : webCopy?.fitting ? '휴대폰 화면에 맞춘 사본을 준비하고 있어요.' : '사이트가 직접 표시를 막아 사본으로 보여드려요. 동영상·댓글은 원문에서 동작해요.'}</span>
-                  {!xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="shrink-0 hover:underline">원래 모양 다시 받기</button>}
-                  {xWaiting && xFailed && <button type="button" onClick={showWebCopy} className="shrink-0 hover:underline">다시 시도</button>}
-                  <a
-                    href={xWaiting ? article.url : frame?.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 inline-flex items-center gap-1 hover:underline"
-                  >
-                    {xWaiting || webCopy?.thread ? 'X에서 열기' : '새 창에서 열기'}
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
                 <WebPager enabled={isMobile} onBack={onClose}>
                 <div className="relative flex-1 min-h-0 overflow-hidden bg-white">
                   {/*
@@ -886,26 +909,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 </WebPager>
               </>
             ) : !frame || frame.articleId !== article.id ? (
-              <WebLoadingPreview article={article} isDark={isDark} onReady={() => setReadingPreview(false)} onReading={() => setReadingPreview(true)} />
+              <WebLoadingPreview article={article} isDark={isDark} onReading={() => setReadingPreview(true)} />
             ) : frame.embeddable ? (
               <>
-                <div
-                  className={`px-4 py-1.5 border-b text-[11px] flex items-center justify-between gap-2 shrink-0 ${framed && barsHidden ? 'hidden' : ''} ${
-                    isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'
-                  }`}
-                >
-                  <span className="truncate min-w-0">{frame.url}</span>
-                  <button type="button" onClick={showWebCopy} className="shrink-0 hover:underline">웹 사본으로 보기</button>
-                  <a
-                    href={frame.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 inline-flex items-center gap-1 hover:underline"
-                  >
-                    사이트가 보이지 않으면 새 창에서 열기
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
                 <WebPager enabled={isMobile} onBack={onClose}>
                 <div ref={framePaneRef} className="relative flex-1 min-h-0 overflow-hidden bg-white">
                   <iframe
@@ -923,7 +929,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 </WebPager>
               </>
             ) : webCopy?.articleId !== article.id || (webCopy.html && readingPreview) ? (
-              <WebLoadingPreview article={article} isDark={isDark} ready={Boolean(webCopy?.articleId === article.id && webCopy.html)} onReady={() => setReadingPreview(false)} onReading={() => setReadingPreview(true)} />
+              <WebLoadingPreview article={article} isDark={isDark} onReading={() => setReadingPreview(true)} />
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
                 <Globe className="w-9 h-9 text-slate-400" aria-hidden="true" />
