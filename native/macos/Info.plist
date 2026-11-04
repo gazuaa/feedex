@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>dev.jyk.feedex.reader</string>
+  <key>CFBundleName</key><string>FeedEx Reader</string>
+  <key>CFBundleDisplayName</key><string>FeedEx 읽기</string>
+  <key>CFBundleExecutable</key><string>FeedExReader</string>
+  <key>CFBundleIconFile</key><string>FeedExReader</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>CFBundleURLTypes</key>
+  <array><dict>
+    <key>CFBundleURLName</key><string>dev.jyk.feedex.reader.article</string>
+    <key>CFBundleURLSchemes</key><array><string>feedex-reader</string></array>
+    <key>CFBundleTypeRole</key><string>Viewer</string>
+  </dict></array>
+</dict>
+</plist>
