@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'vite';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -47,7 +48,10 @@ try {
   cleanup(); root.dispatchEvent(new Event('wheel')); scroll(1300);
   assert.equal(frames.size, 0);
 
-  const { UnreadSession } = await vite.ssrLoadModule('/src/client/unreadSession.ts');
+  const { UnreadSession, readRowsExpired } = await vite.ssrLoadModule('/src/client/unreadSession.ts');
+  assert.equal(readRowsExpired(5_000, 1200), false, 'a quick look at another app keeps the read rows in place');
+  assert.equal(readRowsExpired(30_000, 1200), true, 'locking the phone for a while starts a new reading');
+  assert.equal(readRowsExpired(1_000, 0), true, 'coming back at the top would only show read rows');
   const article = (id, is_read = false) => ({ id, published_at: `2026-10-27T0${id === 'a' ? 2 : 1}:00:00Z`, is_read, is_saved: false, title: id });
   const session = new UnreadSession();
   session.merge([article('a'), article('b')]); session.update(article('a', true));
@@ -60,6 +64,26 @@ try {
   session.clear();
   assert.deepEqual(session.merge([article('b')]).map((item) => item.id), ['b'], 'returning to the library or refreshing releases read rows');
   assert.deepEqual(new UnreadSession().merge([]), [], 'restarting the app never restores the temporary rows');
+  // 앱이 다시 뜨면 기기 저장본의 글이 안 읽음으로 먼저 온 뒤, 동기화가 읽음을 알려 준다. 이런 글은 남기지 않는다.
+  const reopened = new UnreadSession();
+  reopened.merge([article('a'), article('b')]);
+  reopened.synced(article('a', true));
+  assert.deepEqual(reopened.merge([article('b')]).map((item) => item.id), ['b'], 'an article read before the app came back is not kept');
+  assert.deepEqual(new UnreadSession().merge([article('a', true), article('b')]).map((item) => item.id), ['b'], 'a row that arrives already read never enters the list');
+  const staying = new UnreadSession();
+  staying.merge([article('a'), article('b')]); staying.patch('a', { is_read: true });
+  staying.synced({ ...article('a', true), title: 'new title' });
+  assert.deepEqual(staying.merge([]).map((item) => [item.id, item.is_read, item.title]), [['a', true, 'new title'], ['b', false, 'b']], 'the sync echo of a row read here keeps the row');
+  staying.synced(article('b', false));
+  assert.equal(staying.merge([]).find((item) => item.id === 'b').is_read, false);
+  staying.synced(article('unknown', true));
+  assert.equal(staying.merge([]).length, 2, 'articles outside the list are ignored');
+  staying.dropRead();
+  assert.deepEqual(staying.merge([]).map((item) => item.id), ['b'], 'coming back drops only the read rows');
+  // 새로고침처럼 오래 걸리는 작업이 끝난 뒤에 부른 fetchArticles가 그사이 옮긴 목록을 덮어쓰면 안 된다.
+  const appSource = readFileSync('src/App.tsx', 'utf8');
+  assert.match(appSource, /publishSyncedPage\.current !== fetchArticles\) return publishSyncedPage\.current\(\)/, 'a late list fetch forwards to the list on screen');
+  assert.match(appSource, /useLayoutEffect\(\(\) => \{\s*if \(user\) \{\s*fetchArticles\(\);/, 'a ready list replaces the old one before paint');
   const { TextSizeControl, ScrollReadSetting } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
   const controls = renderToStaticMarkup(React.createElement(TextSizeControl));
   assert.ok(!controls.includes('%') && !controls.includes('type="range"'));

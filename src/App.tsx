@@ -42,7 +42,7 @@ import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, takeResumePoint, watchAppVersion } from './client/appVersion';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
-import { UnreadSession } from './client/unreadSession';
+import { readRowsExpired, UnreadSession } from './client/unreadSession';
 import { useAutoRefresh } from './client/autoRefresh';
 import { DEFAULT_AUTO_REFRESH_MINUTES } from './shared/preferences';
 import { isXProfileFeed, isXStatusUrl, xProfile } from './shared/xFeed';
@@ -389,9 +389,16 @@ export const App: React.FC = () => {
 
   // 앱으로 돌아올 때 다른 기기의 변경을 반영한다. 다만 글을 누를 때마다 비싼
   // 전체 보관함 개수 조회를 돌리지는 않는다.
+  const hiddenAt = useRef<number | null>(null);
+  const afterAway = useRef<(away: number) => void>(() => {});
   useEffect(() => {
     if (!readerCache) return;
-    const visible = () => { if (document.visibilityState === 'visible') void syncInBackground(); };
+    const visible = () => {
+      if (document.visibilityState !== 'visible') { hiddenAt.current ??= Date.now(); return; }
+      if (hiddenAt.current !== null) afterAway.current(Date.now() - hiddenAt.current);
+      hiddenAt.current = null;
+      void syncInBackground();
+    };
     const sessionChanged = (event: StorageEvent) => {
       if (event.key === 'sfeed_session_token' && event.newValue !== event.oldValue) {
         void readerCache.close().finally(() => window.location.reload());
@@ -439,7 +446,7 @@ export const App: React.FC = () => {
       const previous = articleCache.current.get(incoming.id);
       const article = previous && !bodies.has(incoming.id) && !(previous.body_deferred && !incoming.body_deferred) ? { ...incoming, content_html: previous.content_html, full_content_html: previous.full_content_html, ai_summary: previous.ai_summary, body_deferred: previous.body_deferred } : incoming;
       if (previous) { articleCache.current.set(article.id, article); setRestoredArticle((item) => item?.id === article.id ? article : item); }
-      unreadSessions.forEach((session) => session.patch(article.id, article));
+      unreadSessions.forEach((session) => session.synced(article));
     }
     for (const id of delta.removedIds) { articleCache.current.delete(id); unreadSessions.forEach((session) => session.remove(id)); setSelectedArticleId((selected) => selected === id ? null : selected); }
   };
@@ -449,8 +456,14 @@ export const App: React.FC = () => {
       if (retainReadRows) setArticles((prev) => prev.filter((article) => !article.is_read));
     }
   }, [isMobile, mobileSidebarOpen, unreadSessions, unreadSession, retainReadRows]);
+  // 화면을 잠갔다가 돌아오면 읽은 행을 뺀다. 글을 보던 중이면 돌아갈 목록 위치가 달라지므로 그대로 둔다.
+  afterAway.current = (away) => {
+    if (!retainReadRows || selectedArticleId || !readRowsExpired(away, articleListRef.current?.scrollTop ?? 0)) return;
+    unreadSessions.forEach((session) => session.dropRead());
+    setArticles((rows) => rows.filter((article) => !article.is_read));
+  };
 
-  const fetchArticles = useCallback(async () => {
+  const fetchArticles = useCallback(async (): Promise<void> => {
     const cache = readerCache;
     if (!cache?.active || !readerSync || activeCache.current !== cache) return;
     if (!cache.epoch) {
@@ -458,6 +471,8 @@ export const App: React.FC = () => {
       if (!stored?.cacheEpoch) await fetchBootstrap();
     }
     if (!cache.active || activeCache.current !== cache) return;
+    // 새로고침처럼 오래 걸리는 작업이 끝난 뒤에 부르면, 그사이 옮긴 목록을 옛 목록이 덮어쓴다.
+    if (publishSyncedPage.current !== fetchArticles) return publishSyncedPage.current();
     const request = ++articleRequestRef.current;
     const token = getStoredToken();
     const current = () => request === articleRequestRef.current && activeCache.current === cache && getStoredToken() === token && token === authenticatedToken.current;
@@ -605,7 +620,8 @@ export const App: React.FC = () => {
     }
   }, [user, syncInBackground]);
 
-  useEffect(() => {
+  // 받아 둔 목록은 그리기 전에 바꾼다. 앞 목록이 새 제목 아래에 한 프레임 비치지 않게 한다.
+  useLayoutEffect(() => {
     if (user) {
       fetchArticles();
     }
