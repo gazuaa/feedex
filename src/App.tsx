@@ -231,7 +231,7 @@ export const App: React.FC = () => {
     if (pendingScroll.current === null) articleListRef.current?.scrollTo({ top: 0 });
   }, [activeScope, activeFolderId, activeFeedId, unreadOnly, savedOnly, searchQuery, articleSort]);
 
-  useListAnchor(articleListRef, visibleArticles, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${committedSearch}:${articleSort}`);
+  const forgetListAnchor = useListAnchor(articleListRef, visibleArticles, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${committedSearch}:${articleSort}`);
   useEffect(() => { setShowBlockedArticles(false); }, [user?.id, activeScope, activeFolderId, activeFeedId]);
   useEffect(() => { setBlockDialog(null); setBuilderEditor(null); setHistoryFeed(null); setRenameFeed(null); }, [user?.id]);
 
@@ -456,10 +456,15 @@ export const App: React.FC = () => {
       if (retainReadRows) setArticles((prev) => prev.filter((article) => !article.is_read));
     }
   }, [isMobile, mobileSidebarOpen, unreadSessions, unreadSession, retainReadRows]);
-  // 화면을 잠갔다가 돌아오면 읽은 행을 뺀다. 글을 보던 중이면 돌아갈 목록 위치가 달라지므로 그대로 둔다.
+  // 화면을 잠갔다가 돌아오면 읽은 행을 빼고 맨 위부터 보여 준다. 글을 보던 중이면 돌아갈 목록 위치가
+  // 달라지므로 그대로 두고, 읽은 행이 없으면 훑어보던 자리일 수 있으니 옮기지 않는다.
   afterAway.current = (away) => {
-    if (!retainReadRows || selectedArticleId || !readRowsExpired(away, articleListRef.current?.scrollTop ?? 0)) return;
+    const list = articleListRef.current;
+    if (!retainReadRows || selectedArticleId || !readRowsExpired(away, list?.scrollTop ?? 0)) return;
     unreadSessions.forEach((session) => session.dropRead());
+    if (!articles.some((article) => article.is_read)) return;
+    forgetListAnchor();
+    list?.scrollTo({ top: 0 });
     setArticles((rows) => rows.filter((article) => !article.is_read));
   };
 

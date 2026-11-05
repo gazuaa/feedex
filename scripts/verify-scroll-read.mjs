@@ -50,7 +50,8 @@ try {
 
   const { UnreadSession, readRowsExpired } = await vite.ssrLoadModule('/src/client/unreadSession.ts');
   assert.equal(readRowsExpired(5_000, 1200), false, 'a quick look at another app keeps the read rows in place');
-  assert.equal(readRowsExpired(30_000, 1200), true, 'locking the phone for a while starts a new reading');
+  assert.equal(readRowsExpired(299_999, 1200), false, 'coming back within five minutes keeps the read rows in place');
+  assert.equal(readRowsExpired(300_000, 1200), true, 'locking the phone for five minutes starts a new reading');
   assert.equal(readRowsExpired(1_000, 0), true, 'coming back at the top would only show read rows');
   const article = (id, is_read = false) => ({ id, published_at: `2026-10-27T0${id === 'a' ? 2 : 1}:00:00Z`, is_read, is_saved: false, title: id });
   const session = new UnreadSession();
@@ -84,6 +85,12 @@ try {
   const appSource = readFileSync('src/App.tsx', 'utf8');
   assert.match(appSource, /publishSyncedPage\.current !== fetchArticles\) return publishSyncedPage\.current\(\)/, 'a late list fetch forwards to the list on screen');
   assert.match(appSource, /useLayoutEffect\(\(\) => \{\s*if \(user\) \{\s*fetchArticles\(\);/, 'a ready list replaces the old one before paint');
+  // 오래 떠났다 돌아오면 읽은 행이 빠진 목록을 맨 위부터 보여 준다. 기억한 행이 다시 끌어내리면 안 된다.
+  const afterAwaySource = appSource.slice(appSource.indexOf('afterAway.current = (away)'), appSource.indexOf('const fetchArticles = useCallback'));
+  assert.match(afterAwaySource, /forgetListAnchor\(\);\s*list\?\.scrollTo\(\{ top: 0 \}\);/, 'coming back starts at the top and the anchor cannot pull it back');
+  assert.match(afterAwaySource, /selectedArticleId/, 'an open article keeps its list position');
+  assert.match(afterAwaySource, /articles\.some\(\(article\) => article\.is_read\)\) return;\s*forgetListAnchor\(\);/, 'a list with no read rows stays where it was');
+  assert.match(readFileSync('src/client/listAnchor.ts', 'utf8'), /return useCallback\(\(\) => \{ anchor\.current = null; \}/, 'the list anchor can be forgotten');
   const { TextSizeControl, ScrollReadSetting } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
   const controls = renderToStaticMarkup(React.createElement(TextSizeControl));
   assert.ok(!controls.includes('%') && !controls.includes('type="range"'));

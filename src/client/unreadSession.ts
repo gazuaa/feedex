@@ -2,7 +2,7 @@ import type { ArticleItem } from './api';
 
 // 잠깐 다른 앱을 본 정도면 읽은 행을 그대로 둔다. 이보다 오래 떠났거나, 돌아왔을 때 스크롤이
 // 맨 위라 읽은 행만 먼저 보이면 새로 읽는 것으로 보고 뺀다.
-const READ_ROWS_AWAY_MS = 30_000;
+const READ_ROWS_AWAY_MS = 5 * 60_000;
 export const readRowsExpired = (awayMs: number, listTop: number) => awayMs >= READ_ROWS_AWAY_MS || listTop < 8;
 
 // 안 읽은 목록은 읽는 동안, 다시 확인하는 중에도 흔들리지 않는다.
@@ -27,7 +27,7 @@ export class UnreadSession {
     if (article.is_read && !row.is_read) this.articles.delete(article.id);
     else this.articles.set(article.id, { ...row, ...article });
   }
-  /** 읽은 행만 뺀다. 더 불러온 안 읽은 행은 그대로라 목록이 줄어 위치를 잃지 않는다. */
+  /** 읽은 행만 뺀다. 더 불러온 안 읽은 행은 남겨 다시 받지 않게 한다. */
   dropRead() { for (const [id, article] of this.articles) if (article.is_read) this.articles.delete(id); }
   clear() { this.articles.clear(); }
   remove(id: string) { this.articles.delete(id); }

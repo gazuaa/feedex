@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type RefObject } from 'react';
+import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react';
 export function useListAnchor(ref: RefObject<HTMLElement | null>, rows: unknown[], scope: string) {
   // 맨 위에 보이던 행이 목록에서 빠져도 바로 다음 행으로 자리를 잡도록 뒤의 행도 기억한다.
   const anchor = useRef<{ ids: string[]; offset: number; scope: string } | null>(null);
@@ -20,4 +20,6 @@ export function useListAnchor(ref: RefObject<HTMLElement | null>, rows: unknown[
     remember(); root.addEventListener('scroll', remember, { passive: true });
     return () => root.removeEventListener('scroll', remember);
   }, [ref, rows, scope]);
+  // 일부러 맨 위로 보낼 때 부른다. 스크롤 이벤트보다 목록 갱신이 먼저 오면 기억한 행으로 되돌아간다.
+  return useCallback(() => { anchor.current = null; }, []);
 }
