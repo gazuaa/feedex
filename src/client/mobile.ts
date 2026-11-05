@@ -4,6 +4,12 @@ const query = '(max-width: 1023px)';
 const subscribe = (callback: () => void) => { const media = window.matchMedia(query); media.addEventListener('change', callback); return () => media.removeEventListener('change', callback); };
 export const useMobileViewport = () => useSyncExternalStore(subscribe, () => window.matchMedia(query).matches, () => false);
 
+// 안 읽은 글 목록을 통째로 읽으면 빈 화면만 남는다. 저장한 글은 읽어도 그대로 보이고,
+// 검색 결과나 일부만 읽은 경우는 볼 글이 남아 있을 수 있어 그 자리에 둔다.
+export function emptiesUnreadList(target: { scope: string; search: string; edge?: unknown }, unreadOnly: boolean, savedOnly: boolean) {
+  return unreadOnly && !savedOnly && target.scope !== 'saved' && !target.search && !target.edge;
+}
+
 // 방향을 바꾸기 전에 움직임을 쌓는다. iOS 고무줄 스크롤은 잘라 내서
 // 가장자리에서 튕겨도 막대가 깜빡이지 않게 한다.
 export function scrollChrome(previous: { top: number; travel: number; hidden: boolean }, top: number, max: number, locked = false) {

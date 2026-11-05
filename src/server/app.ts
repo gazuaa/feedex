@@ -31,7 +31,7 @@ import { fetchPreviewImage } from './previewImage';
 import { analyseBuilderPage, builderListPageArticles, builderParsedFeed, builderSiteInfo, fetchPage, publicPageUrl, webCopy } from './rssBuilder';
 import { pageAssetProxy } from './pageAssets';
 import { resolveXAvatars } from './xAvatars';
-import { refreshStoredFeeds, storedFeedColumns, type StoredFeed } from './feedLoader';
+import { refreshStoredFeeds, storedFeedColumns, type RefreshProgress, type StoredFeed } from './feedLoader';
 import { extractOriginalPublishedAt } from './publicationDate';
 import { resolveArticlePublication, type PublicationArticle } from './articlePublication';
 import { summarizeArticleWithAI } from './aiSummarizer';
@@ -803,10 +803,15 @@ app.post('/api/subscriptions/:id/updates', async (c) => {
   return c.json({ pausedAt: body.paused ? now : null });
 });
 
+// 누른 사람이 기다리는 시간. 넘으면 먼저 답하고 남은 피드는 응답 뒤에 계속 받는다.
+const FEED_REFRESH_WAIT_MS = 3000;
+// 이보다 최근에 받은 피드는 전체 새로고침에서 건너뛴다. 모두 읽음을 연달아 누를 때 같은 피드를 또 받지 않는다.
+const FEED_REFRESH_FRESH_MS = 3 * 60_000;
+
 // 피드 새로고침
 app.post('/api/feeds/refresh', async (c) => {
   const user = c.get('user');
-  const body = await c.req.json<{ feedId?: string }>().catch(() => ({ feedId: undefined }));
+  const body = await c.req.json<{ feedId?: string; folderId?: string }>().catch(() => ({ feedId: undefined, folderId: undefined }));
 
   let feedsToRefresh: StoredFeed[] = [];
   if (body.feedId) {
@@ -821,23 +826,34 @@ app.post('/api/feeds/refresh', async (c) => {
       .first<StoredFeed>();
     if (row) feedsToRefresh = [row];
   } else {
+    // 보고 있는 폴더의 피드부터, 그다음은 오래전에 받은 피드부터 받는다.
+    // 대기 시간 안에 다 못 받아도 누를 때마다 안 받은 피드로 넘어간다.
     const res = await c.env.DB.prepare(
       `SELECT ${storedFeedColumns}
        FROM feeds f
        JOIN subscriptions s ON s.feed_id = f.id
        LEFT JOIN rss_builders b ON b.feed_id = f.id
-       WHERE s.user_id = ?`
+       WHERE s.user_id = ? AND (f.last_fetched_at IS NULL OR f.last_fetched_at < ?)
+       ORDER BY CASE WHEN s.folder_id = ? THEN 0 ELSE 1 END, f.last_fetched_at ASC`
     )
-      .bind(user.id)
+      .bind(user.id, new Date(Date.now() - FEED_REFRESH_FRESH_MS).toISOString(), body.folderId ?? '')
       .all<StoredFeed>();
     feedsToRefresh = res.results || [];
   }
 
-  const totalNewArticles = await refreshStoredFeeds(c.env, feedsToRefresh);
+  const progress: RefreshProgress = { done: 0, inserted: 0 };
+  const work = refreshStoredFeeds(c.env, feedsToRefresh, progress).catch((error) => console.error('피드 새로고침 실패:', error instanceof Error ? error.message : error));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([work, new Promise((resolve) => { timer = setTimeout(resolve, FEED_REFRESH_WAIT_MS); })]);
+  clearTimeout(timer);
+  const pendingFeeds = feedsToRefresh.length - progress.done;
+  // 실행 문맥이 없는 테스트 환경에서는 그냥 이어서 돈다.
+  if (pendingFeeds) { try { c.executionCtx.waitUntil(work); } catch { /* 위와 같다 */ } }
 
   return c.json({
-    refreshedFeeds: feedsToRefresh.length,
-    newArticles: totalNewArticles,
+    refreshedFeeds: progress.done,
+    newArticles: progress.inserted,
+    pendingFeeds,
   });
 });
 

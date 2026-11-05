@@ -30,7 +30,7 @@ import { MarkAllReadDialog } from './components/MarkAllReadDialog';
 import { MoveFeedDialog } from './components/MoveFeedDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { applyTheme, readStoredTheme } from './client/theme';
-import { useMobileViewport, useScrollChrome } from './client/mobile';
+import { emptiesUnreadList, useMobileViewport, useScrollChrome } from './client/mobile';
 import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
 import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileChrome';
@@ -61,6 +61,9 @@ import { RssBuilderEditor } from './components/RssBuilderEditor';
 import { FeedHistoryDialog } from './components/FeedHistoryDialog';
 import { RenameFeedDialog } from './components/RenameFeedDialog';
 import { ArticleBlockDialog } from './components/ArticleBlockDialog';
+
+// 워커는 응답 뒤에 30초까지 일한다. 그 뒤에 받은 글을 한 번 더 맞춘다.
+const REFRESH_FOLLOW_UP_MS = 31_000;
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -867,31 +870,45 @@ export const App: React.FC = () => {
     unreadSessions.forEach((session) => { session.clear(); if (open) session.update(open); });
   }, [selectedArticleId, unreadSessions]);
 
-  const handleRefreshFeeds = useCallback(async () => {
+  const refreshFollowUp = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(refreshFollowUp.current), []);
+  // quiet면 안내 없이 아이콘만 돌린다. 사용자가 누르지 않은 새로고침에 쓴다.
+  const refreshFeeds = useCallback(async (quiet = false) => {
     if (refreshingFeedsRef.current || !readerCache?.active) return;
     refreshingFeedsRef.current = true;
+    clearTimeout(refreshFollowUp.current);
     releaseReadRows();
-    setRefreshingFeeds(true);
+    if (!quiet) setRefreshingFeeds(true);
     // 위쪽의 읽은 행은 새로고침하면 목록에서 빠지므로 맨 위부터 다시 시작한다.
     articleListRef.current?.scrollTo({ top: 0 });
+    let counts: Promise<unknown> = Promise.resolve();
     try {
-      await syncArticleBlocks(readerCache.account, true).catch(() => {});
-      await apiRequest('/api/feeds/refresh', {
-        method: 'POST',
-        body: JSON.stringify({
-          feedId: activeScope === 'feed' ? activeFeedId : undefined,
+      const [{ pendingFeeds }] = await Promise.all([
+        apiRequest<{ pendingFeeds?: number }>('/api/feeds/refresh', {
+          method: 'POST',
+          body: JSON.stringify({
+            feedId: activeScope === 'feed' ? activeFeedId : undefined,
+            folderId: activeScope === 'folder' ? activeFolderId : undefined,
+          }),
         }),
-      });
+        syncArticleBlocks(readerCache.account, true).catch(() => {}),
+      ]);
       readerCache?.touch();
-      await Promise.all([fetchBootstrap(), fetchArticles()]);
-      await warmListsRef.current();
+      // 목록은 금방 오지만 피드별 개수는 더 걸린다. 목록이 바뀌면 안내를 내리고 개수는 뒤에서 받는다.
+      counts = fetchBootstrap().catch(() => {});
+      await fetchArticles();
+      // 남은 피드는 서버가 뒤에서 받는다. 그 시간이 지나면 받은 글을 한 번 더 맞춘다.
+      if (pendingFeeds) refreshFollowUp.current = setTimeout(() => { if (readerCache.active && document.visibilityState === 'visible') void syncInBackground(); }, REFRESH_FOLLOW_UP_MS);
     } catch {
       // 무시한다
     } finally {
       refreshingFeedsRef.current = false;
       setRefreshingFeeds(false);
     }
-  }, [readerCache, activeScope, activeFeedId, fetchBootstrap, fetchArticles, releaseReadRows]);
+    // 다른 폴더의 첫 화면을 받는 동안에는 아이콘만 돈다. 아이콘이 멈추면 다 받은 것이다.
+    void showSync(counts.then(() => warmListsRef.current())).catch(() => {});
+  }, [readerCache, activeScope, activeFeedId, activeFolderId, fetchBootstrap, fetchArticles, releaseReadRows, showSync, syncInBackground]);
+  const handleRefreshFeeds = useCallback(() => refreshFeeds(), [refreshFeeds]);
 
   const pullDistance = usePullRefresh(isMobile && Boolean(user) && !selectedArticleId && !discoverOpen && !markReadTarget && !historyFeed && !renameFeed, refreshingFeeds, handleRefreshFeeds);
 
@@ -932,8 +949,10 @@ export const App: React.FC = () => {
       releaseReadRows();
       await Promise.all([fetchBootstrap(), fetchArticles()]);
       setMarkReadTarget(null);
-      // 다 읽었으니 새 글이 있는지 바로 확인한다(피드 새로고침과 같다).
-      void handleRefreshFeeds();
+      // 휴대폰에서 빈 목록만 남으면 보관함으로 돌아가 다음 폴더를 고르게 한다.
+      if (isMobile && emptiesUnreadList(markReadTarget, unreadOnly, savedOnly)) setMobileSidebarOpen(true);
+      // 다 읽었으니 새 글이 있는지 바로 확인한다. 누른 적 없는 새로고침이라 안내는 띄우지 않는다.
+      void showSync(refreshFeeds(true));
     } catch {
       setMarkReadError('읽음 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
@@ -1486,7 +1505,7 @@ export const App: React.FC = () => {
           </footer>
         }
       >
-        {articleBlocks.some((rule) => rule.enabled) && <div className="feedex-block-bar"><span title="피드와 폴더의 숫자는 차단 전 전체 글 기준입니다.">{showBlockedArticles ? `차단 대상 ${blockedArticles.length}개 표시 중` : `불러온 글 중 ${blockedArticles.length}개 숨김`}</span><button type="button" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles((value) => !value)}>{showBlockedArticles ? '차단 적용' : '숨긴 글 보기'}</button><button type="button" onClick={onManageArticleBlocks}>규칙 관리</button></div>}
+        {articleBlocks.some((rule) => rule.enabled) && (showBlockedArticles || blockedArticles.length > 0 || visibleArticles.length > 0 || loadingArticles || loadingBootstrap) && <div className="feedex-block-bar"><span title="피드와 폴더의 숫자는 차단 전 전체 글 기준입니다.">{showBlockedArticles ? `차단 대상 ${blockedArticles.length}개 표시 중` : `불러온 글 중 ${blockedArticles.length}개 숨김`}</span><button type="button" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles((value) => !value)}>{showBlockedArticles ? '차단 적용' : '숨긴 글 보기'}</button><button type="button" onClick={onManageArticleBlocks}>규칙 관리</button></div>}
         {!showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기</button></div> : <ArticleList
           accountId={user.id}
           onUpdateArticleFields={handleUpdateArticleFields}

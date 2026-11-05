@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
@@ -51,6 +52,20 @@ try {
   touch('touchstart', 100, 200); touch('touchmove', 100, 230); await new Promise((resolve) => setTimeout(resolve, 480)); assert.equal(opened, 1, 'scrolling cancels a long press');
   target.control = true; touch('touchstart', 100, 200); target.control = false;
   cleanup(); await new Promise((resolve) => setTimeout(resolve, 480)); assert.equal(opened, 1);
+
+  // 메뉴는 손가락 아래에 뜨므로 메뉴 글자를 고를 수 없어야 iOS 글자 선택이 이어지지 않는다.
+  const css = readFileSync('src/index.css', 'utf8');
+  const unselectable = (selector) => css.match(new RegExp(`(?:^|\\n)\\s*[^{}\\n]*${selector}[^{}\\n]*\\{[^}]*\\}`, 'g'))?.some((rule) => /-webkit-user-select: none/.test(rule) && /-webkit-touch-callout: none/.test(rule));
+  assert.ok(unselectable('\\.feedex-context-menu'), 'the long-press menu text cannot be selected');
+  assert.ok(unselectable('\\.feedex-web-status'), 'the web view status bar text cannot be selected');
+  const { emptiesUnreadList } = await vite.ssrLoadModule('/src/client/mobile.ts');
+  const list = { scope: 'folder', search: '' };
+  assert.equal(emptiesUnreadList(list, true, false), true, 'reading a whole unread list leaves nothing to show');
+  assert.equal(emptiesUnreadList(list, false, false), false, 'the all tab still shows the read articles');
+  assert.equal(emptiesUnreadList(list, true, true), false, 'saved articles stay after reading');
+  assert.equal(emptiesUnreadList({ ...list, scope: 'saved' }, true, false), false);
+  assert.equal(emptiesUnreadList({ ...list, search: 'kim' }, true, false), false, 'search results keep the search open');
+  assert.equal(emptiesUnreadList({ ...list, edge: { side: 'below' } }, true, false), false, 'reading part of a list leaves the rest');
 
   const { MobileLibrary } = await vite.ssrLoadModule('/src/components/MobileLibrary.tsx');
   const { Sidebar } = await vite.ssrLoadModule('/src/components/Sidebar.tsx');

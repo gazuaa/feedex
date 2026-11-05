@@ -73,6 +73,51 @@ try {
   assert.equal(await db.prepare('SELECT article_id FROM article_states WHERE article_id = ?').bind('welcome').first(), null);
   assert.deepEqual({ ...await db.prepare('SELECT is_read,is_saved FROM article_states WHERE article_id = ?').bind(real.id).first() }, { is_read: 1, is_saved: 1 });
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM subscriptions').first()).n, 2);
+  // 새로고침은 느린 피드를 끝까지 기다리지 않고, 보고 있는 폴더의 피드부터, 정한 수만큼만 동시에 받는다.
+  {
+    const old = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
+    await db.prepare('INSERT INTO folders(id,user_id,name,created_at) VALUES(?,?,?,?)').bind('fld-open', user.id, 'Open folder', now).run();
+    const addSubscribed = async (id, fetchedAt, folderId = null) => {
+      await db.prepare('INSERT INTO feeds(id,xml_url,title,last_fetched_at,created_at) VALUES(?,?,?,?,?)').bind(id, `https://example.test/refresh/${id}.xml`, id, fetchedAt, now).run();
+      await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,folder_id,created_at) VALUES(?,?,?,?,?)').bind(`sub-${id}`, user.id, id, folderId, now).run();
+    };
+    await db.prepare('UPDATE feeds SET last_fetched_at = ?').bind(new Date().toISOString()).run();
+    await addSubscribed('fresh', old(1));
+    await addSubscribed('slow', old(60), 'fld-open');
+    await addSubscribed('in-folder', old(10), 'fld-open');
+    for (let i = 0; i < 8; i++) await addSubscribed(`oldest-${i}`, old(600 - i));
+    const asked = []; let open = 0, mostOpen = 0, releaseSlow;
+    const slowGate = new Promise((resolve) => { releaseSlow = resolve; });
+    globalThis.fetch = async (input) => {
+      const id = String(input.url || input).match(/refresh\/([^/]+)\.xml/)?.[1];
+      asked.push(id); open += 1; mostOpen = Math.max(mostOpen, open);
+      if (id === 'slow') await slowGate; else await new Promise((resolve) => setTimeout(resolve, 20));
+      open -= 1;
+      return new Response(`<rss version="2.0"><channel><title>${id}</title><link>https://example.test</link><item><guid>refresh-${id}</guid><title>Story ${id}</title><link>https://example.test/${id}</link></item></channel></rss>`);
+    };
+    const started = Date.now();
+    // 대기 시간이 사라져도 멈춰 있지 않고 아래 검사에서 실패하게 한다.
+    const safety = setTimeout(releaseSlow, 6000);
+    const answer = await (await request('/api/feeds/refresh', { folderId: 'fld-open' })).json();
+    clearTimeout(safety);
+    const took = Date.now() - started;
+    assert.ok(took >= 2900 && took < 4000, `a slow feed holds the answer only up to the wait limit (${took}ms)`);
+    assert.equal(answer.pendingFeeds, 1, 'the slow feed is reported as still running');
+    assert.equal(answer.refreshedFeeds, 9);
+    assert.equal(answer.newArticles, 9, 'finished feeds are saved before the answer');
+    assert.deepEqual(asked.slice(0, 2), ['slow', 'in-folder'], 'the open folder goes first');
+    assert.equal(asked[2], 'oldest-0', 'then the feeds fetched longest ago');
+    assert.ok(!asked.includes('fresh'), 'a feed fetched moments ago is skipped');
+    assert.ok(mostOpen <= 4, `plain feeds stay within the connection limit (${mostOpen} open)`);
+    const stored = () => db.prepare('SELECT COUNT(*) AS n FROM articles WHERE feed_id = ?').bind('slow').first();
+    assert.equal((await stored()).n, 0);
+    releaseSlow();
+    for (let i = 0; i < 50 && !(await stored()).n; i++) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal((await stored()).n, 1, 'the slow feed finishes after the answer');
+    const again = await (await request('/api/feeds/refresh', { feedId: 'slow' })).json();
+    assert.equal(again.refreshedFeeds, 1, 'refreshing one feed always fetches it');
+    assert.equal(again.pendingFeeds, 0);
+  }
   console.log('PASS: failed subscribe/refresh/cron never creates synthetic articles; empty feeds stay empty; precise cleanup is idempotent and preserves real articles, subscriptions and bookmarks.');
 } finally {
   globalThis.fetch = originalFetch;

@@ -15,6 +15,8 @@ body { margin: 0; min-height: 100dvh; background: var(--feedex-background); colo
 .feedex-feed-list { padding-bottom: env(safe-area-inset-bottom); }
 /* 목록의 글은 선택 동작을 막고, 별도 본문 영역에서는 텍스트 선택을 유지한다. */
 .feedex-feed-list [data-article-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* 오래 누르면 메뉴가 손가락 바로 아래에 뜬다. 메뉴 글자를 고를 수 있으면 iOS가 이어서 글자를 선택해 메뉴를 가린다. */
+.feedex-context-menu { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .feedex-block-setting { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 34px; font-size: 13px; cursor: pointer; text-align: left; }
 .feedex-block-setting > span:nth-of-type(2) { margin-left: auto; color: var(--feedex-muted); font-size: 12px; }
 .feedex-block-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; font-size: 12px; border-bottom: 1px solid var(--feedex-border); color: var(--feedex-muted); }
@@ -203,7 +205,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-pull-refresh { position: fixed; z-index: 70; top: var(--feedex-mobile-header-height); left: 50%; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--feedex-mobile-line); border-radius: 24px; background: var(--feedex-mobile-surface); color: var(--feedex-text); box-shadow: 0 5px 18px #0002; font-size: 13px; white-space: nowrap; pointer-events: none; }
   .feedex-pull-refresh > svg { flex-shrink: 0; color: #10b981; }
   .feedex-sidebar { display: none; }
-  .feedex-mobile-library [data-feed-id], .feedex-mobile-library [data-folder-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .feedex-mobile-library [data-feed-id], .feedex-mobile-library [data-folder-id], .feedex-web-status { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .feedex-mobile-header { position: relative; z-index: 3; flex-shrink: 0; padding: calc(6px + env(safe-area-inset-top)) 18px 10px; background: var(--feedex-mobile-surface); border-bottom: 1px solid var(--feedex-mobile-line); transition: transform .2s ease, opacity .2s ease, visibility .2s; }
   .feedex-mobile-header[data-scroll-hidden] { transform: translateY(-100%); opacity: 0; visibility: hidden; pointer-events: none; }
   .feedex-mobile-heading { display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 6px; }
