@@ -107,6 +107,8 @@ try {
   try { help = renderToStaticMarkup(React.createElement(PwaInstall)); } finally { if (agent) Object.defineProperty(navigator, 'userAgent', agent); else delete navigator.userAgent; }
   assert.match(help, new RegExp(`href="/downloads/FeedEx-for-Mac\\.zip\\?v=${MAC_APP_VERSION.replace('.', '\\.')}"`)); assert.match(help, /download="FeedEx-for-Mac\.zip"/);
   assert.match(help, /브라우저 앱으로 설치/, 'the browser install steps follow the Mac app');
+  assert.match(help, /href="x-apple\.systempreferences:com\.apple\.preference\.security\?General"[^>]*>시스템 설정 열기</, 'a button opens the security settings where macOS offers to open the app anyway');
+  assert.ok(help.indexOf('한 번 열어요') < help.indexOf('시스템 설정 열기'), 'the steps say to try opening the app first');
   assert.doesNotMatch(help, /feedex-install-banner/, 'no floating install banner on the desktop');
   const { DesktopReadingSettings } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(DesktopReadingSettings, { markReadOnScroll: false, onChangeMarkReadOnScroll() {}, autoRefreshMinutes: 15, onChangeAutoRefreshMinutes() {}, layout: 'magazine', onChangeLayout() {} })), /FeedEx-for-Mac\.zip/, 'the settings panel no longer repeats the download');

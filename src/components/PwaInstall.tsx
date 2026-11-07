@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Copy, Download, Share2, X } from 'lucide-react';
 import { installAddress, installPlatform, isIOSSafari, openInstallHelp, promptInstall, useInstallState } from '../client/pwa';
 import { inNativeApp } from '../client/nativeApp';
-import { MAC_APP_DOWNLOAD, onMacBrowser } from '../shared/macApp';
+import { MAC_APP_DOWNLOAD, MAC_SECURITY_SETTINGS, onMacBrowser } from '../shared/macApp';
 
 const platform = () => installPlatform(navigator.userAgent, navigator.maxTouchPoints);
 const SNOOZE_KEY = 'sfeed:install-snooze';
@@ -65,7 +65,14 @@ export function InstallAppButton() {
 function MacAppOption() {
   return <section className="feedex-install-mac" aria-label="맥 앱">
     <div className="flex items-center justify-between gap-3"><strong className="text-sm">맥 앱</strong><a href={MAC_APP_DOWNLOAD} download="FeedEx-for-Mac.zip" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950">받기</a></div>
-    <p className="mt-2 text-xs leading-5">웹 보기에서 언론사 로그인이 유지되는 맥 앱이에요. 받은 zip을 풀어 응용 프로그램 폴더에 넣으세요. 처음 열 때 경고가 뜨면 시스템 설정 → 개인정보 보호 및 보안에서 '그래도 열기'를 누르세요.</p>
+    <p className="mt-2 text-xs leading-5">웹 보기에서 언론사 로그인이 유지되는 맥 앱이에요.</p>
+    {/* Apple 서명이 없어 처음 한 번은 macOS가 막는다. '그래도 열기'는 한 번 열어 본 뒤에만 보이므로 순서대로 안내한다. */}
+    <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5">
+      <li>받은 zip을 풀어 FeedEx를 응용 프로그램 폴더에 넣어요.</li>
+      <li>FeedEx를 한 번 열어요. 경고가 뜨면 '완료'를 눌러요.</li>
+      <li>아래 버튼으로 시스템 설정을 열고 '그래도 열기'를 누르면 다음부터 바로 열려요.</li>
+    </ol>
+    <a href={MAC_SECURITY_SETTINGS} className="mt-3 inline-flex rounded-xl border border-emerald-500 px-3 py-1.5 text-xs font-semibold text-emerald-500 hover:bg-emerald-500/10">시스템 설정 열기</a>
   </section>;
 }
 
