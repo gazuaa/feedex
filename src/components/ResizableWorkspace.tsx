@@ -71,7 +71,7 @@ export function ResizableWorkspace({ userId, isDark, sidebar, header, reader, fo
       const value = event.key === 'ArrowLeft' ? widths[panel] - step : event.key === 'ArrowRight' ? widths[panel] + step : event.key === 'Home' ? PANEL_MIN[panel] : event.key === 'End' ? limits[panel] : null;
       if (value !== null) { event.preventDefault(); updateWidth(panel, value); }
     }}
-  ><span aria-hidden="true" /></div>;
+  />;
 
   return <div ref={shellRef} inert={inactive || undefined} aria-hidden={inactive || undefined} data-resizing={resizing || undefined} className={`feedex-shell feedex-workspace h-dvh min-h-0 overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`} style={{ '--feedex-channel-width': `${widths.channels}px`, '--feedex-list-width': `${widths.list}px` } as React.CSSProperties}>
     {sidebar}

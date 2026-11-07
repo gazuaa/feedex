@@ -161,9 +161,7 @@ html:not(.dark) :is(.feedex-segmented, .feedex-setting-row > .feedex-text-size-c
   .feedex-reader-pane { display: block; }
   .feedex-pane-splitter { display: block; position: relative; cursor: col-resize; touch-action: none; background: var(--feedex-background); outline: none; }
   .feedex-pane-splitter::before { content: ''; position: absolute; inset: 0; width: 1px; margin-inline: auto; background: var(--feedex-border); }
-  .feedex-pane-splitter span { position: absolute; top: 50%; left: 2px; width: 4px; height: 28px; margin-top: -14px; border-radius: 4px; background: var(--feedex-border); }
-  .feedex-pane-splitter:hover, .feedex-pane-splitter:focus-visible { background: #10b98120; }
-  .feedex-pane-splitter:hover span, .feedex-pane-splitter:focus-visible span { background: #10b981; }
+  .feedex-pane-splitter:hover::before, .feedex-pane-splitter:focus-visible::before { background: #10b981; }
   .feedex-workspace[data-resizing] * { cursor: col-resize !important; user-select: none !important; }
 }
 .feedex-sidebar-footer { padding-bottom: calc(.75rem + env(safe-area-inset-bottom)); }
