@@ -82,9 +82,14 @@ try {
     const html = renderToStaticMarkup(React.createElement(ArticleList, { articles: [article], layout, hasSubscriptions: true }));
     assert.match(html, /feedex-feed-logo/); assert.match(html, /https:\/\/example.test\/logo.svg/);
   }
+  // 매거진 목록은 상자 없이 구분선으로 나눈 줄이다. 제목이 먼저, 출처·시간이 아래, 썸네일은 오른쪽이다.
+  const magazine = renderToStaticMarkup(React.createElement(ArticleList, { articles: [article], layout: 'magazine', hasSubscriptions: true }));
+  const row = /<article[^>]*class="feedex-magazine-row[^"]*"/.exec(magazine)?.[0] || '';
+  assert.match(row, /border-b/); assert.match(row, /flex-row-reverse/); assert.doesNotMatch(row, /rounded-xl/, 'magazine rows are not boxes');
+  assert.ok(magazine.indexOf('<h2') < magazine.indexOf('feedex-magazine-author') || magazine.indexOf('<h2') < magazine.indexOf('· '), 'the title comes before the source line');
   // 여러 피드가 섞인 목록에서도 X 글은 X 폴더와 같은 모양으로 그리고, 다른 글은 그대로 둔다.
   const xArticle = { ...article, id: 'x-post', feed_title: 'NASA (@NASA)', feed_html_url: 'https://x.com/NASA', feed_favicon: '', title: 'Liftoff from the pad', url: 'https://x.com/NASA/status/1', content_html: '<p>Liftoff from the pad</p>' };
-  for (const [layout, variant] of [['magazine', 'boxed'], ['cards', 'card'], ['list', 'plain']]) {
+  for (const [layout, variant] of [['magazine', 'row'], ['cards', 'card'], ['list', 'plain']]) {
     const mixed = renderToStaticMarkup(React.createElement(ArticleList, { articles: [article, xArticle], layout, hasSubscriptions: true, onSelectArticle() {}, onToggleRead() {}, onToggleSaved() {}, isDark: false }));
     assert.equal((mixed.match(/class="feedex-x-post/g) || []).length, 1, `${layout}: the X post uses the X row`);
     assert.match(mixed, new RegExp(`data-x-variant="${variant}"`), `${layout}: the X row fits the list layout`);

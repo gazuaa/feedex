@@ -442,10 +442,11 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   }
 
   // 3. 매거진 보기 (Feedly 기본 클래식 배치)
+  // 글마다 상자를 두지 않고 구분선으로 나눈다. 제목을 먼저 읽게 하고, 출처·시간은 아래, 썸네일은 오른쪽에 둔다.
   return (
-    <div ref={listRef} className="feedex-list-items p-3 lg:p-4 max-w-5xl mx-auto space-y-2" data-retain-read={retainReadRows || undefined}>
+    <div ref={listRef} className="feedex-list-items feedex-magazine-list max-w-5xl mx-auto" data-retain-read={retainReadRows || undefined}>
       {articles.map((article) => {
-        const x = xRow(article, 'boxed'); if (x) return x;
+        const x = xRow(article, 'row'); if (x) return x;
         return (
           <article
             key={article.id}
@@ -453,20 +454,34 @@ export const ArticleList: React.FC<ArticleListProps> = ({
             data-article-read={article.is_read}
             {...rowProps(article)}
             onClick={() => onSelectArticle(article)}
-            className={`feedex-magazine-row group rounded-xl border p-3 flex flex-row items-start gap-3 transition duration-150 cursor-pointer ${
+            className={`feedex-magazine-row group flex flex-row-reverse items-start gap-3 px-4 py-3 border-b transition duration-150 cursor-pointer ${
               isDark
-                ? 'bg-slate-900/55 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900/90'
-                : 'bg-white border-slate-200 hover:border-slate-300'
+                ? 'bg-slate-900/55 border-slate-800 hover:bg-slate-900/90'
+                : 'bg-white border-slate-200 hover:bg-slate-50'
             }`}
           >
             <MagazineThumbnail article={article} accountId={accountId} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />
 
             <div className="feedex-magazine-copy flex-1 min-w-0">
+              <h2
+                className={`text-[15px] leading-snug line-clamp-3 transition ${
+                  article.is_read
+                    ? isDark
+                      ? 'text-slate-400 font-normal'
+                      : 'text-slate-500 font-normal'
+                    : isDark
+                    ? 'text-slate-100 font-semibold group-hover:text-emerald-300'
+                    : 'text-slate-900 font-semibold group-hover:text-emerald-600'
+                }`}
+              >
+                {article.title}
+              </h2>
+
               {/*
                 * 언제나 한 줄: 출처와 글쓴이는 줄을 바꾸지 않고 잘린다.
                 * 구분 기호는 뒤 항목에 붙어 있어서 혼자 남지 않는다.
                 */}
-              <div className="flex items-center gap-1.5 min-w-0 whitespace-nowrap text-xs text-slate-400">
+              <div className="mt-1.5 flex items-center gap-1.5 min-w-0 whitespace-nowrap text-xs text-slate-400">
                 <ArticleBlockTag blocked={Boolean(blockedArticleIds?.has(article.id))} />
                 {!article.is_read && (
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -493,19 +508,6 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                 )}
               </div>
 
-              <h2
-                className={`mt-1.5 text-[15px] leading-snug line-clamp-3 transition ${
-                  article.is_read
-                    ? isDark
-                      ? 'text-slate-400 font-normal'
-                      : 'text-slate-500 font-normal'
-                    : isDark
-                    ? 'text-slate-100 font-semibold group-hover:text-emerald-300'
-                    : 'text-slate-900 font-semibold group-hover:text-emerald-600'
-                }`}
-              >
-                {article.title}
-              </h2>
             </div>
           </article>
         );

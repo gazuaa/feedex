@@ -29,11 +29,11 @@ export function XTimeline({ articles, selectedArticleId, onSelectArticle, onTogg
 }
 
 // timeline은 X 폴더의 줄이다. 여러 피드가 섞인 목록에서는 그 목록의 모양에 맞춘다.
-// boxed는 매거진 목록의 상자, card는 카드 격자의 상자, plain은 제목 목록의 줄이다(구분선은 목록이 그린다).
-export type XRowVariant = 'timeline' | 'boxed' | 'card' | 'plain';
+// row는 매거진 목록의 구분선 줄, card는 카드 격자의 상자, plain은 제목 목록의 줄이다(구분선은 목록이 그린다).
+export type XRowVariant = 'timeline' | 'row' | 'card' | 'plain';
 export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, isDark, tabIndex = 0, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; tabIndex?: number; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
   const line = isDark ? 'border-slate-800' : 'border-slate-200';
-  const frame = variant === 'timeline' ? `border-b ${line}` : variant === 'plain' ? '' : `${variant === 'card' ? 'rounded-2xl' : 'rounded-xl'} border ${line} ${isDark ? 'bg-slate-900/55' : 'bg-white'}`;
+  const frame = variant === 'timeline' ? `border-b ${line}` : variant === 'plain' ? '' : variant === 'row' ? `border-b ${line} ${isDark ? 'bg-slate-900/55' : 'bg-white'}` : `rounded-2xl border ${line} ${isDark ? 'bg-slate-900/55' : 'bg-white'}`;
   const strong = article.is_read
     ? isDark ? 'text-slate-400' : 'text-slate-500'
     : isDark ? 'text-slate-100' : 'text-slate-900';
