@@ -25,6 +25,11 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        // 웹사이트의 맥 앱 열기는 이미 켜져 있거나 닫혀 있던 기본 창을 앞으로 가져온다.
+        if urls.contains(where: isMainAppLink) {
+            showMain()
+            return
+        }
         // 로그인 코드는 이 앱이 시작한 시스템 로그인 창으로만 받는다. 여기로 온 것은 쓰지 않는다.
         guard let url = urls.compactMap(articleLink).first else { return }
         readerWindow().display(url)

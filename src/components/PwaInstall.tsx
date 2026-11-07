@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Copy, Download, Share2, X } from 'lucide-react';
+import { Copy, Download, ExternalLink, Share2, X } from 'lucide-react';
 import { installAddress, installPlatform, isIOSSafari, openInstallHelp, promptInstall, useInstallState } from '../client/pwa';
 import { inNativeApp } from '../client/nativeApp';
-import { MAC_APP_DOWNLOAD, MAC_SECURITY_SETTINGS, onMacBrowser } from '../shared/macApp';
+import { MAC_APP_DOWNLOAD, MAC_APP_OPEN, MAC_SECURITY_SETTINGS, onMacBrowser } from '../shared/macApp';
 
 const platform = () => installPlatform(navigator.userAgent, navigator.maxTouchPoints);
 const SNOOZE_KEY = 'sfeed:install-snooze';
@@ -56,16 +56,21 @@ export function installEntry(state: ReturnType<typeof useInstallState>, target: 
 }
 export function InstallAppButton() {
   const state = useInstallState();
-  const label = installEntry(state, platform(), macAppOffered(), typeof navigator !== 'undefined' && isIOSSafari(navigator));
+  const mac = macAppOffered();
+  const label = installEntry(state, platform(), mac, typeof navigator !== 'undefined' && isIOSSafari(navigator));
   if (!label) return null;
-  return <button type="button" onClick={openInstallHelp} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-emerald-500 hover:bg-emerald-500/10 cursor-pointer"><Download size={16} />{label}</button>;
+  return <div className="flex items-center gap-1">
+    {mac && <a href={MAC_APP_OPEN} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"><ExternalLink size={16} aria-hidden="true" />맥 앱으로 열기</a>}
+    <button type="button" onClick={openInstallHelp} aria-label={mac ? '맥 앱 설치 안내' : label} title={mac ? '맥 앱 설치 안내' : undefined} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-emerald-500 hover:bg-emerald-500/10 cursor-pointer"><Download size={16} aria-hidden="true" />{!mac && label}</button>
+  </div>;
 }
 
 /** 맥이면 안내 창 맨 위에 맥 앱을 둔다. 웹 보기에서 언론사 로그인이 유지되는 것은 맥 앱뿐이다. */
 function MacAppOption() {
   return <section className="feedex-install-mac" aria-label="맥 앱">
     <div className="flex items-center justify-between gap-3"><strong className="text-sm">맥 앱</strong><a href={MAC_APP_DOWNLOAD} download="FeedEx-for-Mac.zip" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950">받기</a></div>
-    <p className="mt-2 text-xs leading-5">웹 보기에서 언론사 로그인이 유지되는 맥 앱이에요.</p>
+    <p className="mt-2 text-xs leading-5">웹 보기에서 언론사 로그인이 유지되는 맥 앱이에요. 설치되어 있다면 바로 열 수 있어요. 열리지 않으면 최신 맥 앱을 받아 교체해 주세요.</p>
+    <a href={MAC_APP_OPEN} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950"><ExternalLink size={15} aria-hidden="true" />맥 앱으로 열기</a>
     {/* Apple 서명이 없어 처음 한 번은 macOS가 막는다. '그래도 열기'는 한 번 열어 본 뒤에만 보이므로 순서대로 안내한다. */}
     <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5">
       <li>받은 zip을 풀어 FeedEx를 응용 프로그램 폴더에 넣어요.</li>

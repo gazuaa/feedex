@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DOMParser } from 'linkedom';
@@ -88,9 +90,32 @@ try {
   assert.match(swift, /code\.range\(of: "\^sfeed_code_\[0-9a-f\]\{64\}\$", options: \.regularExpression\)/);
   assert.doesNotMatch(readFileSync('native/macos/Main.swift', 'utf8'), /signed-in/, 'links opened from elsewhere cannot sign the app in');
   assert.match(swift, /FEEDEX_DEBUG_DIR/); assert.match(readFileSync('native/macos/Info.plist', 'utf8'), /<key>CFBundleName<\/key><string>FeedEx<\/string>/, 'the Mac app is called FeedEx');
+  if (process.platform === 'darwin') {
+    const directory = mkdtempSync(join(tmpdir(), 'feedex-launch-test-'));
+    try {
+      const test = join(directory, 'LaunchTest.swift');
+      const executable = join(directory, 'launch-test');
+      writeFileSync(test, `import Foundation
+@main struct LaunchTest {
+    static func main() {
+        precondition(isMainAppLink(URL(string: "feedex-reader://launch")!))
+        for value in [
+            "https://launch", "feedex-reader://open", "feedex-reader://signed-in?code=secret",
+            "feedex-reader://launch?token=secret", "feedex-reader://launch#token",
+            "feedex-reader://launch/extra", "feedex-reader://user@launch",
+            "feedex-reader://user:secret@launch", "feedex-reader://launch:443"
+        ] {
+            precondition(!isMainAppLink(URL(string: value)!))
+        }
+    }
+}`);
+      execFileSync('xcrun', ['swiftc', '-parse-as-library', '-module-cache-path', join(directory, 'modules'), 'native/macos/AppLinks.swift', test, '-o', executable], { stdio: 'pipe' });
+      execFileSync(executable, [], { stdio: 'pipe' });
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  }
   // 맥 앱 받기: 앱 설치는 위쪽 버튼 하나로 들어가고, 맥 브라우저에서만 안내 창 맨 위에 맥 앱을 둔다.
-  const { macAppOffered, installEntry, PwaInstall } = await vite.ssrLoadModule('/src/components/PwaInstall.tsx');
-  const { MAC_APP_VERSION, MAC_APP_DOWNLOAD } = await vite.ssrLoadModule('/src/shared/macApp.ts');
+  const { macAppOffered, installEntry, PwaInstall, InstallAppButton } = await vite.ssrLoadModule('/src/components/PwaInstall.tsx');
+  const { MAC_APP_VERSION, MAC_APP_DOWNLOAD, MAC_APP_OPEN } = await vite.ssrLoadModule('/src/shared/macApp.ts');
   const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
   assert.equal(macAppOffered(mac, 0), false, 'inside the Mac app the download is not offered');
   delete globalThis.webkit;
@@ -104,8 +129,17 @@ try {
   const agent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
   Object.defineProperty(navigator, 'userAgent', { configurable: true, value: mac });
   let help;
-  try { help = renderToStaticMarkup(React.createElement(PwaInstall)); } finally { if (agent) Object.defineProperty(navigator, 'userAgent', agent); else delete navigator.userAgent; }
+  try {
+    help = renderToStaticMarkup(React.createElement(PwaInstall));
+    const entry = renderToStaticMarkup(React.createElement(InstallAppButton));
+    assert.equal(MAC_APP_OPEN, 'feedex-reader://launch');
+    assert.match(entry, /href="feedex-reader:\/\/launch"/, 'the primary Mac action launches the native app, even with browser-app support');
+    assert.match(entry, /맥 앱으로 열기/);
+    assert.match(entry, /aria-label="맥 앱 설치 안내"/, 'installation stays available separately');
+    assert.ok(entry.indexOf('맥 앱으로 열기') < entry.indexOf('맥 앱 설치 안내'), 'opening the native app comes first');
+  } finally { if (agent) Object.defineProperty(navigator, 'userAgent', agent); else delete navigator.userAgent; }
   assert.match(help, new RegExp(`href="/downloads/FeedEx-for-Mac\\.zip\\?v=${MAC_APP_VERSION.replace('.', '\\.')}"`)); assert.match(help, /download="FeedEx-for-Mac\.zip"/);
+  assert.match(help, /href="feedex-reader:\/\/launch"/);
   assert.match(help, /브라우저 앱으로 설치/, 'the browser install steps follow the Mac app');
   assert.match(help, /href="x-apple\.systempreferences:com\.apple\.preference\.security\?General"[^>]*>시스템 설정 열기</, 'a button opens the security settings where macOS offers to open the app anyway');
   assert.ok(help.indexOf('한 번 열어요') < help.indexOf('시스템 설정 열기'), 'the steps say to try opening the app first');
