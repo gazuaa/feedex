@@ -46,7 +46,7 @@ export function NativeAppScaleSetting() {
 
 export function NativeAppUpdateSetting() {
   if (!inNativeApp()) return null;
-  return <SettingRow label="맥 앱 업데이트"><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></SettingRow>;
+  return <div className="feedex-auto-refresh-setting"><span>맥 앱 업데이트<small>새 버전이 있으면 받아서 설치해요</small></span><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></div>;
 }
 
 export function TextSizeSetting() {

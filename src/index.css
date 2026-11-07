@@ -94,14 +94,20 @@ html.dark .feedex-block-bar button, html.dark .feedex-block-empty button, html.d
 .feedex-segmented button[aria-pressed="true"] { color: #059669; font-weight: 600; background: var(--feedex-panel); box-shadow: 0 1px 2px #0002; }
 .feedex-segmented button:focus-visible { outline: 2px solid #10b981; outline-offset: 1px; }
 html:not(.dark) :is(.feedex-segmented, .feedex-setting-row > .feedex-text-size-control) { background: #f1f5f9; }
-.feedex-auto-refresh-setting select { flex-shrink: 0; max-width: 120px; padding: 6px 8px; border: 1px solid var(--feedex-border); border-radius: 8px; background: var(--feedex-panel); color: var(--feedex-text); font-size: 12px; }
+/* 설정의 선택 상자와 버튼은 크기 조절기와 같은 회색 바탕, 같은 높이로 맞춘다. */
+.feedex-auto-refresh-setting select { flex-shrink: 0; max-width: 120px; min-height: 34px; padding: 0 28px 0 12px; border: 0; border-radius: 10px; appearance: none; -webkit-appearance: none; background: var(--feedex-background) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center; color: var(--feedex-text); font-size: 12px; font-weight: 500; cursor: pointer; }
 .feedex-setting-message { margin-top: 6px; color: var(--feedex-muted); font-size: 11px; line-height: 1.5; }
 .feedex-cache-usage { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 12px; color: var(--feedex-muted); }
 .feedex-cache-usage output { color: var(--feedex-text); font-variant-numeric: tabular-nums; }
 .feedex-cache-confirm { margin-top: 10px; font-size: 12px; line-height: 1.5; color: var(--feedex-muted); }
 .feedex-cache-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-.feedex-cache-clear, .feedex-cache-actions button { flex-shrink: 0; padding: 6px 10px; border: 1px solid var(--feedex-border); border-radius: 8px; font-size: 12px; color: var(--feedex-text); cursor: pointer; }
-.feedex-cache-actions button[data-danger] { border-color: #f43f5e80; color: #f43f5e; }
+.feedex-cache-clear, .feedex-cache-actions button { flex-shrink: 0; min-height: 34px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--feedex-background); font-size: 12px; font-weight: 500; color: var(--feedex-text); cursor: pointer; }
+.feedex-cache-clear:hover, .feedex-cache-actions button:hover, .feedex-auto-refresh-setting select:hover { filter: brightness(.97); }
+html:not(.dark) :is(.feedex-cache-clear, .feedex-cache-actions button, .feedex-auto-refresh-setting select) { background-color: #f1f5f9; }
+.feedex-setting-link { margin-left: 2px; padding: 0; color: #059669; font-weight: 600; cursor: pointer; }
+.feedex-setting-link:hover { text-decoration: underline; }
+html.dark .feedex-setting-link { color: #34d399; }
+.feedex-cache-actions button[data-danger] { color: #e11d48; }
 .feedex-desktop-settings-panel, .feedex-mobile-settings-panel { max-height: calc(100dvh - 96px - env(safe-area-inset-top)); overflow-y: auto; }
 .feedex-text-size-control { display: inline-flex; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--feedex-border); border-radius: 12px; color: var(--feedex-text); }
 .feedex-text-size-control > button { display: flex; align-items: center; justify-content: center; min-width: 34px; min-height: 34px; padding: 4px 8px; border-radius: 9px; cursor: pointer; }

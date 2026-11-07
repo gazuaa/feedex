@@ -66,7 +66,18 @@ try {
   Object.defineProperty(globalThis, 'DOMParser', { value: DOMParser, configurable: true });
   const { NativeAppScaleSetting, NativeAppUpdateSetting } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
   assert.match(renderToStaticMarkup(React.createElement(NativeAppScaleSetting)), /앱 화면 작게/);
-  assert.match(renderToStaticMarkup(React.createElement(NativeAppUpdateSetting)), /업데이트 확인/);
+  const update = renderToStaticMarkup(React.createElement(NativeAppUpdateSetting));
+  assert.match(update, /업데이트 확인/); assert.match(update, /새 버전이 있으면 받아서 설치해요/, 'the update row explains itself like the other rows');
+  // 알림: 스위치를 켜면 허용 창이 뜬다. 허용하지 않았을 때 다시 여는 방법은 설명 아래 링크로 둔다.
+  globalThis.webkit.messageHandlers.feedexNotifications = { postMessage: async () => ({ permission: 'default' }) };
+  const { LocalNotificationSetting } = await vite.ssrLoadModule('/src/components/LocalNotificationSetting.tsx');
+  const notify = renderToStaticMarkup(React.createElement(LocalNotificationSetting, { accountId: 'mac-owner' }));
+  assert.match(notify, /class="feedex-setting-link"[^>]*>알림 허용 창 열기</, 'the permission prompt is a link under the setting');
+  assert.doesNotMatch(notify, /feedex-cache-clear/, 'no separate button row under the switch');
+  delete globalThis.webkit.messageHandlers.feedexNotifications;
+  const css = readFileSync('src/index.css', 'utf8');
+  assert.match(css, /\.feedex-auto-refresh-setting select \{[^}]*min-height: 34px[^}]*border: 0/, 'setting selects match the size controls');
+  assert.match(css, /\.feedex-cache-clear, \.feedex-cache-actions button \{[^}]*min-height: 34px[^}]*border: 0/, 'setting buttons match the size controls');
   const { LoginView } = await vite.ssrLoadModule('/src/components/LoginView.tsx');
   const login = renderToStaticMarkup(React.createElement(LoginView, { onLoginSuccess() {} }));
   assert.match(login, /Google 계정으로 로그인/); assert.match(login, /시스템 로그인 창/);
