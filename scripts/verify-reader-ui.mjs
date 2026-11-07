@@ -86,6 +86,9 @@ try {
   const magazine = renderToStaticMarkup(React.createElement(ArticleList, { articles: [article], layout: 'magazine', hasSubscriptions: true }));
   const row = /<article[^>]*class="feedex-magazine-row[^"]*"/.exec(magazine)?.[0] || '';
   assert.match(row, /border-b/); assert.match(row, /flex-row-reverse/); assert.doesNotMatch(row, /rounded-xl/, 'magazine rows are not boxes');
+  assert.doesNotMatch(row, /bg-white|bg-slate-900\/55/, 'rows take the pane background instead of floating white strips');
+  assert.match(css, /\.feedex-list-items\.feedex-magazine-list \{ padding: 0; \}/, 'the magazine list has no gutter around it');
+  assert.match(css, /\.feedex-feed-list:has\(\.feedex-magazine-list\) \{ background: var\(--feedex-panel\); \}/, 'the pane behind the magazine list is one sheet');
   assert.ok(magazine.indexOf('<h2') < magazine.indexOf('feedex-magazine-author') || magazine.indexOf('<h2') < magazine.indexOf('· '), 'the title comes before the source line');
   // 여러 피드가 섞인 목록에서도 X 글은 X 폴더와 같은 모양으로 그리고, 다른 글은 그대로 둔다.
   const xArticle = { ...article, id: 'x-post', feed_title: 'NASA (@NASA)', feed_html_url: 'https://x.com/NASA', feed_favicon: '', title: 'Liftoff from the pad', url: 'https://x.com/NASA/status/1', content_html: '<p>Liftoff from the pad</p>' };

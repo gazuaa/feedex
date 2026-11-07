@@ -494,6 +494,11 @@ html:not(.dark) .feedex-login [class*="border-slate-8"] { border-color: var(--fe
 
 /* X 타임라인은 줄이 가장자리까지 닿는다. 일반 목록의 안쪽 여백을 쓰지 않는다. */
 .feedex-list-items.feedex-x-timeline, .feedex-feed-list .feedex-list-items.feedex-x-timeline { padding: 0; }
+/* 매거진 목록은 칸 전체를 한 장의 흰 바탕으로 쓴다. 여백을 두면 줄이 회색 바탕 위에 떠 보이고, 스크롤 막대 자리도 회색 띠로 남는다. */
+@media (min-width: 1024px) {
+  .feedex-list-items.feedex-magazine-list { padding: 0; }
+  .feedex-feed-list:has(.feedex-magazine-list) { background: var(--feedex-panel); }
+}
 .feedex-x-post .feedex-x-text { font-size: calc(15px * var(--feedex-text-scale, 1)); }
 
 .feedex-block-preview-meta{display:flex;flex-wrap:wrap;gap:4px 12px}.feedex-block-preview-meta time{white-space:nowrap}

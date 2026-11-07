@@ -455,9 +455,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
             {...rowProps(article)}
             onClick={() => onSelectArticle(article)}
             className={`feedex-magazine-row group flex flex-row-reverse items-start gap-3 px-4 py-3 border-b transition duration-150 cursor-pointer ${
-              isDark
-                ? 'bg-slate-900/55 border-slate-800 hover:bg-slate-900/90'
-                : 'bg-white border-slate-200 hover:bg-slate-50'
+              isDark ? 'border-slate-800 hover:bg-white/[0.03]' : 'border-slate-200 hover:bg-slate-50'
             }`}
           >
             <MagazineThumbnail article={article} accountId={accountId} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />

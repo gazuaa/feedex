@@ -33,7 +33,9 @@ export function XTimeline({ articles, selectedArticleId, onSelectArticle, onTogg
 export type XRowVariant = 'timeline' | 'row' | 'card' | 'plain';
 export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, isDark, tabIndex = 0, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; tabIndex?: number; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
   const line = isDark ? 'border-slate-800' : 'border-slate-200';
-  const frame = variant === 'timeline' ? `border-b ${line}` : variant === 'plain' ? '' : variant === 'row' ? `border-b ${line} ${isDark ? 'bg-slate-900/55' : 'bg-white'}` : `rounded-2xl border ${line} ${isDark ? 'bg-slate-900/55' : 'bg-white'}`;
+  // 줄 모양은 바탕을 깔지 않는다. 목록 칸의 바탕을 그대로 쓰고 다른 글 줄과 같은 색으로 반응한다.
+  const frame = variant === 'timeline' || variant === 'row' ? `border-b ${line}` : variant === 'plain' ? '' : `rounded-2xl border ${line} ${isDark ? 'bg-slate-900/55' : 'bg-white'}`;
+  const hover = variant === 'row' ? isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50' : isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]';
   const strong = article.is_read
     ? isDark ? 'text-slate-400' : 'text-slate-500'
     : isDark ? 'text-slate-100' : 'text-slate-900';
@@ -50,7 +52,7 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
     onClick={() => onSelectArticle(article)}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelectArticle(article); } }}
     data-x-variant={variant}
-    className={`feedex-x-post flex gap-3 px-4 pt-3 pb-1 cursor-pointer transition ${frame} ${isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]'}`}
+    className={`feedex-x-post flex gap-3 px-4 pt-3 pb-1 cursor-pointer transition ${frame} ${hover}`}
   >
     <div className="flex w-10 shrink-0 flex-col items-end gap-1">
       {post.repostedBy && <Repeat2 aria-hidden="true" className="h-4 w-4 text-slate-500" />}
