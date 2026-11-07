@@ -294,6 +294,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-feed-list .feedex-list-items { max-width: none; padding: 0 18px; }
   .feedex-feed-list [data-retain-read] [data-article-read="true"] { opacity: .5; transition: opacity .15s; }
   .feedex-feed-list .feedex-magazine-row { margin: 0; padding: 12px 0; gap: 14px; border: 0; border-bottom: 1px solid var(--feedex-mobile-line); border-radius: 0; background: transparent; }
+  /* 섞인 목록의 X 글도 휴대폰에서는 다른 글처럼 상자 없이 구분선만 둔다. */
+  .feedex-feed-list .feedex-x-post[data-x-variant="boxed"] { padding: 12px 0 4px; border: 0; border-bottom: 1px solid var(--feedex-mobile-line); border-radius: 0; background: transparent; }
   .feedex-feed-list .feedex-magazine-thumbnail { width: 88px; height: 88px; border: 0; border-radius: 12px; }
   .feedex-magazine-copy { display: flex; flex-direction: column; gap: 8px; padding-top: 1px; }
   .feedex-magazine-copy > h2 { order: 0; margin: 0; font-size: calc(16px * var(--feedex-text-scale)); line-height: 1.42; -webkit-line-clamp: 3; }

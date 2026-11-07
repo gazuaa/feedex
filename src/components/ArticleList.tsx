@@ -1,5 +1,5 @@
 import { ArticleBlockTag } from './ArticleBlockTag';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bookmark,
   CheckCircle2,
@@ -16,7 +16,10 @@ import {
   type LayoutMode,
 } from '../client/api';
 import { shownThumbnail, useArticleThumbnail } from '../client/thumbnails';
-import { XTimeline } from './XTimeline';
+import { XPostRow, XTimeline, type XRowVariant } from './XTimeline';
+import { parseXPost } from '../client/xTimeline';
+import { useXAvatars } from '../client/xAvatars';
+import { isXStatusUrl } from '../shared/xFeed';
 // 가까운 글의 이미지를 찾는 동안에는 사이트 로고를 보여 준다.
 export function FeedLogo({ article }: { article: ArticleItem }) {
   const [failed, setFailed] = useState(0);
@@ -77,6 +80,13 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   const listRef = useRef<HTMLDivElement>(null), latestArticles = useRef(articles);
   latestArticles.current = articles;
   const preparationIds = articles.map((article) => article.id).join(':');
+  // 여러 피드가 섞인 목록에서도 X 글은 X 폴더와 같은 모양으로 보여 준다.
+  const xPosts = useMemo(() => new Map(timeline ? [] : articles.filter((article) => isXStatusUrl(article.url)).map((article) => [article.id, parseXPost(article)])), [articles, timeline]);
+  const avatarOf = useXAvatars([...xPosts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
+  const xRow = (article: ArticleItem, variant: XRowVariant) => {
+    const post = xPosts.get(article.id);
+    return post ? <XPostRow key={article.id} variant={variant} article={article} post={post} avatarOf={avatarOf} selected={selectedArticleId === article.id} blocked={Boolean(blockedArticleIds?.has(article.id))} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} /> : null;
+  };
   useEffect(() => {
     if (!onPrepareArticle || !listRef.current || typeof IntersectionObserver === 'undefined') return;
     let active = true;
@@ -162,6 +172,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
           }`}
         >
           {articles.map((article) => {
+            const x = xRow(article, 'plain'); if (x) return x;
             const isSelected = selectedArticleId === article.id;
             return (
               <div
@@ -286,6 +297,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     return (
       <div ref={listRef} className="feedex-list-items feedex-article-cards p-4 lg:p-8 max-w-7xl mx-auto grid grid-cols-1 gap-5" data-retain-read={retainReadRows || undefined}>
         {articles.map((article) => {
+          const x = xRow(article, 'card'); if (x) return x;
           const isSelected = selectedArticleId === article.id;
           return (
             <article
@@ -424,6 +436,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   return (
     <div ref={listRef} className="feedex-list-items p-3 lg:p-4 max-w-5xl mx-auto space-y-2" data-retain-read={retainReadRows || undefined}>
       {articles.map((article) => {
+        const x = xRow(article, 'boxed'); if (x) return x;
         const isSelected = selectedArticleId === article.id;
         return (
           <article

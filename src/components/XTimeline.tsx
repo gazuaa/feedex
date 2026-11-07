@@ -27,8 +27,12 @@ export function XTimeline({ articles, selectedArticleId, onSelectArticle, onTogg
   </div>;
 }
 
-function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, isDark }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
+// timeline은 X 폴더의 줄이다. 여러 피드가 섞인 목록에서는 그 목록의 모양에 맞춘다.
+// boxed는 매거진 목록의 상자, card는 카드 격자의 상자, plain은 제목 목록의 줄이다(구분선은 목록이 그린다).
+export type XRowVariant = 'timeline' | 'boxed' | 'card' | 'plain';
+export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, isDark, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
   const line = isDark ? 'border-slate-800' : 'border-slate-200';
+  const frame = variant === 'timeline' ? `border-b ${line}` : variant === 'plain' ? '' : `${variant === 'card' ? 'rounded-2xl' : 'rounded-xl'} border ${line} ${selected ? '' : isDark ? 'bg-slate-900/55' : 'bg-white'}`;
   const strong = isDark ? 'text-slate-100' : 'text-slate-900';
   const stop = (event: React.MouseEvent) => event.stopPropagation();
   const action = 'p-2 rounded-full transition cursor-pointer inline-flex items-center gap-1';
@@ -40,7 +44,8 @@ function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle,
     aria-label={`${post.name}: ${post.text.slice(0, 80)}`}
     onClick={() => onSelectArticle(article)}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelectArticle(article); } }}
-    className={`feedex-x-post flex gap-3 px-4 pt-3 pb-1 border-b cursor-pointer transition ${line} ${selected ? isDark ? 'bg-sky-500/10' : 'bg-sky-50' : isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]'}`}
+    data-x-variant={variant}
+    className={`feedex-x-post flex gap-3 px-4 pt-3 pb-1 cursor-pointer transition ${frame} ${selected ? isDark ? 'bg-sky-500/10' : 'bg-sky-50' : isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]'}`}
   >
     <div className="flex w-10 shrink-0 flex-col items-end gap-1">
       {post.repostedBy && <Repeat2 aria-hidden="true" className="h-4 w-4 text-slate-500" />}
