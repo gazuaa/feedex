@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DOMParser } from 'linkedom';
@@ -13,7 +14,7 @@ for (const [key,value] of Object.entries({ DOMParser:CountingParser,indexedDB,ID
 try {
   const { ArticleResources } = await vite.ssrLoadModule('/src/client/articleResources.ts');
   const { readContent, writeContent, maintainDeviceCache } = await vite.ssrLoadModule('/src/client/deviceContent.ts');
-  const { ArticleDrawer, WebLoadingPreview } = await vite.ssrLoadModule('/src/components/ArticleDrawer.tsx');
+  const { ArticleDrawer, WebLoading } = await vite.ssrLoadModule('/src/components/ArticleDrawer.tsx');
   const { WebStatusBar, WebLabel } = await vite.ssrLoadModule('/src/components/WebStatusBar.tsx');
   const { X_THREAD_MARK } = await vite.ssrLoadModule('/src/shared/xThreadStyle.ts');
   const page = '<!doctype html><html><head><title>Public page</title></head><body><main><h1>Original web layout</h1><p>'+'Real article text. '.repeat(30)+'</p><img src="https://cdn.example.test/photo.jpg"></main></body></html>';
@@ -66,14 +67,20 @@ try {
   const initial=renderToStaticMarkup(React.createElement(ArticleDrawer,props));
   const initialDocument=new DOMParser().parseFromString(initial,'text/html');
   assert.match(initialDocument.querySelector('[role="radio"][aria-checked="true"]').textContent,/웹/);
-  assert.match(initial,/Available article 0/); assert.match(initial,/Prepared reader body/); assert.match(initial,/웹 보기 미리보기/);
-  const preview=renderToStaticMarkup(React.createElement(WebLoadingPreview,{article:articles[0],isDark:false,onReading(){}}));
-  assert.match(preview,/Prepared reader body/,'a person reading the preview can keep their position when the website becomes ready');
-  assert.doesNotMatch(preview,/role="status"/,'the preview does not add its own notice row');
+  // 웹 보기는 피드 요약을 먼저 보여 주지 않고, 사이트를 다 불러온 뒤에 한 번에 보여 준다.
+  assert.doesNotMatch(initial,/Prepared reader body/,'the web view does not show the feed text before the site is ready');
+  assert.equal(initialDocument.querySelectorAll('[data-web-loading]').length,1,'the web view shows a loading cover until the site is ready');
+  const cover=renderToStaticMarkup(React.createElement(WebLoading,{overlay:true}));
+  assert.match(cover,/absolute inset-0/,'the cover hides a frame that is still loading');
+  assert.doesNotMatch(cover,/role="status"/,'the cover does not add its own notice row');
+  // 사이트를 넣은 프레임도 다 불러오거나 기다리는 상한이 지날 때까지 덮어 둔다.
+  const drawerSource=readFileSync('src/components/ArticleDrawer.tsx','utf8');
+  assert.match(drawerSource,/const frameLoading = webFrameShown && loadedFrame !== article\?\.id && slowFrame !== article\?\.id;/,'a site frame counts as loading until its load event or the wait limit');
+  assert.match(drawerSource,/onLoad=\{\(\) => setLoadedFrame\(article\.id\)\}[\s\S]{0,200}\{frameLoading && <WebLoading overlay \/>\}/,'the loading cover sits over the site frame');
   // 웹 보기 상단은 어느 상태에서도 한 줄이다. 좁은 칸은 짧은 이름, 넓은 칸은 긴 이름을 쓰고 줄바꿈하지 않는다.
   assert.equal(initialDocument.querySelectorAll('.feedex-web-status').length,1,'the web view has one status bar');
   assert.equal(initialDocument.querySelectorAll('[role="status"]').length,1);
-  assert.match(initialDocument.querySelector('.feedex-web-status').textContent,/웹 페이지 준비 중/);
+  assert.match(initialDocument.querySelector('.feedex-web-status').textContent,/불러오는 중/);
   assert.match(initialDocument.querySelector('.feedex-web-status').textContent,/원문 열기/);
   const statusBar=(props)=>renderToStaticMarkup(React.createElement(WebStatusBar,{url:'https://example.test/a',isDark:false,hidden:false,canLogin:true,notice:'긴 안내 문구',shortNotice:'짧은 안내',onReload(){},...props},React.createElement('a',{href:'https://example.test/a'},React.createElement(WebLabel,{short:'새 창',long:'새 창에서 열기'}))));
   const shownBar=statusBar();
@@ -149,7 +156,7 @@ try {
   await maintainDeviceCache('x-owner',true);
   await maintainDeviceCache('fast-owner',true);
   await maintainDeviceCache('reader-owner',true);
-  console.log('PASS: per-site frame decisions; old X copies replaced by saved post-and-replies copies; article refresh replacing saved web copies, reader bodies and feed details; view-aware prefetch, two web requests at once, shared foreground request, zero-network cached opening without repeated HTML parsing; live sites unchanged, other blocked origins prepared; cache-clear/account guards; immediate saved content with web still selected and explicit transition after scrolling.');
+  console.log('PASS: per-site frame decisions; old X copies replaced by saved post-and-replies copies; article refresh replacing saved web copies, reader bodies and feed details; view-aware prefetch, two web requests at once, shared foreground request, zero-network cached opening without repeated HTML parsing; live sites unchanged, other blocked origins prepared; cache-clear/account guards; web selected with a loading cover until the site is ready.');
 } finally {
   globalThis.fetch=originalFetch;
   for(const [key,descriptor] of originals){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}

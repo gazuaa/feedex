@@ -71,6 +71,9 @@ export function fixedLayoutFit(layoutWidth: number | undefined, paneWidth: numbe
 }
 /** 프레임 안 사이트 위로 꺼낸 막대가 다시 접히기 전까지 머무는 시간. */
 const PEEK_MS = 4000;
+// 사이트 프레임이 다 불러왔다고 알리지 않아도 이만큼 기다린 뒤에는 보여 준다. 광고나 끝나지 않는 요청이 있는 사이트가 있다.
+// 한경·AI타임스 기사는 1~2초 안에 다 불러온다.
+const FRAME_WAIT_MS = 4000;
 
 
 function loadWebZoom(account: string, feed: string): number {
@@ -98,15 +101,14 @@ function ArticleBody({ html, base, title, className, style, onOpenXPost }: { htm
   }} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-/** 페이지를 불러오는 동안 기기에 이미 있는 내용으로 웹 탭을 선택된 채로 둔다. */
-export function WebLoadingPreview({ article, isDark, onReading }: { article: ArticleItem; isDark: boolean; onReading: () => void }) {
-  const html = article.full_content_html || article.content_html;
-  return <div className="flex-1 min-h-0 flex flex-col">
-    <section aria-label="웹 보기 미리보기" tabIndex={0} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-5" onScroll={(event) => { if (event.currentTarget.scrollTop > 24) onReading(); }}>
-      <p className="text-sm font-medium text-emerald-500">{article.feed_title}</p>
-      <h1 className="text-2xl sm:text-3xl font-bold leading-snug">{article.title}</h1>
-      {html ? <ArticleBody html={html} base={article.url} title={article.title} style={{ fontSize: 'var(--feedex-article-font)' }} className={`feedex-article-content ${isDark ? 'text-slate-300' : 'text-slate-700'}`} /> : article.summary ? <p className="text-base leading-relaxed">{article.summary}</p> : null}
-    </section>
+/**
+ * 웹 페이지를 다 불러올 때까지 보이는 자리. 피드 요약을 먼저 보여 주면 요약만 있는 사이트는
+ * 짧은 글이 떴다가 다른 화면으로 바뀐다. 사이트와 같은 흰 바탕이라 다 불러온 뒤 바뀌어도 튀지 않는다.
+ * 무엇을 하는 중인지는 위 막대가 알린다.
+ */
+export function WebLoading({ overlay = false }: { overlay?: boolean }) {
+  return <div data-web-loading className={`${overlay ? 'absolute inset-0 z-10' : 'flex-1 min-h-0'} flex items-center justify-center bg-white`}>
+    <Loader2 className="h-6 w-6 animate-spin text-slate-400" aria-hidden="true" />
   </div>;
 }
 
@@ -264,8 +266,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const xWaiting = mode === 'web' && xPost && !copyReady && !(frame?.articleId === article?.id && frame?.embeddable);
   const xFailed = Boolean(copyFor) && !copyReady;
   const xPreview = useMemo(() => xWaiting && article ? framedCopy(xThreadPreview(article, xFailed)) : undefined, [xWaiting, xFailed, article?.id, article?.title, article?.content_html, article?.feed_title, article?.feed_favicon]);
-  const [readingPreview, setReadingPreview] = useState(false);
-  useEffect(() => { setReadingPreview(false); }, [article?.id, mode]);
   const [shareNotice, setShareNotice] = useState('');
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const isMobile = useMobileViewport();
@@ -288,17 +288,25 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const keepPeeking = () => { if (peek) setPeek((value) => value + 1); };
   const barsHidden = chromeHidden || (framed && !peek && !mobileToolsOpen && !sizeToolsOpen);
   // 웹 보기에 지금 사본과 사이트 프레임 중 무엇이 보이는지. 상단 막대와 본문이 같은 값을 쓴다.
-  const webCopyShown = xWaiting || (copyReady && !readingPreview && frame?.articleId === article?.id && !frame?.embeddable);
+  const webCopyShown = xWaiting || (copyReady && frame?.articleId === article?.id && !frame?.embeddable);
   const webFrameShown = !webCopyShown && frame?.articleId === article?.id && frame?.embeddable === true;
-  // 사본이나 프레임이 준비되기 전이거나, 미리보기를 읽던 중에 사본이 도착해 기다리는 중.
-  const webPreviewShown = !webCopyShown && (!frame || frame.articleId !== article?.id || (!frame.embeddable && (webCopy?.articleId !== article?.id || Boolean(webCopy?.html && readingPreview))));
-  const webPreviewReady = webPreviewShown && frame?.articleId === article?.id && Boolean(copyFor?.html);
+  // 사본이나 프레임을 정하기 전이거나 사본을 받는 중.
+  const webPreviewShown = !webCopyShown && (!frame || frame.articleId !== article?.id || (!frame.embeddable && webCopy?.articleId !== article?.id));
+  // 사이트를 넣은 프레임은 다 불러올 때까지 가려 둔다. 끝나지 않는 사이트도 있어 오래 걸리면 그대로 보여 준다.
+  const [slowFrame, setSlowFrame] = useState<string | null>(null);
+  useEffect(() => {
+    const id = article?.id;
+    if (!webFrameShown || !id || loadedFrame === id) return;
+    const timer = setTimeout(() => setSlowFrame(id), FRAME_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [webFrameShown, article?.id, loadedFrame, frameReloads]);
+  const frameLoading = webFrameShown && loadedFrame !== article?.id && slowFrame !== article?.id;
   const webStatus = webCopyShown
     ? (() => { const [notice, short] = webCopyNotice(xWaiting, xFailed, copyFor); return { notice, short, openUrl: xWaiting ? article?.url : frame?.url, openLong: '새 창에서 열기', openX: xWaiting || Boolean(webCopy?.thread) }; })()
     : webFrameShown
       ? { notice: frame.url, short: siteHost(frame.url), openUrl: frame.url, openLong: '사이트가 보이지 않으면 새 창에서 열기', openX: false }
       : webPreviewShown
-        ? { notice: webPreviewReady ? '웹 페이지가 준비됐어요.' : '웹 페이지를 준비하는 동안 먼저 받은 내용을 보여드려요.', short: webPreviewReady ? '웹 페이지 준비됨' : '웹 페이지 준비 중', openUrl: article?.url, openLong: '원문 열기', openX: false }
+        ? { notice: '웹 페이지를 다 불러오면 보여 드려요.', short: '불러오는 중', openUrl: article?.url, openLong: '원문 열기', openX: false }
         : null;
   const hasArticle = Boolean(article);
   // 접힌 상단 막대는 자기 높이만큼 올라간다. 높이는 안전 영역과 글자 크기에 따라 다르다.
@@ -830,11 +838,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               isDark={isDark}
               hidden={barsHidden}
               canLogin={!xPost}
-              busy={webPreviewShown && !webPreviewReady}
+              busy={webPreviewShown || frameLoading}
               notice={webStatus?.notice ?? ''}
               shortNotice={webStatus?.short ?? ''}
               onReload={() => {
-                setWebCopy(null); setReadingPreview(false); setLoadedFrame(null);
+                setWebCopy(null); setLoadedFrame(null); setSlowFrame(null);
                 setFrame({ articleId: article.id, embeddable: true, url: article.url });
                 setFrameReloads(count => count + 1);
               }}
@@ -842,7 +850,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               {webCopyShown && !xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="원래 모양" long="원래 모양 다시 받기" /></button>}
               {webCopyShown && xWaiting && xFailed && <button type="button" onClick={showWebCopy} className="hover:underline">다시 시도</button>}
               {webFrameShown && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="사본으로" long="웹 사본으로 보기" /></button>}
-              {webPreviewReady && <button type="button" onClick={() => setReadingPreview(false)} className={`font-semibold hover:underline ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>웹 페이지 보기</button>}
               {webStatus?.openUrl && (
                 <a href={webStatus.openUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
                   {webStatus.openX ? 'X에서 열기' : <WebLabel short="새 창" long={webStatus.openLong} />}
@@ -909,7 +916,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 </WebPager>
               </>
             ) : !frame || frame.articleId !== article.id ? (
-              <WebLoadingPreview article={article} isDark={isDark} onReading={() => setReadingPreview(true)} />
+              <WebLoading />
             ) : frame.embeddable ? (
               <>
                 <WebPager enabled={isMobile} onBack={onClose}>
@@ -925,11 +932,12 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     onLoad={() => setLoadedFrame(article.id)}
                     referrerPolicy="strict-origin-when-cross-origin"
                   />
+                  {frameLoading && <WebLoading overlay />}
                 </div>
                 </WebPager>
               </>
-            ) : webCopy?.articleId !== article.id || (webCopy.html && readingPreview) ? (
-              <WebLoadingPreview article={article} isDark={isDark} onReading={() => setReadingPreview(true)} />
+            ) : webCopy?.articleId !== article.id ? (
+              <WebLoading />
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
                 <Globe className="w-9 h-9 text-slate-400" aria-hidden="true" />
