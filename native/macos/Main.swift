@@ -16,6 +16,7 @@ func feedexHome() -> URL {
 
 @MainActor
 final class FeedExApplication: NSObject, NSApplicationDelegate {
+    private let notifications = NativeNotifications()
     private var updater: SPUStandardUpdaterController?
     private var main: FeedExWindow?
     private var reader: ReaderWindow?
@@ -23,6 +24,10 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        notifications.onOpen = { [weak self] in
+            self?.showMain()
+            self?.main?.notificationOpened()
+        }
         NSApp.mainMenu = menu()
         showMain()
     }
@@ -89,7 +94,7 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
 
     private func showMain() {
         let window = main ?? {
-            let created = FeedExWindow(home: feedexHome())
+            let created = FeedExWindow(home: feedexHome(), notifications: notifications)
             created.onCheckForUpdates = { [weak self] in self?.updater?.checkForUpdates(nil) }
             created.onPopup = { [weak self] configuration in self?.popup(configuration) }
             main = created

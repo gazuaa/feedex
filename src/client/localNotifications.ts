@@ -1,12 +1,15 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { ArticleItem } from './api';
 import { compileArticleBlocks, readArticleBlocks } from './articleBlocks';
+import { inNativeApp } from './nativeApp';
+import { nativeNotificationBridge, nativeNotificationPermission, requestNativeNotificationPermission, subscribeNativeNotificationPermission } from './nativeNotifications';
 
 const settingKey = (account: string) => `sfeed_local_notifications:${account}`;
 const seenKey = (account: string) => `sfeed_notified_articles:${account}`;
 const listeners = new Set<() => void>();
+export const notificationPermission = (): NotificationPermission => inNativeApp() ? nativeNotificationPermission() : typeof Notification === 'undefined' ? 'default' : Notification.permission;
 export function localNotificationsEnabled(account: string) {
-  try { return Boolean(account && localStorage.getItem(settingKey(account)) === 'true' && typeof Notification !== 'undefined' && Notification.permission === 'granted'); } catch { return false; }
+  try { return Boolean(account && localStorage.getItem(settingKey(account)) === 'true' && (!inNativeApp() || Boolean(nativeNotificationBridge())) && notificationPermission() === 'granted'); } catch { return false; }
 }
 export function setLocalNotifications(account: string, enabled: boolean) {
   try { localStorage.setItem(settingKey(account), String(enabled)); } catch { /* 세션 전용 환경에서는 저장소가 막혀 있을 수 있다 */ }
@@ -15,12 +18,22 @@ export function setLocalNotifications(account: string, enabled: boolean) {
 export function useLocalNotifications(account: string) {
   const subscribe = useCallback((listener: () => void) => {
     listeners.add(listener);
+    const unsubscribeNative = subscribeNativeNotificationPermission(listener);
     window.addEventListener('storage', listener); window.addEventListener('focus', listener);
-    return () => { listeners.delete(listener); window.removeEventListener('storage', listener); window.removeEventListener('focus', listener); };
+    return () => { unsubscribeNative(); listeners.delete(listener); window.removeEventListener('storage', listener); window.removeEventListener('focus', listener); };
   }, [account]);
   return useSyncExternalStore(subscribe, () => localNotificationsEnabled(account), () => false);
 }
+export function useNotificationPermission() {
+  return useSyncExternalStore(subscribeNativeNotificationPermission, notificationPermission, () => 'default' as NotificationPermission);
+}
 export async function enableLocalNotifications(account: string): Promise<string> {
+  if (inNativeApp()) {
+    if (!nativeNotificationBridge()) return '맥 앱 업데이트 후 알림을 켤 수 있어요.';
+    const permission = await requestNativeNotificationPermission();
+    setLocalNotifications(account, true);
+    return permission === 'granted' ? '' : 'macOS 알림 설정에서 FeedEx를 허용해 주세요. 허용하면 자동으로 켜집니다.';
+  }
   if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) return '이 브라우저에서는 알림을 지원하지 않습니다. 아이폰은 홈 화면에 설치한 앱에서 확인해 주세요.';
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return '기기 또는 브라우저 설정에서 알림을 허용해 주세요.';
@@ -37,6 +50,10 @@ export async function notifyNewArticles(account: string, articles: ArticleItem[]
     const seen = new Set(previous), fresh = articles.filter((article) => !seen.has(article.id) && !blocked(article));
     if (!fresh.length) return;
     let display = show;
+    const native = nativeNotificationBridge();
+    if (!display && native) {
+      display = async (title, options) => { await native.postMessage({ action: 'show', title, body: options.body || '', account, articleId: (options.data as { articleId: string }).articleId }); };
+    }
     if (!display) {
       const registration = await navigator.serviceWorker.getRegistration();
       if (!registration?.active || !registration.showNotification) return;
@@ -53,8 +70,11 @@ export async function notifyNewArticles(account: string, articles: ArticleItem[]
       const feed = article.feed_title?.trim() || 'FeedEx';
       // macOS는 제목과 본문 사이에 브라우저 출처 부제를 넣는다. 글 내용은 모두 그 위에 둔다.
       // iPad의 데스크톱 UA도 여전히 모바일이다.
-      const mac = /Macintosh|Mac OS X/.test(navigator.userAgent || '') && !/iPhone|iPad|iPod/.test(navigator.userAgent || '') && !(navigator.maxTouchPoints > 1);
-      await display(mac ? `${feed} · ${article.title}` : feed, { ...(!mac ? { body: article.title } : {}), tag: `sfeed-${account}-${article.id}`, icon: '/icons/icon-192.png', data: { account, articleId: article.id } });
+      const mac = !native && /Macintosh|Mac OS X/.test(navigator.userAgent || '') && !/iPhone|iPad|iPod/.test(navigator.userAgent || '') && !(navigator.maxTouchPoints > 1);
+      try { await display(mac ? `${feed} · ${article.title}` : feed, { ...(!mac ? { body: article.title } : {}), tag: `sfeed-${account}-${article.id}`, icon: '/icons/icon-192.png', data: { account, articleId: article.id } }); } catch {
+        seen.delete(article.id);
+        try { const latest: unknown = JSON.parse(localStorage.getItem(seenKey(account)) || '[]'); if (Array.isArray(latest)) localStorage.setItem(seenKey(account), JSON.stringify(latest.filter((id) => id !== article.id))); } catch {}
+      }
     }
   };
   if (navigator.locks) await navigator.locks.request(`sfeed-notifications:${account}`, { ifAvailable: true }, (lock) => lock ? deliver() : undefined);

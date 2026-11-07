@@ -103,8 +103,16 @@ try {
       const executable = join(directory, 'launch-test');
       writeFileSync(test, `import Foundation
 import CryptoKit
+import UserNotifications
 @main struct LaunchTest {
     static func main() {
+        precondition(NativeNotifications.permission(.notDetermined) == "default")
+        precondition(NativeNotifications.permission(.denied) == "denied")
+        precondition(NativeNotifications.permission(.authorized) == "granted")
+        precondition(NotificationTarget(["account": "", "articleId": "a"]) == nil)
+        precondition(NotificationTarget(["account": "owner", "articleId": ""]) == nil)
+        precondition(NotificationTarget(["account": "owner", "articleId": "a"])!.identifier == NotificationTarget(["account": "owner", "articleId": "a"])!.identifier)
+        precondition(NotificationTarget(["account": "owner", "articleId": "a"])!.identifier != NotificationTarget(["account": "other", "articleId": "a"])!.identifier)
         precondition(AppScale.restored(nil) == 0.9)
         for value in [Double.nan, Double.infinity, 0.49, 1.51] { precondition(AppScale.restored(value) == 0.9) }
         precondition(AppScale.restored(0.7) == 0.7)
@@ -141,7 +149,7 @@ import CryptoKit
         }
     }
 }`);
-      execFileSync('xcrun', ['swiftc', '-parse-as-library', '-module-cache-path', join(directory, 'modules'), 'native/macos/AppLinks.swift', 'native/macos/AppScale.swift', test, '-o', executable], { stdio: 'pipe' });
+      execFileSync('xcrun', ['swiftc', '-parse-as-library', '-module-cache-path', join(directory, 'modules'), 'native/macos/AppLinks.swift', 'native/macos/AppScale.swift', 'native/macos/Notifications.swift', test, '-o', executable], { stdio: 'pipe' });
       const plist = readFileSync('native/macos/Info.plist', 'utf8');
       const publicKey = /<key>SUPublicEDKey<\/key><string>([^<]+)<\/string>/.exec(plist)[1];
       const feed = readFileSync('public/downloads/appcast.xml', 'utf8');

@@ -20,6 +20,16 @@ private final class WeakMessages: NSObject, WKScriptMessageHandler {
     }
 }
 
+/// 알림 요청은 응답을 돌려주는 별도 통로로 받는다. 브라우저 Notification API를 거치지 않는다.
+private final class WeakNotificationMessages: NSObject, WKScriptMessageHandlerWithReply {
+    weak var target: (any WKScriptMessageHandlerWithReply)?
+    init(_ target: any WKScriptMessageHandlerWithReply) { self.target = target }
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
+        guard let target else { replyHandler(nil, "앱 창이 닫혔습니다."); return }
+        target.userContentController(controller, didReceive: message, replyHandler: replyHandler)
+    }
+}
+
 func sameOrigin(_ url: URL?, _ other: URL) -> Bool {
     guard let url else { return false }
     return url.scheme == other.scheme && url.host == other.host && (url.port ?? -1) == (other.port ?? -1)
@@ -38,8 +48,9 @@ private func number(_ value: Any?) -> CGFloat? {
 }
 
 @MainActor
-final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, ASWebAuthenticationPresentationContextProviding {
+final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply, ASWebAuthenticationPresentationContextProviding {
     let home: URL
+    private let notifications: NativeNotifications
     private let app: WKWebView
     private let article: WKWebView
     private let spinner = NSProgressIndicator()
@@ -56,8 +67,9 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
     var onCheckForUpdates: (() -> Void)?
     var onPopup: ((WKWebViewConfiguration) -> ReaderWindow?)?
 
-    init(home: URL) {
+    init(home: URL, notifications: NativeNotifications) {
         self.home = home
+        self.notifications = notifications
         let store = WKWebsiteDataStore.default()
         let appConfiguration = WKWebViewConfiguration()
         appConfiguration.websiteDataStore = store
@@ -80,6 +92,7 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
         window.setFrameAutosaveName("FeedExMain")
 
         app.configuration.userContentController.add(WeakMessages(self), name: "feedex")
+        app.configuration.userContentController.addScriptMessageHandler(WeakNotificationMessages(self), contentWorld: .page, name: "feedexNotifications")
         app.navigationDelegate = self
         app.uiDelegate = self
         article.navigationDelegate = self
@@ -145,6 +158,22 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
             if let text = body["url"] as? String, let url = webAddress(text) { NSWorkspace.shared.open(url) }
         default: break
         }
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
+        guard message.webView === app, message.frameInfo.isMainFrame,
+              sameOrigin(message.frameInfo.request.url, home), let body = message.body as? [String: Any] else {
+            replyHandler(nil, "FeedEx 화면에서만 알림을 사용할 수 있습니다."); return
+        }
+        notifications.handle(body, reply: replyHandler)
+    }
+
+    func notificationOpened() {
+        app.evaluateJavaScript("window.dispatchEvent(new Event('feedex-open-notification'));")
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        app.evaluateJavaScript("window.dispatchEvent(new Event('feedex-notification-permission'));")
     }
 
     /// 웹 보기 자리에 원문 화면을 놓는다. 새 글은 다 불러오거나 4초가 지난 뒤에 보여 준다.

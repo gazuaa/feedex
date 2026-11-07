@@ -34,7 +34,7 @@ import { emptiesUnreadList, useMobileViewport, useScrollChrome } from './client/
 import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
 import { NativeHandoff } from './components/NativeHandoff';
-import { inNativeSignInWindow } from './client/nativeApp';
+import { inNativeApp, inNativeSignInWindow } from './client/nativeApp';
 import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileChrome';
 import { MobileLibrary } from './components/MobileLibrary';
 import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type ArticlePage } from './client/readerCache';
@@ -56,6 +56,7 @@ import { ArticleResources } from './client/articleResources';
 import { maintainDeviceCache } from './client/deviceContent';
 import { readDevicePreferences, saveDevicePreferences, readFeedPreference, feedViewPreference } from './client/devicePreferences';
 import { useListAnchor } from './client/listAnchor';
+import { nativeNotificationBridge } from './client/nativeNotifications';
 import { notifyNewArticles, useLocalNotifications } from './client/localNotifications';
 import { shortcutKey } from './client/shortcutKey';
 import { compileArticleBlocks, useArticleBlocks, useArticleBlockAccountSync, syncArticleBlocks, visibleArticleNeighbors } from './client/articleBlocks';
@@ -217,9 +218,9 @@ export const App: React.FC = () => {
   const resumeSource = useRef({ account: '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId });
   resumeSource.current = { account: user?.id ?? '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId };
   // 지금 보던 목록과 글, 스크롤 위치를 이 탭에 남긴다. 새 배포로 바꿀 때와 원문을 읽으러 이 창을 떠날 때 쓴다.
-  const saveResumePoint = useCallback((original = false) => {
+  const saveResumePoint = useCallback((original = false, listAtTop = false) => {
     const source = resumeSource.current; if (!source.account) return;
-    keepResumePoint({ ...source, at: Date.now(), listScroll: articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.feedex-reader-content')?.scrollTop ?? 0, ...(original ? { original: true } : {}) });
+    keepResumePoint({ ...source, at: Date.now(), listScroll: listAtTop ? 0 : articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.feedex-reader-content')?.scrollTop ?? 0, ...(original ? { original: true } : {}) });
   }, []);
   useEffect(() => watchAppVersion({
     canSwap: () => {
@@ -228,7 +229,7 @@ export const App: React.FC = () => {
         || (focused instanceof HTMLInputElement && /^(?:text|search|url|email|password|number|tel)$/.test(focused.type));
       return !typing && !document.querySelector('dialog[open], [aria-modal="true"], .feedex-desktop-settings[open], .feedex-mobile-settings[open], .feedex-context-menu') && !stateWrites.current.size && !markingAllReadRef.current;
     },
-    beforeSwap: () => saveResumePoint(),
+    beforeSwap: () => saveResumePoint(false, inNativeApp()),
   }), [saveResumePoint]);
   // 원문에서 뒤로 왔을 때 브라우저가 떠나기 전 화면을 그대로 되살렸으면 남겨 둔 자리는 쓰지 않는다.
   // 남겨 두면 나중에 새로 고칠 때 엉뚱하게 그 자리로 돌아간다.
@@ -287,6 +288,7 @@ export const App: React.FC = () => {
     if (!user || authChecking || resumeChecked.current) return;
     resumeChecked.current = true;
     const point = takeResumePoint(user.id); if (!point) return;
+    if (inNativeApp() && point.listScroll === 0) pendingScroll.current = 0;
     if (!isMobile) {
       setActiveScope(point.scope); setActiveFolderId(point.folderId); setActiveFeedId(point.feedId);
       setSearchQuery(point.search); setSavedOnly(point.saved); setSelectedArticleId(point.articleId);
@@ -297,16 +299,16 @@ export const App: React.FC = () => {
   // 5초가 지나면 그만둔다.
   useEffect(() => {
     if (!resumePlace || (resumePlace.articleId && resumePlace.articleId !== selectedArticleId)) return;
-    const want = { ...resumePlace }; let tries = 0;
+    const want: { list: number | null; reader: number | null } = { list: resumePlace.list, reader: resumePlace.reader }; let tries = 0;
     const reach = (element: HTMLElement | null | undefined, top: number) => {
-      if (!top) return true;
+      if (!top) { element?.scrollTo({ top: 0 }); return true; }
       if (!element || element.scrollHeight - element.clientHeight < top) return false;
       element.scrollTo({ top }); return true;
     };
     const timer = setInterval(() => {
-      if (reach(articleListRef.current, want.list)) want.list = 0;
-      if (reach(document.querySelector<HTMLElement>('.feedex-reader-content'), want.reader)) want.reader = 0;
-      if ((!want.list && !want.reader) || ++tries >= 50) { clearInterval(timer); setResumePlace(null); }
+      if (want.list !== null && reach(articleListRef.current, want.list)) want.list = null;
+      if (want.reader !== null && reach(document.querySelector<HTMLElement>('.feedex-reader-content'), want.reader)) want.reader = null;
+      if ((want.list === null && want.reader === null) || ++tries >= 50) { clearInterval(timer); setResumePlace(null); }
     }, 100);
     return () => clearInterval(timer);
   }, [resumePlace, selectedArticleId]);
@@ -545,7 +547,7 @@ export const App: React.FC = () => {
   }, [warmLists, loadingBootstrap, loadingArticles, refreshingFeeds]);
 
   useEffect(() => {
-    if (pendingScroll.current === null || loadingArticles || mobileSidebarOpen || selectedArticleId || articleQueryRef.current !== buildArticleQuery().toString()) return;
+    if (pendingScroll.current === null || loadingArticles || mobileSidebarOpen || (selectedArticleId && pendingScroll.current !== 0) || articleQueryRef.current !== buildArticleQuery().toString()) return;
     articleListRef.current?.scrollTo({ top: pendingScroll.current });
     pendingScroll.current = null;
   }, [articles, loadingArticles, mobileSidebarOpen, selectedArticleId, buildArticleQuery]);
@@ -673,7 +675,12 @@ export const App: React.FC = () => {
   };
   useAutoRefresh(Boolean(user), autoRefreshMinutes, async () => {
     if (refreshingFeedsRef.current || !readerCache?.active) return;
+    const revision = readerCache.revision, query = articleQueryRef.current;
     await syncInBackground();
+    // 자동 갱신으로 읽은 행이 빠지면, 예전 스크롤 위치 때문에 새 글이 위에 숨지 않게 한다.
+    if (inNativeApp() && readerCache.active && readerCache.revision !== revision && articleQueryRef.current === query) {
+      pendingScroll.current = 0; forgetListAnchor(); articleListRef.current?.scrollTo({ top: 0 });
+    }
   }, localNotifications);
 
   const handleSelectScope = (
@@ -914,6 +921,7 @@ export const App: React.FC = () => {
     refreshingFeedsRef.current = true;
     clearTimeout(refreshFollowUp.current);
     releaseReadRows();
+    pendingScroll.current = 0; forgetListAnchor();
     if (!quiet) setRefreshingFeeds(true);
     // 위쪽의 읽은 행은 새로고침하면 목록에서 빠지므로 맨 위부터 다시 시작한다.
     articleListRef.current?.scrollTo({ top: 0 });
@@ -943,7 +951,7 @@ export const App: React.FC = () => {
     }
     // 다른 폴더의 첫 화면을 받는 동안에는 아이콘만 돈다. 아이콘이 멈추면 다 받은 것이다.
     void showSync(counts.then(() => warmListsRef.current())).catch(() => {});
-  }, [readerCache, activeScope, activeFeedId, activeFolderId, fetchBootstrap, fetchArticles, releaseReadRows, showSync, syncInBackground]);
+  }, [readerCache, activeScope, activeFeedId, activeFolderId, fetchBootstrap, fetchArticles, releaseReadRows, forgetListAnchor, showSync, syncInBackground]);
   const handleRefreshFeeds = useCallback(() => refreshFeeds(), [refreshFeeds]);
 
   const pullDistance = usePullRefresh(isMobile && Boolean(user) && !selectedArticleId && !discoverOpen && !markReadTarget && !historyFeed && !renameFeed, refreshingFeeds, handleRefreshFeeds);
@@ -1127,15 +1135,20 @@ export const App: React.FC = () => {
     [articles, selectedArticleId, restoredArticle]
   );
   useEffect(() => {
-    if (!user || !('serviceWorker' in navigator)) return;
-    const open = (event: MessageEvent) => {
-      const data = event.data;
-      if (data?.type === 'sfeed-open-article' && data.account === user.id && typeof data.articleId === 'string' && data.articleId.length <= 200) {
+    if (!user) return;
+    let active = true;
+    const show = (data: { account?: string; articleId?: string } | undefined) => {
+      if (active && data?.account === user.id && typeof data.articleId === 'string' && data.articleId.length > 0 && data.articleId.length <= 200) {
         notificationArticle.current = data.articleId; setSelectedArticleId(data.articleId); setMobileSidebarOpen(false);
       }
     };
-    navigator.serviceWorker.addEventListener('message', open);
-    return () => navigator.serviceWorker.removeEventListener('message', open);
+    const open = (event: MessageEvent) => { if (event.data?.type === 'sfeed-open-article') show(event.data); };
+    const nativeOpen = () => { void nativeNotificationBridge()?.postMessage({ action: 'takeOpen', account: user.id }).then((result) => show(result.target)).catch(() => {}); };
+    const worker = 'serviceWorker' in navigator ? navigator.serviceWorker : null;
+    worker?.addEventListener('message', open);
+    window.addEventListener('feedex-open-notification', nativeOpen);
+    nativeOpen();
+    return () => { active = false; worker?.removeEventListener('message', open); window.removeEventListener('feedex-open-notification', nativeOpen); };
   }, [user?.id]);
   useEffect(() => {
     if (selectedArticle && notificationArticle.current === selectedArticle.id) {
