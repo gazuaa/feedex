@@ -74,7 +74,7 @@ try {
   assert.equal(redirected.headers.get('location'), 'https://feedex.jyk.workers.dev/privacy?from=old');
   const legacyAsset = await worker.fetch(new Request('https://sfeed.jyk.workers.dev/page-asset/invalid?u=http%3A%2F%2Fimage.rhythmer.net%2Fcss%2Fcommon.css'), {}, {});
   assert.equal(legacyAsset.status, 403, 'legacy signed page-asset URLs are served directly on the legacy worker instead of redirecting to another worker secret');
-  for (const path of ['/', '/sw.js', '/manifest.webmanifest', '/offline.js']) {
+  for (const path of ['/', '/sw.js', '/manifest.webmanifest', '/offline.js', '/downloads/appcast.xml']) {
     const response = await worker.fetch(new Request('https://sfeed.test' + path), { ASSETS: { fetch: async () => new Response('asset') } }, {});
     assert.equal(response.headers.get('cache-control'), 'no-store');
     if (path === '/sw.js') assert.equal(response.headers.get('service-worker-allowed'), '/');

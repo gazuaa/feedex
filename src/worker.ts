@@ -29,7 +29,7 @@ export default {
 
     if (env.ASSETS) {
       const assetResponse = await env.ASSETS.fetch(request);
-      if (url.pathname === '/' || url.pathname.endsWith('.html') || ['/sw.js', '/offline.js', '/manifest.webmanifest'].includes(url.pathname)) {
+      if (url.pathname === '/' || url.pathname.endsWith('.html') || ['/sw.js', '/offline.js', '/manifest.webmanifest', '/downloads/appcast.xml'].includes(url.pathname)) {
         const headers = new Headers(assetResponse.headers);
         headers.set('Cache-Control', 'no-store');
         headers.set('X-Content-Type-Options', 'nosniff');

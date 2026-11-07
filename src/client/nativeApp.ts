@@ -1,10 +1,12 @@
-import { useLayoutEffect, type RefObject } from 'react';
+import { useLayoutEffect, useSyncExternalStore, type RefObject } from 'react';
 
 // 맥 앱 안에서 열렸을 때만 있는 연결. 앱이 WKWebView에 'feedex' 메시지 통로를 만든다.
 // 크롬 앱이나 일반 브라우저에는 없다.
 export type NativeRect = { x: number; y: number; width: number; height: number };
 export type NativeMessage =
   | { type: 'signIn' }
+  | { type: 'checkForUpdates' }
+  | { type: 'appScale'; action: 'smaller' | 'larger' | 'reset' }
   | { type: 'article'; url: string | null; rect?: NativeRect; zoom?: number; hidden?: boolean }
   | { type: 'openExternal'; url: string };
 interface NativeBridge { postMessage(message: NativeMessage): void }
@@ -59,3 +61,14 @@ export function useNativeArticle(slot: RefObject<HTMLElement | null>, url: strin
     };
   }, [slot, url, zoom]);
 }
+
+/** 맥 앱이 보낸 실제 배율. 계정 설정이나 기사 글자 크기에 섞어 저장하지 않는다. */
+export function nativeAppScale(host: { feedexAppScale?: number } = globalThis as { feedexAppScale?: number }): number {
+  const scale = host.feedexAppScale;
+  return typeof scale === 'number' && Number.isFinite(scale) && scale >= 0.5 && scale <= 1.5 ? scale : 0.9;
+}
+const subscribeAppScale = (changed: () => void) => {
+  window.addEventListener('feedex-app-scale', changed);
+  return () => window.removeEventListener('feedex-app-scale', changed);
+};
+export const useNativeAppScale = () => useSyncExternalStore(subscribeAppScale, nativeAppScale, () => 0.9);

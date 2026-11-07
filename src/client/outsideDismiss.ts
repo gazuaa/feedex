@@ -5,7 +5,7 @@ import { useEffect, type RefObject } from 'react';
  * 닫기만 한다. 그 누르기가 만들 클릭은 삼켜서 팝오버 뒤에 있던 것이 함께 눌리지 않게
  * 한다. 누르기가 스크롤로 바뀌면 아무것도 삼키지 않는다.
  */
-export function useOutsideDismiss(ref: RefObject<HTMLDetailsElement | null>) {
+export function useOutsideDismiss(ref: RefObject<HTMLDetailsElement | null>, keepOnResize = false) {
   useEffect(() => {
     let swallowing: ReturnType<typeof setTimeout> | undefined;
     const stop = () => { clearTimeout(swallowing); swallowing = undefined; };
@@ -25,7 +25,7 @@ export function useOutsideDismiss(ref: RefObject<HTMLDetailsElement | null>) {
     document.addEventListener('pointercancel', stop, true);
     window.addEventListener('mousedown', swallow, true);
     window.addEventListener('click', swallow, true);
-    window.addEventListener('resize', close);
+    if (!keepOnResize) window.addEventListener('resize', close);
     return () => {
       stop();
       document.removeEventListener('pointerdown', press, true);
@@ -34,5 +34,5 @@ export function useOutsideDismiss(ref: RefObject<HTMLDetailsElement | null>) {
       window.removeEventListener('click', swallow, true);
       window.removeEventListener('resize', close);
     };
-  }, [ref]);
+  }, [ref, keepOnResize]);
 }

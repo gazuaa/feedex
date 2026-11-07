@@ -7,6 +7,7 @@ import { ArticleBlockSetting } from './ArticleBlockDialog';
 import { FONT_SCALES, useTextSize } from '../client/textSize';
 import { AUTO_REFRESH_OPTIONS } from '../shared/preferences';
 import { useOutsideDismiss } from '../client/outsideDismiss';
+import { inNativeApp, nativeBridge, useNativeAppScale } from '../client/nativeApp';
 
 export interface ScrollReadSettingsProps {
   markReadOnScroll: boolean;
@@ -31,6 +32,23 @@ export function SettingGroup({ title, children }: { title: string; children: Rea
 export function SettingRow({ label, children }: { label: string; children: ReactNode }) {
   return <div className="feedex-setting-row"><span>{label}</span>{children}</div>;
 }
+/** 맥 앱의 전체 화면 크기. 기사 글자 크기와 구별하고 브라우저에서는 표시하지 않는다. */
+export function NativeAppScaleSetting() {
+  const scale = useNativeAppScale();
+  if (!inNativeApp()) return null;
+  const change = (action: 'smaller' | 'larger' | 'reset') => nativeBridge()?.postMessage({ type: 'appScale', action });
+  return <SettingRow label="앱 화면 크기"><div className="feedex-text-size-control" role="group" aria-label="앱 화면 크기">
+    <button type="button" aria-label="앱 화면 작게" disabled={scale <= 0.5} onClick={() => change('smaller')}><Minus size={18} /></button>
+    <button type="button" aria-label="앱 화면 기본 크기로" title="기본 크기로" onClick={() => change('reset')}>기본</button>
+    <button type="button" aria-label="앱 화면 크게" disabled={scale >= 1.5} onClick={() => change('larger')}><Plus size={18} /></button>
+  </div></SettingRow>;
+}
+
+export function NativeAppUpdateSetting() {
+  if (!inNativeApp()) return null;
+  return <SettingRow label="맥 앱 업데이트"><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></SettingRow>;
+}
+
 export function TextSizeSetting() {
   return <SettingRow label="글자 크기"><TextSizeControl /></SettingRow>;
 }
@@ -58,15 +76,16 @@ export function AutoRefreshSetting({ autoRefreshMinutes, onChangeAutoRefreshMinu
 export interface DesktopSettingsProps extends ScrollReadSettingsProps, RefreshSettingsProps, LayoutSettingsProps { accountId?: string; onManageArticleBlocks?: () => void }
 export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefreshMinutes, layout, onChangeLayout, accountId, onManageArticleBlocks, ...props }: DesktopSettingsProps) {
   const ref = useRef<HTMLDetailsElement>(null);
-  useOutsideDismiss(ref);
+  // 앱 배율을 연속해서 조절할 수 있도록 맥에서는 크기가 바뀌어도 설정창을 유지한다.
+  useOutsideDismiss(ref, inNativeApp());
   return <details ref={ref} className="feedex-desktop-settings" onKeyDown={(event) => { if (event.key === 'Escape' && ref.current) { ref.current.open = false; ref.current.querySelector('summary')?.focus(); } }}>
     <summary aria-label="환경설정"><Settings2 size={17} /></summary>
     <div className="feedex-desktop-settings-panel">
-      <SettingGroup title="보기"><TextSizeSetting /><LayoutSetting layout={layout} onChangeLayout={onChangeLayout} /></SettingGroup>
+      <SettingGroup title="보기"><NativeAppScaleSetting /><TextSizeSetting /><LayoutSetting layout={layout} onChangeLayout={onChangeLayout} /></SettingGroup>
       <SettingGroup title="읽기"><ScrollReadSetting {...props} /></SettingGroup>
       <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
       {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { if (ref.current) ref.current.open = false; onManageArticleBlocks(); }} /></SettingGroup>}
-      {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} /></SettingGroup>}
+      {accountId && <SettingGroup title="이 기기"><NativeAppUpdateSetting /><CacheSettings accountId={accountId} /></SettingGroup>}
     </div>
   </details>;
 }

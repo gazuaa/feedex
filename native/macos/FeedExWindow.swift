@@ -49,8 +49,11 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
     private var wantsArticle = false
     private var revealTimer: Timer?
     private var userZoom: CGFloat = 1
+    private var appScale = AppScale.restored(UserDefaults.standard.object(forKey: AppScale.preferenceKey) as? Double)
+    private var articleRect: CGRect?
     private var signIn: ASWebAuthenticationSession?
     private let debug: DebugTools?
+    var onCheckForUpdates: (() -> Void)?
     var onPopup: ((WKWebViewConfiguration) -> ReaderWindow?)?
 
     init(home: URL) {
@@ -93,10 +96,32 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
         content.addSubview(spinner)
         window.contentView = content
         app.frame = content.bounds
+        app.pageZoom = CGFloat(appScale)
+        installScaleScript()
         app.load(URLRequest(url: home))
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:)") }
+
+    /// 새로고침과 재실행 때도 같은 배율을 초기 화면부터 적용한다.
+    private func installScaleScript() {
+        let scripts = app.configuration.userContentController
+        scripts.removeAllUserScripts()
+        scripts.addUserScript(WKUserScript(source: "window.feedexAppScale = \(appScale);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+    }
+
+    func changeAppScale(_ action: String) {
+        guard let next = AppScale.changed(appScale, action: action) else { return }
+        appScale = next
+        UserDefaults.standard.set(next, forKey: AppScale.preferenceKey)
+        app.pageZoom = CGFloat(next)
+        installScaleScript()
+        if let rect = articleRect { article.frame = AppScale.frame(rect, scale: next) }
+        if articleReady { fit() }
+        updateArticle()
+        // 배율이 바뀌면 환경설정의 상태와 원문 화면 자리도 갱신한다.
+        app.evaluateJavaScript("window.feedexAppScale = \(next); window.dispatchEvent(new Event('feedex-app-scale')); window.dispatchEvent(new Event('resize'));")
+    }
 
     func reloadApp() { app.reload() }
     func articleBack() { if !article.isHidden { article.goBack() } }
@@ -113,6 +138,9 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
         switch type {
         case "article": place(body)
         case "signIn": startSignIn()
+        case "checkForUpdates": onCheckForUpdates?()
+        case "appScale":
+            if let action = body["action"] as? String { changeAppScale(action) }
         case "openExternal":
             if let text = body["url"] as? String, let url = webAddress(text) { NSWorkspace.shared.open(url) }
         default: break
@@ -138,8 +166,11 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
         var refit = false
         if let rect = body["rect"] as? [String: Any], let x = number(rect["x"]), let y = number(rect["y"]),
            let width = number(rect["width"]), let height = number(rect["height"]) {
-            refit = abs(article.frame.width - width) > 1
-            article.frame = NSRect(x: x, y: y, width: max(0, width), height: max(0, height))
+            let rect = NSRect(x: x, y: y, width: max(0, width), height: max(0, height))
+            let scaled = AppScale.frame(rect, scale: appScale)
+            articleRect = rect
+            refit = abs(article.frame.width - scaled.width) > 1
+            article.frame = scaled
         }
         if let zoom = number(body["zoom"]), zoom >= 0.25, zoom <= 3, zoom != userZoom { userZoom = zoom; refit = true }
         wantsArticle = !((body["hidden"] as? Bool) ?? false)

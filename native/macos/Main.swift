@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import Sparkle
 
 // FeedEx 맥 앱. FeedEx 화면을 창으로 띄우고, 웹 보기의 원문은 로그인이 유지되는 화면으로 겹쳐 보여 준다.
 // feedex-reader://open?url= 링크는 예전처럼 따로 읽기 창에서 연다.
@@ -15,11 +16,13 @@ func feedexHome() -> URL {
 
 @MainActor
 final class FeedExApplication: NSObject, NSApplicationDelegate {
+    private var updater: SPUStandardUpdaterController?
     private var main: FeedExWindow?
     private var reader: ReaderWindow?
     private var popups: [UUID: ReaderWindow] = [:]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
         NSApp.mainMenu = menu()
         showMain()
     }
@@ -52,7 +55,10 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
             top.submenu = sub
             menu.addItem(top)
         }
-        item("FeedEx", [("FeedEx 종료", #selector(NSApplication.terminate(_:)), "q", nil)])
+        item("FeedEx", [
+            ("업데이트 확인…", #selector(SPUStandardUpdaterController.checkForUpdates(_:)), "", updater),
+            ("FeedEx 종료", #selector(NSApplication.terminate(_:)), "q", nil)
+        ])
         item("편집", [
             ("실행 취소", Selector(("undo:")), "z", nil), ("다시 실행", Selector(("redo:")), "Z", nil),
             ("잘라내기", #selector(NSText.cut(_:)), "x", nil), ("복사", #selector(NSText.copy(_:)), "c", nil),
@@ -60,16 +66,22 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
         ])
         item("보기", [
             ("FeedEx 새로고침", #selector(reloadMain), "r", self),
+            ("앱 화면 확대", #selector(enlargeApp), "+", self),
+            ("앱 화면 축소", #selector(shrinkApp), "-", self),
+            ("앱 화면 기본 크기", #selector(resetAppScale), "0", self),
             ("원문 뒤로", #selector(articleBack), "[", self),
             ("원문 앞으로", #selector(articleForward), "]", self)
         ])
         item("창", [
-            ("FeedEx 창 보기", #selector(showMainFromMenu), "0", self),
+            ("FeedEx 창 보기", #selector(showMainFromMenu), "1", self),
             ("창 닫기", #selector(NSWindow.performClose(_:)), "w", nil)
         ])
         return menu
     }
 
+    @objc private func enlargeApp() { main?.changeAppScale("larger") }
+    @objc private func shrinkApp() { main?.changeAppScale("smaller") }
+    @objc private func resetAppScale() { main?.changeAppScale("reset") }
     @objc private func reloadMain() { main?.reloadApp() }
     @objc private func articleBack() { main?.articleBack() }
     @objc private func articleForward() { main?.articleForward() }
@@ -78,6 +90,7 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
     private func showMain() {
         let window = main ?? {
             let created = FeedExWindow(home: feedexHome())
+            created.onCheckForUpdates = { [weak self] in self?.updater?.checkForUpdates(nil) }
             created.onPopup = { [weak self] configuration in self?.popup(configuration) }
             main = created
             return created

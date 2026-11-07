@@ -46,8 +46,11 @@ try {
   assert.equal(await db.prepare('SELECT token FROM sessions WHERE token = ?').bind(old).first(), null, 'issuing a code clears unused expired codes');
 
   // 웹: 맥 앱이 만든 통로가 있을 때만 맥 앱으로 본다. 웹 보기 자리와 덮인 상태를 알린다.
-  const { nativeBridge, inNativeApp, articlePlacement } = await vite.ssrLoadModule('/src/client/nativeApp.ts');
+  const { nativeBridge, inNativeApp, articlePlacement, nativeAppScale } = await vite.ssrLoadModule('/src/client/nativeApp.ts');
   assert.equal(nativeBridge({}), null);
+  assert.equal(nativeAppScale({}), 0.9);
+  for (const value of [NaN, Infinity, 0, 0.49, 1.51]) assert.equal(nativeAppScale({ feedexAppScale: value }), 0.9);
+  assert.equal(nativeAppScale({ feedexAppScale: 0.7 }), 0.7);
   assert.equal(inNativeApp({ webkit: { messageHandlers: { feedex: {} } } }), false, 'a handler without postMessage is not the app');
   const sent = [];
   const host = { webkit: { messageHandlers: { feedex: { postMessage: (message) => sent.push(message) } } } };
@@ -61,6 +64,9 @@ try {
   // 화면: 맥 앱 안에서는 시스템 로그인 창 버튼을 보이고, 웹 보기 자리에 원문 화면 자리만 둔다.
   Object.defineProperty(globalThis, 'webkit', { value: host.webkit, configurable: true });
   Object.defineProperty(globalThis, 'DOMParser', { value: DOMParser, configurable: true });
+  const { NativeAppScaleSetting, NativeAppUpdateSetting } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
+  assert.match(renderToStaticMarkup(React.createElement(NativeAppScaleSetting)), /앱 화면 작게/);
+  assert.match(renderToStaticMarkup(React.createElement(NativeAppUpdateSetting)), /업데이트 확인/);
   const { LoginView } = await vite.ssrLoadModule('/src/components/LoginView.tsx');
   const login = renderToStaticMarkup(React.createElement(LoginView, { onLoginSuccess() {} }));
   assert.match(login, /Google 계정으로 로그인/); assert.match(login, /시스템 로그인 창/);
@@ -96,8 +102,34 @@ try {
       const test = join(directory, 'LaunchTest.swift');
       const executable = join(directory, 'launch-test');
       writeFileSync(test, `import Foundation
+import CryptoKit
 @main struct LaunchTest {
     static func main() {
+        precondition(AppScale.restored(nil) == 0.9)
+        for value in [Double.nan, Double.infinity, 0.49, 1.51] { precondition(AppScale.restored(value) == 0.9) }
+        precondition(AppScale.restored(0.7) == 0.7)
+        precondition(AppScale.changed(0.9, action: "smaller") == 0.8)
+        precondition(AppScale.changed(0.9, action: "larger") == 1.0)
+        precondition(AppScale.changed(0.5, action: "smaller") == 0.5)
+        precondition(AppScale.changed(1.5, action: "larger") == 1.5)
+        precondition(AppScale.changed(1.2, action: "reset") == 0.9)
+        precondition(AppScale.changed(0.9, action: "unknown") == nil)
+        let rect = CGRect(x: 320, y: 100, width: 700, height: 640)
+        precondition(AppScale.frame(rect, scale: 0.9) == CGRect(x: 288, y: 90, width: 630, height: 576))
+        precondition(AppScale.frame(rect, scale: 1.2) == CGRect(x: 384, y: 120, width: 840, height: 768))
+        // 재실행 시 저장한 앱 배율을 복원한다. 실제 사용자 설정은 건드리지 않는다.
+        let suite = "feedex-scale-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.set(0.7, forKey: AppScale.preferenceKey)
+        precondition(AppScale.restored(UserDefaults(suiteName: suite)!.object(forKey: AppScale.preferenceKey) as? Double) == 0.7)
+        defaults.removePersistentDomain(forName: suite)
+        // 배포 파일과 서명을 실제 공개 키로 검증하고, 한 바이트라도 달라지면 거절한다.
+        let key = try! Curve25519.Signing.PublicKey(rawRepresentation: Data(base64Encoded: CommandLine.arguments[1])!)
+        let signature = Data(base64Encoded: CommandLine.arguments[2])!
+        var archive = try! Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[3]))
+        precondition(key.isValidSignature(signature, for: archive))
+        archive[0] ^= 1
+        precondition(!key.isValidSignature(signature, for: archive))
         precondition(isMainAppLink(URL(string: "feedex-reader://launch")!))
         for value in [
             "https://launch", "feedex-reader://open", "feedex-reader://signed-in?code=secret",
@@ -109,8 +141,12 @@ try {
         }
     }
 }`);
-      execFileSync('xcrun', ['swiftc', '-parse-as-library', '-module-cache-path', join(directory, 'modules'), 'native/macos/AppLinks.swift', test, '-o', executable], { stdio: 'pipe' });
-      execFileSync(executable, [], { stdio: 'pipe' });
+      execFileSync('xcrun', ['swiftc', '-parse-as-library', '-module-cache-path', join(directory, 'modules'), 'native/macos/AppLinks.swift', 'native/macos/AppScale.swift', test, '-o', executable], { stdio: 'pipe' });
+      const plist = readFileSync('native/macos/Info.plist', 'utf8');
+      const publicKey = /<key>SUPublicEDKey<\/key><string>([^<]+)<\/string>/.exec(plist)[1];
+      const feed = readFileSync('public/downloads/appcast.xml', 'utf8');
+      const signature = /sparkle:edSignature="([^"]+)"/.exec(feed)[1];
+      execFileSync(executable, [publicKey, signature, 'public/downloads/FeedEx-for-Mac.zip'], { stdio: 'pipe' });
     } finally { rmSync(directory, { recursive: true, force: true }); }
   }
   // 맥 앱 받기: 앱 설치는 위쪽 버튼 하나로 들어가고, 맥 브라우저에서만 안내 창 맨 위에 맥 앱을 둔다.
@@ -119,6 +155,8 @@ try {
   const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
   assert.equal(macAppOffered(mac, 0), false, 'inside the Mac app the download is not offered');
   delete globalThis.webkit;
+  assert.equal(renderToStaticMarkup(React.createElement(NativeAppScaleSetting)), '', 'browser apps keep their own zoom controls');
+  assert.equal(renderToStaticMarkup(React.createElement(NativeAppUpdateSetting)), '', 'Sparkle controls appear only in the native app');
   assert.equal(macAppOffered(mac, 0), true);
   assert.equal(macAppOffered(mac, 5), false, 'iPads that report a Mac browser are left out');
   assert.equal(macAppOffered('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0', 0), false);
@@ -149,6 +187,15 @@ try {
   assert.equal(MAC_APP_DOWNLOAD, `/downloads/FeedEx-for-Mac.zip?v=${MAC_APP_VERSION}`);
   const zip = 'public/downloads/FeedEx-for-Mac.zip';
   assert.ok(statSync(zip).size < 5_000_000, 'the download stays small');
+  const feed = readFileSync('public/downloads/appcast.xml', 'utf8');
+  assert.match(feed, /<!-- sparkle-signatures:/, 'the appcast is signed too');
+  const enclosure = /<enclosure [^>]*url="([^"]+)"[^>]*length="(\d+)"/.exec(feed);
+  assert.equal(enclosure[1], `https://feedex.jyk.workers.dev/downloads/FeedEx-for-Mac-${MAC_APP_VERSION}.zip`);
+  assert.equal(Number(enclosure[2]), statSync(zip).size);
+  assert.deepEqual(readFileSync(`public/downloads/FeedEx-for-Mac-${MAC_APP_VERSION}.zip`), readFileSync(zip));
+  assert.ok(execFileSync('unzip', ['-l', zip], { encoding: 'utf8' }).includes('Frameworks/Sparkle.framework'));
+  assert.ok(execFileSync('unzip', ['-l', zip], { encoding: 'utf8' }).includes('Resources/Sparkle-LICENSE.txt'));
+  assert.doesNotMatch(readFileSync('src/App.tsx', 'utf8'), /Cloudflare Workers · D1 SQLite · Workers AI/);
   const version = (plist) => /<key>CFBundleShortVersionString<\/key><string>([^<]+)<\/string>/.exec(plist)?.[1];
   assert.equal(version(readFileSync('native/macos/Info.plist', 'utf8')), MAC_APP_VERSION, 'the link and the app source share one version');
   assert.equal(version(execFileSync('unzip', ['-p', zip, 'FeedEx.app/Contents/Info.plist'], { encoding: 'utf8' })), MAC_APP_VERSION, 'the zip holds that version');

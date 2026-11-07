@@ -1543,7 +1543,6 @@ export const App: React.FC = () => {
                 <strong className="text-slate-400">ESC</strong> 리더 뷰 닫기
               </span>
             </div>
-            <div>Cloudflare Workers · D1 SQLite · Workers AI</div>
           </footer>
         }
       >
