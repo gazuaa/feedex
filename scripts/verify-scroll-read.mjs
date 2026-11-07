@@ -90,7 +90,14 @@ try {
   assert.match(afterAwaySource, /forgetListAnchor\(\);\s*list\?\.scrollTo\(\{ top: 0 \}\);/, 'coming back starts at the top and the anchor cannot pull it back');
   assert.match(afterAwaySource, /selectedArticleId/, 'an open article keeps its list position');
   assert.match(afterAwaySource, /articles\.some\(\(article\) => article\.is_read\)\) return;\s*forgetListAnchor\(\);/, 'a list with no read rows stays where it was');
-  assert.match(readFileSync('src/client/listAnchor.ts', 'utf8'), /return useCallback\(\(\) => \{ anchor\.current = null; \}/, 'the list anchor can be forgotten');
+  const anchorSource = readFileSync('src/client/listAnchor.ts', 'utf8');
+  assert.match(anchorSource, /return useCallback\(\(\) => \{ anchor\.current = null; \}/, 'the list anchor can be forgotten');
+  // 목록이 바뀐 첫 그리기에 남은 앞 목록의 행을 새 목록의 위치로 기억하면, 같은 글이 있는 새 목록이 그 글 자리로 열린다.
+  assert.match(anchorSource, /const switched = shown\.current !== scope; shown\.current = scope;\s*if \(switched\) anchor\.current = null;/, 'switching lists drops the old anchor');
+  assert.match(anchorSource, /if \(!switched\) remember\(\);/, 'the first paint of a new list does not remember the old rows');
+  // 목록을 고르면 같은 목록이라도 맨 위부터 보여 준다.
+  const selectSource = appSource.slice(appSource.indexOf('const handleSelectScope = ('), appSource.indexOf('const handleSelectLibraryTab'));
+  assert.match(selectSource, /pendingScroll\.current = null;\s*forgetListAnchor\(\);\s*articleListRef\.current\?\.scrollTo\(\{ top: 0 \}\);/, 'choosing a list starts at the top');
   const { TextSizeControl, ScrollReadSetting } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
   const controls = renderToStaticMarkup(React.createElement(TextSizeControl));
   assert.ok(!controls.includes('%') && !controls.includes('type="range"'));

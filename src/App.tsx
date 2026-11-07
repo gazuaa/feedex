@@ -670,6 +670,10 @@ export const App: React.FC = () => {
     folderId: string | null = null,
     feedId: string | null = null
   ) => {
+    // 목록을 고르면 같은 목록이라도 맨 위부터 보여 준다. 그사이 읽은 글이 빠져 예전 위치는 다른 글을 가리킨다.
+    pendingScroll.current = null;
+    forgetListAnchor();
+    articleListRef.current?.scrollTo({ top: 0 });
     setActiveScope(scope);
     setActiveFolderId(folderId);
     setActiveFeedId(feedId);
