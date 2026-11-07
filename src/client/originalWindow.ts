@@ -1,24 +1,10 @@
-// 로그인 쿠키는 원문 사이트의 창에서만 사용한다. FeedEx 서버로 복사하지 않는다.
-const windows = new Map<string, Window>();
+// 웹 보기 안에서는 브라우저가 원문 사이트에 로그인 정보(쿠키)를 보내지 않는다. 그래서 원문은 FeedEx 창에서
+// 바로 열어, 사이트를 직접 연 것처럼 로그인하고 읽게 한다. 로그인 정보는 브라우저와 원문 사이트 사이에만 있고
+// FeedEx 서버로 오지 않는다.
 export function originalArticleUrl(value: string): URL | null {
   try { const url = new URL(value); return /^https?:$/.test(url.protocol) && !url.username && !url.password ? url : null; } catch { return null; }
 }
-/** 같은 사이트의 로그인·기사 창을 재사용하되, 원문에는 FeedEx를 조작할 opener를 주지 않는다. */
-export function openOriginalArticle(value: string, browser: Pick<Window, 'open'> = window): boolean {
-  const url = originalArticleUrl(value); if (!url) return false;
-  const existing = windows.get(url.origin);
-  if (existing) try { if (!existing.closed) { existing.location.href = url.href; existing.focus(); return true; } } catch { windows.delete(url.origin); }
-  const popup = browser.open('about:blank', '_blank', 'popup=yes,width=1120,height=850,resizable=yes,scrollbars=yes');
-  if (!popup) return false;
-  try { popup.opener = null; popup.location.replace(url.href); popup.focus(); windows.set(url.origin, popup); return true; }
-  catch { try { popup.close(); } catch { /* 열리지 않은 창은 링크의 기본 동작으로 다시 연다. */ } return false; }
-}
-/** 돌아왔다는 사실만 알린다. 외부 사이트의 로그인 성공 여부를 추측하지 않는다. */
-export function watchOriginalReturn(browser: Pick<Window, 'addEventListener' | 'removeEventListener'>, doc: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'>, returned: () => void): () => void {
-  let stopped = false;
-  const stop = () => { stopped = true; browser.removeEventListener('focus', focus); doc.removeEventListener('visibilitychange', visible); };
-  const finish = () => { if (!stopped && doc.visibilityState === 'visible') { stop(); returned(); } };
-  const focus = () => finish(), visible = () => { if (doc.visibilityState === 'visible') finish(); };
-  browser.addEventListener('focus', focus); doc.addEventListener('visibilitychange', visible);
-  return stop;
+/** 이 창에서 원문으로 넘어가는 클릭인지. 새 탭이나 새 창으로 여는 클릭이면 FeedEx는 그대로 남는다. */
+export function leavesForOriginal(event: Pick<MouseEvent, 'button' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'defaultPrevented'>): boolean {
+  return !event.defaultPrevented && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }

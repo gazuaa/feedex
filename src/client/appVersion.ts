@@ -128,10 +128,13 @@ export interface ResumePoint {
   articleId: string | null;
   listScroll: number;
   readerScroll: number;
+  /** 원문을 읽으러 이 창에서 떠난 자리. 원문을 읽고 돌아오는 동안 더 오래 기다린다. */
+  original?: boolean;
 }
 const RESUME_KEY = 'sfeed:resume';
 // 새로 고침 뒤 앱이 다시 뜨기까지 걸리는 시간보다 넉넉하게. 오래된 자리는 쓰지 않는다.
 const RESUME_AGE = 2 * 60_000;
+const ORIGINAL_RESUME_AGE = 60 * 60_000;
 // 탭 안에만 남는 저장소에 글과 목록 식별자, 스크롤 위치만 둔다. 본문이나 토큰은 넣지 않는다.
 export function keepResumePoint(point: ResumePoint, storage = session()) {
   try { storage?.setItem(RESUME_KEY, JSON.stringify(point)); } catch {}
@@ -140,10 +143,10 @@ export function keepResumePoint(point: ResumePoint, storage = session()) {
 export function takeResumePoint(account: string, now = Date.now(), storage = session()): ResumePoint | null {
   let point: Partial<ResumePoint> | null;
   try { point = JSON.parse(storage?.getItem(RESUME_KEY) || 'null'); storage?.removeItem(RESUME_KEY); } catch { return null; }
-  if (!point || typeof point !== 'object' || point.account !== account || typeof point.at !== 'number' || now - point.at < 0 || now - point.at > RESUME_AGE) return null;
+  if (!point || typeof point !== 'object' || point.account !== account || typeof point.at !== 'number' || now - point.at < 0 || now - point.at > (point.original === true ? ORIGINAL_RESUME_AGE : RESUME_AGE)) return null;
   const id = (value: unknown) => value === null || value === undefined ? null : typeof value === 'string' && value.length <= 200 ? value : undefined;
   const scroll = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
   const folderId = id(point.folderId), feedId = id(point.feedId), articleId = id(point.articleId);
   if (!['all', 'today', 'saved', 'folder', 'feed'].includes(point.scope as string) || typeof point.search !== 'string' || folderId === undefined || feedId === undefined || articleId === undefined) return null;
-  return { account, at: point.at, scope: point.scope as ScopeType, folderId, feedId, search: point.search.slice(0, 500), saved: point.saved === true, articleId, listScroll: scroll(point.listScroll), readerScroll: scroll(point.readerScroll) };
+  return { account, at: point.at, scope: point.scope as ScopeType, folderId, feedId, search: point.search.slice(0, 500), saved: point.saved === true, articleId, listScroll: scroll(point.listScroll), readerScroll: scroll(point.readerScroll), ...(point.original === true ? { original: true } : {}) };
 }

@@ -183,6 +183,8 @@ interface ArticleDrawerProps {
   onCopyLink: (article: ArticleItem) => void;
   // 화면 아래에 잠깐 띄우는 안내.
   onNotice: (message: string) => void;
+  // 이 창에서 원문으로 넘어가기 직전. 돌아왔을 때 보던 자리를 되살리도록 남긴다.
+  onLeaveForOriginal?: () => void;
   hasPrev: boolean;
   hasNext: boolean;
   isDark: boolean;
@@ -215,6 +217,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   onNavigateRelative,
   onCopyLink,
   onNotice,
+  onLeaveForOriginal,
   hasPrev,
   hasNext,
   isDark,
@@ -302,11 +305,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   }, [webFrameShown, article?.id, loadedFrame, frameReloads]);
   const frameLoading = webFrameShown && loadedFrame !== article?.id && slowFrame !== article?.id;
   const webStatus = webCopyShown
-    ? (() => { const [notice, short] = webCopyNotice(xWaiting, xFailed, copyFor); return { notice, short, openUrl: xWaiting ? article?.url : frame?.url, openLong: '새 창에서 열기', openX: xWaiting || Boolean(webCopy?.thread) }; })()
+    ? (() => { const [notice, short] = webCopyNotice(xWaiting, xFailed, copyFor); return { notice, short, xUrl: xWaiting ? article?.url : webCopy?.thread ? frame?.url : undefined }; })()
     : webFrameShown
-      ? { notice: frame.url, short: siteHost(frame.url), openUrl: frame.url, openLong: '사이트가 보이지 않으면 새 창에서 열기', openX: false }
+      ? { notice: frame.url, short: siteHost(frame.url), xUrl: undefined }
       : webPreviewShown
-        ? { notice: '웹 페이지를 다 불러오면 보여 드려요.', short: '불러오는 중', openUrl: article?.url, openLong: '원문 열기', openX: false }
+        ? { notice: '웹 페이지를 다 불러오면 보여 드려요.', short: '불러오는 중', xUrl: undefined }
         : null;
   const hasArticle = Boolean(article);
   // 접힌 상단 막대는 자기 높이만큼 올라간다. 높이는 안전 영역과 글자 크기에 따라 다르다.
@@ -841,19 +844,15 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               busy={webPreviewShown || frameLoading}
               notice={webStatus?.notice ?? ''}
               shortNotice={webStatus?.short ?? ''}
-              onReload={() => {
-                setWebCopy(null); setLoadedFrame(null); setSlowFrame(null);
-                setFrame({ articleId: article.id, embeddable: true, url: article.url });
-                setFrameReloads(count => count + 1);
-              }}
+              onLeave={onLeaveForOriginal}
             >
               {webCopyShown && !xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="원래 모양" long="원래 모양 다시 받기" /></button>}
               {webCopyShown && xWaiting && xFailed && <button type="button" onClick={showWebCopy} className="hover:underline">다시 시도</button>}
               {webFrameShown && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="사본으로" long="웹 사본으로 보기" /></button>}
-              {webStatus?.openUrl && (
-                <a href={webStatus.openUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
-                  {webStatus.openX ? 'X에서 열기' : <WebLabel short="새 창" long={webStatus.openLong} />}
-                  <ExternalLink className="w-3 h-3" aria-hidden="true" />
+              {/* X 글은 공개 미러로 보여 주므로, 로그인한 상태로 보려면 X에서 연다. 다른 글의 원문은 막대가 이 창에서 연다. */}
+              {webStatus?.xUrl && (
+                <a href={webStatus.xUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
+                  X에서 열기<ExternalLink className="w-3 h-3" aria-hidden="true" />
                 </a>
               )}
             </WebStatusBar>

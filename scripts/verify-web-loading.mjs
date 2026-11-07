@@ -81,16 +81,16 @@ try {
   assert.equal(initialDocument.querySelectorAll('.feedex-web-status').length,1,'the web view has one status bar');
   assert.equal(initialDocument.querySelectorAll('[role="status"]').length,1);
   assert.match(initialDocument.querySelector('.feedex-web-status').textContent,/불러오는 중/);
-  assert.match(initialDocument.querySelector('.feedex-web-status').textContent,/원문 열기/);
-  const statusBar=(props)=>renderToStaticMarkup(React.createElement(WebStatusBar,{url:'https://example.test/a',isDark:false,hidden:false,canLogin:true,notice:'긴 안내 문구',shortNotice:'짧은 안내',onReload(){},...props},React.createElement('a',{href:'https://example.test/a'},React.createElement(WebLabel,{short:'새 창',long:'새 창에서 열기'}))));
+  assert.match(initialDocument.querySelector('.feedex-web-status').textContent,/원문에서 읽기·로그인/);
+  const statusBar=(props)=>renderToStaticMarkup(React.createElement(WebStatusBar,{url:'https://example.test/a',isDark:false,hidden:false,canLogin:true,notice:'긴 안내 문구',shortNotice:'짧은 안내',...props},React.createElement('a',{href:'https://example.test/a'},React.createElement(WebLabel,{short:'새 창',long:'새 창에서 열기'}))));
   const shownBar=statusBar();
-  for(const [short,long] of [['짧은 안내','긴 안내 문구'],['새 창','새 창에서 열기'],['로그인','로그인해서 읽기']]){
+  for(const [short,long] of [['짧은 안내','긴 안내 문구'],['새 창','새 창에서 열기'],['원문','원문에서 읽기·로그인']]){
     assert.ok(shownBar.includes(`class="@3xl:hidden">${short}<`),`${short} is the narrow label`);
     assert.ok(shownBar.includes(`class="hidden @3xl:inline">${long}<`),`${long} is the wide label`);
   }
   assert.match(shownBar,/role="status" class="min-w-0 flex-1 truncate" title="긴 안내 문구"/,'a cut-off notice keeps its full text');
   assert.match(shownBar,/whitespace-nowrap/,'actions never wrap into a second row');
-  assert.doesNotMatch(statusBar({canLogin:false}),/로그인해서 읽기/,'X posts have no sign-in action');
+  assert.doesNotMatch(statusBar({canLogin:false}),/원문에서 읽기/,'X posts have no sign-in action');
   assert.match(statusBar({hidden:true}),/class="feedex-web-status [^"]*\bhidden\b/,'the bar folds away with the other bars');
   assert.match(statusBar({busy:true}),/animate-spin/,'loading shows a spinner in the same row');
   assert.match(initial,/aria-label="기사 새로고침"/,'the article toolbar offers a refresh');

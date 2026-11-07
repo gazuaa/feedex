@@ -214,6 +214,11 @@ export const App: React.FC = () => {
   // 바꾸기 직전에 지금 보던 목록과 글, 스크롤 위치를 남긴다.
   const resumeSource = useRef({ account: '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId });
   resumeSource.current = { account: user?.id ?? '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId };
+  // 지금 보던 목록과 글, 스크롤 위치를 이 탭에 남긴다. 새 배포로 바꿀 때와 원문을 읽으러 이 창을 떠날 때 쓴다.
+  const saveResumePoint = useCallback((original = false) => {
+    const source = resumeSource.current; if (!source.account) return;
+    keepResumePoint({ ...source, at: Date.now(), listScroll: articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.feedex-reader-content')?.scrollTop ?? 0, ...(original ? { original: true } : {}) });
+  }, []);
   useEffect(() => watchAppVersion({
     canSwap: () => {
       const focused = document.activeElement;
@@ -221,11 +226,15 @@ export const App: React.FC = () => {
         || (focused instanceof HTMLInputElement && /^(?:text|search|url|email|password|number|tel)$/.test(focused.type));
       return !typing && !document.querySelector('dialog[open], [aria-modal="true"]') && !stateWrites.current.size && !markingAllReadRef.current;
     },
-    beforeSwap: () => {
-      const source = resumeSource.current; if (!source.account) return;
-      keepResumePoint({ ...source, at: Date.now(), listScroll: articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.feedex-reader-content')?.scrollTop ?? 0 });
-    },
-  }), []);
+    beforeSwap: () => saveResumePoint(),
+  }), [saveResumePoint]);
+  // 원문에서 뒤로 왔을 때 브라우저가 떠나기 전 화면을 그대로 되살렸으면 남겨 둔 자리는 쓰지 않는다.
+  // 남겨 두면 나중에 새로 고칠 때 엉뚱하게 그 자리로 돌아간다.
+  useEffect(() => {
+    const shown = (event: PageTransitionEvent) => { if (event.persisted && user?.id) takeResumePoint(user.id); };
+    window.addEventListener('pageshow', shown);
+    return () => window.removeEventListener('pageshow', shown);
+  }, [user?.id]);
 
   useEffect(() => {
     if (pendingScroll.current === null) articleListRef.current?.scrollTo({ top: 0 });
@@ -268,7 +277,7 @@ export const App: React.FC = () => {
     if (!user) return;
     applyUser(user);
   }, [user?.id, isMobile]);
-  // 새 버전으로 바꾸느라 새로 고쳤으면 읽던 목록과 글을 되살린다. 휴대폰은 브라우저 기록(MobileNavigation)이
+  // 새 버전으로 바꾸느라 새로 고쳤거나 원문을 읽고 돌아왔으면 읽던 목록과 글을 되살린다. 휴대폰은 브라우저 기록(MobileNavigation)이
   // 목록과 글을 되살리므로 글 안 위치만 맞춘다.
   const [resumePlace, setResumePlace] = useState<{ articleId: string | null; list: number; reader: number } | null>(null);
   const resumeChecked = useRef(false);
@@ -1484,6 +1493,7 @@ export const App: React.FC = () => {
             onNavigateRelative={handleNavigateRelative}
             onCopyLink={handleCopyLink}
             onNotice={setNotice}
+            onLeaveForOriginal={() => saveResumePoint(true)}
             hasPrev={Boolean(articleNeighbors.prev)}
             hasNext={Boolean(articleNeighbors.next)}
             isDark={isDark}
