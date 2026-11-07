@@ -442,7 +442,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   }
 
   // 3. 매거진 보기 (Feedly 기본 클래식 배치)
-  // 글마다 상자를 두지 않고 구분선으로 나눈다. 제목을 먼저 읽게 하고, 출처·시간은 아래, 썸네일은 오른쪽에 둔다.
+  // 글마다 상자를 두지 않고 구분선으로 나눈다. 썸네일은 왼쪽, 제목을 먼저 읽게 하고 출처·시간은 아래에 둔다.
   return (
     <div ref={listRef} className="feedex-list-items feedex-magazine-list max-w-5xl mx-auto" data-retain-read={retainReadRows || undefined}>
       {articles.map((article) => {
@@ -454,7 +454,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
             data-article-read={article.is_read}
             {...rowProps(article)}
             onClick={() => onSelectArticle(article)}
-            className={`feedex-magazine-row group flex flex-row-reverse items-start gap-3 px-4 py-3 border-b transition duration-150 cursor-pointer ${
+            className={`feedex-magazine-row group flex flex-row items-start gap-3 px-4 py-3 border-b transition duration-150 cursor-pointer ${
               isDark ? 'border-slate-800 hover:bg-white/[0.03]' : 'border-slate-200 hover:bg-slate-50'
             }`}
           >

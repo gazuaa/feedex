@@ -82,10 +82,10 @@ try {
     const html = renderToStaticMarkup(React.createElement(ArticleList, { articles: [article], layout, hasSubscriptions: true }));
     assert.match(html, /feedex-feed-logo/); assert.match(html, /https:\/\/example.test\/logo.svg/);
   }
-  // 매거진 목록은 상자 없이 구분선으로 나눈 줄이다. 제목이 먼저, 출처·시간이 아래, 썸네일은 오른쪽이다.
+  // 매거진 목록은 상자 없이 구분선으로 나눈 줄이다. 썸네일은 왼쪽, 제목이 먼저, 출처·시간이 아래다.
   const magazine = renderToStaticMarkup(React.createElement(ArticleList, { articles: [article], layout: 'magazine', hasSubscriptions: true }));
   const row = /<article[^>]*class="feedex-magazine-row[^"]*"/.exec(magazine)?.[0] || '';
-  assert.match(row, /border-b/); assert.match(row, /flex-row-reverse/); assert.doesNotMatch(row, /rounded-xl/, 'magazine rows are not boxes');
+  assert.match(row, /border-b/); assert.doesNotMatch(row, /flex-row-reverse/, 'the thumbnail sits on the left'); assert.doesNotMatch(row, /rounded-xl/, 'magazine rows are not boxes');
   assert.doesNotMatch(row, /bg-white|bg-slate-900\/55/, 'rows take the pane background instead of floating white strips');
   assert.match(css, /\.feedex-list-items\.feedex-magazine-list \{ padding: 0; \}/, 'the magazine list has no gutter around it');
   assert.match(css, /\.feedex-feed-list:has\(\.feedex-magazine-list\) \{ background: var\(--feedex-panel\); \}/, 'the pane behind the magazine list is one sheet');
