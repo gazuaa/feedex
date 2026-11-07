@@ -75,12 +75,10 @@ html.dark .feedex-block-bar button, html.dark .feedex-block-empty button, html.d
 .feedex-setting-group + .feedex-setting-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--feedex-border); }
 .feedex-setting-group-title { margin: 0 0 8px; color: var(--feedex-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
 .feedex-setting-items { display: grid; gap: 12px; }
-.feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting, .feedex-mac-app-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; margin: 0; padding: 0; border: 0; font-size: 13px; color: var(--feedex-text); }
+.feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; margin: 0; padding: 0; border: 0; font-size: 13px; color: var(--feedex-text); }
 .feedex-scroll-read-setting { cursor: pointer; }
-.feedex-setting-row > span, .feedex-scroll-read-setting > span, .feedex-auto-refresh-setting > span, .feedex-mac-app-setting > span { min-width: 0; }
-.feedex-scroll-read-setting small, .feedex-auto-refresh-setting small, .feedex-mac-app-setting small { display: block; margin-top: 2px; font-size: 11px; line-height: 1.45; color: var(--feedex-muted); }
-.feedex-mac-app-setting a { flex-shrink: 0; padding: 6px 12px; border-radius: 8px; background: #10b981; color: #052e1a; font-size: 12px; font-weight: 600; text-decoration: none; }
-.feedex-mac-app-setting a:hover { background: #34d399; }
+.feedex-setting-row > span, .feedex-scroll-read-setting > span, .feedex-auto-refresh-setting > span { min-width: 0; }
+.feedex-scroll-read-setting small, .feedex-auto-refresh-setting small { display: block; margin-top: 2px; font-size: 11px; line-height: 1.45; color: var(--feedex-muted); }
 .feedex-segmented, .feedex-setting-row > .feedex-text-size-control { display: inline-flex; flex-shrink: 0; gap: 2px; padding: 2px; border: 0; border-radius: 10px; background: var(--feedex-background); }
 .feedex-segmented button, .feedex-setting-row > .feedex-text-size-control > button { display: flex; align-items: center; justify-content: center; min-width: 36px; min-height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; color: var(--feedex-muted); cursor: pointer; }
 .feedex-setting-row > .feedex-text-size-control > button { color: var(--feedex-text); }
@@ -175,10 +173,9 @@ html:not(.dark) :is(.feedex-segmented, .feedex-setting-row > .feedex-text-size-c
 .feedex-reader { padding-bottom: env(safe-area-inset-bottom); }
 .feedex-reader-toolbar { padding-top: calc(.75rem + env(safe-area-inset-top)); }
 aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
-.feedex-install-banner { position: fixed; z-index: 40; right: max(1rem, env(safe-area-inset-right)); bottom: calc(1rem + env(safe-area-inset-bottom)); display: flex; gap: 12px; align-items: center; width: min(450px, calc(100vw - 2rem)); padding: 16px; border: 1px solid var(--feedex-border); border-radius: 20px; background: var(--feedex-panel); color: var(--feedex-text); box-shadow: 0 12px 45px #0002; }
-.feedex-install-banner img { border-radius: 12px; flex-shrink: 0; }
+.feedex-install-mac { padding: 14px 16px; border: 1px solid var(--feedex-border); border-radius: 16px; background: var(--feedex-background); }
 .feedex-install-dialog { margin: auto; width: min(460px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; padding: 28px; border: 1px solid var(--feedex-border); border-radius: 24px; background: var(--feedex-panel); color: var(--feedex-text); box-shadow: 0 24px 80px #0007; }
-.feedex-install-banner p, .feedex-install-dialog p { color: var(--feedex-muted); }
+.feedex-install-dialog p { color: var(--feedex-muted); }
 .feedex-install-dialog::backdrop { background: #020617b3; backdrop-filter: blur(4px); }
 .feedex-install-dialog img { border-radius: 12px; }
 .feedex-install-dialog button { min-height: 44px; }
@@ -188,11 +185,6 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
 .feedex-install-address input { min-width: 0; width: 0; flex: 1; min-height: 44px; font-size: 16px; padding: 8px; border: 1px solid var(--feedex-border); border-radius: 10px; background: var(--feedex-background); }
 .feedex-install-address button { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 8px; color: #10b981; font-size: 12px; }
 .feedex-install-address > p { margin-top: 8px; font-size: 12px; line-height: 1.6; }
-@media (max-width: 640px) {
-  .feedex-install-banner { padding: 12px; gap: 8px; }
-  .feedex-install-banner img { width: 32px; height: 32px; }
-}
-
 @media (max-width: 1023px) {
   :root { --feedex-mobile-header-height: calc(105px + env(safe-area-inset-top)); }
   .feedex-workspace-main { position: relative; }
@@ -271,7 +263,6 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-section-actions { display: flex; align-items: center; }
   .feedex-mobile-section-title .feedex-mobile-edit { padding: 0 10px; font-size: 14px; font-weight: 600; }
   /* 떠 있는 띠는 목록을 가리므로, 보관함은 대신 카드를 보여 준다. */
-  .feedex-install-banner { display: none; }
   .feedex-install-card { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 12px; border: 1px solid var(--feedex-mobile-line); border-radius: 20px; background: var(--feedex-mobile-surface); }
   .feedex-install-card img { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; }
   .feedex-mobile-new-folder { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 12px; }
@@ -339,9 +330,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-pager::-webkit-scrollbar { display: none; }
   .feedex-web-pager > * { flex: 0 0 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
   .feedex-web-pager-back { pointer-events: none; }
-  .feedex-install-banner { bottom: calc(98px + env(safe-area-inset-bottom)); }
-  .feedex-install-banner button, .feedex-mobile-settings-panel > button { min-height: 44px; }
-  .feedex-install-banner button[aria-label] { min-width: 44px; flex-shrink: 0; }
+  .feedex-mobile-settings-panel > button { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -7,8 +7,6 @@ import { ArticleBlockSetting } from './ArticleBlockDialog';
 import { FONT_SCALES, useTextSize } from '../client/textSize';
 import { AUTO_REFRESH_OPTIONS } from '../shared/preferences';
 import { useOutsideDismiss } from '../client/outsideDismiss';
-import { inNativeApp } from '../client/nativeApp';
-import { MAC_APP_DOWNLOAD, onMacBrowser } from '../shared/macApp';
 
 export interface ScrollReadSettingsProps {
   markReadOnScroll: boolean;
@@ -57,16 +55,6 @@ export function SortSetting({ sort, onChangeSort }: SortSettingProps) {
 export function AutoRefreshSetting({ autoRefreshMinutes, onChangeAutoRefreshMinutes }: RefreshSettingsProps) {
   return <div><label className="feedex-auto-refresh-setting"><span>자동 새로고침<small>바뀐 내용만 가볍게 확인해요</small></span><select aria-label="자동 새로고침 주기" value={autoRefreshMinutes} onChange={(event) => onChangeAutoRefreshMinutes(Number(event.target.value))}>{AUTO_REFRESH_OPTIONS.map((minutes) => <option key={minutes} value={minutes}>{minutes ? `${minutes}분마다` : '수동'}</option>)}</select></label></div>;
 }
-/** 맥에서 연 FeedEx에서만 맥 앱을 받게 한다. 맥 앱 안에서는 이미 쓰고 있으므로 숨긴다. */
-export function macAppOffered(userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent, touchPoints = typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints || 0): boolean {
-  return onMacBrowser(userAgent, touchPoints) && !inNativeApp();
-}
-export function MacAppSetting() {
-  return <div className="feedex-mac-app-setting">
-    <span>FeedEx for Mac<small>웹 보기에서 언론사 로그인이 유지돼요. 처음 열 때 경고가 뜨면 시스템 설정 → 개인정보 보호 및 보안에서 '그래도 열기'를 누르세요.</small></span>
-    <a href={MAC_APP_DOWNLOAD} download="FeedEx-for-Mac.zip">받기</a>
-  </div>;
-}
 export interface DesktopSettingsProps extends ScrollReadSettingsProps, RefreshSettingsProps, LayoutSettingsProps { accountId?: string; onManageArticleBlocks?: () => void }
 export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefreshMinutes, layout, onChangeLayout, accountId, onManageArticleBlocks, ...props }: DesktopSettingsProps) {
   const ref = useRef<HTMLDetailsElement>(null);
@@ -79,7 +67,6 @@ export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefresh
       <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
       {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { if (ref.current) ref.current.open = false; onManageArticleBlocks(); }} /></SettingGroup>}
       {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} /></SettingGroup>}
-      {macAppOffered() && <SettingGroup title="앱"><MacAppSetting /></SettingGroup>}
     </div>
   </details>;
 }

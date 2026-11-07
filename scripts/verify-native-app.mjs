@@ -88,8 +88,8 @@ try {
   assert.match(swift, /code\.range\(of: "\^sfeed_code_\[0-9a-f\]\{64\}\$", options: \.regularExpression\)/);
   assert.doesNotMatch(readFileSync('native/macos/Main.swift', 'utf8'), /signed-in/, 'links opened from elsewhere cannot sign the app in');
   assert.match(swift, /FEEDEX_DEBUG_DIR/); assert.match(readFileSync('native/macos/Info.plist', 'utf8'), /FeedEx for Mac/);
-  // 맥 앱 받기: 맥 브라우저에만 보이고, 받는 파일은 지금 앱 소스로 만든 것이어야 한다.
-  const { macAppOffered, MacAppSetting } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
+  // 맥 앱 받기: 앱 설치는 위쪽 버튼 하나로 들어가고, 맥 브라우저에서만 안내 창 맨 위에 맥 앱을 둔다.
+  const { macAppOffered, installEntry, PwaInstall } = await vite.ssrLoadModule('/src/components/PwaInstall.tsx');
   const { MAC_APP_VERSION, MAC_APP_DOWNLOAD } = await vite.ssrLoadModule('/src/shared/macApp.ts');
   const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
   assert.equal(macAppOffered(mac, 0), false, 'inside the Mac app the download is not offered');
@@ -97,8 +97,19 @@ try {
   assert.equal(macAppOffered(mac, 0), true);
   assert.equal(macAppOffered(mac, 5), false, 'iPads that report a Mac browser are left out');
   assert.equal(macAppOffered('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0', 0), false);
-  const setting = renderToStaticMarkup(React.createElement(MacAppSetting));
-  assert.match(setting, new RegExp(`href="/downloads/FeedEx-for-Mac\\.zip\\?v=${MAC_APP_VERSION.replace('.', '\\.')}"`)); assert.match(setting, /download="FeedEx-for-Mac\.zip"/);
+  assert.equal(installEntry('manual', 'desktop', true, false), '앱 설치');
+  assert.equal(installEntry('installed', 'desktop', true, false), '맥 앱 받기', 'a Mac with the browser app installed can still get the Mac app');
+  assert.equal(installEntry('installed', 'desktop', false, false), null, 'nothing is offered once installed elsewhere');
+  assert.equal(installEntry('manual', 'ios', false, true), '홈 화면 추가 안내');
+  const agent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
+  Object.defineProperty(navigator, 'userAgent', { configurable: true, value: mac });
+  let help;
+  try { help = renderToStaticMarkup(React.createElement(PwaInstall)); } finally { if (agent) Object.defineProperty(navigator, 'userAgent', agent); else delete navigator.userAgent; }
+  assert.match(help, new RegExp(`href="/downloads/FeedEx-for-Mac\\.zip\\?v=${MAC_APP_VERSION.replace('.', '\\.')}"`)); assert.match(help, /download="FeedEx-for-Mac\.zip"/);
+  assert.match(help, /브라우저 앱으로 설치/, 'the browser install steps follow the Mac app');
+  assert.doesNotMatch(help, /feedex-install-banner/, 'no floating install banner on the desktop');
+  const { DesktopReadingSettings } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(DesktopReadingSettings, { markReadOnScroll: false, onChangeMarkReadOnScroll() {}, autoRefreshMinutes: 15, onChangeAutoRefreshMinutes() {}, layout: 'magazine', onChangeLayout() {} })), /FeedEx for Mac/, 'the settings panel no longer repeats the download');
   assert.equal(MAC_APP_DOWNLOAD, `/downloads/FeedEx-for-Mac.zip?v=${MAC_APP_VERSION}`);
   const zip = 'public/downloads/FeedEx-for-Mac.zip';
   assert.ok(statSync(zip).size < 5_000_000, 'the download stays small');
@@ -109,7 +120,7 @@ try {
   const listing = sources.map((path) => `${createHash('sha256').update(readFileSync(path)).digest('hex')}  ${path}\n`).join('');
   assert.equal(createHash('sha256').update(listing).digest('hex'), readFileSync('public/downloads/FeedEx-for-Mac.source', 'utf8').trim(), 'the Mac app source changed: run scripts/build-macos-reader.sh to rebuild the download');
   assert.doesNotMatch(readFileSync('public/sw.js', 'utf8'), /downloads/, 'the service worker never stores the download on every device');
-  console.log('PASS: Mac app download offered only to Mac browsers outside the app, versioned link, zip version and source fingerprint match, not cached by the service worker; one-minute single-use Mac sign-in codes that never act as sessions, bridge placement and covers, system sign-in button and hand-off screen, original-view slot without frames, X copies kept, no install prompt, and message/sign-in origin checks in the Mac app.');
+  console.log('PASS: one install button, Mac app first in its dialog only on Mac browsers outside the app, no floating banner or settings duplicate, versioned link, zip version and source fingerprint match, not cached by the service worker; one-minute single-use Mac sign-in codes that never act as sessions, bridge placement and covers, system sign-in button and hand-off screen, original-view slot without frames, X copies kept, no install prompt, and message/sign-in origin checks in the Mac app.');
 } finally {
   for (const [key, descriptor] of Object.entries(previous)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
   await vite.close();
