@@ -1,4 +1,5 @@
 import { ArticleBlockTag } from './ArticleBlockTag';
+import { useArticleSelection } from '../client/articleSelection';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bookmark,
@@ -79,13 +80,27 @@ export const ArticleList: React.FC<ArticleListProps> = ({
 }) => {
   const listRef = useRef<HTMLDivElement>(null), latestArticles = useRef(articles);
   latestArticles.current = articles;
+  const tabStop = articles.some((article) => article.id === selectedArticleId) ? selectedArticleId : articles[0]?.id;
+  const rowProps = (article: ArticleItem) => ({
+    'data-article-selected': selectedArticleId === article.id,
+    'aria-current': selectedArticleId === article.id ? 'true' as const : undefined,
+    'aria-label': article.title,
+    role: 'button' as const,
+    tabIndex: tabStop === article.id ? 0 : -1,
+    onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault(); onSelectArticle(article);
+      }
+    },
+  });
   const preparationIds = articles.map((article) => article.id).join(':');
+  useArticleSelection(listRef, selectedArticleId, `${layout}:${timeline}:${loading}:${preparationIds}`);
   // 여러 피드가 섞인 목록에서도 X 글은 X 폴더와 같은 모양으로 보여 준다.
   const xPosts = useMemo(() => new Map(timeline ? [] : articles.filter((article) => isXStatusUrl(article.url)).map((article) => [article.id, parseXPost(article)])), [articles, timeline]);
   const avatarOf = useXAvatars([...xPosts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
   const xRow = (article: ArticleItem, variant: XRowVariant) => {
     const post = xPosts.get(article.id);
-    return post ? <XPostRow key={article.id} variant={variant} article={article} post={post} avatarOf={avatarOf} selected={selectedArticleId === article.id} blocked={Boolean(blockedArticleIds?.has(article.id))} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} /> : null;
+    return post ? <XPostRow key={article.id} variant={variant} tabIndex={rowProps(article).tabIndex} article={article} post={post} avatarOf={avatarOf} selected={selectedArticleId === article.id} blocked={Boolean(blockedArticleIds?.has(article.id))} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} /> : null;
   };
   useEffect(() => {
     if (!onPrepareArticle || !listRef.current || typeof IntersectionObserver === 'undefined') return;
@@ -173,19 +188,15 @@ export const ArticleList: React.FC<ArticleListProps> = ({
         >
           {articles.map((article) => {
             const x = xRow(article, 'plain'); if (x) return x;
-            const isSelected = selectedArticleId === article.id;
             return (
               <div
                 key={article.id}
                 data-article-id={article.id}
                 data-article-read={article.is_read}
+                {...rowProps(article)}
                 onClick={() => onSelectArticle(article)}
                 className={`feedex-compact-row group flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition cursor-pointer ${
-                  isSelected
-                    ? isDark
-                      ? 'bg-emerald-500/10'
-                      : 'bg-emerald-50/80'
-                    : isDark
+                  isDark
                     ? 'hover:bg-slate-800/60'
                     : 'hover:bg-slate-50'
                 }`}
@@ -298,17 +309,15 @@ export const ArticleList: React.FC<ArticleListProps> = ({
       <div ref={listRef} className="feedex-list-items feedex-article-cards p-4 lg:p-8 max-w-7xl mx-auto grid grid-cols-1 gap-5" data-retain-read={retainReadRows || undefined}>
         {articles.map((article) => {
           const x = xRow(article, 'card'); if (x) return x;
-          const isSelected = selectedArticleId === article.id;
           return (
             <article
               key={article.id}
               data-article-id={article.id}
               data-article-read={article.is_read}
+              {...rowProps(article)}
               onClick={() => onSelectArticle(article)}
               className={`group rounded-2xl border overflow-hidden flex flex-col justify-between transition duration-200 cursor-pointer ${
-                isSelected
-                  ? 'ring-2 ring-emerald-500 border-emerald-500/50'
-                  : isDark
+                isDark
                   ? 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
                   : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
               }`}
@@ -437,23 +446,15 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     <div ref={listRef} className="feedex-list-items p-3 lg:p-4 max-w-5xl mx-auto space-y-2" data-retain-read={retainReadRows || undefined}>
       {articles.map((article) => {
         const x = xRow(article, 'boxed'); if (x) return x;
-        const isSelected = selectedArticleId === article.id;
         return (
           <article
             key={article.id}
             data-article-id={article.id}
             data-article-read={article.is_read}
+            {...rowProps(article)}
             onClick={() => onSelectArticle(article)}
-            role="button"
-            tabIndex={0}
-            aria-label={article.title}
-            onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectArticle(article); } }}
             className={`feedex-magazine-row group rounded-xl border p-3 flex flex-row items-start gap-3 transition duration-150 cursor-pointer ${
-              isSelected
-                ? isDark
-                  ? 'border-emerald-500/60 bg-emerald-500/5'
-                  : 'border-emerald-500/60 bg-emerald-50/60'
-                : isDark
+              isDark
                 ? 'bg-slate-900/55 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900/90'
                 : 'bg-white border-slate-200 hover:border-slate-300'
             }`}

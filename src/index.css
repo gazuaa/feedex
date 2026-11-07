@@ -14,7 +14,11 @@ body { margin: 0; min-height: 100dvh; background: var(--feedex-background); colo
 .feedex-channel-list:focus-visible, .feedex-feed-list:focus-visible { outline: 2px solid #10b981; outline-offset: -2px; }
 .feedex-feed-list { padding-bottom: env(safe-area-inset-bottom); }
 /* 목록의 글은 선택 동작을 막고, 별도 본문 영역에서는 텍스트 선택을 유지한다. */
-.feedex-feed-list [data-article-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.feedex-feed-list [data-article-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition-property: opacity, color; }
+/* 선택 표시는 피드 종류와 보기 방식에 관계없이 하나만 쓴다. 기본 포커스 테두리는 겹치지 않는다. */
+.feedex-feed-list [data-article-id]:focus { outline: none; }
+.feedex-feed-list [data-article-id][data-article-selected="true"], .feedex-feed-list [data-article-id]:focus-visible { outline: 1px solid #10b981; outline-offset: -1px; border-color: #10b981; background: #ecfdf5; }
+html.dark .feedex-feed-list [data-article-selected="true"], html.dark .feedex-feed-list [data-article-id]:focus-visible { background: #10b98114; }
 /* 오래 누르면 메뉴가 손가락 바로 아래에 뜬다. 메뉴 글자를 고를 수 있으면 iOS가 이어서 글자를 선택해 메뉴를 가린다. */
 .feedex-context-menu { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .feedex-block-setting { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 34px; font-size: 13px; cursor: pointer; text-align: left; }

@@ -21,31 +21,36 @@ interface Props {
 export function XTimeline({ articles, selectedArticleId, onSelectArticle, onToggleRead, onToggleSaved, isDark, retainReadRows, blockedArticleIds, listRef }: Props) {
   // 인용한 글과 재게시한 글은 글쓴이가 구독 계정이 아닐 수 있어 프로필 사진을 따로 찾는다.
   const posts = useMemo(() => new Map(articles.map((article) => [article.id, parseXPost(article)])), [articles]);
+  const tabStop = articles.some((article) => article.id === selectedArticleId) ? selectedArticleId : articles[0]?.id;
   const avatarOf = useXAvatars([...posts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
   return <div ref={listRef} className={`feedex-list-items feedex-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
-    {articles.map((article) => <XPostRow blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id)!} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} />)}
+    {articles.map((article) => <XPostRow tabIndex={tabStop === article.id ? 0 : -1} blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id)!} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} />)}
   </div>;
 }
 
 // timeline은 X 폴더의 줄이다. 여러 피드가 섞인 목록에서는 그 목록의 모양에 맞춘다.
 // boxed는 매거진 목록의 상자, card는 카드 격자의 상자, plain은 제목 목록의 줄이다(구분선은 목록이 그린다).
 export type XRowVariant = 'timeline' | 'boxed' | 'card' | 'plain';
-export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, isDark, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
+export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, isDark, tabIndex = 0, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; tabIndex?: number; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
   const line = isDark ? 'border-slate-800' : 'border-slate-200';
-  const frame = variant === 'timeline' ? `border-b ${line}` : variant === 'plain' ? '' : `${variant === 'card' ? 'rounded-2xl' : 'rounded-xl'} border ${line} ${selected ? '' : isDark ? 'bg-slate-900/55' : 'bg-white'}`;
-  const strong = isDark ? 'text-slate-100' : 'text-slate-900';
+  const frame = variant === 'timeline' ? `border-b ${line}` : variant === 'plain' ? '' : `${variant === 'card' ? 'rounded-2xl' : 'rounded-xl'} border ${line} ${isDark ? 'bg-slate-900/55' : 'bg-white'}`;
+  const strong = article.is_read
+    ? isDark ? 'text-slate-400' : 'text-slate-500'
+    : isDark ? 'text-slate-100' : 'text-slate-900';
   const stop = (event: React.MouseEvent) => event.stopPropagation();
   const action = 'p-2 rounded-full transition cursor-pointer inline-flex items-center gap-1';
   return <article
     data-article-id={article.id}
     data-article-read={article.is_read}
+    data-article-selected={selected}
+    aria-current={selected ? 'true' : undefined}
     role="button"
-    tabIndex={0}
+    tabIndex={tabIndex}
     aria-label={`${post.name}: ${post.text.slice(0, 80)}`}
     onClick={() => onSelectArticle(article)}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelectArticle(article); } }}
     data-x-variant={variant}
-    className={`feedex-x-post flex gap-3 px-4 pt-3 pb-1 cursor-pointer transition ${frame} ${selected ? isDark ? 'bg-sky-500/10' : 'bg-sky-50' : isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]'}`}
+    className={`feedex-x-post flex gap-3 px-4 pt-3 pb-1 cursor-pointer transition ${frame} ${isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]'}`}
   >
     <div className="flex w-10 shrink-0 flex-col items-end gap-1">
       {post.repostedBy && <Repeat2 aria-hidden="true" className="h-4 w-4 text-slate-500" />}
