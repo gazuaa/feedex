@@ -9,7 +9,7 @@ private func articleURL(_ input: String) -> URL? {
     return nil
 }
 
-private func articleLink(_ url: URL) -> URL? {
+func articleLink(_ url: URL) -> URL? {
     guard url.scheme == "feedex-reader", url.host == "open",
           url.path.isEmpty, url.user == nil, url.password == nil, url.port == nil,
           url.fragment == nil,
@@ -20,7 +20,7 @@ private func articleLink(_ url: URL) -> URL? {
 
 @MainActor
 final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate, NSWindowDelegate {
-    private let browser: WKWebView
+    let browser: WKWebView
     private let address = NSTextField()
     private let status = NSTextField(labelWithString: "")
     private let back = NSButton(title: "이전", target: nil, action: nil)
@@ -186,86 +186,4 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
 
     func webViewDidClose(_ webView: WKWebView) { close() }
     func windowWillClose(_ notification: Notification) { onClose?() }
-}
-
-@MainActor
-final class ReaderApplication: NSObject, NSApplicationDelegate {
-    private var reader: ReaderWindow?
-    private var popups: [UUID: ReaderWindow] = [:]
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        let menu = NSMenu()
-        let appItem = NSMenuItem()
-        let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "FeedEx 읽기 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        appItem.submenu = appMenu
-        menu.addItem(appItem)
-        let editItem = NSMenuItem()
-        let editMenu = NSMenu(title: "편집")
-        for (label, action, key) in [
-            ("잘라내기", "cut:", "x"), ("복사", "copy:", "c"),
-            ("붙여넣기", "paste:", "v"), ("모두 선택", "selectAll:", "a")
-        ] {
-            editMenu.addItem(withTitle: label, action: Selector(action), keyEquivalent: key)
-        }
-        editItem.submenu = editMenu
-        menu.addItem(editItem)
-        let windowItem = NSMenuItem()
-        let windowMenu = NSMenu(title: "창")
-        windowMenu.addItem(withTitle: "창 닫기", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        windowItem.submenu = windowMenu
-        menu.addItem(windowItem)
-        NSApp.mainMenu = menu
-        showReader()
-    }
-
-    func application(_ application: NSApplication, open urls: [URL]) {
-        guard let url = urls.compactMap(articleLink).first else { return }
-        readerWindow().display(url)
-    }
-
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { showReader() }
-        return true
-    }
-
-    private func showReader() {
-        readerWindow().showWindow(nil)
-        reader?.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private func readerWindow() -> ReaderWindow {
-        if let reader { return reader }
-        let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .default()
-        let window = makeWindow(configuration)
-        reader = window
-        return window
-    }
-
-    private func makeWindow(_ configuration: WKWebViewConfiguration) -> ReaderWindow {
-        let window = ReaderWindow(configuration: configuration)
-        window.onPopup = { [weak self] configuration in
-            guard let self else { return nil }
-            let id = UUID()
-            let popup = self.makeWindow(configuration)
-            self.popups[id] = popup
-            popup.onClose = { [weak self] in self?.popups.removeValue(forKey: id) }
-            return popup
-        }
-        return window
-    }
-}
-
-@main
-struct ReaderMain {
-    @MainActor
-    static func main() {
-        let app = NSApplication.shared
-        let delegate = ReaderApplication()
-        app.setActivationPolicy(.regular)
-        app.delegate = delegate
-        withExtendedLifetime(delegate) { app.run() }
-    }
 }

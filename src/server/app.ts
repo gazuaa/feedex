@@ -254,6 +254,37 @@ app.post('/api/auth/google/quick', async (c) => {
   });
 });
 
+// 맥 앱(FeedEx for Mac) 로그인. 구글은 앱 안 웹 화면에서 하는 로그인을 막으므로, 맥 앱은 시스템 로그인 창(Safari)에서
+// FeedEx에 로그인한다. 그 창이 1분짜리 일회용 코드를 받아 앱에 넘기고, 앱은 코드를 새 세션으로 바꾼다.
+// 코드는 세션 표에 이 머리글로 남겨 두고 일반 API에는 쓰지 못하게 한다. 쓰면 세션처럼 1년으로 연장되기 때문이다.
+const NATIVE_CODE_PREFIX = 'sfeed_code_';
+const NATIVE_CODE_MS = 60_000;
+const nativeCodePattern = /^sfeed_code_[0-9a-f]{64}$/;
+
+app.post('/api/auth/native-code/redeem', async (c) => {
+  const body = await c.req.json<{ code?: unknown }>().catch(() => ({} as { code?: unknown }));
+  const code = typeof body.code === 'string' ? body.code : '';
+  if (!nativeCodePattern.test(code)) return c.json({ error: '로그인 코드가 올바르지 않습니다.' }, 400);
+  const now = new Date().toISOString();
+  const row = await c.env.DB.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?').bind(code, now).first<{ user_id: string }>();
+  // 지우는 쪽이 한 번만 성공하므로 같은 코드를 두 번 바꿀 수 없다.
+  const removed = row ? await c.env.DB.prepare('DELETE FROM sessions WHERE token = ? AND expires_at > ?').bind(code, now).run() : null;
+  if (!row || Number(removed?.meta?.changes ?? 0) !== 1) return c.json({ error: '로그인 코드가 만료되었거나 이미 쓰였습니다. 다시 로그인해 주세요.' }, 401);
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(row.user_id).first<UserRecord>();
+  if (!user) return c.json({ error: '계정을 찾지 못했습니다.' }, 401);
+  const token = await createSessionForUser(c.env.DB, user.id);
+  return c.json({
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      preferences: parsePreferences(user.preferences_json),
+    },
+  });
+});
+
 // 보호된 /api/* 경로의 인증 미들웨어
 app.use('/api/*', async (c, next) => {
   const path = c.req.path;
@@ -266,7 +297,7 @@ app.use('/api/*', async (c, next) => {
     ? authHeader.slice(7).trim()
     : c.req.query('token') || '';
 
-  if (!token) {
+  if (!token || token.startsWith(NATIVE_CODE_PREFIX)) {
     return c.json({ error: '인증이 필요합니다.' }, 401);
   }
 
@@ -353,6 +384,18 @@ app.put('/api/user/preferences', async (c) => {
     .run();
 
   return c.json({ preferences: nextPrefs });
+});
+
+// 로그인한 사람이 맥 앱에 넘길 일회용 코드를 받는다. 쓰지 않고 지난 코드는 이때 함께 지운다.
+app.post('/api/user/native-code', async (c) => {
+  const user = c.get('user');
+  const now = new Date();
+  await c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND token LIKE 'sfeed\\_code\\_%' ESCAPE '\\' AND expires_at <= ?").bind(user.id, now.toISOString()).run();
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const code = `${NATIVE_CODE_PREFIX}${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+  await c.env.DB.prepare('INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
+    .bind(code, user.id, new Date(now.getTime() + NATIVE_CODE_MS).toISOString(), now.toISOString()).run();
+  return c.json({ code });
 });
 
 app.post('/api/user/logout', async (c) => {

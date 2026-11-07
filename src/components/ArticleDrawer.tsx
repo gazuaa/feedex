@@ -46,6 +46,7 @@ import { useXPostFrame, useYouTubeCopyFrame } from '../client/xPostFrame';
 import { youtubeEmbedSrc } from '../shared/youtubeEmbed';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 import { shownThumbnail } from '../client/thumbnails';
+import { inNativeApp, nativeBridge, useNativeArticle } from '../client/nativeApp';
 
 const VIEW_MODES = [
   { id: 'feed', label: '피드', title: '피드 본문 — RSS에 담긴 내용', Icon: Rss },
@@ -278,6 +279,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 프레임 안 사이트의 스크롤은 손이 닿지 않으므로, 피드·리더·웹 사본만 막대를 숨긴다.
   const showingCopy = mode === 'web' && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
   const chromeHidden = useScrollChrome(bodyRef, isMobile && Boolean(article) && !mobileToolsOpen && !sizeToolsOpen, `${article?.id}:${mode}:${showingCopy}`, copyRef);
+  // 맥 앱에서는 웹 보기 자리에 앱이 원문 화면을 겹쳐 띄운다. 사이트를 직접 연 화면이라 로그인이 유지되고
+  // 프레임을 막는 사이트도 그대로 보인다. X 글은 공개 미러 사본으로 보여 준다.
+  const nativeWeb = mode === 'web' && Boolean(article) && !xPost && inNativeApp();
+  const nativeSlotRef = useRef<HTMLDivElement>(null);
+  useNativeArticle(nativeSlotRef, nativeWeb && article ? article.url : null, webZoom);
   // 프레임 안 사이트 자체의 스크롤은 따라갈 수 없으므로, 불러온 뒤에는 막대를 접어 두고
   // 요청할 때만 꺼냈다가 몇 초 동안 움직임이 없으면 다시 접는다.
   const [loadedFrame, setLoadedFrame] = useState<string | null>(null);
@@ -359,7 +365,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 원문을 프레임에 넣어도 되는지 알기 전에는 띄우지 않는다. 막는 사이트는 브라우저가 앱이 알아챌 수 없는
   // 오류 화면을 그리고, 판단이 늦거나 실패하면 그 화면에 머문다. 이미 판단한 사이트는 바로 정한다.
   useEffect(() => {
-    if (!article || mode !== 'web') return;
+    if (!article || mode !== 'web' || nativeWeb) return;
     let active = true, retry: { stop: () => void } | undefined;
     // X는 다른 사이트의 프레임을 늘 거부하므로 묻지 않고 바로 사본을 받는다.
     const known = publicDeviceArticle(article.url) ? undefined : isXStatusUrl(article.url) ? { embeddable: false, url: article.url, reason: 'framing' } : resources?.knownFrame(article.url);
@@ -835,6 +841,15 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
         {mode === 'web' ? (
           <div className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
+            {nativeWeb ? (<>
+              <WebStatusBar key={article.id} url={article.url} isDark={isDark} hidden={false} canLogin={false} notice={article.url} shortNotice={siteHost(article.url)}>
+                <button type="button" onClick={() => nativeBridge()?.postMessage({ type: 'openExternal', url: article.url })} className="inline-flex items-center gap-1 hover:underline">
+                  <WebLabel short="브라우저" long="브라우저에서 열기" /><ExternalLink className="w-3 h-3" aria-hidden="true" />
+                </button>
+              </WebStatusBar>
+              {/* 맥 앱이 이 자리에 원문 화면을 겹쳐 띄운다. */}
+              <div ref={nativeSlotRef} data-native-article className="relative flex-1 min-h-0 bg-white" />
+            </>) : (<>
             <WebStatusBar
               key={article.id}
               url={article.url}
@@ -971,6 +986,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 </div>
               </div>
             )}
+            </>)}
           </div>
         ) : (
         <div ref={bodyRef} tabIndex={0} aria-label="본문 내용" className="feedex-reader-content flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-6">

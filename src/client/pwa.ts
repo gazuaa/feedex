@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { inNativeApp, inNativeSignInWindow } from './nativeApp';
 
 export function installPlatform(userAgent: string, maxTouchPoints = 0): 'ios' | 'android' | 'mac-safari' | 'desktop' {
   if (/iPad|iPhone|iPod/.test(userAgent) || (/Macintosh/.test(userAgent) && maxTouchPoints > 1)) return 'ios';
@@ -47,7 +48,8 @@ if (typeof window !== 'undefined') {
   window.addEventListener('appinstalled', () => { installed = true; deferred = null; notify(); });
   window.matchMedia('(display-mode: standalone)').addEventListener('change', notify);
 }
-export function installState() { return standalone() ? 'installed' : deferred ? 'prompt' : 'manual'; }
+// 맥 앱(FeedEx for Mac) 안과 맥 앱의 로그인 창에서는 설치 안내를 띄우지 않는다.
+export function installState() { return standalone() || inNativeApp() || inNativeSignInWindow() ? 'installed' : deferred ? 'prompt' : 'manual'; }
 export function useInstallState() {
   return useSyncExternalStore((listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; }, installState, () => 'manual');
 }

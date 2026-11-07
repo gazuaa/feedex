@@ -33,6 +33,8 @@ import { applyTheme, readStoredTheme } from './client/theme';
 import { emptiesUnreadList, useMobileViewport, useScrollChrome } from './client/mobile';
 import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
+import { NativeHandoff } from './components/NativeHandoff';
+import { inNativeSignInWindow } from './client/nativeApp';
 import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileChrome';
 import { MobileLibrary } from './components/MobileLibrary';
 import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type ArticlePage } from './client/readerCache';
@@ -1352,6 +1354,11 @@ export const App: React.FC = () => {
         }}
       />
     );
+  }
+
+  // 맥 앱이 연 시스템 로그인 창이면 이 계정을 맥 앱에 넘길지만 묻는다.
+  if (inNativeSignInWindow()) {
+    return <NativeHandoff email={user.email} isDark={theme === 'dark'} onUseAnother={() => { void handleLogout(); }} />;
   }
 
   const isDark = theme === 'dark';

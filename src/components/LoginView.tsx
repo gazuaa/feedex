@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { apiRequest, setStoredToken, type UserProfile, type ThemeMode } from '../client/api';
+import { inNativeApp, inNativeSignInWindow, nativeBridge } from '../client/nativeApp';
 import { InstallAppButton } from './PwaInstall';
 import { ThemeSwitch } from './ThemeSwitch';
 
@@ -36,6 +37,8 @@ declare global {
         };
       };
     };
+    /** 맥 앱이 시스템 로그인 창에서 받은 일회용 코드를 넘겨준다. */
+    feedexNativeSignedIn?: (code: string) => Promise<void>;
   }
 }
 
@@ -68,6 +71,28 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const gsiBtnRef = useRef<HTMLDivElement>(null);
+  // 맥 앱에서는 구글이 앱 안 로그인을 막으므로 시스템 로그인 창(Safari)에서 로그인한다.
+  const native = inNativeApp();
+  // 맥 앱 로그인을 넘겨주려고 시스템 로그인 창에서 연 화면이다.
+  const handoff = inNativeSignInWindow();
+
+  useEffect(() => {
+    if (!native) return;
+    window.feedexNativeSignedIn = async (code: string) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const res = await apiRequest<{ token: string; user: UserProfile }>('/api/auth/native-code/redeem', { method: 'POST', body: JSON.stringify({ code }) });
+        setStoredToken(res.token);
+        onLoginSuccess(res.user);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '로그인하지 못했습니다. 다시 시도해 주세요.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    return () => { delete window.feedexNativeSignedIn; };
+  }, [native, onLoginSuccess]);
 
   useEffect(() => {
     apiRequest<{ googleClientId: string | null; quickLoginEnabled?: boolean }>(
@@ -82,6 +107,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
 
   // 공식 Google Identity Services 버튼을 그린다 (MUUSED와 같은 방식)
   useEffect(() => {
+    if (native) return;
     let attempts = 0;
     const tryInitGsi = () => {
       if (window.google?.accounts?.id && gsiBtnRef.current) {
@@ -134,7 +160,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
     };
 
     tryInitGsi();
-  }, [googleClientId, onLoginSuccess]);
+  }, [googleClientId, onLoginSuccess, native]);
 
   const handleQuickGoogleSignIn = async (
     email: string,
@@ -299,13 +325,30 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
             </div>
           )}
 
-          {/* 공식 Google GIS 버튼 자리 (MUUSED 방식) */}
+          {handoff && (
+            <p className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 leading-relaxed">
+              FeedEx for Mac에서 쓸 계정으로 로그인하세요. 로그인하면 맥 앱으로 돌아갑니다.
+            </p>
+          )}
+
+          {native ? (
+            <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-slate-900/70 border border-slate-800">
+              <button type="button" disabled={loading} onClick={() => { setError(null); nativeBridge()?.postMessage({ type: 'signIn' }); }} className="w-full max-w-[340px] min-h-[44px] rounded-full bg-white text-slate-900 text-sm font-semibold hover:bg-slate-100 disabled:opacity-60 cursor-pointer">
+                {loading ? '로그인하는 중…' : 'Google 계정으로 로그인'}
+              </button>
+              <span className="text-[11px] text-slate-400 text-center leading-relaxed">
+                시스템 로그인 창(Safari)에서 로그인하면 이 앱으로 돌아와요.
+              </span>
+            </div>
+          ) : (
+          /* 공식 Google GIS 버튼 자리 (MUUSED 방식) */
           <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-slate-900/70 border border-slate-800">
             <div ref={gsiBtnRef} className="min-h-[44px] flex items-center justify-center" />
             <span className="text-[11px] text-slate-400">
               Google Identity Services (RS256 서명 검증 · D1 세션 동기화)
             </span>
           </div>
+          )}
 
           {quickLoginEnabled && (
             <>

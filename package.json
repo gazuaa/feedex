@@ -43,7 +43,8 @@
     "test:feed-editing": "node scripts/verify-feed-editing.mjs",
     "test:original-login": "node scripts/verify-original-login.mjs",
     "test:feed-history": "node scripts/verify-feed-history.mjs",
-    "test:feed-pause": "node scripts/verify-feed-pause.mjs"
+    "test:feed-pause": "node scripts/verify-feed-pause.mjs",
+    "test:native-app": "node scripts/verify-native-app.mjs"
   },
   "dependencies": {
     "@cloudflare/puppeteer": "^1.4.0",
