@@ -58,7 +58,7 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
         <span className={`truncate font-bold ${strong}`}>{post.name}</span>
         <span className="truncate text-slate-500">@{post.handle}</span>
         <span className="shrink-0 text-slate-500">· {xTime(article.published_at)}</span>
-        {!article.is_read && <span role="img" aria-label="안 읽음" className="ml-1 h-2 w-2 shrink-0 rounded-full bg-sky-500" />}
+        {!article.is_read && <span role="img" aria-label="안 읽음" className="ml-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />}
       </div>
       {post.replyTo && <p className="text-[15px] leading-5 text-slate-500"><span className="text-sky-500">@{post.replyTo}</span> 님에게 보내는 답글</p>}
       {post.text && <p className={`feedex-x-text mt-0.5 whitespace-pre-wrap break-words leading-snug line-clamp-[14] ${strong}`}>{post.text}</p>}
