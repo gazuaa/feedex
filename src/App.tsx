@@ -224,9 +224,9 @@ export const App: React.FC = () => {
   useEffect(() => watchAppVersion({
     canSwap: () => {
       const focused = document.activeElement;
-      const typing = focused instanceof HTMLTextAreaElement || (focused instanceof HTMLElement && focused.isContentEditable)
+      const typing = focused instanceof HTMLTextAreaElement || focused instanceof HTMLSelectElement || (focused instanceof HTMLElement && focused.isContentEditable)
         || (focused instanceof HTMLInputElement && /^(?:text|search|url|email|password|number|tel)$/.test(focused.type));
-      return !typing && !document.querySelector('dialog[open], [aria-modal="true"]') && !stateWrites.current.size && !markingAllReadRef.current;
+      return !typing && !document.querySelector('dialog[open], [aria-modal="true"], .feedex-desktop-settings[open], .feedex-mobile-settings[open], .feedex-context-menu') && !stateWrites.current.size && !markingAllReadRef.current;
     },
     beforeSwap: () => saveResumePoint(),
   }), [saveResumePoint]);
