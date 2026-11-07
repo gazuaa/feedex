@@ -75,10 +75,12 @@ html.dark .feedex-block-bar button, html.dark .feedex-block-empty button, html.d
 .feedex-setting-group + .feedex-setting-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--feedex-border); }
 .feedex-setting-group-title { margin: 0 0 8px; color: var(--feedex-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
 .feedex-setting-items { display: grid; gap: 12px; }
-.feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; margin: 0; padding: 0; border: 0; font-size: 13px; color: var(--feedex-text); }
+.feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting, .feedex-mac-app-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; margin: 0; padding: 0; border: 0; font-size: 13px; color: var(--feedex-text); }
 .feedex-scroll-read-setting { cursor: pointer; }
-.feedex-setting-row > span, .feedex-scroll-read-setting > span, .feedex-auto-refresh-setting > span { min-width: 0; }
-.feedex-scroll-read-setting small, .feedex-auto-refresh-setting small { display: block; margin-top: 2px; font-size: 11px; line-height: 1.45; color: var(--feedex-muted); }
+.feedex-setting-row > span, .feedex-scroll-read-setting > span, .feedex-auto-refresh-setting > span, .feedex-mac-app-setting > span { min-width: 0; }
+.feedex-scroll-read-setting small, .feedex-auto-refresh-setting small, .feedex-mac-app-setting small { display: block; margin-top: 2px; font-size: 11px; line-height: 1.45; color: var(--feedex-muted); }
+.feedex-mac-app-setting a { flex-shrink: 0; padding: 6px 12px; border-radius: 8px; background: #10b981; color: #052e1a; font-size: 12px; font-weight: 600; text-decoration: none; }
+.feedex-mac-app-setting a:hover { background: #34d399; }
 .feedex-segmented, .feedex-setting-row > .feedex-text-size-control { display: inline-flex; flex-shrink: 0; gap: 2px; padding: 2px; border: 0; border-radius: 10px; background: var(--feedex-background); }
 .feedex-segmented button, .feedex-setting-row > .feedex-text-size-control > button { display: flex; align-items: center; justify-content: center; min-width: 36px; min-height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; color: var(--feedex-muted); cursor: pointer; }
 .feedex-setting-row > .feedex-text-size-control > button { color: var(--feedex-text); }

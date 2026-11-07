@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DOMParser } from 'linkedom';
@@ -86,7 +88,28 @@ try {
   assert.match(swift, /code\.range\(of: "\^sfeed_code_\[0-9a-f\]\{64\}\$", options: \.regularExpression\)/);
   assert.doesNotMatch(readFileSync('native/macos/Main.swift', 'utf8'), /signed-in/, 'links opened from elsewhere cannot sign the app in');
   assert.match(swift, /FEEDEX_DEBUG_DIR/); assert.match(readFileSync('native/macos/Info.plist', 'utf8'), /FeedEx for Mac/);
-  console.log('PASS: one-minute single-use Mac sign-in codes that never act as sessions, bridge placement and covers, system sign-in button and hand-off screen, original-view slot without frames, X copies kept, no install prompt, and message/sign-in origin checks in the Mac app.');
+  // 맥 앱 받기: 맥 브라우저에만 보이고, 받는 파일은 지금 앱 소스로 만든 것이어야 한다.
+  const { macAppOffered, MacAppSetting } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
+  const { MAC_APP_VERSION, MAC_APP_DOWNLOAD } = await vite.ssrLoadModule('/src/shared/macApp.ts');
+  const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
+  assert.equal(macAppOffered(mac, 0), false, 'inside the Mac app the download is not offered');
+  delete globalThis.webkit;
+  assert.equal(macAppOffered(mac, 0), true);
+  assert.equal(macAppOffered(mac, 5), false, 'iPads that report a Mac browser are left out');
+  assert.equal(macAppOffered('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0', 0), false);
+  const setting = renderToStaticMarkup(React.createElement(MacAppSetting));
+  assert.match(setting, new RegExp(`href="/downloads/FeedEx-for-Mac\\.zip\\?v=${MAC_APP_VERSION.replace('.', '\\.')}"`)); assert.match(setting, /download="FeedEx-for-Mac\.zip"/);
+  assert.equal(MAC_APP_DOWNLOAD, `/downloads/FeedEx-for-Mac.zip?v=${MAC_APP_VERSION}`);
+  const zip = 'public/downloads/FeedEx-for-Mac.zip';
+  assert.ok(statSync(zip).size < 5_000_000, 'the download stays small');
+  const version = (plist) => /<key>CFBundleShortVersionString<\/key><string>([^<]+)<\/string>/.exec(plist)?.[1];
+  assert.equal(version(readFileSync('native/macos/Info.plist', 'utf8')), MAC_APP_VERSION, 'the link and the app source share one version');
+  assert.equal(version(execFileSync('unzip', ['-p', zip, 'FeedEx for Mac.app/Contents/Info.plist'], { encoding: 'utf8' })), MAC_APP_VERSION, 'the zip holds that version');
+  const sources = [...readdirSync('native/macos').filter((name) => name.endsWith('.swift')).sort().map((name) => `native/macos/${name}`), 'native/macos/Info.plist'];
+  const listing = sources.map((path) => `${createHash('sha256').update(readFileSync(path)).digest('hex')}  ${path}\n`).join('');
+  assert.equal(createHash('sha256').update(listing).digest('hex'), readFileSync('public/downloads/FeedEx-for-Mac.source', 'utf8').trim(), 'the Mac app source changed: run scripts/build-macos-reader.sh to rebuild the download');
+  assert.doesNotMatch(readFileSync('public/sw.js', 'utf8'), /downloads/, 'the service worker never stores the download on every device');
+  console.log('PASS: Mac app download offered only to Mac browsers outside the app, versioned link, zip version and source fingerprint match, not cached by the service worker; one-minute single-use Mac sign-in codes that never act as sessions, bridge placement and covers, system sign-in button and hand-off screen, original-view slot without frames, X copies kept, no install prompt, and message/sign-in origin checks in the Mac app.');
 } finally {
   for (const [key, descriptor] of Object.entries(previous)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
   await vite.close();
