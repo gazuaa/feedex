@@ -20,7 +20,7 @@ export function NativeHandoff({ email, isDark, onUseAnother }: { email: string; 
   return <main className={`min-h-screen flex items-center justify-center p-8 ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
     <div className="w-full max-w-sm space-y-5 text-center">
       <img src="/icons/icon-192.png" alt="" width="56" height="56" className="mx-auto rounded-2xl" />
-      <h1 className="text-xl font-bold">FeedEx for Mac에 로그인</h1>
+      <h1 className="text-xl font-bold">FeedEx 맥 앱에 로그인</h1>
       <p className={`text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}><strong className={`break-all ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{email}</strong> 계정으로 맥 앱에 로그인할까요?</p>
       <button type="button" disabled={state === 'sending' || state === 'sent'} onClick={() => { void send(); }} className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60 cursor-pointer">
         {state === 'sent' ? '맥 앱으로 돌아가는 중…' : state === 'sending' ? '준비하는 중…' : '맥 앱으로 로그인'}

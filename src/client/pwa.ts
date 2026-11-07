@@ -48,7 +48,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('appinstalled', () => { installed = true; deferred = null; notify(); });
   window.matchMedia('(display-mode: standalone)').addEventListener('change', notify);
 }
-// 맥 앱(FeedEx for Mac) 안과 맥 앱의 로그인 창에서는 설치 안내를 띄우지 않는다.
+// 맥 앱 안과 맥 앱의 로그인 창에서는 설치 안내를 띄우지 않는다.
 export function installState() { return standalone() || inNativeApp() || inNativeSignInWindow() ? 'installed' : deferred ? 'prompt' : 'manual'; }
 export function useInstallState() {
   return useSyncExternalStore((listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; }, installState, () => 'manual');

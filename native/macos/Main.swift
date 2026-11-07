@@ -1,7 +1,7 @@
 import AppKit
 import WebKit
 
-// FeedEx for Mac. FeedEx 화면을 창으로 띄우고, 웹 보기의 원문은 로그인이 유지되는 화면으로 겹쳐 보여 준다.
+// FeedEx 맥 앱. FeedEx 화면을 창으로 띄우고, 웹 보기의 원문은 로그인이 유지되는 화면으로 겹쳐 보여 준다.
 // feedex-reader://open?url= 링크는 예전처럼 따로 읽기 창에서 연다.
 
 /// FeedEx 주소. 개발할 때만 FEEDEX_HOME으로 이 컴퓨터의 시험 서버를 쓴다.
@@ -47,7 +47,7 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
             top.submenu = sub
             menu.addItem(top)
         }
-        item("FeedEx", [("FeedEx for Mac 종료", #selector(NSApplication.terminate(_:)), "q", nil)])
+        item("FeedEx", [("FeedEx 종료", #selector(NSApplication.terminate(_:)), "q", nil)])
         item("편집", [
             ("실행 취소", Selector(("undo:")), "z", nil), ("다시 실행", Selector(("redo:")), "Z", nil),
             ("잘라내기", #selector(NSText.cut(_:)), "x", nil), ("복사", #selector(NSText.copy(_:)), "c", nil),

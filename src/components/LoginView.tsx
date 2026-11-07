@@ -327,7 +327,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
 
           {handoff && (
             <p className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 leading-relaxed">
-              FeedEx for Mac에서 쓸 계정으로 로그인하세요. 로그인하면 맥 앱으로 돌아갑니다.
+              맥 앱에서 쓸 계정으로 로그인하세요. 로그인하면 맥 앱으로 돌아갑니다.
             </p>
           )}
 

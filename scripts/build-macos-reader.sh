@@ -8,8 +8,8 @@ mkdir -p "$output"
 output="$(cd "$output" && pwd)"
 temp="$(mktemp -d)"
 trap 'rm -rf "$temp"' EXIT
-# 맥 앱 이름. 크롬에서 설치한 FeedEx와 Dock에서 헷갈리지 않게 따로 부른다.
-bundle="$temp/FeedEx for Mac.app"
+# 맥 앱 이름은 크롬 앱과 같은 FeedEx다.
+bundle="$temp/FeedEx.app"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp "$root/native/macos/Info.plist" "$bundle/Contents/Info.plist"
 sips -s format icns "$root/public/icons/icon-512.png" --out "$bundle/Contents/Resources/FeedExReader.icns" >/dev/null

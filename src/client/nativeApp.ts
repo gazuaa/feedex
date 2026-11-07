@@ -1,6 +1,6 @@
 import { useLayoutEffect, type RefObject } from 'react';
 
-// 맥 앱(FeedEx for Mac) 안에서 열렸을 때만 있는 연결. 앱이 WKWebView에 'feedex' 메시지 통로를 만든다.
+// 맥 앱 안에서 열렸을 때만 있는 연결. 앱이 WKWebView에 'feedex' 메시지 통로를 만든다.
 // 크롬 앱이나 일반 브라우저에는 없다.
 export type NativeRect = { x: number; y: number; width: number; height: number };
 export type NativeMessage =

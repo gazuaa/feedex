@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { DOMParser } from 'linkedom';
 import { createServer } from 'vite';
 
-// 맥 앱(FeedEx for Mac): 시스템 로그인 창에서 받은 일회용 코드로 로그인하고, 웹 보기 자리에 원문 화면을 겹친다.
+// 맥 앱: 시스템 로그인 창에서 받은 일회용 코드로 로그인하고, 웹 보기 자리에 원문 화면을 겹친다.
 const vite = await createServer({ configFile: false, server: { middlewareMode: true, ws: false }, appType: 'custom', logLevel: 'silent' });
 const previous = { webkit: Object.getOwnPropertyDescriptor(globalThis, 'webkit'), DOMParser: Object.getOwnPropertyDescriptor(globalThis, 'DOMParser'), window: Object.getOwnPropertyDescriptor(globalThis, 'window') };
 try {
@@ -87,7 +87,7 @@ try {
   assert.match(swift, /ASWebAuthenticationSession\(url: url, callbackURLScheme: "feedex-reader"\)/);
   assert.match(swift, /code\.range\(of: "\^sfeed_code_\[0-9a-f\]\{64\}\$", options: \.regularExpression\)/);
   assert.doesNotMatch(readFileSync('native/macos/Main.swift', 'utf8'), /signed-in/, 'links opened from elsewhere cannot sign the app in');
-  assert.match(swift, /FEEDEX_DEBUG_DIR/); assert.match(readFileSync('native/macos/Info.plist', 'utf8'), /FeedEx for Mac/);
+  assert.match(swift, /FEEDEX_DEBUG_DIR/); assert.match(readFileSync('native/macos/Info.plist', 'utf8'), /<key>CFBundleName<\/key><string>FeedEx<\/string>/, 'the Mac app is called FeedEx');
   // 맥 앱 받기: 앱 설치는 위쪽 버튼 하나로 들어가고, 맥 브라우저에서만 안내 창 맨 위에 맥 앱을 둔다.
   const { macAppOffered, installEntry, PwaInstall } = await vite.ssrLoadModule('/src/components/PwaInstall.tsx');
   const { MAC_APP_VERSION, MAC_APP_DOWNLOAD } = await vite.ssrLoadModule('/src/shared/macApp.ts');
@@ -109,13 +109,13 @@ try {
   assert.match(help, /브라우저 앱으로 설치/, 'the browser install steps follow the Mac app');
   assert.doesNotMatch(help, /feedex-install-banner/, 'no floating install banner on the desktop');
   const { DesktopReadingSettings } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
-  assert.doesNotMatch(renderToStaticMarkup(React.createElement(DesktopReadingSettings, { markReadOnScroll: false, onChangeMarkReadOnScroll() {}, autoRefreshMinutes: 15, onChangeAutoRefreshMinutes() {}, layout: 'magazine', onChangeLayout() {} })), /FeedEx for Mac/, 'the settings panel no longer repeats the download');
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(DesktopReadingSettings, { markReadOnScroll: false, onChangeMarkReadOnScroll() {}, autoRefreshMinutes: 15, onChangeAutoRefreshMinutes() {}, layout: 'magazine', onChangeLayout() {} })), /FeedEx-for-Mac\.zip/, 'the settings panel no longer repeats the download');
   assert.equal(MAC_APP_DOWNLOAD, `/downloads/FeedEx-for-Mac.zip?v=${MAC_APP_VERSION}`);
   const zip = 'public/downloads/FeedEx-for-Mac.zip';
   assert.ok(statSync(zip).size < 5_000_000, 'the download stays small');
   const version = (plist) => /<key>CFBundleShortVersionString<\/key><string>([^<]+)<\/string>/.exec(plist)?.[1];
   assert.equal(version(readFileSync('native/macos/Info.plist', 'utf8')), MAC_APP_VERSION, 'the link and the app source share one version');
-  assert.equal(version(execFileSync('unzip', ['-p', zip, 'FeedEx for Mac.app/Contents/Info.plist'], { encoding: 'utf8' })), MAC_APP_VERSION, 'the zip holds that version');
+  assert.equal(version(execFileSync('unzip', ['-p', zip, 'FeedEx.app/Contents/Info.plist'], { encoding: 'utf8' })), MAC_APP_VERSION, 'the zip holds that version');
   const sources = [...readdirSync('native/macos').filter((name) => name.endsWith('.swift')).sort().map((name) => `native/macos/${name}`), 'native/macos/Info.plist'];
   const listing = sources.map((path) => `${createHash('sha256').update(readFileSync(path)).digest('hex')}  ${path}\n`).join('');
   assert.equal(createHash('sha256').update(listing).digest('hex'), readFileSync('public/downloads/FeedEx-for-Mac.source', 'utf8').trim(), 'the Mac app source changed: run scripts/build-macos-reader.sh to rebuild the download');

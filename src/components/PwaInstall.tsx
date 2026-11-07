@@ -63,8 +63,8 @@ export function InstallAppButton() {
 
 /** 맥이면 안내 창 맨 위에 맥 앱을 둔다. 웹 보기에서 언론사 로그인이 유지되는 것은 맥 앱뿐이다. */
 function MacAppOption() {
-  return <section className="feedex-install-mac" aria-label="FeedEx for Mac">
-    <div className="flex items-center justify-between gap-3"><strong className="text-sm">FeedEx for Mac</strong><a href={MAC_APP_DOWNLOAD} download="FeedEx-for-Mac.zip" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950">받기</a></div>
+  return <section className="feedex-install-mac" aria-label="맥 앱">
+    <div className="flex items-center justify-between gap-3"><strong className="text-sm">맥 앱</strong><a href={MAC_APP_DOWNLOAD} download="FeedEx-for-Mac.zip" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950">받기</a></div>
     <p className="mt-2 text-xs leading-5">웹 보기에서 언론사 로그인이 유지되는 맥 앱이에요. 받은 zip을 풀어 응용 프로그램 폴더에 넣으세요. 처음 열 때 경고가 뜨면 시스템 설정 → 개인정보 보호 및 보안에서 '그래도 열기'를 누르세요.</p>
   </section>;
 }
@@ -93,7 +93,7 @@ export function PwaInstall() {
   };
   return <>
     <dialog ref={dialog} aria-labelledby="install-title" className="feedex-install-dialog" onCancel={() => setOpen(false)} onClose={() => setOpen(false)} onClick={(event) => { if (event.target === dialog.current) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) setOpen(false); } }}>
-      <div className="flex items-center gap-3 mb-5"><img src="/icons/icon-192.png" alt="" width="44" height="44" /><h2 id="install-title" className="text-xl font-bold">{ios ? '홈 화면에 추가' : browserSteps ? 'FeedEx 앱 설치' : 'FeedEx for Mac 받기'}</h2></div>
+      <div className="flex items-center gap-3 mb-5"><img src="/icons/icon-192.png" alt="" width="44" height="44" /><h2 id="install-title" className="text-xl font-bold">{ios ? '홈 화면에 추가' : browserSteps ? 'FeedEx 앱 설치' : '맥 앱 받기'}</h2></div>
       {mac && <MacAppOption />}
       {browserSteps && <>
       {mac && <p className="mt-5 mb-3 text-xs font-semibold">브라우저 앱으로 설치</p>}
