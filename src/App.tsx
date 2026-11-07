@@ -212,7 +212,7 @@ export const App: React.FC = () => {
   const markingAllReadRef = useRef(false);
   const [markReadError, setMarkReadError] = useState<string | null>(null);
 
-  // 열어 둔 탭과 홈 화면 앱도 다시 화면에 나타날 때 새 배포로 바꾼다(appVersion.ts).
+  // 맥 앱·탭·홈 화면 앱에서 새 배포를 정기적으로 확인하고 자동 반영한다(appVersion.ts).
   // 바꾸기 직전에 지금 보던 목록과 글, 스크롤 위치를 남긴다.
   const resumeSource = useRef({ account: '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId });
   resumeSource.current = { account: user?.id ?? '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId };

@@ -1,6 +1,6 @@
 // 열려 있는 탭과 홈 화면 앱은 새로 고치기 전까지 처음 받은 앱 코드를 계속 쓴다. 그래서 고친 것을
-// 배포해도 오래 켜 둔 앱에는 닿지 않는다. 앱이 다시 화면에 나타날 때 서버의 앱 껍데기(index.html)가
-// 가리키는 번들을 확인하고, 바뀌었으면 읽던 자리를 남긴 뒤 새로 고친다.
+// 배포해도 오래 켜 둔 앱에는 닿지 않는다. 앱이 보이는 동안 정기적으로 앱 껍데기(index.html)의
+// 화면 코드와 스타일을 확인하고, 바뀌었으면 읽던 자리를 남긴 뒤 새로 고친다.
 import type { ScopeType } from './api';
 
 const BUNDLE = /^\/assets\/[^/?#]+\.js$/;
@@ -24,6 +24,22 @@ export function runningBundle(doc: Pick<Document, 'querySelectorAll'>): string |
   return null;
 }
 
+const STYLESHEET = /^\/assets\/[^/?#]+\.css$/;
+const versionKey = (bundle: string | null, styles: string[]) => bundle ? [bundle, ...styles.sort()].join('|') : null;
+/** 스타일만 바뀐 배포도 감지한다. 외부 로그인 스크립트나 사이트별 스타일은 제외한다. */
+export function shellVersion(html: string): string | null {
+  const styles = [];
+  for (const tag of html.match(/<link\b[^>]*>/gi) || []) {
+    const href = /\bhref=["']([^"']+)["']/i.exec(tag)?.[1];
+    if (/\brel=["']stylesheet["']/i.test(tag) && href && STYLESHEET.test(href)) styles.push(href);
+  }
+  return versionKey(shellBundle(html), styles);
+}
+export function runningVersion(doc: Pick<Document, 'querySelectorAll'>): string | null {
+  const styles = Array.from(doc.querySelectorAll('link[rel="stylesheet"][href]')).map((link) => link.getAttribute('href')).filter((href): href is string => Boolean(href && STYLESHEET.test(href)));
+  return versionKey(runningBundle(doc), styles);
+}
+
 // 배포는 드물므로, 자주 나타났다 사라져도 1분에 한 번만 묻는다.
 const CHECK_GAP = 60_000;
 // 같은 번들로 바꾸려고 이미 새로 고쳤는데 아직 옛 번들이면(배포가 퍼지는 중 등) 그동안 다시 고치지 않는다.
@@ -33,7 +49,7 @@ const SWAP_KEY = 'sfeed:app-swap';
 export interface AppVersionOptions {
   current: string;
   loadShell: () => Promise<string>;
-  /** 입력 중이거나 대화상자가 열렸거나 저장 중인 변경이 있으면 false. 다음에 나타날 때 다시 본다. */
+  /** 입력 중이거나 대화상자가 열렸거나 저장 중인 변경이 있으면 false. 다음 확인 때 다시 본다. */
   canSwap: () => boolean;
   /** 새로 고치기 직전에 읽던 자리를 남긴다. */
   beforeSwap: () => void;
@@ -44,11 +60,11 @@ export interface AppVersionOptions {
 
 export class AppVersionWatch {
   private checkedAt = -Infinity;
-  // 새 번들을 찾았지만 지금은 바꿀 수 없어 다음에 나타날 때로 미룬 것.
+  // 새 번들을 찾았지만 지금은 바꿀 수 없어 다음 확인으로 미룬 것.
   private waiting: string | null = null;
   private running: Promise<void> | null = null;
   constructor(private options: AppVersionOptions) {}
-  /** 앱이 다시 화면에 나타날 때 부른다. */
+  /** 앱이 보이는 동안 정기적으로, 또는 앱으로 돌아왔을 때 부른다. */
   check(): Promise<void> {
     if (!this.running) this.running = this.run().finally(() => { this.running = null; });
     return this.running;
@@ -60,9 +76,9 @@ export class AppVersionWatch {
       if (now - this.checkedAt < CHECK_GAP) return;
       this.checkedAt = now;
       let html: string;
-      // 연결이 없으면 다음에 나타날 때 다시 묻는다.
+      // 연결이 없으면 다음 확인 때 다시 묻는다.
       try { html = await this.options.loadShell(); } catch { return; }
-      const bundle = shellBundle(html);
+      const bundle = shellVersion(html);
       if (!bundle || bundle === this.options.current) return;
       next = bundle;
     }
@@ -81,39 +97,41 @@ export class AppVersionWatch {
   }
 }
 
-// 다른 창이나 앱에 이만큼 머물다 돌아오면 다시 나타난 것으로 본다.
-const AWAY = 60_000;
-/**
- * 탭·앱 전환, 화면 잠금 해제, 뒤로 가기 캐시에서 되살아남, 다른 창에 오래 있다가 돌아옴을
- * "다시 나타남"으로 보고 새 배포를 확인한다. 개발 서버처럼 번들이 없으면 아무것도 하지 않는다.
- */
+/** 화면을 켜 둔 맥 앱에서도 새 배포를 확인한다. 숨겨진 동안에는 요청하지 않는다. */
 export function watchAppVersion(options: Pick<AppVersionOptions, 'canSwap' | 'beforeSwap'>): () => void {
-  const current = runningBundle(document); if (!current) return () => {};
+  const current = runningVersion(document); if (!current) return () => {};
+  let active = true;
   const watch = new AppVersionWatch({
-    ...options, current, storage: session(), reload: () => window.location.reload(),
+    ...options, current, storage: session(),
+    canSwap: () => active && document.visibilityState === 'visible' && options.canSwap(),
+    reload: () => window.location.reload(),
     loadShell: async () => {
       const response = await fetch('/', { cache: 'no-store', credentials: 'same-origin' });
       if (!response.ok) throw new Error(`앱 껍데기 응답 오류 (HTTP ${response.status})`);
       return response.text();
     },
   });
-  let leftAt: number | null = null, blurTimer: ReturnType<typeof setTimeout> | undefined;
-  const visible = () => { if (document.visibilityState === 'visible') void watch.check(); };
-  const shown = (event: PageTransitionEvent) => { if (event.persisted) void watch.check(); };
-  // 웹 사본 프레임을 누르면 창의 초점이 잠깐 프레임으로 가지만 문서는 여전히 초점을 가진다.
-  // 그때는 떠난 것으로 치지 않는다.
-  const blurred = () => { clearTimeout(blurTimer); blurTimer = setTimeout(() => { if (!document.hasFocus()) leftAt = Date.now(); }, 0); };
-  const focused = () => { clearTimeout(blurTimer); if (leftAt !== null && Date.now() - leftAt >= AWAY) void watch.check(); leftAt = null; };
+  const visible = () => { if (active && document.visibilityState === 'visible') void watch.check(); };
+  const shown = (event: PageTransitionEvent) => { if (event.persisted) visible(); };
+  let settled: ReturnType<typeof setTimeout> | undefined;
+  // 다른 입력칸으로 옮기는 도중에는 새로 고치지 않는다. 새 포커스가 정해진 다음 확인한다.
+  const afterInput = () => { clearTimeout(settled); settled = setTimeout(visible, 0); };
+  const interval = window.setInterval(visible, CHECK_GAP);
   document.addEventListener('visibilitychange', visible);
+  document.addEventListener('focusout', afterInput);
   window.addEventListener('pageshow', shown);
-  window.addEventListener('blur', blurred);
-  window.addEventListener('focus', focused);
+  window.addEventListener('focus', visible);
+  window.addEventListener('online', visible);
+  visible();
   return () => {
-    clearTimeout(blurTimer);
+    active = false;
+    clearTimeout(settled);
+    window.clearInterval(interval);
     document.removeEventListener('visibilitychange', visible);
+    document.removeEventListener('focusout', afterInput);
     window.removeEventListener('pageshow', shown);
-    window.removeEventListener('blur', blurred);
-    window.removeEventListener('focus', focused);
+    window.removeEventListener('focus', visible);
+    window.removeEventListener('online', visible);
   };
 }
 

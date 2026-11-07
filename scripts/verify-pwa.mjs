@@ -181,7 +181,7 @@ try {
     assert.ok(!braveHelp.includes('Chrome·Edge의 주소창'), 'iOS Brave must not get desktop install instructions');
   } finally { if (previousAgent) Object.defineProperty(navigator, 'userAgent', previousAgent); else delete navigator.userAgent; }
   // 열어 둔 탭·홈 화면 앱은 다시 나타날 때 새 배포를 확인하고, 읽던 자리를 남긴 뒤 새로 고친다.
-  const { shellBundle, runningBundle, AppVersionWatch, keepResumePoint, takeResumePoint } = await vite.ssrLoadModule('/src/client/appVersion.ts');
+  const { shellBundle, runningBundle, shellVersion, runningVersion, watchAppVersion, AppVersionWatch, keepResumePoint, takeResumePoint } = await vite.ssrLoadModule('/src/client/appVersion.ts');
   const built = readFileSync('dist/index.html', 'utf8'), builtBundle = shellBundle(built);
   assert.match(builtBundle, /^\/assets\/index-[\w-]+\.js$/, 'the built shell names its entry bundle');
   assert.equal(shellBundle('<script type="module" src="/src/main.tsx"></script>'), null, 'the dev server has no bundle to compare');
@@ -211,6 +211,57 @@ try {
   await repeat.watch.check();
   assert.equal(repeat.log.swaps, 0, 'if the reload still came back old (deploy spreading), it does not loop');
   repeat.advance(11 * 60_000); await repeat.watch.check(); assert.equal(repeat.log.swaps, 1, 'it tries again after a while');
+  const oldShell = '<script type="module" src="/assets/index-OLD.js"></script><link rel="stylesheet" href="/assets/index-OLD.css">';
+  const newStyle = oldShell.replace('index-OLD.css', 'index-NEW.css');
+  assert.notEqual(shellVersion(oldShell), shellVersion(newStyle), 'a style-only release is an app update too');
+  const stylesOnly = new AppVersionWatch({ current: shellVersion(oldShell), loadShell: async () => newStyle, storage: memory(), canSwap: () => true, beforeSwap() {}, reload() { styleSwaps++; } });
+  let styleSwaps = 0;
+  await stylesOnly.check(); assert.equal(styleSwaps, 1);
+
+  // 실제 감시 연결: 앱을 계속 열어 둬도 확인하며, 숨김·입력·종료 뒤 응답은 새로고침하지 않는다.
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const previousWindow = globalThis.window, previousFetch = globalThis.fetch, previousNow = Date.now;
+  try {
+    const win = new EventTarget(), doc = new EventTarget(), timers = new Map();
+    let clock = 10_000_000, shell = oldShell, reads = 0, swaps = 0, kept = 0, busy = false, load;
+    Date.now = () => clock;
+    win.sessionStorage = memory(); win.location = { reload: () => swaps++ };
+    win.setInterval = (tick, delay) => { assert.equal(delay, 60_000); timers.set(1, tick); return 1; };
+    win.clearInterval = (id) => timers.delete(id);
+    doc.visibilityState = 'visible';
+    doc.querySelectorAll = (selector) => selector.startsWith('script') ? [{ getAttribute: () => '/assets/index-OLD.js' }] : [{ getAttribute: () => '/assets/index-OLD.css' }];
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: doc });
+    globalThis.window = win;
+    globalThis.fetch = async (_url, options) => { assert.equal(options.cache, 'no-store'); reads++; if (load) return load(); return { ok: true, text: async () => shell }; };
+    const flush = () => new Promise((resolve) => setImmediate(resolve));
+    assert.equal(runningVersion(doc), shellVersion(oldShell));
+    const stop = watchAppVersion({ canSwap: () => !busy, beforeSwap: () => kept++ });
+    await flush(); assert.equal(reads, 1, 'startup checks once');
+    win.dispatchEvent(new Event('focus')); await flush(); assert.equal(reads, 1, 'quick focus changes do not add requests');
+    doc.visibilityState = 'hidden'; clock += 61_000; timers.get(1)(); await flush(); assert.equal(reads, 1, 'background apps do not poll');
+    doc.visibilityState = 'visible'; doc.dispatchEvent(new Event('visibilitychange')); await flush(); assert.equal(reads, 2);
+    shell = newStyle; busy = true; clock += 61_000; timers.get(1)(); await flush();
+    assert.equal(reads, 3); assert.equal(swaps, 0, 'typing postpones a periodic update');
+    busy = false; doc.dispatchEvent(new Event('focusout')); await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(swaps, 1); assert.equal(kept, 1, 'finishing input saves the reading place then reloads');
+    assert.equal(reads, 3, 'the deferred update reuses the detected version');
+    stop(); assert.equal(timers.size, 0, 'unmount removes the timer');
+    clock += 61_000; win.dispatchEvent(new Event('online')); doc.dispatchEvent(new Event('visibilitychange')); await flush(); assert.equal(reads, 3, 'unmount removes event listeners too');
+    // 요청 중 앱이 종료되거나 가려져도 늦은 응답이 새로고침을 일으키지 않는다.
+    win.sessionStorage = memory(); let finish;
+    load = () => new Promise((resolve) => { finish = resolve; });
+    const close = watchAppVersion({ canSwap: () => true, beforeSwap: () => kept++ });
+    await flush(); close(); finish({ ok: true, text: async () => newStyle }); await flush();
+    assert.equal(swaps, 1, 'a late response after cleanup cannot reload the app');
+    win.sessionStorage = memory(); clock += 61_000;
+    const hide = watchAppVersion({ canSwap: () => true, beforeSwap: () => kept++ });
+    await flush(); doc.visibilityState = 'hidden'; finish({ ok: true, text: async () => newStyle }); await flush();
+    assert.equal(swaps, 1, 'a response received in the background waits');
+    hide();
+  } finally {
+    Date.now = previousNow; globalThis.fetch = previousFetch; globalThis.window = previousWindow;
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument); else delete globalThis.document;
+  }
   const place = memory(), now = 5_000_000;
   const point = { account: 'reader', at: now, scope: 'feed', folderId: null, feedId: 'feed-1', search: 'bitcoin', saved: false, articleId: 'art-1', listScroll: 640, readerScroll: 1200 };
   keepResumePoint(point, place);
@@ -222,5 +273,5 @@ try {
   keepResumePoint({ ...point, scope: 'admin', articleId: { id: 1 } }, place); assert.equal(takeResumePoint('reader', now + 1000, place), null, 'malformed places are ignored');
   keepResumePoint({ ...point, listScroll: -5, readerScroll: 'x' }, place);
   assert.deepEqual(takeResumePoint('reader', now + 1000, place), { ...point, listScroll: 0, readerScroll: 0 });
-  console.log('PASS: install manifest, iPhone/iPad browser detection, Safari handoff before losing the tap, copy/navigation failures and fallback, native prompt lifecycle, open tabs swapping to a new deploy when they reappear while keeping the reading place, safe public-only offline caching and deployment headers.');
+  console.log('PASS: install manifest, iPhone/iPad browser detection, Safari handoff before losing the tap, copy/navigation failures and fallback, native prompt lifecycle, visible Mac/web apps polling for code/style releases, safe deferred reload and scheduler cleanup while keeping the reading place, safe public-only offline caching and deployment headers.');
 } finally { delete globalThis.window; await vite.close(); }
