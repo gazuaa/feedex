@@ -12,6 +12,7 @@ import type {
   SubscriptionItem,
   ArticleItem,
 } from './types';
+import { parseExcludedFeeds, scopedExcludedFeeds } from '../shared/feedExclusions';
 import { CURATED_FEEDS } from './curatedFeeds';
 import type { OpmlFeed } from '../shared/opml';
 import { normalizeFeedUrl } from '../shared/feedDiscovery';
@@ -361,6 +362,26 @@ app.put('/api/user/article-blocks', async (c) => {
     if (error instanceof SyntaxError || error instanceof ArticleBlockError) return c.json({ error: error instanceof ArticleBlockError ? error.message : '규칙 요청을 확인해 주세요.' }, 400);
     throw error;
   }
+});
+
+// This account filter is stored separately from device UI preferences.
+app.get('/api/user/feed-exclusions', (c) => {
+  c.header('Cache-Control', 'no-store');
+  let value: unknown;
+  try { value = JSON.parse(c.get('user').preferences_json || '{}').excludedFeedIds; } catch { /* Legacy preferences. */ }
+  return c.json({ feedIds: parseExcludedFeeds(value) });
+});
+app.put('/api/user/feed-exclusions', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const text = await c.req.text();
+  if (text.length > 220_000) return c.json({ error: '피드 목록이 너무 큽니다.' }, 413);
+  let value: unknown;
+  try { value = JSON.parse(text).feedIds; } catch { return c.json({ error: '피드 목록을 확인해 주세요.' }, 400); }
+  if (!Array.isArray(value)) return c.json({ error: '피드 목록을 확인해 주세요.' }, 400);
+  const feedIds = parseExcludedFeeds(value);
+  await c.env.DB.prepare(`UPDATE users SET preferences_json = json_set(CASE WHEN json_valid(preferences_json) THEN preferences_json ELSE '{}' END, '$.excludedFeedIds', json(?)) WHERE id = ?`)
+    .bind(JSON.stringify(feedIds), c.get('user').id).run();
+  return c.json({ feedIds });
 });
 
 app.put('/api/user/preferences', async (c) => {
@@ -972,6 +993,12 @@ app.get('/api/articles', async (c) => {
     params.push(twentyFourHoursAgo);
   }
 
+  const excludedFeedIds = scopedExcludedFeeds(scope, savedOnly, c.req.query('excludedFeedIds'));
+  if (!exact && excludedFeedIds.length) {
+    conditions.push('a.feed_id NOT IN (SELECT value FROM json_each(?))');
+    params.push(JSON.stringify(excludedFeedIds));
+  }
+
   if (!exact && savedOnly && scope !== 'saved') {
     requireSaved();
   }
@@ -1153,6 +1180,7 @@ app.post('/api/articles/mark-all-read', async (c) => {
     feedId?: string;
     search?: string;
     savedOnly?: boolean;
+    excludedFeedIds?: string[];
     olderThan?: string;
     newerThan?: string;
   }>();
@@ -1173,6 +1201,11 @@ app.post('/api/articles/mark-all-read', async (c) => {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     conditions.push('a.published_at >= ?');
     params.push(twentyFourHoursAgo);
+  }
+  const excludedFeedIds = scopedExcludedFeeds(scope, Boolean(body.savedOnly), body.excludedFeedIds);
+  if (excludedFeedIds.length) {
+    conditions.push('a.feed_id NOT IN (SELECT value FROM json_each(?))');
+    params.push(JSON.stringify(excludedFeedIds));
   }
   if (body.savedOnly && scope !== 'saved') conditions.push('COALESCE(st.is_saved, 0) = 1');
   const search = typeof body.search === 'string' ? body.search.trim() : '';

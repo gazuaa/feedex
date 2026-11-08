@@ -63,6 +63,8 @@ import { compileArticleBlocks, useArticleBlocks, useArticleBlockAccountSync, syn
 import { RssBuilderEditor } from './components/RssBuilderEditor';
 import { FeedHistoryDialog } from './components/FeedHistoryDialog';
 import { RenameFeedDialog } from './components/RenameFeedDialog';
+import { useFeedExclusions } from './client/feedExclusions';
+import { FeedExclusionsDialog } from './components/FeedExclusionsDialog';
 import { ArticleBlockDialog } from './components/ArticleBlockDialog';
 
 // 워커는 응답 뒤에 30초까지 일한다. 그 뒤에 받은 글을 한 번 더 맞춘다.
@@ -70,6 +72,9 @@ const REFRESH_FOLLOW_UP_MS = 31_000;
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const { feedIds: excludedFeedIds, save: saveFeedExclusions } = useFeedExclusions(user?.id || '');
+  const excludedFeedSet = useMemo(() => new Set(excludedFeedIds), [excludedFeedIds]);
+  const [feedExclusionsOpen, setFeedExclusionsOpen] = useState(false);
   const articleBlocks = useArticleBlocks(user?.id || '');
   useArticleBlockAccountSync(user?.id || '');
   const isBlockedArticle = useMemo(() => compileArticleBlocks(articleBlocks), [articleBlocks]);
@@ -141,13 +146,15 @@ export const App: React.FC = () => {
   const [historyFeed, setHistoryFeed] = useState<{ accountId: string; feed: SubscriptionItem } | null>(null);
   const [builderEditor, setBuilderEditor] = useState<{ accountId: string; id: string } | null>(null);
   const [blockDialog, setBlockDialog] = useState<{ accountId: string; article: ArticleItem | null } | null>(null);
+  const filterAllFeeds = activeScope === 'all' && !savedOnly;
+  const includedArticles = useMemo(() => filterAllFeeds ? articles.filter(article => !excludedFeedSet.has(article.feed_id)) : articles, [articles, filterAllFeeds, excludedFeedSet]);
   const { blocked: blockedArticles, visible: unblockedArticles } = useMemo(() => {
     const blocked: ArticleItem[] = [], visible: ArticleItem[] = [];
-    for (const article of articles) (isBlockedArticle(article) ? blocked : visible).push(article);
-    return { blocked, visible: blocked.length ? visible : articles };
-  }, [articles, isBlockedArticle]);
+    for (const article of includedArticles) (isBlockedArticle(article) ? blocked : visible).push(article);
+    return { blocked, visible: blocked.length ? visible : includedArticles };
+  }, [includedArticles, isBlockedArticle]);
   const blockedArticleIds = useMemo(() => new Set(blockedArticles.map((article) => article.id)), [blockedArticles]);
-  const visibleArticles = showBlockedArticles ? articles : unblockedArticles;
+  const visibleArticles = showBlockedArticles ? includedArticles : unblockedArticles;
   const [loadingArticles, setLoadingArticles] = useState(false);
   const [hasMoreArticles, setHasMoreArticles] = useState(false);
   const [loadingMoreArticles, setLoadingMoreArticles] = useState(false);
@@ -203,6 +210,7 @@ export const App: React.FC = () => {
     name: string;
     // 목록의 검색어와 저장 필터. 목록에 보이는 글만 읽음 처리하기 위해 둔다.
     search: string;
+    excludedFeedIds?: string[];
     savedOnly: boolean;
     // Q / W: 열린 글 위나 아래의 글만 처리한다. `older`는 그쪽이 시간상 더 오래된 쪽인지를 뜻한다.
     edge?: { articleId: string; side: 'above' | 'below'; older: boolean };
@@ -427,6 +435,7 @@ export const App: React.FC = () => {
       scope: activeScope,
       unreadOnly: String(unreadOnly),
     });
+    if (filterAllFeeds && excludedFeedIds.length) qs.set('excludedFeedIds', JSON.stringify(excludedFeedIds));
     if (articleSort === 'oldest') qs.set('sort', 'oldest');
     if (activeScope === 'folder' && activeFolderId) {
       qs.set('folderId', activeFolderId);
@@ -441,7 +450,7 @@ export const App: React.FC = () => {
       qs.set('search', committedSearch.trim());
     }
     return qs;
-  }, [activeScope, activeFolderId, activeFeedId, unreadOnly, savedOnly, committedSearch, articleSort]);
+  }, [activeScope, activeFolderId, activeFeedId, unreadOnly, savedOnly, committedSearch, articleSort, filterAllFeeds, excludedFeedIds]);
 
   const retainReadRows = unreadOnly && !savedOnly && activeScope !== 'saved';
   const unreadSessions = useMemo(() => new Map<string, UnreadSession>(), [readerCache, isMobile]);
@@ -521,7 +530,7 @@ export const App: React.FC = () => {
   const warmLists = useCallback((alive: () => boolean = () => true) => {
     const cache = readerCache;
     if (!cache || !readerPreloader || preloadVersion?.cache !== cache) return Promise.resolve();
-    const queries = preloadArticleQueries(buildArticleQuery(), folders.map((folder) => folder.id));
+    const queries = preloadArticleQueries(buildArticleQuery(), folders.map((folder) => folder.id), excludedFeedIds);
     const token = authenticatedToken.current;
     const current = () => alive() && document.visibilityState === 'visible' && activeCache.current === cache && getStoredToken() === token && token === authenticatedToken.current;
     if (!queries.length || !current()) return Promise.resolve();
@@ -530,7 +539,7 @@ export const App: React.FC = () => {
       if (!current() || !cache.active) throw new Error('Session changed');
       return apiRequest<ArticlePage>(`/api/articles?${query}`);
     }, current);
-  }, [readerCache, readerPreloader, preloadVersion, buildArticleQuery, folders]);
+  }, [readerCache, readerPreloader, preloadVersion, buildArticleQuery, folders, excludedFeedIds]);
   warmListsRef.current = warmLists;
 
   useEffect(() => {
@@ -961,6 +970,7 @@ export const App: React.FC = () => {
     setMarkReadTarget({
       scope: activeScope, folderId: activeFolderId, feedId: activeFeedId,
       name: headerInfo.title, search: committedSearch.trim(), savedOnly: savedOnly && activeScope !== 'saved',
+      excludedFeedIds: filterAllFeeds ? excludedFeedIds : undefined,
       edge: side && selectedArticle ? { articleId: selectedArticle.id, side, older: (side === 'below') === (articleSort === 'newest') } : undefined,
       keyboard,
     });
@@ -984,6 +994,7 @@ export const App: React.FC = () => {
           folderId: markReadTarget.folderId,
           feedId: markReadTarget.feedId,
           search: markReadTarget.search || undefined,
+          excludedFeedIds: markReadTarget.excludedFeedIds,
           savedOnly: markReadTarget.savedOnly || undefined,
           [markReadTarget.edge?.older ? 'olderThan' : 'newerThan']: markReadTarget.edge?.articleId,
         }),
@@ -1559,8 +1570,12 @@ export const App: React.FC = () => {
           </footer>
         }
       >
-        {articleBlocks.some((rule) => rule.enabled) && (showBlockedArticles || blockedArticles.length > 0 || visibleArticles.length > 0 || loadingArticles || loadingBootstrap) && <div className="feedex-block-bar"><span title="피드와 폴더의 숫자는 차단 전 전체 글 기준입니다.">{showBlockedArticles ? `차단 대상 ${blockedArticles.length}개 표시 중` : `불러온 글 중 ${blockedArticles.length}개 숨김`}</span><button type="button" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles((value) => !value)}>{showBlockedArticles ? '차단 적용' : '숨긴 글 보기'}</button><button type="button" onClick={onManageArticleBlocks}>규칙 관리</button></div>}
-        {!showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기</button></div> : <ArticleList
+        {(filterAllFeeds || articleBlocks.some((rule) => rule.enabled)) && <div className="feedex-block-bar">
+          <span title="피드와 폴더의 숫자는 제외 전 전체 글 기준입니다.">{showBlockedArticles ? `차단 대상 ${blockedArticles.length}개 표시 중` : `불러온 글 중 ${blockedArticles.length}개 숨김`}</span>
+          {filterAllFeeds && <button type="button" onClick={() => setFeedExclusionsOpen(true)}>피드 제외{subscriptions.some(feed => excludedFeedSet.has(feed.feed_id)) ? ` ${subscriptions.filter(feed => excludedFeedSet.has(feed.feed_id)).length}개` : ''}</button>}
+          {articleBlocks.some(rule => rule.enabled) && <><button type="button" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles(value => !value)}>{showBlockedArticles ? '차단 적용' : '숨긴 글 보기'}</button><button type="button" onClick={onManageArticleBlocks}>규칙 관리</button></>}
+        </div>}
+        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>표시할 글이 없습니다.</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>제외한 피드 변경</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기</button></div> : <ArticleList
           accountId={user.id}
           onUpdateArticleFields={handleUpdateArticleFields}
           onPrepareArticle={handlePrepareArticle}
@@ -1590,6 +1605,13 @@ export const App: React.FC = () => {
           />
         )}
       </ResizableWorkspace>
+      {feedExclusionsOpen && <FeedExclusionsDialog key={user.id} subscriptions={subscriptions} excluded={excludedFeedIds} onClose={() => setFeedExclusionsOpen(false)} onSave={async ids => {
+        await saveFeedExclusions(ids);
+        if (filterAllFeeds) {
+          forgetListAnchor(); pendingScroll.current = 0; articleListRef.current?.scrollTo({ top: 0 });
+          if (selectedArticle && ids.includes(selectedArticle.feed_id)) setSelectedArticleId(null);
+        }
+      }} />}
       {renameFeed?.accountId === user.id && <RenameFeedDialog key={`${user.id}:${renameFeed.feed.id}`} feed={renameFeed.feed} isDark={isDark} onClose={() => setRenameFeed(null)} onRenamed={async value => {
         const feedId = renameFeed.feed.feed_id;
         const renamed = (sub: SubscriptionItem) => sub.feed_id === feedId ? { ...sub, title: value.title, custom_title: value.customTitle } : sub;

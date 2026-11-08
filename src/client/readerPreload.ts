@@ -8,7 +8,7 @@ export function feedCacheVersion(data: BootstrapResponse): string {
   return JSON.stringify(data.subscriptions.map((sub) => [sub.feed_id, sub.folder_id, sub.total_count, sub.last_fetched_at]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
 }
 
-export function preloadArticleQueries(current: URLSearchParams, folderIds: string[] = []): URLSearchParams[] {
+export function preloadArticleQueries(current: URLSearchParams, folderIds: string[] = [], excludedFeedIds: string[] = []): URLSearchParams[] {
   if (current.get('search')) return [];
   const queries: URLSearchParams[] = [];
   const scope = current.get('scope');
@@ -29,6 +29,9 @@ export function preloadArticleQueries(current: URLSearchParams, folderIds: strin
     const query = new URLSearchParams({ scope: 'folder', unreadOnly: current.get('unreadOnly') ?? 'false', folderId });
     if (current.get('savedOnly') === 'true') query.set('savedOnly', 'true');
     queries.push(query);
+  }
+  for (const query of queries) {
+    if (query.get('scope') === 'all' && excludedFeedIds.length) query.set('excludedFeedIds', JSON.stringify(excludedFeedIds));
   }
   const active = articlePageKey(current);
   if (current.get('sort') === 'oldest') queries.forEach((query) => query.set('sort', 'oldest'));

@@ -1,3 +1,4 @@
+import { scopedExcludedFeeds } from '../shared/feedExclusions';
 import type { ArticleItem, BootstrapResponse } from './api';
 import type { ArticlePage } from './readerCache';
 
@@ -6,6 +7,7 @@ export function matchesPage(query: URLSearchParams, article: ArticleItem, now = 
   if (scope === 'folder' && article.folder_id !== query.get('folderId')) return false;
   if (scope === 'feed' && article.feed_id !== query.get('feedId')) return false;
   const saved = scope === 'saved' || query.get('savedOnly') === 'true';
+  if (scopedExcludedFeeds(scope, saved, query.get('excludedFeedIds')).includes(article.feed_id)) return false;
   if (saved && !article.is_saved) return false;
   const age = now - Date.parse(article.published_at);
   if (scope === 'today' && age > 86400_000) return false;
