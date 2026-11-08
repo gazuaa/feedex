@@ -193,7 +193,13 @@ try {
   assert.ok(program.indexOf('Microsoft.Web.WebView2.Core.dll') < program.indexOf('Start(instance'), 'missing files are explained before WebView2 loads');
   assert.match(program, /\[MethodImpl\(MethodImplOptions\.NoInlining\)\]\s*static void Start/);
   assert.match(support, /Registry\.CurrentUser\.CreateSubKey\(@"Software\\Classes\\" \+ AppLinks\.Scheme\)/, 'links are registered for this user only');
-  assert.match(support, /command\.SetValue\("", "\\"" \+ exe \+ "\\" \\"%1\\""\)/, 'the link is passed as one quoted argument');
+  assert.match(support, /var command = "\\"" \+ exe \+ "\\" \\"%1\\"";/, 'the link is passed as one quoted argument');
+  // 1.0은 Defender에 Wacatac.B!ml로 잡혔다. 악성코드가 자리 잡을 때 쓰는 동작은 넣지 않는다.
+  const app = ['AppLinks', 'AppScale', 'DebugTools', 'MainForm', 'Notifications', 'PopupWindow', 'Program', 'Support', 'Updates'].map((name) => read(`${name}.cs`)).join('\n');
+  assert.doesNotMatch(app, /WScript|CreateShortcut|GetTypeFromProgID|\.lnk/, 'no script-host shortcuts');
+  assert.doesNotMatch(app, /AllowSetForegroundWindow\(-1|AnyProcess/, 'only the running FeedEx may take the foreground');
+  assert.doesNotMatch(app, /CurrentVersion\\\\Run|Startup\)/, 'nothing starts with Windows');
+  assert.match(support, /if \(existing\?\.GetValue\(""\) as string == command\) return;/, 'the link is not rewritten on every launch');
   assert.match(support, /new PipeAccessRule\(WindowsIdentity\.GetCurrent\(\)\.User, PipeAccessRights\.ReadWrite, AccessControlType\.Allow\)/, 'only this user can pass links to the running app');
   assert.match(read('DebugTools.cs'), /FEEDEX_DEBUG_DIR/);
   assert.match(form, /core\.Settings\.IsZoomControlEnabled = false;\s*core\.ContentLoading \+= \(sender, args\) => KeepAppScale\(\);/, 'WebView2 resets zoom on each load, so the app scale is applied again');

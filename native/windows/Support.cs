@@ -78,10 +78,11 @@ namespace FeedEx
 
     static class NativeMethods
     {
-        public const int AnyProcess = -1;
-
         [DllImport("user32.dll")]
         public static extern bool AllowSetForegroundWindow(int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GetNamedPipeServerProcessId(IntPtr pipe, out uint processId);
 
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr window);
@@ -146,38 +147,17 @@ namespace FeedEx
         /// </summary>
         public static void RegisterLinks(string exe)
         {
+            var command = "\"" + exe + "\" \"%1\"";
+            // 이미 같은 위치로 등록돼 있으면 레지스트리를 다시 쓰지 않는다.
+            using (var existing = Registry.CurrentUser.OpenSubKey(@"Software\Classes\" + AppLinks.Scheme + @"\shell\open\command"))
+                if (existing?.GetValue("") as string == command) return;
             using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + AppLinks.Scheme))
             {
                 key.SetValue("", "URL:FeedEx");
                 key.SetValue("URL Protocol", "");
                 using (var icon = key.CreateSubKey("DefaultIcon")) icon.SetValue("", "\"" + exe + "\",0");
-                using (var command = key.CreateSubKey(@"shell\open\command")) command.SetValue("", "\"" + exe + "\" \"%1\"");
+                using (var open = key.CreateSubKey(@"shell\open\command")) open.SetValue("", command);
             }
-        }
-
-        /// <summary>시작 메뉴에서 FeedEx를 찾고 작업 표시줄에 고정할 수 있게 바로 가기를 둔다.</summary>
-        public static void AddStartMenuShortcut(string exe)
-        {
-            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "FeedEx.lnk");
-            var shellType = Type.GetTypeFromProgID("WScript.Shell");
-            if (shellType == null) return;
-            var shell = Activator.CreateInstance(shellType);
-            try
-            {
-                var link = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { path });
-                try
-                {
-                    var linkType = link.GetType();
-                    if (File.Exists(path) && string.Equals(linkType.InvokeMember("TargetPath", BindingFlags.GetProperty, null, link, null) as string, exe, StringComparison.OrdinalIgnoreCase)) return;
-                    linkType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, link, new object[] { exe });
-                    linkType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, link, new object[] { Path.GetDirectoryName(exe) });
-                    linkType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, link, new object[] { exe + ",0" });
-                    linkType.InvokeMember("Description", BindingFlags.SetProperty, null, link, new object[] { "FeedEx" });
-                    linkType.InvokeMember("Save", BindingFlags.InvokeMethod, null, link, null);
-                }
-                finally { Marshal.FinalReleaseComObject(link); }
-            }
-            finally { Marshal.FinalReleaseComObject(shell); }
         }
     }
 
@@ -205,11 +185,12 @@ namespace FeedEx
         {
             try
             {
-                // 넘겨받은 앱이 창을 앞으로 가져올 수 있게 허락한다. 브라우저에서 누른 직후라 이 실행에는 그 권한이 있다.
-                NativeMethods.AllowSetForegroundWindow(NativeMethods.AnyProcess);
                 using (var pipe = new NamedPipeClientStream(".", name, PipeDirection.Out))
                 {
                     pipe.Connect(5000);
+                    // 넘겨받은 FeedEx만 창을 앞으로 가져올 수 있게 허락한다. 브라우저에서 누른 직후라 이 실행에는 그 권한이 있다.
+                    if (NativeMethods.GetNamedPipeServerProcessId(pipe.SafePipeHandle.DangerousGetHandle(), out var server) && server > 0)
+                        NativeMethods.AllowSetForegroundWindow((int)server);
                     var bytes = Encoding.UTF8.GetBytes(text);
                     pipe.Write(bytes, 0, bytes.Length);
                     pipe.Flush();

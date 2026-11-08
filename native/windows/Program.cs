@@ -43,7 +43,6 @@ namespace FeedEx
             if (string.IsNullOrEmpty(homeOverride))
             {
                 try { Registration.RegisterLinks(exe); } catch (Exception) { /* 등록하지 못해도 앱은 연다. */ }
-                try { Registration.AddStartMenuShortcut(exe); } catch (Exception) { /* 바로 가기가 없어도 앱은 연다. */ }
             }
             var form = new MainForm(AppLinks.Home(homeOverride), Settings.Load(), instance);
             if (link != null) form.HandleLink(link);

@@ -21,6 +21,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: 주소·로그인·배율 규칙을 .NET Framework에서 시험
         run: dotnet run --project native/windows/Tests/Tests.csproj -p:TestFramework=net48 --nologo
+      - name: Defender로 받기 파일 검사
+        shell: pwsh
+        run: ./scripts/windows-smoke/defender.ps1
       - name: 받기 zip을 풀어 실행
         shell: pwsh
         run: ./scripts/windows-smoke/run.ps1

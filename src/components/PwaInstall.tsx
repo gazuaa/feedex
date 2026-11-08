@@ -130,7 +130,7 @@ function MacAppOption({ known, onMissing }: { known: boolean; onMissing: () => v
   </section>;
 }
 
-/** 윈도우면 안내 창 맨 위에 윈도우 앱을 둔다. 처음 켜면 시작 메뉴와 '윈도우 앱으로 열기' 주소가 등록된다. */
+/** 윈도우면 안내 창 맨 위에 윈도우 앱을 둔다. 처음 켜면 '윈도우 앱으로 열기' 주소가 등록된다. */
 function WindowsAppOption({ known, onMissing }: { known: boolean; onMissing: () => void }) {
   return <section className="feedex-install-app" aria-label="윈도우 앱">
     <OptionTitle icon={<WindowsLogo size={16} />} title="윈도우 앱"><a href={WINDOWS_APP_DOWNLOAD} download="FeedEx-for-Windows.zip" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950">받기</a></OptionTitle>
@@ -140,7 +140,7 @@ function WindowsAppOption({ known, onMissing }: { known: boolean; onMissing: () 
     <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5">
       <li>받은 zip을 마우스 오른쪽 단추로 눌러 '모두 압축 풀기'를 해요.</li>
       <li>풀린 FeedEx 폴더의 FeedEx.exe를 열어요. 'Windows의 PC 보호'가 뜨면 '추가 정보' → '실행'을 눌러요.</li>
-      <li>그다음부터는 시작 메뉴의 FeedEx로 열면 돼요.</li>
+      <li>작업 표시줄의 FeedEx를 마우스 오른쪽 단추로 눌러 '작업 표시줄에 고정'을 하면 다음부터 바로 열 수 있어요.</li>
     </ol>
   </section>;
 }

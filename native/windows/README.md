@@ -4,7 +4,8 @@
 원문 사이트를 직접 연 화면을 겹쳐 놓는다. 두 화면이 같은 WebView2 저장소를 써서 언론사 로그인이 유지된다.
 
 - 윈도우 10·11에 기본으로 있는 .NET Framework 4.8과 Microsoft Edge WebView2 런타임을 쓴다. 받는 파일은 1MB 안팎이다.
-- 설치 프로그램 없이 zip을 풀어 `FeedEx.exe`를 연다. 처음 켜면 지금 사용자에게 `feedex-reader://` 주소와 시작 메뉴 바로 가기를 등록한다.
+- 설치 프로그램 없이 zip을 풀어 `FeedEx.exe`를 연다. 처음 켜면 지금 사용자에게 `feedex-reader://` 주소만 등록한다.
+- 시작 메뉴 바로 가기는 만들지 않는다. 스크립트 호스트로 바로 가기를 쓰는 동작은 백신이 악성코드로 의심한다(1.0이 Defender에 `Wacatac.B!ml`로 잡혔다). 작업 표시줄 고정은 사용자가 한다.
 - 코드 서명이 없어 처음 한 번은 SmartScreen이 막는다. '추가 정보' → '실행'으로 연다.
 - 앱 저장소는 `%LOCALAPPDATA%\FeedEx`, 배율과 창 위치는 `HKCU\Software\FeedEx`에 둔다.
 
@@ -38,6 +39,6 @@ FeedEx 화면에서는 Ctrl+휠 확대를 끄고, Ctrl+-·+·0을 앱 배율(기
 
 ## 개발 도구
 
-`FEEDEX_HOME`으로 시험 서버(https 또는 이 컴퓨터의 http)를 열 수 있다. 이때는 주소 등록과 바로 가기를 건너뛰고, 평소 앱과 따로 돈다.
+`FEEDEX_HOME`으로 시험 서버(https 또는 이 컴퓨터의 http)를 열 수 있다. 이때는 주소 등록을 건너뛰고, 평소 앱과 따로 돈다.
 `FEEDEX_DEBUG_DIR`을 주면 받은 메시지(`messages.log`), 상태(`state.log`), 창 그림(`window.png`, `screen.png`)을 남기고 그 폴더의 `run.js`를 실행한다.
 주소·로그인·배율 규칙은 `dotnet run --project native/windows/Tests/Tests.csproj`로 맥에서도 시험한다.
