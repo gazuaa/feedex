@@ -330,7 +330,10 @@ try {
     assert.equal(orphan.partial, true); assert.match(orphan.html, /parent-missing/); assert.doesNotMatch(orphan.html, /class="post before"/);
     pageMode = 'quote-no-media';
     const withQuoteCard = await fetchXThread('https://x.com/sama/status/2111130577789493706', '<p>Very happy to see this from Nick!</p><hr/><blockquote><b>Nick (@nickcammarata)</b><p><a href="https://already-clean.goodfire.com/"><img src="https://pbs.twimg.com/card_img/2115826775871668224/FxVmcikG?format=jpg&amp;name=800x419" /></a></p></blockquote>');
-    assert.match(withQuoteCard.html, /<div class="quote">[\s\S]*<a class="photo" href="https:\/\/already-clean\.goodfire\.com\/"><img src="https:\/\/pbs\.twimg\.com\/card_img\/2115826775871668224\/FxVmcikG\?format=jpg&amp;name=800x419"/, '미러 글 페이지에서 빠진 인용 글 카드 이미지는 RSS 본문에서 채운다.');
+    assert.match(withQuoteCard.html, /<div class="quote">[\s\S]*<a class="photo" href="https:\/\/pbs\.twimg\.com\/card_img\/2115826775871668224\/FxVmcikG\?format=jpg&amp;name=800x419"><img src="https:\/\/pbs\.twimg\.com\/card_img\/2115826775871668224\/FxVmcikG\?format=jpg&amp;name=800x419"/, '미러 글 페이지에서 빠진 인용 글 카드 이미지는 RSS 본문에서 채운다.');
+    const { fullXPhotoUrl } = await vite.ssrLoadModule('/src/client/xPostFrame.ts');
+    assert.equal(fullXPhotoUrl('https://pbs.twimg.com/media/photo.jpg?name=small'), 'https://pbs.twimg.com/media/photo.jpg?name=large');
+    assert.equal(fullXPhotoUrl('https://pbs.twimg.com/card_img/2115/FxV?format=jpg&name=800x419'), 'https://pbs.twimg.com/card_img/2115/FxV?format=jpg&name=800x419');
     pageMode = 'card-refresh';
     await db.prepare('UPDATE articles SET content_html = ?, thumbnail_url = ? WHERE id = ?').bind('<p>hark.com</p><hr/><b>Link</b><br><a href="https://hark.com/"><img src="https://pbs.twimg.com/card_img/2115225694108307456/0Ao18i-d?format=jpg&amp;name=800x419" /><br><b>Hark</b></a>', 'https://pbs.twimg.com/card_img/2115225694108307456/0Ao18i-d?format=jpg&name=800x419', articleId).run();
     const refreshedThumb = await (await request(`/api/articles/${articleId}/thumbnail`, { refresh: true })).json();

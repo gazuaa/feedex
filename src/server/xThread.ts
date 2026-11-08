@@ -16,7 +16,7 @@ type Node = { nodeType: number; nodeName: string; textContent: string | null };
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // 공개 미러의 글 상세 페이지는 인용 글 안의 외부 링크 카드 이미지를 생략하므로, RSS 본문에 있던 인용 글 이미지를 보충한다.
-function feedQuoteMedia(feedHtml: string | null | undefined, fallbackHref: string): string {
+function feedQuoteMedia(feedHtml: string | null | undefined): string {
   if (!feedHtml) return '';
   const cut = feedHtml.search(/<hr\b/i);
   if (cut < 0) return '';
@@ -27,9 +27,7 @@ function feedQuoteMedia(feedHtml: string | null | undefined, fallbackHref: strin
   for (const image of quote.querySelectorAll('img')) {
     const src = image.getAttribute('src') || '';
     if (!/^https:\/\/pbs\.twimg\.com\//i.test(src)) continue;
-    const parentHref = image.parentElement?.getAttribute('href') || '';
-    const href = /^https?:\/\//i.test(parentHref) ? parentHref : fallbackHref;
-    html += `<a class="photo" href="${escape(href)}"><img src="${escape(src)}" alt="" loading="lazy"></a>`;
+    html += `<a class="photo" href="${escape(src)}"><img src="${escape(src)}" alt="" loading="lazy"></a>`;
   }
   return html ? `<div class="media">${html}</div>` : '';
 }
@@ -143,7 +141,8 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     if (!box) return '';
     let html = '';
     for (const image of box.querySelectorAll('img')) {
-      const src = link(image.getAttribute('src')), full = link(image.parentElement?.getAttribute('href') || null) || src;
+      const src = link(image.getAttribute('src')), rawFull = link(image.parentElement?.getAttribute('href') || null);
+      const full = rawFull && /^https:\/\/pbs\.twimg\.com\//i.test(rawFull) ? rawFull : src;
       if (src) html += `<a class="photo" href="${escape(full!)}"><img src="${escape(src)}" alt="" loading="lazy"></a>`;
     }
     for (const video of box.querySelectorAll('video')) {
@@ -168,7 +167,7 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     const name = escape(box.querySelector('.fullname')?.textContent?.trim() || ''), user = escape(box.querySelector('.username')?.textContent?.trim() || '');
     const attachments = box.querySelector('.quote-media-container, .attachments');
     const avatar = link(box.querySelector('img.avatar')?.getAttribute('src') || null);
-    const quoteMedia = (attachments ? media(box, href || statusUrl, attachments) : '') || (kind === 'main' ? feedQuoteMedia(feedHtml, href || statusUrl) : '');
+    const quoteMedia = (attachments ? media(box, href || statusUrl, attachments) : '') || (kind === 'main' ? feedQuoteMedia(feedHtml) : '');
     return `<div class="quote"><a class="quote-post" href="${escape(href || statusUrl)}"><span class="who">${avatar ? `<img class="mini" src="${escape(avatar)}" alt="" loading="lazy">` : ''}<b>${name}</b> <span>${user}</span></span><span class="text">${rich(box.querySelector('.quote-text'), true)}</span></a>${quoteMedia}</div>`;
   };
   const stats = (item: Element) => {
