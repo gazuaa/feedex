@@ -28,18 +28,27 @@ html.dark .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-va
 .feedex-context-menu { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .feedex-block-setting { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 34px; font-size: 13px; cursor: pointer; text-align: left; }
 .feedex-block-setting > span:nth-of-type(2) { margin-left: auto; color: var(--feedex-muted); font-size: 12px; }
-.feedex-block-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--feedex-border); background: var(--feedex-panel); }
-.feedex-block-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--feedex-border); border-radius: 9px; color: var(--feedex-muted); background: transparent; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.feedex-block-bar { display: flex; align-items: center; flex-wrap: nowrap; min-width: 0; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--feedex-border); background: var(--feedex-panel); container: feed-filters / inline-size; }
+.feedex-block-bar button { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--feedex-border); border-radius: 9px; color: var(--feedex-muted); background: transparent; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
 .feedex-block-bar button:hover { background: var(--feedex-background); color: var(--feedex-text); }
 .feedex-block-bar button:focus-visible { outline: 2px solid #10b981; outline-offset: 2px; }
 .feedex-block-bar .feedex-filter-chip:is([data-active], [aria-pressed="true"]) { color: #059669; background: #10b98112; border-color: #10b98155; }
-.feedex-filter-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; background: #94a3b81a; color: var(--feedex-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.feedex-filter-count { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; background: #94a3b81a; color: var(--feedex-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .feedex-filter-chip:is([data-active], [aria-pressed="true"]) .feedex-filter-count { background: #10b98122; color: #059669; }
 .feedex-block-bar .feedex-filter-manage { margin-left: auto; padding-inline: 8px; border-color: transparent; font-weight: 400; }
 .feedex-block-empty button { color: #059669; cursor: pointer; font-weight: 600; }
 html.dark .feedex-block-bar .feedex-filter-chip:is([data-active], [aria-pressed="true"]), html.dark .feedex-filter-chip:is([data-active], [aria-pressed="true"]) .feedex-filter-count { color: #34d399; }
-@media (max-width: 640px) { .feedex-block-bar { padding: 8px 12px; } }
-@media (max-width: 380px) { .feedex-block-bar { gap: 4px; padding-inline: 8px; } .feedex-block-bar button { gap: 4px; padding-inline: 7px; font-size: 11px; } .feedex-block-bar .feedex-filter-manage { min-width: 34px; } .feedex-filter-manage span { display: none; } }
+.feedex-block-bar button > svg { flex-shrink: 0; }
+.feedex-block-bar button > span:not(.feedex-filter-count) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.feedex-block-bar .feedex-filter-manage { flex-shrink: 0; }
+@container feed-filters (max-width: 460px) {
+  .feedex-block-bar .feedex-filter-manage { width: 34px; padding-inline: 0; }
+  .feedex-filter-manage span { display: none; }
+}
+@container feed-filters (max-width: 300px) {
+  .feedex-block-bar .feedex-filter-chip { flex: 1 1 auto; gap: 4px; padding-inline: 7px; }
+  .feedex-filter-chip > svg { display: none; }
+}
 .feedex-block-empty { padding: 64px 24px; text-align: center; color: var(--feedex-muted); font-size: 13px; line-height: 1.8; }
 .feedex-block-overlay { position: fixed; inset: 0; z-index: 260; display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); background: #02061780; }
 .feedex-block-dialog { position: relative; inset: auto; display: flex; flex-direction: column; margin: 0; padding: 0; width: min(600px, 100%); max-height: min(850px, 94dvh); border: 1px solid var(--feedex-border); border-radius: 20px; background: var(--feedex-panel); color: var(--feedex-text); box-shadow: 0 24px 80px #0004; overflow: hidden; }
