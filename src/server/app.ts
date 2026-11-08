@@ -20,7 +20,7 @@ import { xRoutes } from './xConnection';
 import { feedHistoryRoutes } from './feedHistory';
 import { XFeedError } from './xFeed';
 import { inheritXView, saveXView } from './xViews';
-import { fetchXThread, xStatusUrl } from './xThread';
+import { fetchXThread, refreshXCardImages, xStatusUrl } from './xThread';
 import { isXProfileFeed } from '../shared/xFeed';
 import { importOpmlFeed, OpmlSourceError } from './opmlImporter';
 import { clearOpmlFailure, listOpmlFailures, recordOpmlFailure } from './opmlFailures';
@@ -1287,10 +1287,19 @@ app.put('/api/feeds/:feedId/view-mode', async (c) => {
 // 기기 캐시가 같은 페이지를 거듭 받지 않게 하고, 예전의 빈 답은 다시 시도할 수 있으며
 // 일시적인 실패는 확정 답으로 치지 않는다.
 app.post('/api/articles/:id/thumbnail', async (c) => {
-  const article = await c.env.DB.prepare('SELECT id, url, thumbnail_url FROM articles a WHERE id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)')
+  const body = await c.req.json<{ refresh?: boolean }>().catch(() => ({ refresh: false }));
+  const article = await c.env.DB.prepare('SELECT id, url, thumbnail_url, content_html FROM articles a WHERE id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)')
     .bind(c.req.param('id'), c.get('user').id)
-    .first<{ id: string; url: string; thumbnail_url: string | null }>();
+    .first<{ id: string; url: string; thumbnail_url: string | null; content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  if (body.refresh && xStatusUrl(article.url)) {
+    const refreshed = await refreshXCardImages(article.url, article.content_html);
+    if (!refreshed) return c.json({ thumbnailUrl: null });
+    await c.env.DB.prepare('UPDATE articles SET thumbnail_url = ?, content_html = ? WHERE id = ?')
+      .bind(refreshed.thumbnailUrl, refreshed.contentHtml, article.id)
+      .run();
+    return c.json(refreshed);
+  }
   if (article.thumbnail_url) return c.json({ thumbnailUrl: article.thumbnail_url });
 
   const found = await fetchPreviewImage(article.url);
@@ -1327,13 +1336,13 @@ app.get('/api/articles/:id/x-post', async (c) => {
 // ?layout=phone은 받은 페이지가 데스크톱에만 맞을 때 휴대폰 폭으로 배치한 사본을 요청한다.
 app.get('/api/articles/:id/web-copy', async (c) => {
   const article = await c.env.DB.prepare(
-    'SELECT a.url FROM articles a WHERE a.id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)'
+    'SELECT a.url, a.content_html FROM articles a WHERE a.id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)'
   )
     .bind(c.req.param('id'), c.get('user').id)
-    .first<{ url: string }>();
+    .first<{ url: string; content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
   // X 글은 공개 미러의 글 페이지로 글과 댓글을 보여 준다. 받지 못하면 원래 방식으로 x.com을 그린다.
-  if (xStatusUrl(article.url)) try { return c.json(await fetchXThread(article.url)); } catch { /* 아래 원래 방식으로 넘어간다. */ }
+  if (xStatusUrl(article.url)) try { return c.json(await fetchXThread(article.url, article.content_html)); } catch { /* 아래 원래 방식으로 넘어간다. */ }
   try {
     return c.json(await fetchWebView(article.url, c.env, c.req.query('layout') === 'phone', pageAssetProxy(c.env, new URL(c.req.url).origin)));
   } catch {

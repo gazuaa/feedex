@@ -1,9 +1,12 @@
 import { ArticleBlockTag } from './ArticleBlockTag';
 import React, { useMemo, useState } from 'react';
 import { Bookmark, CheckCircle2, Circle, ExternalLink, MessageCircle, Play, Repeat2 } from 'lucide-react';
-import type { ArticleItem } from '../client/api';
+import { apiRequest, type ArticleItem } from '../client/api';
 import { parseXPost, xTime, type XMedia, type XPost } from '../client/xTimeline';
 import { useXAvatars } from '../client/xAvatars';
+
+// 만료된 X 카드 이미지(pbs.twimg.com/card_img/...)는 글마다 한 번만 미러에서 새 주소를 받아온다.
+const refreshedCards = new Set<string>();
 
 interface Props {
   articles: ArticleItem[];
@@ -11,6 +14,7 @@ interface Props {
   onSelectArticle: (article: ArticleItem) => void;
   onToggleRead: (article: ArticleItem, e: React.MouseEvent) => void;
   onToggleSaved: (article: ArticleItem, e: React.MouseEvent) => void;
+  onUpdateArticleFields?: (id: string, fields: Partial<ArticleItem>) => void;
   isDark: boolean;
   retainReadRows?: boolean;
   blockedArticleIds?: ReadonlySet<string>;
@@ -18,20 +22,36 @@ interface Props {
 }
 
 // X 폴더와 X 계정은 X 타임라인처럼 보여 준다. 글을 누르면 다른 목록처럼 리더에서 열린다.
-export function XTimeline({ articles, selectedArticleId, onSelectArticle, onToggleRead, onToggleSaved, isDark, retainReadRows, blockedArticleIds, listRef }: Props) {
+export function XTimeline({ articles, selectedArticleId, onSelectArticle, onToggleRead, onToggleSaved, onUpdateArticleFields, isDark, retainReadRows, blockedArticleIds, listRef }: Props) {
   // 인용한 글과 재게시한 글은 글쓴이가 구독 계정이 아닐 수 있어 프로필 사진을 따로 찾는다.
   const posts = useMemo(() => new Map(articles.map((article) => [article.id, parseXPost(article)])), [articles]);
   const tabStop = articles.some((article) => article.id === selectedArticleId) ? selectedArticleId : articles[0]?.id;
   const avatarOf = useXAvatars([...posts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
   return <div ref={listRef} className={`feedex-list-items feedex-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
-    {articles.map((article) => <XPostRow tabIndex={tabStop === article.id ? 0 : -1} blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id)!} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} />)}
+    {articles.map((article) => <XPostRow tabIndex={tabStop === article.id ? 0 : -1} blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id)!} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />)}
   </div>;
 }
 
 // timeline은 X 폴더의 줄이다. 여러 피드가 섞인 목록에서는 그 목록의 모양에 맞춘다.
 // row는 매거진 목록의 구분선 줄, card는 카드 격자의 상자, plain은 제목 목록의 줄이다(구분선은 목록이 그린다).
 export type XRowVariant = 'timeline' | 'row' | 'card' | 'plain';
-export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, isDark, tabIndex = 0, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; tabIndex?: number; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'isDark'>) {
+export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, onUpdateArticleFields, isDark, tabIndex = 0, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; tabIndex?: number; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'onUpdateArticleFields' | 'isDark'>) {
+  const [brokenCard, setBrokenCard] = useState<string | null>(null);
+  const refreshExpiredImage = (src: string) => {
+    if (!onUpdateArticleFields || !src.includes('pbs.twimg.com/card_img/') || refreshedCards.has(article.id)) return;
+    refreshedCards.add(article.id);
+    void apiRequest<{ thumbnailUrl: string | null; contentHtml?: string }>(`/api/articles/${article.id}/thumbnail`, {
+      method: 'POST',
+      body: JSON.stringify({ refresh: true }),
+    }).then((res) => {
+      if (res.contentHtml) {
+        onUpdateArticleFields(article.id, {
+          content_html: res.contentHtml,
+          ...(res.thumbnailUrl ? { thumbnail_url: res.thumbnailUrl } : {}),
+        });
+      }
+    }).catch(() => {});
+  };
   const line = isDark ? 'border-slate-800' : 'border-slate-200';
   // 줄 모양은 바탕을 깔지 않는다. 목록 칸의 바탕을 그대로 쓰고 다른 글 줄과 같은 색으로 반응한다.
   const frame = variant === 'timeline' || variant === 'row' ? `border-b ${line}` : variant === 'plain' ? '' : `rounded-2xl border ${line} ${isDark ? 'bg-slate-900/55' : 'bg-white'}`;
@@ -69,9 +89,9 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
       </div>
       {post.replyTo && <p className="text-[15px] leading-5 text-slate-500"><span className="text-sky-500">@{post.replyTo}</span> 님에게 보내는 답글</p>}
       {post.text && <p className={`feedex-x-text mt-0.5 whitespace-pre-wrap break-words leading-snug line-clamp-[14] ${strong}`}>{post.text}</p>}
-      <MediaGrid media={post.media} line={line} />
+      <MediaGrid media={post.media} line={line} onImageError={refreshExpiredImage} />
       {post.card && <a href={post.card.href} target="_blank" rel="noopener noreferrer" onClick={stop} className={`mt-3 block overflow-hidden rounded-2xl border ${line}`}>
-        {post.card.image && <img src={post.card.image} alt="" loading="lazy" referrerPolicy="no-referrer" className="aspect-[1.91/1] w-full object-cover" />}
+        {post.card.image && brokenCard !== post.card.image && <img src={post.card.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBrokenCard(post.card!.image); refreshExpiredImage(post.card!.image!); }} className="aspect-[1.91/1] w-full object-cover" />}
         <span className="block px-3 py-2"><span className="block truncate text-[13px] text-slate-500">{hostOf(post.card.href)}</span><span className={`block truncate text-[15px] ${strong}`}>{post.card.title}</span></span>
       </a>}
       {/* 목록에서 인용 글을 누르면 먼저 이 글을 연다. 인용한 글은 열린 글 안에서 누르면 보인다. */}
@@ -79,7 +99,7 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
         <span className="flex min-w-0 items-center gap-1 text-[15px]"><Avatar post={{ name: post.quote.name, handle: post.quote.handle, avatar: avatarOf(post.quote.handle) || null }} isDark={isDark} size="mini" /><span className={`truncate font-bold ${strong}`}>{post.quote.name}</span>{post.quote.handle && <span className="truncate text-slate-500">@{post.quote.handle}</span>}</span>
         {/* block을 함께 주면 줄 수 제한(line-clamp)의 표시 방식을 덮어 긴 인용 글이 다 펼쳐진다. */}
         {post.quote.text && <span className={`mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-5 line-clamp-6 ${strong}`}>{post.quote.text}</span>}
-        <MediaGrid media={post.quote.media} line={line} compact />
+        <MediaGrid media={post.quote.media} line={line} compact onImageError={refreshExpiredImage} />
       </div>}
       <div className="-ml-2 mt-1 flex max-w-[425px] items-center justify-between text-slate-500">
         <button type="button" title="댓글 보기" aria-label="댓글 보기" onClick={(event) => { stop(event); onSelectArticle(article); }} className={`${action} hover:bg-sky-500/10 hover:text-sky-500`}><MessageCircle className="h-[18px] w-[18px]" /></button>
@@ -101,13 +121,14 @@ function Avatar({ post, isDark, size = 'full' }: { post: Pick<XPost, 'name' | 'h
 
 // X처럼 사진 1장은 크게, 2~4장은 격자로 놓는다. 동영상은 썸네일에 재생 표시만 단다.
 // compact는 인용 글 안이다. 테두리 없이 낮게 놓는다.
-function MediaGrid({ media, line, compact = false }: { media: XMedia[]; line: string; compact?: boolean }) {
-  const items = media.slice(0, 4);
+function MediaGrid({ media, line, compact = false, onImageError }: { media: XMedia[]; line: string; compact?: boolean; onImageError?: (src: string) => void }) {
+  const [broken, setBroken] = useState<string[]>([]);
+  const items = media.filter((item) => !broken.includes(item.src)).slice(0, 4);
   if (!items.length) return null;
   const many = items.length > 1;
   return <div className={`overflow-hidden ${compact ? 'mt-2 rounded-xl' : `mt-3 rounded-2xl border ${line}`} ${many ? `grid aspect-[16/9] grid-cols-2 gap-0.5 ${items.length > 2 ? 'grid-rows-2' : ''}` : ''}`}>
     {items.map((item, index) => <div key={item.src} className={`relative min-h-0 ${items.length === 3 && index === 0 ? 'row-span-2' : ''}`}>
-      <img src={item.src} alt="" loading="lazy" referrerPolicy="no-referrer" className={many ? 'h-full w-full object-cover' : `${compact ? 'max-h-[320px]' : 'max-h-[510px]'} w-full object-cover`} />
+      <img src={item.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken((prev) => [...prev, item.src]); onImageError?.(item.src); }} className={many ? 'h-full w-full object-cover' : `${compact ? 'max-h-[320px]' : 'max-h-[510px]'} w-full object-cover`} />
       {item.video && <span className="absolute inset-0 flex items-center justify-center"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/90 text-white"><Play className="ml-0.5 h-6 w-6 fill-current" /></span></span>}
     </div>)}
   </div>;

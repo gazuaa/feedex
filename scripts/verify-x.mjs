@@ -156,6 +156,8 @@ try {
       if (pageMode === 'down') return new Response('', { status: 503 });
       // 답글 글 페이지: orphan은 두 미러 모두 원글을 못 불러오고, orphan-one은 첫 미러만 못 불러온다.
       if (pageMode === 'orphan' || pageMode === 'orphan-one') return new Response(replyPage(pageMode === 'orphan-one' && url.hostname === 'nitter.mizuki.st'));
+      if (pageMode === 'quote-no-media') return new Response(statusPage(url.pathname.split('/')[1]).replace(/<div class="quote-media-container">[\s\S]*?<\/div>/, ''));
+      if (pageMode === 'card-refresh') return new Response(statusPage(url.pathname.split('/')[1]).replace('<p class="tweet-published">', '<div class="card large"><a class="card-container" href="https://hark.com/"><div class="card-image-container"><div class="card-image"><img src="/pic/card_img%2F2117762426506768385%2FJUwJy2wG%3Fformat%3Djpg%26name%3D800x419"></div></div></a></div><p class="tweet-published">'));
       return new Response(statusPage(url.pathname.split('/')[1]));
     }
     if (rssMode === 'paged') return pagedResponse(url);
@@ -326,6 +328,14 @@ try {
     pageMode = 'orphan';
     const orphan = await fetchXThread('https://x.com/nasa/status/2000000000000000009');
     assert.equal(orphan.partial, true); assert.match(orphan.html, /parent-missing/); assert.doesNotMatch(orphan.html, /class="post before"/);
+    pageMode = 'quote-no-media';
+    const withQuoteCard = await fetchXThread('https://x.com/sama/status/2111130577789493706', '<p>Very happy to see this from Nick!</p><hr/><blockquote><b>Nick (@nickcammarata)</b><p><a href="https://already-clean.goodfire.com/"><img src="https://pbs.twimg.com/card_img/2115826775871668224/FxVmcikG?format=jpg&amp;name=800x419" /></a></p></blockquote>');
+    assert.match(withQuoteCard.html, /<div class="quote">[\s\S]*<a class="photo" href="https:\/\/already-clean\.goodfire\.com\/"><img src="https:\/\/pbs\.twimg\.com\/card_img\/2115826775871668224\/FxVmcikG\?format=jpg&amp;name=800x419"/, '미러 글 페이지에서 빠진 인용 글 카드 이미지는 RSS 본문에서 채운다.');
+    pageMode = 'card-refresh';
+    await db.prepare('UPDATE articles SET content_html = ?, thumbnail_url = ? WHERE id = ?').bind('<p>hark.com</p><hr/><b>Link</b><br><a href="https://hark.com/"><img src="https://pbs.twimg.com/card_img/2115225694108307456/0Ao18i-d?format=jpg&amp;name=800x419" /><br><b>Hark</b></a>', 'https://pbs.twimg.com/card_img/2115225694108307456/0Ao18i-d?format=jpg&name=800x419', articleId).run();
+    const refreshedThumb = await (await request(`/api/articles/${articleId}/thumbnail`, { refresh: true })).json();
+    assert.equal(refreshedThumb.thumbnailUrl, 'https://pbs.twimg.com/card_img/2117762426506768385/JUwJy2wG?format=jpg&name=800x419');
+    assert.match(refreshedThumb.contentHtml, /https:\/\/pbs\.twimg\.com\/card_img\/2117762426506768385\/JUwJy2wG\?format=jpg&amp;name=800x419/);
   } finally { Date.now = parentNow; pageMode = 'ok'; }
   // X 타임라인: X 폴더 판단, 실제 미러 RSS 모양의 글 해석, 목록 그리기.
   const { DOMParser } = await import('linkedom');

@@ -100,7 +100,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   const avatarOf = useXAvatars([...xPosts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
   const xRow = (article: ArticleItem, variant: XRowVariant) => {
     const post = xPosts.get(article.id);
-    return post ? <XPostRow key={article.id} variant={variant} tabIndex={rowProps(article).tabIndex} article={article} post={post} avatarOf={avatarOf} selected={selectedArticleId === article.id} blocked={Boolean(blockedArticleIds?.has(article.id))} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} /> : null;
+    return post ? <XPostRow key={article.id} variant={variant} tabIndex={rowProps(article).tabIndex} article={article} post={post} avatarOf={avatarOf} selected={selectedArticleId === article.id} blocked={Boolean(blockedArticleIds?.has(article.id))} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} /> : null;
   };
   useEffect(() => {
     if (!onPrepareArticle || !listRef.current || typeof IntersectionObserver === 'undefined') return;
@@ -173,7 +173,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
     );
   }
 
-  if (timeline) return <XTimeline blockedArticleIds={blockedArticleIds} articles={articles} selectedArticleId={selectedArticleId} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} isDark={isDark} retainReadRows={retainReadRows} listRef={listRef} />;
+  if (timeline) return <XTimeline blockedArticleIds={blockedArticleIds} articles={articles} selectedArticleId={selectedArticleId} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} retainReadRows={retainReadRows} listRef={listRef} />;
 
   // 1. 간단한 목록 보기 (Feedly 제목만 보기)
   if (layout === 'list') {

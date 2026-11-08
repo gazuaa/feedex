@@ -12,7 +12,7 @@ export function xFrameTools(html: string): string {
   const yt = html.includes('data-yt-id=') ? YT_FRAME_SCRIPT : '';
   if (!html.includes(X_THREAD_MARK)) return yt;
   const asset = (path: string) => escape(new URL(path, location.origin).href);
-  return `<script nonce="sfeed-scroll">addEventListener('click',e=>{const a=e.target.closest('a[href]');if(!a||a.hasAttribute('data-x-external')||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;const u=a.href;if(/^https:\\/\\/x\\.com\\/[a-z\\d_]{1,15}\\/status\\/\\d{1,20}$/i.test(u)){e.preventDefault();parent.postMessage({sfeedXPost:u},'*')}})</script>`
+  return `<script nonce="sfeed-scroll">addEventListener('error',e=>{if(e.target?.tagName==='IMG')e.target.style.display='none'},true);addEventListener('click',e=>{const a=e.target.closest('a[href]');if(!a||a.hasAttribute('data-x-external')||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;const u=a.href;if(/^https:\\/\\/x\\.com\\/[a-z\\d_]{1,15}\\/status\\/\\d{1,20}$/i.test(u)){e.preventDefault();parent.postMessage({sfeedXPost:u},'*')}})</script>`
     + (html.includes('data-hls-src=') ? `<script nonce="sfeed-scroll" defer src="${asset(playerUrl)}" data-hls="${asset(hlsUrl)}"></script>` : '')
     + yt;
 }
