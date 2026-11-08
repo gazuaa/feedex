@@ -21,6 +21,18 @@ export function filteredPage(query: URLSearchParams, pool: Iterable<ArticleItem>
   const compare = query.get('sort') === 'oldest' ? (a: ArticleItem, b: ArticleItem) => -order(a, b) : order;
   return [...pool].filter((article) => matchesPage(query, article, now)).sort(compare).slice(0, Math.min(200, Number(query.get('limit') || 80)));
 }
+// 백그라운드 갱신은 첫 페이지만 바꾸므로, 오래된순에서는 이미 불러온 읽기 범위를 유지하되
+// 동기화된 행을 기준으로 삭제·읽음·저장·제외 규칙을 반영한다.
+export function mergeOldestWindow(query: URLSearchParams, loaded: ArticleItem[], incoming: ArticleItem[], cache: ReadonlyMap<string, ArticleItem>, complete: boolean): ArticleItem[] {
+  const tail = loaded.at(-1);
+  const rows = new Map<string, ArticleItem>();
+  for (const article of cache.values()) {
+    if (matchesPage(query, article) && (complete || (tail && order(article, tail) >= 0))) rows.set(article.id, article);
+  }
+  for (const article of incoming) rows.set(article.id, article);
+  return [...rows.values()].sort((a, b) => -order(a, b));
+}
+
 /** 앞 목록과 탭(안 읽음·저장 거르기)만 다른 목록인지. */
 export function sameListOtherTab(before: string, after: URLSearchParams): boolean {
   const list = (query: URLSearchParams) => { const copy = new URLSearchParams(query); copy.delete('unreadOnly'); copy.delete('savedOnly'); copy.sort(); return copy.toString(); };

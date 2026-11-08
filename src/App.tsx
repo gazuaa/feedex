@@ -40,7 +40,7 @@ import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileCh
 import { MobileLibrary } from './components/MobileLibrary';
 import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type ArticlePage } from './client/readerCache';
 import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './client/readerPreload';
-import { filteredPage, sameListOtherTab } from './client/syncPages';
+import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, takeResumePoint, watchAppVersion } from './client/appVersion';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
@@ -85,7 +85,7 @@ export const App: React.FC = () => {
   const readerSync = useMemo(() => readerCache ? new ReaderSync(readerCache, apiRequest, (articles) => notifyNewArticles(readerCache.account, articles, undefined, () => readerCache.active)) : null, [readerCache]);
   const localNotifications = useLocalNotifications(readerCache?.account ?? '');
   const notificationArticle = useRef<string | null>(null);
-  const publishSyncedPage = useRef<() => Promise<void>>(async () => {});
+  const publishSyncedPage = useRef<(preserveRange?: boolean) => Promise<void>>(async () => {});
   const warmListsRef = useRef<() => Promise<void>>(async () => {});
   const loggingOut = useRef(false);
   const applySyncedChanges = useRef<(delta: import('./shared/readerSync').ReaderSyncDelta) => void>(() => {});
@@ -159,6 +159,8 @@ export const App: React.FC = () => {
   const visibleArticles = showBlockedArticles ? includedArticles : unblockedArticles;
   const [loadingArticles, setLoadingArticles] = useState(false);
   const [hasMoreArticles, setHasMoreArticles] = useState(false);
+  const hasMoreArticlesRef = useRef(hasMoreArticles); hasMoreArticlesRef.current = hasMoreArticles;
+  const articleReset = useRef(0), displayedArticleReset = useRef(0);
   const [loadingMoreArticles, setLoadingMoreArticles] = useState(false);
   // 지금 보이는 목록의 조회 조건. 그사이 보기가 바뀌었으면 늦게 온 이전 페이지는 버린다.
   const articleQueryRef = useRef('');
@@ -389,9 +391,10 @@ export const App: React.FC = () => {
       if (cached && current()) apply(cached);
       const result = await readerSync.check(current, () => Promise.allSettled([...stateWrites.current.values()]));
       if (!current()) return;
+      if (result.reset) articleReset.current++;
       if (result.bootstrap) apply(result.bootstrap);
       if (result.delta && result.changed) applySyncedChanges.current(result.delta);
-      if (result.changed && document.visibilityState === 'visible') void publishSyncedPage.current();
+      if (result.changed && document.visibilityState === 'visible') void publishSyncedPage.current(true);
     };
     const promise = run().catch(() => {}).finally(() => {
       if (current()) setLoadingBootstrap(false);
@@ -408,7 +411,7 @@ export const App: React.FC = () => {
 
   // 백그라운드 동기화는 보이는 목록과 다음에 누를 목록이 준비되면 끝난다.
   // 그래서 새로고침 버튼이 멈추면 불러오기가 끝났다는 뜻이다.
-  const syncInBackground = useCallback(() => showSync(syncArticleBlocks(readerCache?.account || '').catch(() => {}).then(() => fetchBootstrap()).then(() => publishSyncedPage.current()).then(() => warmListsRef.current())), [showSync, fetchBootstrap, readerCache]);
+  const syncInBackground = useCallback(() => showSync(syncArticleBlocks(readerCache?.account || '').catch(() => {}).then(() => fetchBootstrap()).then(() => publishSyncedPage.current(true)).then(() => warmListsRef.current())), [showSync, fetchBootstrap, readerCache]);
 
   // 앱으로 돌아올 때 다른 기기의 변경을 반영한다. 다만 글을 누를 때마다 비싼
   // 전체 보관함 개수 조회를 돌리지는 않는다.
@@ -465,11 +468,12 @@ export const App: React.FC = () => {
     return session;
   }, [unreadSessions, buildArticleQuery, retainReadRows]);
   applySyncedChanges.current = (delta) => {
-    const bodies = new Set(delta.articleChangedIds);
+    const bodies = new Set(delta.articleChangedIds), query = buildArticleQuery();
     for (const incoming of delta.articles) {
       const previous = articleCache.current.get(incoming.id);
       const article = previous && !bodies.has(incoming.id) && !(previous.body_deferred && !incoming.body_deferred) ? { ...incoming, content_html: previous.content_html, full_content_html: previous.full_content_html, ai_summary: previous.ai_summary, body_deferred: previous.body_deferred } : incoming;
-      if (previous) { articleCache.current.set(article.id, article); setRestoredArticle((item) => item?.id === article.id ? article : item); }
+      if (previous || matchesPage(query, article)) articleCache.current.set(article.id, article);
+      if (previous) { setRestoredArticle((item) => item?.id === article.id ? article : item); }
       unreadSessions.forEach((session) => session.synced(article));
     }
     for (const id of delta.removedIds) { articleCache.current.delete(id); unreadSessions.forEach((session) => session.remove(id)); setSelectedArticleId((selected) => selected === id ? null : selected); }
@@ -480,11 +484,11 @@ export const App: React.FC = () => {
       if (retainReadRows) setArticles((prev) => prev.filter((article) => !article.is_read));
     }
   }, [isMobile, mobileSidebarOpen, unreadSessions, unreadSession, retainReadRows]);
-  // 화면을 잠갔다가 돌아오면 읽은 행을 빼고 맨 위부터 보여 준다. 글을 보던 중이면 돌아갈 목록 위치가
+  // 최신순에서 화면을 잠갔다가 돌아오면 읽은 행을 빼고 맨 위부터 보여 준다. 글을 보던 중이면 돌아갈 목록 위치가
   // 달라지므로 그대로 두고, 읽은 행이 없으면 훑어보던 자리일 수 있으니 옮기지 않는다.
   afterAway.current = (away) => {
     const list = articleListRef.current;
-    if (!retainReadRows || selectedArticleId || !readRowsExpired(away, list?.scrollTop ?? 0)) return;
+    if (articleSort === 'oldest' || !retainReadRows || selectedArticleId || !readRowsExpired(away, list?.scrollTop ?? 0)) return;
     unreadSessions.forEach((session) => session.dropRead());
     if (!articles.some((article) => article.is_read)) return;
     forgetListAnchor();
@@ -492,7 +496,7 @@ export const App: React.FC = () => {
     setArticles((rows) => rows.filter((article) => !article.is_read));
   };
 
-  const fetchArticles = useCallback(async (): Promise<void> => {
+  const fetchArticles = useCallback(async (preserveRange = false): Promise<void> => {
     const cache = readerCache;
     if (!cache?.active || !readerSync || activeCache.current !== cache) return;
     if (!cache.epoch) {
@@ -501,7 +505,7 @@ export const App: React.FC = () => {
     }
     if (!cache.active || activeCache.current !== cache) return;
     // 새로고침처럼 오래 걸리는 작업이 끝난 뒤에 부르면, 그사이 옮긴 목록을 옛 목록이 덮어쓴다.
-    if (publishSyncedPage.current !== fetchArticles) return publishSyncedPage.current();
+    if (publishSyncedPage.current !== fetchArticles) return publishSyncedPage.current(preserveRange);
     const request = ++articleRequestRef.current;
     const token = getStoredToken();
     const current = () => request === articleRequestRef.current && activeCache.current === cache && getStoredToken() === token && token === authenticatedToken.current;
@@ -519,13 +523,18 @@ export const App: React.FC = () => {
     try {
       const res = ready ?? await readerSync.page(qs, current, () => Promise.allSettled([...stateWrites.current.values()]));
       if (res && current()) {
+        const keepRange = preserveRange && articleSort === 'oldest' && activeScope === 'all'
+          && displayedArticleQuery.current === qs.toString() && displayedArticleReset.current === articleReset.current;
         displayedArticleQuery.current = qs.toString();
-        setArticles(retainReadRows ? unreadSession.merge(res.articles, articleSort) : res.articles);
-        setHasMoreArticles(Boolean(res.hasMore));
+        displayedArticleReset.current = articleReset.current;
+        const complete = !hasMoreArticlesRef.current;
+        setArticles(previous => retainReadRows ? unreadSession.merge(res.articles, articleSort)
+          : keepRange ? mergeOldestWindow(qs, previous, res.articles, articleCache.current, complete) : res.articles);
+        setHasMoreArticles(previous => Boolean(res.hasMore) && (!keepRange || previous));
       }
     } catch { /* 오프라인이어도 캐시된 화면은 그대로 쓸 수 있다 */ }
     finally { if (current()) setLoadingArticles(false); }
-  }, [readerCache, readerSync, buildArticleQuery, retainReadRows, unreadSession, fetchBootstrap, articleSort]);
+  }, [readerCache, readerSync, buildArticleQuery, retainReadRows, unreadSession, fetchBootstrap, articleSort, activeScope]);
   publishSyncedPage.current = fetchArticles;
 
   // 보관함 탭과 모든 폴더의 첫 화면을 하나씩 차례로 받는다.
@@ -688,8 +697,8 @@ export const App: React.FC = () => {
     if (refreshingFeedsRef.current || !readerCache?.active) return;
     const revision = readerCache.revision, query = articleQueryRef.current;
     await syncInBackground();
-    // 자동 갱신으로 읽은 행이 빠지면, 예전 스크롤 위치 때문에 새 글이 위에 숨지 않게 한다.
-    if (inNativeApp() && readerCache.active && readerCache.revision !== revision && articleQueryRef.current === query) {
+    // 최신순은 갱신 후 맨 위로, 오래된순은 읽던 행과 불러온 범위를 유지한다.
+    if (articleSort === 'newest' && inNativeApp() && readerCache.active && readerCache.revision !== revision && articleQueryRef.current === query) {
       pendingScroll.current = 0; forgetListAnchor(); articleListRef.current?.scrollTo({ top: 0 });
     }
   }, localNotifications);

@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { createServer } from 'vite';
+const vite = await createServer({configFile:false,server:{middlewareMode:true,ws:false},appType:'custom',logLevel:'silent'});
+try {
+  const {mergeOldestWindow} = await vite.ssrLoadModule('/src/client/syncPages.ts');
+  const query = new URLSearchParams({scope:'all',sort:'oldest',unreadOnly:'false'});
+  const row = (i,extra={}) => ({id:`article-${i}`,feed_id:'feed',feed_title:'Feed',title:`Post ${i}`,published_at:new Date(Date.now()-86400_000+i*60_000).toISOString(),is_read:false,is_saved:false,...extra});
+  const loaded=Array.from({length:240},(_,i)=>row(i));
+  const cache=new Map(loaded.map(a=>[a.id,a]));
+  cache.delete('article-115');
+  cache.set('article-116',{...loaded[116],is_read:true,is_saved:true});
+  const inside=row(150.5),later=row(250);
+  cache.set(inside.id,inside);cache.set(later.id,later);
+  const first=loaded.slice(0,80);
+  const partial=mergeOldestWindow(query,loaded,first,cache,false);
+  assert.equal(partial.length,240,'the loaded range survives a first-page sync');
+  assert.ok(partial.some(a=>a.id==='article-180'),'reading beyond the first page survives');
+  assert.ok(!partial.some(a=>a.id==='article-115'),'synced deletions are respected');
+  assert.ok(partial.find(a=>a.id==='article-116').is_read,'synced states are respected');
+  assert.ok(partial.some(a=>a.id===inside.id),'newly imported posts within the reading range appear');
+  assert.ok(!partial.some(a=>a.id===later.id),'later pages remain behind the pagination cursor');
+  const complete=mergeOldestWindow(query,loaded,first,cache,true);
+  assert.ok(complete.some(a=>a.id===later.id),'a fully loaded list receives new posts at the end');
+  assert.ok(mergeOldestWindow(query,[],first,cache,true).length>80,'an empty list can receive multiple pages of new posts');
+  const filtered=new URLSearchParams(query);filtered.set('excludedFeedIds','["feed"]');
+  assert.equal(mergeOldestWindow(filtered,loaded,[],cache,true).length,0,'exclusions still apply');
+  const saved=new URLSearchParams(query);saved.set('savedOnly','true');
+  assert.deepEqual(mergeOldestWindow(saved,loaded,[],cache,true).map(a=>a.id),['article-116']);
+  const search=new URLSearchParams(query);search.set('search','Post 180');
+  assert.deepEqual(mergeOldestWindow(search,loaded,[],cache,true).map(a=>a.id),['article-180']);
+  console.log('PASS: oldest-first reading range, pagination, deletion/state updates, new posts, exclusions, saved and search filters.');
+} finally {await vite.close();}
