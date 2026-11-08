@@ -1,6 +1,6 @@
 // 윈도우 앱 받기. 앱 파일은 사이트의 정적 파일로 함께 배포한다(public/downloads).
 // 앱을 고치면 native/windows/FeedEx.csproj의 Version과 이 값을 함께 올리고 scripts/build-windows-app.sh로 다시 만든다.
-export const WINDOWS_APP_VERSION = '1.1';
+export const WINDOWS_APP_VERSION = '1.2';
 // 버전을 주소에 붙여, 새로 올린 뒤에도 브라우저가 예전 파일을 주지 않게 한다.
 export const WINDOWS_APP_DOWNLOAD = `/downloads/FeedEx-for-Windows.zip?v=${WINDOWS_APP_VERSION}`;
 

@@ -31,9 +31,17 @@ rm -f "$output/FeedEx-for-Windows.zip"
 release="FeedEx-for-Windows-$version.zip"
 cp "$output/FeedEx-for-Windows.zip" "$output/$release"
 
-# 앱의 '업데이트 확인'이 읽는 최신 버전 정보.
+# 앱의 자동 업데이트가 읽는 최신 버전 정보. 버전과 zip의 SHA-256을 함께 서명한다.
+# 서명 키가 없거나 앱에 넣은 공개 키와 다르면 배포를 멈춘다. 개인 키는 출력하지 않는다.
 sha="$(shasum -a 256 "$output/$release" | cut -d' ' -f1)"
-printf '{"version":"%s","download":"https://feedex.jyk.workers.dev/downloads/%s","sha256":"%s"}\n' "$version" "$release" "$sha" > "$output/FeedEx-for-Windows.json"
+key_file="${FEEDEX_WINDOWS_UPDATE_KEY_FILE:-$root/.local/keys/windows-update-p256.pem}"
+embedded="$(sed -n 's/.*PublicKey = "\([^"]*\)".*/\1/p' "$root/native/windows/UpdateSignature.cs")"
+if [ "$(node "$root/scripts/windows-update-signing.mjs" --public "$key_file")" != "$embedded" ]; then
+  printf '%s\n' '윈도우 업데이트 서명 키가 없거나 앱의 공개 키와 다릅니다. FeedEx 전용 키 파일을 확인하세요.' >&2
+  exit 1
+fi
+signature="$(node "$root/scripts/windows-update-signing.mjs" --sign "$key_file" "$version" "$sha")"
+printf '{"version":"%s","download":"https://feedex.jyk.workers.dev/downloads/%s","sha256":"%s","signature":"%s"}\n' "$version" "$release" "$sha" "$signature" > "$output/FeedEx-for-Windows.json"
 # 앱 소스가 바뀌었는데 받기 파일을 다시 만들지 않으면 테스트가 알 수 있게 소스 지문을 남긴다.
 (cd "$root" && shasum -a 256 native/windows/*.cs native/windows/FeedEx.csproj native/windows/App.config native/windows/app.manifest native/windows/FeedEx.ico) | shasum -a 256 | cut -d' ' -f1 > "$output/FeedEx-for-Windows.source"
 printf '%s\n' "$output/FeedEx-for-Windows.zip"

@@ -12,7 +12,12 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Net.Http" Condition="'$(TargetFramework)' == 'net48'" />
+    <Reference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net48'" />
+    <Reference Include="System.IO.Compression.FileSystem" Condition="'$(TargetFramework)' == 'net48'" />
     <Compile Include="../AppLinks.cs" Link="AppLinks.cs" />
     <Compile Include="../AppScale.cs" Link="AppScale.cs" />
+    <Compile Include="../UpdateSignature.cs" Link="UpdateSignature.cs" />
+    <Compile Include="../Updater.cs" Link="Updater.cs" />
   </ItemGroup>
 </Project>

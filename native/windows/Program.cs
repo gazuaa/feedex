@@ -12,7 +12,9 @@ namespace FeedEx
         [STAThread]
         static void Main(string[] args)
         {
-            var link = args.Length > 0 ? args[0] : null;
+            // 업데이트 뒤 다시 연 실행은 예전 FeedEx가 끝나기를 기다렸다가 이어받는다.
+            var updated = args.Length > 0 && args[0] == Updates.RestartArgument;
+            var link = args.Length > 0 && !updated ? args[0] : null;
             // zip을 풀지 않고 안에서 바로 열면 실행 파일만 임시 폴더로 꺼내져 함께 둔 WebView2 파일이 없다.
             var folder = AppDomain.CurrentDomain.BaseDirectory;
             if (!File.Exists(Path.Combine(folder, "Microsoft.Web.WebView2.Core.dll")) || !File.Exists(Path.Combine(folder, "Microsoft.Web.WebView2.WinForms.dll")))
@@ -22,11 +24,11 @@ namespace FeedEx
             }
             var homeOverride = Environment.GetEnvironmentVariable("FEEDEX_HOME");
             // 시험용 주소로 켠 앱은 평소 앱과 따로 돈다.
-            using (var instance = new SingleInstance(string.IsNullOrEmpty(homeOverride) ? "app" : "dev"))
+            using (var instance = new SingleInstance(string.IsNullOrEmpty(homeOverride) ? "app" : "dev", updated ? 20000 : 0))
             {
                 if (!instance.IsFirst)
                 {
-                    instance.Forward(link ?? "feedex-reader://launch");
+                    if (!updated) instance.Forward(link ?? "feedex-reader://launch");
                     return;
                 }
                 Application.EnableVisualStyles();

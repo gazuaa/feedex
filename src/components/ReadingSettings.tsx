@@ -7,7 +7,7 @@ import { ArticleBlockSetting } from './ArticleBlockDialog';
 import { FONT_SCALES, useTextSize } from '../client/textSize';
 import { AUTO_REFRESH_OPTIONS } from '../shared/preferences';
 import { useOutsideDismiss } from '../client/outsideDismiss';
-import { inNativeApp, nativeAppName, nativeBridge, nativePlatform, useNativeAppScale } from '../client/nativeApp';
+import { inNativeApp, nativeAppName, nativeBridge, useNativeAppScale } from '../client/nativeApp';
 
 export interface ScrollReadSettingsProps {
   markReadOnScroll: boolean;
@@ -46,9 +46,8 @@ export function NativeAppScaleSetting() {
 
 export function NativeAppUpdateSetting() {
   if (!inNativeApp()) return null;
-  // 맥 앱은 Sparkle이 받아서 설치하고, 윈도우 앱은 새 버전을 알려 주고 받을 파일을 연다.
-  const detail = nativePlatform() === 'windows' ? '새 버전이 있으면 받을 파일을 열어요' : '새 버전이 있으면 받아서 설치해요';
-  return <div className="feedex-auto-refresh-setting"><span>{nativeAppName()} 업데이트<small>{detail}</small></span><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></div>;
+  // 맥 앱은 Sparkle이, 윈도우 앱은 서명을 확인하는 자체 업데이트가 받아서 설치한다.
+  return <div className="feedex-auto-refresh-setting"><span>{nativeAppName()} 업데이트<small>새 버전이 있으면 받아서 설치해요</small></span><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></div>;
 }
 
 export function TextSizeSetting() {

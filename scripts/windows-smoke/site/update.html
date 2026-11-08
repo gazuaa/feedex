@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>FeedEx update smoke</title></head>
+<body style="margin: 0; padding: 24px; font: 18px sans-serif; background: #0f172a; color: #e2e8f0;">
+<h1 id="status">update test</h1>
+<script>
+// 설정의 '업데이트 확인'을 누른 것처럼 앱에 업데이트 확인을 보낸다. 서명이 바뀔 때까지 몇 초마다 다시 확인한다.
+const view = window.chrome && window.chrome.webview;
+const check = () => { if (view) view.postMessage({ channel: 'feedex', body: { type: 'checkForUpdates' } }); };
+document.getElementById('status').textContent = view ? 'checking for updates' : 'no app bridge';
+check();
+setInterval(check, 8000);
+</script>
+</body>
+</html>

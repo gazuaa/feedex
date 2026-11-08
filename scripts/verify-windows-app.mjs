@@ -69,7 +69,7 @@ try {
   const { NativeAppScaleSetting, NativeAppUpdateSetting } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
   assert.match(renderToStaticMarkup(React.createElement(NativeAppScaleSetting)), /앱 화면 작게/);
   const update = renderToStaticMarkup(React.createElement(NativeAppUpdateSetting));
-  assert.match(update, /윈도우 앱 업데이트/); assert.match(update, /받을 파일을 열어요/); assert.doesNotMatch(update, /맥 앱/);
+  assert.match(update, /윈도우 앱 업데이트/); assert.match(update, /받아서 설치해요/); assert.doesNotMatch(update, /맥 앱/);
   const { LoginView } = await vite.ssrLoadModule('/src/components/LoginView.tsx');
   const login = renderToStaticMarkup(React.createElement(LoginView, { onLoginSuccess() {} }));
   assert.match(login, /Google 계정으로 로그인/); assert.match(login, /기본 브라우저에서 로그인하면/);
@@ -173,6 +173,13 @@ try {
   assert.equal(info.version, WINDOWS_APP_VERSION);
   assert.equal(info.download, `https://feedex.jyk.workers.dev/downloads/FeedEx-for-Windows-${WINDOWS_APP_VERSION}.zip`);
   assert.equal(info.sha256, createHash('sha256').update(readFileSync(zip)).digest('hex'));
+  // 자동 업데이트: 업데이트 정보는 앱에 넣은 공개 키로 서명돼 있고, 앱이 바꾸는 파일은 zip의 파일과 같다.
+  const { verifyUpdate } = await import('./windows-update-signing.mjs');
+  const publicKey = /PublicKey = "([^"]+)"/.exec(readFileSync('native/windows/UpdateSignature.cs', 'utf8'))[1];
+  assert.equal(verifyUpdate(publicKey, info.version, info.sha256, info.signature), true, 'the update info is signed with the key built into the app');
+  assert.equal(verifyUpdate(publicKey, '9.9', info.sha256, info.signature), false, 'the signature covers the version');
+  const updaterFiles = [...readFileSync('native/windows/Updater.cs', 'utf8').matchAll(/^\s+"([^"]+)",$/gm)].map((match) => `FeedEx/${match[1]}`).sort();
+  assert.deepEqual(updaterFiles, files, 'the updater replaces exactly the files in the download');
   const project = readFileSync('native/windows/FeedEx.csproj', 'utf8');
   assert.equal(/<Version>([^<]+)<\/Version>/.exec(project)[1], WINDOWS_APP_VERSION, 'the link and the app source share one version');
   assert.match(project, /<TargetFramework>net48<\/TargetFramework>/, 'built for the .NET Framework that ships with Windows');
@@ -202,6 +209,10 @@ try {
   assert.match(support, /if \(existing\?\.GetValue\(""\) as string == command\) return;/, 'the link is not rewritten on every launch');
   assert.match(support, /new PipeAccessRule\(WindowsIdentity\.GetCurrent\(\)\.User, PipeAccessRights\.ReadWrite, AccessControlType\.Allow\)/, 'only this user can pass links to the running app');
   assert.match(read('DebugTools.cs'), /FEEDEX_DEBUG_DIR/);
+  const updates = read('Updates.cs');
+  assert.ok(updates.indexOf('UpdateSignature.Verify(') < updates.indexOf('Updater.Download('), 'nothing is downloaded before the signature checks out');
+  assert.ok(updates.indexOf('Updater.CheckVersion(') < updates.indexOf('Updater.Install('), 'the new app version is checked before files are replaced');
+  assert.match(form, /if \(debug != null\)[\s\S]*?home\.Scheme == Uri\.UriSchemeHttp && \(home\.Host == "127\.0\.0\.1" \|\| home\.Host == "localhost"\)[\s\S]*?FEEDEX_DEBUG_UPDATE_KEY/, 'a test key is only used by the debug build against this computer');
   assert.match(form, /core\.Settings\.IsZoomControlEnabled = false;\s*core\.ContentLoading \+= \(sender, args\) => KeepAppScale\(\);/, 'WebView2 resets zoom on each load, so the app scale is applied again');
 
   // 주소·로그인·배율 규칙은 .NET이 있으면 그대로 돌려 본다.

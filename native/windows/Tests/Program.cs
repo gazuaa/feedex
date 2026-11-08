@@ -1,5 +1,9 @@
 using System;
 using System.Drawing;
+using System.IO;
+using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 namespace FeedEx
 {
@@ -79,9 +83,95 @@ namespace FeedEx
             Check(Versions.Newer("1.1", "1.0") && Versions.Newer("2.0", "1.9") && Versions.Newer("1.0.1", "1.0"), "newer versions");
             Check(!Versions.Newer("1.0", "1.0") && !Versions.Newer("0.9", "1.0") && !Versions.Newer("x", "1.0") && !Versions.Newer(null, "1.0"), "not newer");
 
+            // 업데이트 서명: 버전과 zip의 SHA-256을 함께 서명한 것만 받는다.
+            using (var key = ECDsa.Create(ECCurve.NamedCurves.nistP256))
+            {
+                var point = key.ExportParameters(false).Q;
+                var bytes = new byte[64];
+                Buffer.BlockCopy(point.X, 0, bytes, 0, 32);
+                Buffer.BlockCopy(point.Y, 0, bytes, 32, 32);
+                var publicKey = Convert.ToBase64String(bytes);
+                var hash = new string('d', 64);
+                var signature = Convert.ToBase64String(key.SignData(UpdateSignature.Message("1.3", hash), HashAlgorithmName.SHA256));
+                Check(UpdateSignature.Verify("1.3", hash, signature, publicKey), "a signed update is accepted");
+                Check(!UpdateSignature.Verify("9.9", hash, signature, publicKey), "the version is part of the signature");
+                Check(!UpdateSignature.Verify("1.3", new string('e', 64), signature, publicKey), "the file hash is part of the signature");
+                Check(!UpdateSignature.Verify("1.3", hash, signature), "another key's signature is refused");
+                Check(!UpdateSignature.Verify("1.3", hash, null, publicKey) && !UpdateSignature.Verify("1.3", hash, "not base64", publicKey) && !UpdateSignature.Verify("1.3", hash, Convert.ToBase64String(new byte[64]), publicKey), "missing or malformed signatures are refused");
+                Check(!UpdateSignature.Verify("1.3 ", hash, signature, publicKey) && !UpdateSignature.Verify("1.3", hash.ToUpperInvariant(), signature, publicKey), "only plain versions and lowercase hashes");
+            }
+            // 사이트에 올린 업데이트 정보는 앱에 넣은 공개 키로 확인된다(맥에서 node로 서명한 것을 .NET이 확인한다).
+            var manifestPath = Path.Combine("public", "downloads", "FeedEx-for-Windows.json");
+            if (File.Exists(manifestPath))
+            {
+                var manifest = File.ReadAllText(manifestPath);
+                string Field(string name) => Regex.Match(manifest, "\"" + name + "\":\"([^\"]*)\"").Groups[1].Value;
+                Check(UpdateSignature.Verify(Field("version"), Field("sha256"), Field("signature")), "the published update info is signed with the app's key");
+            }
+
+            // 업데이트 설치: zip 구성을 확인하고, 예전 파일은 이름만 바꿔 두었다가 지운다. 실패하면 되돌린다.
+            var root = Path.Combine(Path.GetTempPath(), "feedex-update-test-" + Guid.NewGuid().ToString("n"));
+            try
+            {
+                var app = Path.Combine(root, "app");
+                foreach (var file in Updater.Files) Write(Path.Combine(app, file), "old " + file);
+                var zip = MakeZip(root, "good.zip", Updater.Files, null);
+                var staging = Updater.Extract(zip, Path.Combine(root, "work"));
+                Check(File.ReadAllText(Path.Combine(staging, "runtimes", "win-x64", "native", "WebView2Loader.dll")) == "new runtimes/win-x64/native/WebView2Loader.dll", "the update is unpacked");
+                Check(Throws(() => Updater.Extract(MakeZip(root, "extra.zip", Updater.Files, "FeedEx/run.bat"), Path.Combine(root, "work"))), "an extra file is refused");
+                Check(Throws(() => Updater.Extract(MakeZip(root, "escape.zip", Updater.Files, "FeedEx/../evil.exe"), Path.Combine(root, "work"))), "a path outside the folder is refused");
+                Check(Throws(() => Updater.Extract(MakeZip(root, "missing.zip", new[] { "FeedEx.exe" }, null), Path.Combine(root, "work"))), "a partial update is refused");
+                staging = Updater.Extract(zip, Path.Combine(root, "work"));
+                Updater.Install(staging, app);
+                Check(File.ReadAllText(Path.Combine(app, "FeedEx.exe")) == "new FeedEx.exe", "the new app is in place");
+                Check(File.ReadAllText(Path.Combine(app, "FeedEx.exe" + Updater.OldSuffix)) == "old FeedEx.exe", "the running app is only renamed");
+                Updater.CleanUp(app);
+                Check(!File.Exists(Path.Combine(app, "FeedEx.exe" + Updater.OldSuffix)), "old files are removed later");
+                // 설치 도중 실패하면 처음 상태로 되돌린다.
+                foreach (var file in Updater.Files) Write(Path.Combine(app, file), "old " + file);
+                staging = Updater.Extract(zip, Path.Combine(root, "work"));
+                File.Delete(Path.Combine(staging, "WebView2-LICENSE.txt"));
+                Check(Throws(() => Updater.Install(staging, app)), "a broken install reports an error");
+                Check(File.ReadAllText(Path.Combine(app, "FeedEx.exe")) == "old FeedEx.exe" && File.ReadAllText(Path.Combine(app, "WebView2-LICENSE.txt")) == "old WebView2-LICENSE.txt", "a broken install is rolled back");
+                Check(!File.Exists(Path.Combine(app, "FeedEx.exe" + Updater.OldSuffix)), "a rollback leaves no renamed files");
+                // 새 실행 파일의 버전이 업데이트 정보와 같아야 한다.
+                var exeFolder = Path.Combine(root, "exe");
+                Directory.CreateDirectory(exeFolder);
+                File.Copy(typeof(Program).Assembly.Location, Path.Combine(exeFolder, "FeedEx.exe"));
+                var own = typeof(Program).Assembly.GetName().Version;
+                Check(!Throws(() => Updater.CheckVersion(exeFolder, own.Major + "." + own.Minor)), "the matching version passes");
+                Check(Throws(() => Updater.CheckVersion(exeFolder, (own.Major + 1) + ".0")), "another version is refused");
+            }
+            finally { try { Directory.Delete(root, true); } catch (IOException) { } }
+
             if (failures > 0) return 1;
-            Console.WriteLine("PASS: Windows app links, sign-in state, scale and version rules.");
+            Console.WriteLine("PASS: Windows app links, sign-in state, scale and version rules, update signatures, update unpacking, file swap and rollback.");
             return 0;
+        }
+
+        static void Write(string path, string text)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllText(path, text);
+        }
+
+        static string MakeZip(string root, string name, string[] files, string extra)
+        {
+            var path = Path.Combine(root, name);
+            using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+            {
+                foreach (var file in files)
+                    using (var writer = new StreamWriter(archive.CreateEntry("FeedEx/" + file).Open())) writer.Write("new " + file);
+                if (extra != null)
+                    using (var writer = new StreamWriter(archive.CreateEntry(extra).Open())) writer.Write("extra");
+            }
+            return path;
+        }
+
+        static bool Throws(Action action)
+        {
+            try { action(); return false; }
+            catch (Exception) { return true; }
         }
     }
 }

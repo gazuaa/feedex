@@ -170,15 +170,31 @@ namespace FeedEx
         readonly Mutex mutex;
         readonly string name;
         volatile bool stopped;
+        bool owned;
 
         public bool IsFirst { get; }
 
-        public SingleInstance(string flavor)
+        /// <summary>wait을 주면 켜져 있는 FeedEx가 끝날 때까지 기다렸다가 이어받는다. 업데이트 뒤 다시 열 때 쓴다.</summary>
+        public SingleInstance(string flavor, int wait = 0)
         {
             var user = WindowsIdentity.GetCurrent().User?.Value ?? Environment.UserName;
             name = "FeedEx-" + flavor + "-" + user + "-" + Process.GetCurrentProcess().SessionId;
             mutex = new Mutex(true, @"Local\" + name, out var created);
-            IsFirst = created;
+            if (!created && wait > 0)
+            {
+                try { created = mutex.WaitOne(wait); }
+                catch (AbandonedMutexException) { created = true; }
+            }
+            IsFirst = owned = created;
+        }
+
+        /// <summary>업데이트한 앱을 다시 열기 전에 내려놓는다. 새로 연 FeedEx가 바로 이어받는다.</summary>
+        public void Release()
+        {
+            stopped = true;
+            if (!owned) return;
+            owned = false;
+            try { mutex.ReleaseMutex(); } catch (Exception) { }
         }
 
         public void Forward(string text)
@@ -243,8 +259,7 @@ namespace FeedEx
 
         public void Dispose()
         {
-            stopped = true;
-            if (IsFirst) { try { mutex.ReleaseMutex(); } catch (Exception) { } }
+            Release();
             mutex.Dispose();
         }
     }

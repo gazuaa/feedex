@@ -26,6 +26,7 @@ namespace FeedEx
         readonly Timer revealTimer = new Timer { Interval = 4000 };
         readonly Timer updateTimer = new Timer { Interval = 15000 };
         readonly DebugTools debug = DebugTools.FromEnvironment();
+        readonly UpdateContext updates;
         readonly NativeNotifications notifications;
         readonly List<string> waitingLinks = new List<string>();
         CoreWebView2Environment environment;
@@ -73,8 +74,29 @@ namespace FeedEx
             updateTimer.Tick += (sender, args) =>
             {
                 updateTimer.Stop();
-                if (DateTime.UtcNow - settings.LastUpdateCheck > TimeSpan.FromDays(1)) _ = Updates.Check(this, home, settings, true);
+                // 지난 업데이트가 남긴 예전 파일은 예전 실행이 끝난 뒤에 지운다.
+                Updater.CleanUp(updates.AppFolder);
+                if (DateTime.UtcNow - settings.LastUpdateCheck > TimeSpan.FromDays(1)) _ = Updates.Check(updates, true);
             };
+            updates = new UpdateContext
+            {
+                Owner = this,
+                Home = home,
+                Settings = settings,
+                AppFolder = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar),
+                Restart = RestartAfterUpdate,
+            };
+            if (debug != null)
+            {
+                updates.Log = text => debug.Log(Json.Serialize(new Dictionary<string, object> { ["update"] = text }));
+                // 윈도우에서 켜 보는 확인만: 이 컴퓨터의 시험 서버로 열었을 때 시험용 키와 자동 수락을 쓴다.
+                if (home.Scheme == Uri.UriSchemeHttp && (home.Host == "127.0.0.1" || home.Host == "localhost"))
+                {
+                    updates.AutoAccept = Environment.GetEnvironmentVariable("FEEDEX_DEBUG_ACCEPT_UPDATES") == "1";
+                    var key = Environment.GetEnvironmentVariable("FEEDEX_DEBUG_UPDATE_KEY");
+                    if (!string.IsNullOrEmpty(key)) updates.PublicKey = key;
+                }
+            }
             notifications = new NativeNotifications(Icon);
             notifications.Opened += NotificationOpened;
             notifications.ShowRequested += BringForward;
@@ -234,7 +256,7 @@ namespace FeedEx
             {
                 case "article": Place(body); break;
                 case "signIn": StartSignIn(); break;
-                case "checkForUpdates": _ = Updates.Check(this, home, settings, false); break;
+                case "checkForUpdates": _ = Updates.Check(updates, false); break;
                 case "appScale": ChangeAppScale(Json.Text(body, "action")); break;
                 case "openExternal":
                     var url = AppLinks.WebAddress(Json.Text(body, "url"));
@@ -429,6 +451,21 @@ namespace FeedEx
         }
 
         // 창
+
+        /// <summary>업데이트를 설치했으면 새 FeedEx를 열고 이 창을 닫는다. 새 실행은 이 실행이 끝나기를 기다렸다가 이어받는다.</summary>
+        void RestartAfterUpdate(string exe)
+        {
+            instance.Release();
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, Updates.RestartArgument) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe) })?.Dispose();
+            }
+            catch (Exception)
+            {
+                MessageBox.Show(this, "업데이트를 설치했어요. FeedEx를 다시 열어 주세요.", "FeedEx 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            Close();
+        }
 
         void BringForward()
         {

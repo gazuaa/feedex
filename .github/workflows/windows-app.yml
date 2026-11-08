@@ -16,7 +16,7 @@ permissions:
 jobs:
   smoke:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: 주소·로그인·배율 규칙을 .NET Framework에서 시험
@@ -24,9 +24,15 @@ jobs:
       - name: Defender 클라우드·ZIP·실행 파일 검사
         shell: pwsh
         run: ./scripts/windows-smoke/defender.ps1
+      # 앞 단계가 실패해도 나머지 확인은 따로 돌려 결과를 남긴다. 하나라도 실패하면 작업은 실패다.
       - name: 받기 zip을 풀어 실행
+        if: ${{ !cancelled() }}
         shell: pwsh
         run: ./scripts/windows-smoke/run.ps1
+      - name: 자동 업데이트를 설치해 보기
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: ./scripts/windows-smoke/update.ps1
       - name: 기록과 화면 그림 올리기
         if: always()
         uses: actions/upload-artifact@v4
@@ -35,3 +41,4 @@ jobs:
           path: |
             ${{ runner.temp }}/feedex-smoke
             ${{ runner.temp }}/feedex-defender
+            ${{ runner.temp }}/feedex-update

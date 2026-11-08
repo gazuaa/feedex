@@ -32,10 +32,21 @@ FeedEx 화면에서는 Ctrl+휠 확대를 끄고, Ctrl+-·+·0을 앱 배율(기
 1. `FeedEx.csproj`의 `Version`과 `src/shared/windowsApp.ts`의 버전을 함께 올린다.
 2. `./scripts/build-windows-app.sh`를 실행한다. .NET SDK만 있으면 맥에서도 만든다(`brew install dotnet`).
 3. `npm run test:windows-app`과 `npm run build`를 통과시킨다.
-4. 새 버전 zip, 기본 zip, `FeedEx-for-Windows.json`, 소스 지문을 함께 배포한다. 기존 버전 이름의 zip은 바꾸지 않는다.
+4. 새 버전 zip, 기본 zip, 서명한 `FeedEx-for-Windows.json`, 소스 지문을 함께 배포한다. 기존 버전 이름의 zip은 바꾸지 않는다.
 5. 푸시하면 GitHub Actions의 `Windows app`이 실제 윈도우에서 zip을 풀어 켜 보고, 기록과 화면 그림을 남긴다.
 
-앱은 스스로 파일을 바꾸지 않는다. '업데이트 확인'은 새 버전이 있으면 받을 zip을 기본 브라우저로 연다.
+## 자동 업데이트 (1.2 이상)
+
+맥 앱의 Sparkle처럼 하루에 한 번 켤 때 확인하고, 설정의 '업데이트 확인'으로도 확인한다. 설치는 사용자가 고른다.
+
+- `FeedEx-for-Windows.json`의 서명은 `FeedEx for Windows update\n<버전>\n<zip SHA-256>`을 P-256으로 서명한 것이다.
+  .NET Framework 4.8에 Ed25519가 없어 맥 앱과 다른 키를 쓴다. 공개 키는 `UpdateSignature.cs`에 있다.
+- 개인 키는 `.local/keys/windows-update-p256.pem`(권한 600)에만 있다. 출력·커밋·기록하지 않고, 잃어버리면 기존 앱이
+  새 업데이트를 받지 못하므로 안전하게 백업한다. 처음 한 번만 `node scripts/windows-update-signing.mjs --create <경로>`로 만든다.
+- 앱은 서명과 zip의 SHA-256, zip 구성(정해진 파일만), 새 실행 파일의 버전을 모두 확인한 뒤에만 파일을 바꾼다.
+  실행 중인 파일은 `.feedex-old`로 이름만 바꿔 두고 새 파일을 넣으며, 실패하면 되돌린다. 예전 파일은 다음 실행 때 지운다.
+- 설치 뒤 `--updated`로 새 FeedEx를 열고, 새 실행은 예전 실행이 끝나기를 기다렸다가 이어받는다.
+- 1.1 이하에는 이 기능이 없으므로 1.2로 한 번은 직접 바꿔야 한다.
 
 ## 개발 도구
 
