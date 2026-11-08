@@ -9,6 +9,7 @@ Start-Transcript -Path (Join-Path $out 'scan.log') -Force | Out-Null
 $started = Get-Date
 $failed = $false
 $scans = @()
+$realTimeVerified = $false
 try {
   $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
   $platform = Get-ChildItem (Join-Path $env:ProgramData 'Microsoft\Windows Defender\Platform') -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending | Select-Object -First 1
@@ -24,7 +25,9 @@ try {
   $status | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled, AntivirusSignatureVersion, AMProductVersion | ConvertTo-Json | Set-Content (Join-Path $out 'status.json')
   $prefs | Select-Object MAPSReporting, SubmitSamplesConsent, DisableIOAVProtection, DisableArchiveScanning, DisableBlockAtFirstSeen, CloudBlockLevel | ConvertTo-Json | Set-Content (Join-Path $out 'preferences.json')
   Get-Content (Join-Path $out 'status.json'), (Join-Path $out 'preferences.json') | Out-Host
-  if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled -or -not $status.RealTimeProtectionEnabled) { throw 'Defender real-time protection is unavailable; result is inconclusive.' }
+  if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled) { throw 'Defender antivirus is unavailable; result is inconclusive.' }
+  $realTimeVerified = [bool]$status.RealTimeProtectionEnabled
+  if (-not $realTimeVerified) { Write-Host '::warning::Hosted runner real-time protection is unavailable. The cloud/archive scan cannot reproduce all browser-download checks.' }
   if ([int]$prefs.MAPSReporting -eq 0 -or $prefs.DisableIOAVProtection -or $prefs.DisableArchiveScanning -or $prefs.DisableBlockAtFirstSeen) { throw 'Defender cloud/download/archive protection is not enabled; result is inconclusive.' }
 
   & $mp -SignatureUpdate | Out-Host
@@ -55,6 +58,7 @@ try {
   $exe = Join-Path $folder 'FeedEx\FeedEx.exe'
   $files = Get-ChildItem $folder -File -Recurse | ForEach-Object {
     $signature = if ($_.Extension -in @('.exe', '.dll')) { Get-AuthenticodeSignature $_.FullName } else { $null }
+    if ($_.Extension -eq '.dll' -and $signature.Status -ne 'Valid') { throw "Dependency signature is invalid: $($_.FullName) ($($signature.Status))" }
     @{ path = $_.FullName.Substring($folder.Length + 1); sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(); signature = if ($signature) { $signature.Status.ToString() } else { $null }; signer = if ($signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { $null } }
   }
   $files | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $out 'files.json')
@@ -72,7 +76,7 @@ finally {
   $detections = @(Get-MpThreatDetection -ErrorAction SilentlyContinue | Where-Object { $_.InitialDetectionTime -ge $started })
   $detections | Select-Object ThreatID, Resources, InitialDetectionTime, ActionSuccess | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'detections.json')
   if ($detections.Count -gt 0) { $failed = $true; $detections | Format-List | Out-Host }
-  @{ checkedAt = (Get-Date).ToUniversalTime().ToString('o'); passed = -not $failed; scans = $scans } | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'result.json')
+  @{ checkedAt = (Get-Date).ToUniversalTime().ToString('o'); cloudArchiveScanPassed = -not $failed; realTimeProtectionVerified = $realTimeVerified; browserDownloadReproduced = $false; scans = $scans } | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'result.json')
   Stop-Transcript | Out-Null
 }
 if ($failed) { exit 1 }
