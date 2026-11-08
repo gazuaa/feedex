@@ -83,13 +83,19 @@ try {
   assert.deepEqual(staying.merge([]).map((item) => item.id), ['b'], 'coming back drops only the read rows');
   // 새로고침처럼 오래 걸리는 작업이 끝난 뒤에 부른 fetchArticles가 그사이 옮긴 목록을 덮어쓰면 안 된다.
   const appSource = readFileSync('src/App.tsx', 'utf8');
-  assert.match(appSource, /publishSyncedPage\.current !== fetchArticles\) return publishSyncedPage\.current\(\)/, 'a late list fetch forwards to the list on screen');
+  assert.match(appSource, /publishSyncedPage\.current !== fetchArticles\) return publishSyncedPage\.current\((?:preserveRange)?\)/, 'a late list fetch forwards to the list on screen');
   assert.match(appSource, /useLayoutEffect\(\(\) => \{\s*if \(user\) \{\s*fetchArticles\(\);/, 'a ready list replaces the old one before paint');
   // 오래 떠났다 돌아오면 읽은 행이 빠진 목록을 맨 위부터 보여 준다. 기억한 행이 다시 끌어내리면 안 된다.
   const afterAwaySource = appSource.slice(appSource.indexOf('afterAway.current = (away)'), appSource.indexOf('const fetchArticles = useCallback'));
   assert.match(afterAwaySource, /forgetListAnchor\(\);\s*list\?\.scrollTo\(\{ top: 0 \}\);/, 'coming back starts at the top and the anchor cannot pull it back');
   assert.match(afterAwaySource, /selectedArticleId/, 'an open article keeps its list position');
+  assert.match(afterAwaySource, /inNativeApp\(\)/, 'native desktop windows keep their scroll position when returning from another window');
   assert.match(afterAwaySource, /articles\.some\(\(article\) => article\.is_read\)\) return;\s*forgetListAnchor\(\);/, 'a list with no read rows stays where it was');
+  const autoRefreshSource = appSource.slice(appSource.indexOf('useAutoRefresh('), appSource.indexOf('const handleSelectScope = ('));
+  assert.doesNotMatch(autoRefreshSource, /scrollTo\(\{ top: 0 \}\)/, 'background/focus auto-refresh must not reset the list scroll to top');
+  const selectionSource = readFileSync('src/client/articleSelection.ts', 'utf8');
+  assert.match(selectionSource, /followedId\.current !== selectedId/, 'list updates do not re-scroll to an already-selected article');
+  assert.match(selectionSource, /blurOffscreenArticleFocus/, 'offscreen focused article rows are blurred so window reactivation does not jump to top');
   const anchorSource = readFileSync('src/client/listAnchor.ts', 'utf8');
   assert.match(anchorSource, /return useCallback\(\(\) => \{ anchor\.current = null; \}/, 'the list anchor can be forgotten');
   // 목록이 바뀐 첫 그리기에 남은 앞 목록의 행을 새 목록의 위치로 기억하면, 같은 글이 있는 새 목록이 그 글 자리로 열린다.

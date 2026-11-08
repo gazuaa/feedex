@@ -40,7 +40,7 @@ import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileCh
 import { MobileLibrary } from './components/MobileLibrary';
 import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type ArticlePage } from './client/readerCache';
 import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './client/readerPreload';
-import { filteredPage, hasVisibleArticles, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
+import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, takeResumePoint, watchAppVersion } from './client/appVersion';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
@@ -230,9 +230,9 @@ export const App: React.FC = () => {
   const resumeSource = useRef({ account: '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId });
   resumeSource.current = { account: user?.id ?? '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId };
   // 지금 보던 목록과 글, 스크롤 위치를 이 탭에 남긴다. 새 배포로 바꿀 때와 원문을 읽으러 이 창을 떠날 때 쓴다.
-  const saveResumePoint = useCallback((original = false, listAtTop = false) => {
+  const saveResumePoint = useCallback((original = false) => {
     const source = resumeSource.current; if (!source.account) return;
-    keepResumePoint({ ...source, at: Date.now(), listScroll: listAtTop ? 0 : articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.feedex-reader-content')?.scrollTop ?? 0, ...(original ? { original: true } : {}) });
+    keepResumePoint({ ...source, at: Date.now(), listScroll: articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.feedex-reader-content')?.scrollTop ?? 0, ...(original ? { original: true } : {}) });
   }, []);
   useEffect(() => watchAppVersion({
     canSwap: () => {
@@ -241,7 +241,7 @@ export const App: React.FC = () => {
         || (focused instanceof HTMLInputElement && /^(?:text|search|url|email|password|number|tel)$/.test(focused.type));
       return !typing && !document.querySelector('dialog[open], [aria-modal="true"], .feedex-desktop-settings[open], .feedex-mobile-settings[open], .feedex-context-menu') && !stateWrites.current.size && !markingAllReadRef.current;
     },
-    beforeSwap: () => saveResumePoint(false, inNativeApp()),
+    beforeSwap: () => saveResumePoint(),
   }), [saveResumePoint]);
   // 원문에서 뒤로 왔을 때 브라우저가 떠나기 전 화면을 그대로 되살렸으면 남겨 둔 자리는 쓰지 않는다.
   // 남겨 두면 나중에 새로 고칠 때 엉뚱하게 그 자리로 돌아간다.
@@ -300,7 +300,6 @@ export const App: React.FC = () => {
     if (!user || authChecking || resumeChecked.current) return;
     resumeChecked.current = true;
     const point = takeResumePoint(user.id); if (!point) return;
-    if (inNativeApp() && point.listScroll === 0) pendingScroll.current = 0;
     if (!isMobile) {
       setActiveScope(point.scope); setActiveFolderId(point.folderId); setActiveFeedId(point.feedId);
       setSearchQuery(point.search); setSavedOnly(point.saved); setSelectedArticleId(point.articleId);
@@ -488,7 +487,7 @@ export const App: React.FC = () => {
   // 달라지므로 그대로 두고, 읽은 행이 없으면 훑어보던 자리일 수 있으니 옮기지 않는다.
   afterAway.current = (away) => {
     const list = articleListRef.current;
-    if (articleSort === 'oldest' || !retainReadRows || selectedArticleId || !readRowsExpired(away, list?.scrollTop ?? 0)) return;
+    if (inNativeApp() || articleSort === 'oldest' || !retainReadRows || selectedArticleId || !readRowsExpired(away, list?.scrollTop ?? 0)) return;
     unreadSessions.forEach((session) => session.dropRead());
     if (!articles.some((article) => article.is_read)) return;
     forgetListAnchor();
@@ -528,15 +527,17 @@ export const App: React.FC = () => {
         displayedArticleQuery.current = qs.toString();
         displayedArticleReset.current = articleReset.current;
         const complete = !hasMoreArticlesRef.current;
+        let keptTail = false;
         setArticles(previous => {
           const seen = new Set(res.articles.map(article => article.id));
+          keptTail = sameDisplayed && !keepRange && previous.length > res.articles.length;
           const base = keepRange ? mergeOldestWindow(qs, previous, res.articles, articleCache.current, complete)
-            : sameDisplayed && previous.length > res.articles.length && !hasVisibleArticles(res.articles, qs, cache.account)
+            : keptTail
               ? [...res.articles, ...previous.filter(article => !seen.has(article.id)).map(article => articleCache.current.get(article.id) ?? article).filter(article => matchesPage(qs, article))]
               : res.articles;
           return retainReadRows ? unreadSession.merge(base, articleSort) : base;
         });
-        setHasMoreArticles(previous => Boolean(res.hasMore) && (!keepRange || previous));
+        setHasMoreArticles(previous => Boolean(res.hasMore) && (!(keepRange || keptTail) || previous));
       }
     } catch { /* 오프라인이어도 캐시된 화면은 그대로 쓸 수 있다 */ }
     finally { if (current()) setLoadingArticles(false); }
@@ -717,12 +718,7 @@ export const App: React.FC = () => {
   };
   useAutoRefresh(Boolean(user), autoRefreshMinutes, async () => {
     if (refreshingFeedsRef.current || !readerCache?.active) return;
-    const revision = readerCache.revision, query = articleQueryRef.current;
     await syncInBackground();
-    // 최신순은 갱신 후 맨 위로, 오래된순은 읽던 행과 불러온 범위를 유지한다.
-    if (articleSort === 'newest' && inNativeApp() && readerCache.active && readerCache.revision !== revision && articleQueryRef.current === query) {
-      pendingScroll.current = 0; forgetListAnchor(); articleListRef.current?.scrollTo({ top: 0 });
-    }
   }, localNotifications);
 
   const handleSelectScope = (
