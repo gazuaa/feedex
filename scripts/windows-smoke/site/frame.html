@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>Smoke frame</title></head>
+<body style="margin: 0; padding: 8px; font: 14px sans-serif; background: #fff; color: #111;">
+<div id="result"></div>
+<script>
+// 다른 출처의 프레임 흉내. 메시지를 보내도 앱이 받지 않아야 한다(messages.log에 frameProbe가 없어야 한다).
+let result = 'none';
+try {
+  if (window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+    window.chrome.webview.postMessage({ channel: 'feedex', body: { type: 'frameProbe' } });
+    result = 'posted';
+  }
+} catch (error) { result = 'blocked'; }
+document.getElementById('result').textContent = 'frame: bridge ' + result + ' / marker ' + (window.feedexWindowsApp === true);
+</script>
+</body>
+</html>

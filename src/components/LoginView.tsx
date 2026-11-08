@@ -10,7 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { apiRequest, setStoredToken, type UserProfile, type ThemeMode } from '../client/api';
-import { inNativeApp, inNativeSignInWindow, nativeBridge } from '../client/nativeApp';
+import { inNativeApp, inNativeSignInWindow, nativeAppName, nativeBridge, nativePlatform, nativeSignInPlatform } from '../client/nativeApp';
 import { InstallAppButton } from './PwaInstall';
 import { ThemeSwitch } from './ThemeSwitch';
 
@@ -71,10 +71,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const gsiBtnRef = useRef<HTMLDivElement>(null);
-  // 맥 앱에서는 구글이 앱 안 로그인을 막으므로 시스템 로그인 창(Safari)에서 로그인한다.
+  // 데스크톱 앱에서는 구글이 앱 안 로그인을 막으므로 시스템 로그인 창(맥은 Safari, 윈도우는 기본 브라우저)에서 로그인한다.
   const native = inNativeApp();
-  // 맥 앱 로그인을 넘겨주려고 시스템 로그인 창에서 연 화면이다.
+  // 앱에 로그인을 넘겨주려고 시스템 로그인 창에서 연 화면이다.
   const handoff = inNativeSignInWindow();
+  const handoffApp = nativeAppName(nativeSignInPlatform());
 
   useEffect(() => {
     if (!native) return;
@@ -327,7 +328,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
 
           {handoff && (
             <p className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 leading-relaxed">
-              맥 앱에서 쓸 계정으로 로그인하세요. 로그인하면 맥 앱으로 돌아갑니다.
+              {handoffApp}에서 쓸 계정으로 로그인하세요. 로그인하면 {handoffApp}으로 돌아갑니다.
             </p>
           )}
 
@@ -337,7 +338,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
                 {loading ? '로그인하는 중…' : 'Google 계정으로 로그인'}
               </button>
               <span className="text-[11px] text-slate-400 text-center leading-relaxed">
-                시스템 로그인 창(Safari)에서 로그인하면 이 앱으로 돌아와요.
+                {nativePlatform() === 'windows' ? '기본 브라우저에서 로그인하면 이 앱으로 돌아와요.' : '시스템 로그인 창(Safari)에서 로그인하면 이 앱으로 돌아와요.'}
               </span>
             </div>
           ) : (

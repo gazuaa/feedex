@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>FeedEx Windows smoke</title>
+<style>
+  body { margin: 0; font: 16px sans-serif; background: #0f172a; color: #e2e8f0; }
+  #status { margin: 16px; font-size: 18px; }
+  /* 원문 화면이 겹쳐질 자리. 앱이 이 자리에 원문 화면을 놓으면 점선 테두리 안쪽이 초록색으로 덮인다. */
+  #slot { position: absolute; left: 300px; top: 80px; width: 600px; height: 400px; outline: 4px dashed #f59e0b; }
+  iframe { position: absolute; left: 20px; top: 520px; width: 600px; height: 80px; border: 2px solid #64748b; background: #fff; }
+</style>
+</head>
+<body>
+<h1 id="status">waiting</h1>
+<div id="slot"></div>
+<!-- 다른 출처의 프레임. 앱 통로를 쓰지 못해야 한다. -->
+<iframe src="http://localhost:8765/frame.html"></iframe>
+<script>
+// FeedEx 웹이 앱과 주고받는 메시지를 흉내 낸다. 결과는 앱의 개발 도구 기록(messages.log)에 남는다.
+const view = window.chrome && window.chrome.webview;
+const lines = [];
+const show = (text) => { lines.push(text); document.getElementById('status').textContent = lines.join(' · '); };
+if (!view) show('no app bridge');
+else {
+  const post = (body) => view.postMessage({ channel: 'feedex', body });
+  const replies = new Map();
+  view.addEventListener('message', ({ data }) => {
+    if (!data || data.channel !== 'notifications') return;
+    const done = replies.get(data.id);
+    replies.delete(data.id);
+    if (done) done(data);
+  });
+  const ask = (id, body) => new Promise((resolve) => { replies.set(id, resolve); view.postMessage({ channel: 'notifications', id, body }); });
+  window.feedexNativeSignedIn = (code) => { post({ type: 'smokeSignedIn', code }); show('signed in'); };
+  // 배율이 실제 화면에 반영됐는지는 devicePixelRatio(배율 × 화면 DPI)로 본다.
+  window.addEventListener('feedex-app-scale', () => setTimeout(() => { post({ type: 'smokeScale', scale: window.feedexAppScale, dpr: window.devicePixelRatio }); show('scale ' + window.feedexAppScale); }, 800));
+  (async () => {
+    post({ type: 'smokeReady', marker: window.feedexWindowsApp === true, scale: window.feedexAppScale });
+    show('marker ' + (window.feedexWindowsApp === true) + ' / scale ' + window.feedexAppScale);
+    const slot = document.getElementById('slot').getBoundingClientRect();
+    post({ type: 'article', url: 'http://127.0.0.1:8765/article.html', zoom: 1, hidden: false, rect: { x: slot.left, y: slot.top, width: slot.width, height: slot.height } });
+    const status = await ask(1, { action: 'status' });
+    const shown = await ask(2, { action: 'show', title: 'FeedEx smoke', body: 'notification test', account: 'smoke', articleId: 'a1' });
+    const bad = await ask(3, { action: 'show', title: '', body: '', account: '', articleId: '' });
+    post({ type: 'smokeNotify', permission: status.result && status.result.permission, shown: !shown.error, badError: bad.error || null, dpr: window.devicePixelRatio });
+    show('notifications ' + (status.result && status.result.permission));
+    // 설정의 '앱 화면 크게'를 누른 것처럼 배율을 바꾸고, 나중에 로그인을 시작한다.
+    setTimeout(() => post({ type: 'appScale', action: 'larger' }), 6000);
+    setTimeout(() => post({ type: 'signIn' }), 30000);
+  })();
+}
+</script>
+</body>
+</html>

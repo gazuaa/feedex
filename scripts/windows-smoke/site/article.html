@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Smoke article</title>
+<style>
+  body { margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; background: #22c55e; color: #052e16; font: bold 26px sans-serif; }
+</style>
+</head>
+<body>
+<div id="result"></div>
+<script>
+// 원문 화면 흉내. 앱 통로와 윈도우 앱 표시가 없어야 한다. 결과는 화면 그림으로 확인한다.
+const bridge = Boolean(window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function');
+document.getElementById('result').innerHTML = 'ARTICLE OK<br>bridge ' + bridge + ' / marker ' + (window.feedexWindowsApp === true);
+</script>
+</body>
+</html>

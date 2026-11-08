@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 윈도우 앱의 주소·로그인·배율 규칙을 맥이나 리눅스에서도 돌려 보는 시험. 창을 다루는 코드는 넣지 않는다. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- 윈도우에서는 -p:TestFramework=net48로 앱과 같은 .NET Framework에서도 돌린다. -->
+    <TargetFramework Condition="'$(TestFramework)' == ''">net$(NETCoreSdkVersion.Split('.')[0]).0</TargetFramework>
+    <TargetFramework Condition="'$(TestFramework)' != ''">$(TestFramework)</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Compile Include="../AppLinks.cs" Link="AppLinks.cs" />
+    <Compile Include="../AppScale.cs" Link="AppScale.cs" />
+  </ItemGroup>
+</Project>

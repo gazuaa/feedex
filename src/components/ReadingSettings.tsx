@@ -7,7 +7,7 @@ import { ArticleBlockSetting } from './ArticleBlockDialog';
 import { FONT_SCALES, useTextSize } from '../client/textSize';
 import { AUTO_REFRESH_OPTIONS } from '../shared/preferences';
 import { useOutsideDismiss } from '../client/outsideDismiss';
-import { inNativeApp, nativeBridge, useNativeAppScale } from '../client/nativeApp';
+import { inNativeApp, nativeAppName, nativeBridge, nativePlatform, useNativeAppScale } from '../client/nativeApp';
 
 export interface ScrollReadSettingsProps {
   markReadOnScroll: boolean;
@@ -32,7 +32,7 @@ export function SettingGroup({ title, children }: { title: string; children: Rea
 export function SettingRow({ label, children }: { label: string; children: ReactNode }) {
   return <div className="feedex-setting-row"><span>{label}</span>{children}</div>;
 }
-/** 맥 앱의 전체 화면 크기. 기사 글자 크기와 구별하고 브라우저에서는 표시하지 않는다. */
+/** 데스크톱 앱의 전체 화면 크기. 기사 글자 크기와 구별하고 브라우저에서는 표시하지 않는다. */
 export function NativeAppScaleSetting() {
   const scale = useNativeAppScale();
   if (!inNativeApp()) return null;
@@ -46,7 +46,9 @@ export function NativeAppScaleSetting() {
 
 export function NativeAppUpdateSetting() {
   if (!inNativeApp()) return null;
-  return <div className="feedex-auto-refresh-setting"><span>맥 앱 업데이트<small>새 버전이 있으면 받아서 설치해요</small></span><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></div>;
+  // 맥 앱은 Sparkle이 받아서 설치하고, 윈도우 앱은 새 버전을 알려 주고 받을 파일을 연다.
+  const detail = nativePlatform() === 'windows' ? '새 버전이 있으면 받을 파일을 열어요' : '새 버전이 있으면 받아서 설치해요';
+  return <div className="feedex-auto-refresh-setting"><span>{nativeAppName()} 업데이트<small>{detail}</small></span><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></div>;
 }
 
 export function TextSizeSetting() {

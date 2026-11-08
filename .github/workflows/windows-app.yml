@@ -1,0 +1,32 @@
+# 윈도우 앱을 실제 윈도우에서 켜 보는 확인. 맥에서 만든 받기 zip을 그대로 풀어 실행한다.
+name: Windows app
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'native/windows/**'
+      - 'public/downloads/FeedEx-for-Windows*'
+      - 'scripts/windows-smoke/**'
+      - '.github/workflows/windows-app.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: 주소·로그인·배율 규칙을 .NET Framework에서 시험
+        run: dotnet run --project native/windows/Tests/Tests.csproj -p:TestFramework=net48 --nologo
+      - name: 받기 zip을 풀어 실행
+        shell: pwsh
+        run: ./scripts/windows-smoke/run.ps1
+      - name: 기록과 화면 그림 올리기
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-smoke
+          path: ${{ runner.temp }}/feedex-smoke

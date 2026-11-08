@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- FeedEx 윈도우 앱. 윈도우 10·11에 기본으로 있는 .NET Framework 4.8과 WebView2 런타임을 써서 받는 파일을 작게 둔다. -->
+  <!-- 맥에서도 빌드할 수 있게 참조 어셈블리 패키지를 쓴다. 버전을 올리면 src/shared/windowsApp.ts도 같이 올린다. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>FeedEx</AssemblyName>
+    <RootNamespace>FeedEx</RootNamespace>
+    <Version>1.0</Version>
+    <Product>FeedEx</Product>
+    <AssemblyTitle>FeedEx</AssemblyTitle>
+    <Description>FeedEx</Description>
+    <Company>FeedEx</Company>
+    <Copyright>FeedEx</Copyright>
+    <ApplicationIcon>FeedEx.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <DebugType>none</DebugType>
+    <Deterministic>true</Deterministic>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <SatelliteResourceLanguages>ko</SatelliteResourceLanguages>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- 맥에서 돌리는 규칙 시험은 앱에 넣지 않는다. -->
+    <Compile Remove="Tests/**" />
+    <None Remove="Tests/**" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Net.Http" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+</Project>

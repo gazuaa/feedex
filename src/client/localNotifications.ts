@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { ArticleItem } from './api';
 import { compileArticleBlocks, readArticleBlocks } from './articleBlocks';
-import { inNativeApp } from './nativeApp';
+import { inNativeApp, nativeAppName, nativeSystemName } from './nativeApp';
 import { nativeNotificationBridge, nativeNotificationPermission, requestNativeNotificationPermission, subscribeNativeNotificationPermission } from './nativeNotifications';
 
 const settingKey = (account: string) => `sfeed_local_notifications:${account}`;
@@ -29,10 +29,10 @@ export function useNotificationPermission() {
 }
 export async function enableLocalNotifications(account: string): Promise<string> {
   if (inNativeApp()) {
-    if (!nativeNotificationBridge()) return '맥 앱 업데이트 후 알림을 켤 수 있어요.';
+    if (!nativeNotificationBridge()) return `${nativeAppName()} 업데이트 후 알림을 켤 수 있어요.`;
     const permission = await requestNativeNotificationPermission();
     setLocalNotifications(account, true);
-    return permission === 'granted' ? '' : 'macOS 알림 설정에서 FeedEx를 허용해 주세요. 허용하면 자동으로 켜집니다.';
+    return permission === 'granted' ? '' : `${nativeSystemName()} 알림 설정에서 FeedEx를 허용해 주세요. 허용하면 자동으로 켜집니다.`;
   }
   if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) return '이 브라우저에서는 알림을 지원하지 않습니다. 아이폰은 홈 화면에 설치한 앱에서 확인해 주세요.';
   const permission = await Notification.requestPermission();

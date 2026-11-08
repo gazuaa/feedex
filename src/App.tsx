@@ -1369,7 +1369,7 @@ export const App: React.FC = () => {
     );
   }
 
-  // 맥 앱이 연 시스템 로그인 창이면 이 계정을 맥 앱에 넘길지만 묻는다.
+  // 데스크톱 앱이 연 시스템 로그인 창이면 이 계정을 앱에 넘길지만 묻는다.
   if (inNativeSignInWindow()) {
     return <NativeHandoff email={user.email} isDark={theme === 'dark'} onUseAnother={() => { void handleLogout(); }} />;
   }

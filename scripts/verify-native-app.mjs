@@ -179,10 +179,10 @@ import UserNotifications
   assert.equal(macAppOffered(mac, 0), true);
   assert.equal(macAppOffered(mac, 5), false, 'iPads that report a Mac browser are left out');
   assert.equal(macAppOffered('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0', 0), false);
-  assert.equal(installEntry('manual', 'desktop', true, false), '앱 설치');
-  assert.equal(installEntry('installed', 'desktop', true, false), '맥 앱 받기', 'a Mac with the browser app installed can still get the Mac app');
-  assert.equal(installEntry('installed', 'desktop', false, false), null, 'nothing is offered once installed elsewhere');
-  assert.equal(installEntry('manual', 'ios', false, true), '홈 화면 추가 안내');
+  assert.equal(installEntry('manual', 'desktop', 'mac', false), '앱 설치');
+  assert.equal(installEntry('installed', 'desktop', 'mac', false), '맥 앱 받기', 'a Mac with the browser app installed can still get the Mac app');
+  assert.equal(installEntry('installed', 'desktop', null, false), null, 'nothing is offered once installed elsewhere');
+  assert.equal(installEntry('manual', 'ios', null, true), '홈 화면 추가 안내');
   const agent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
   Object.defineProperty(navigator, 'userAgent', { configurable: true, value: mac });
   let help;
@@ -197,7 +197,8 @@ import UserNotifications
   } finally { if (agent) Object.defineProperty(navigator, 'userAgent', agent); else delete navigator.userAgent; }
   assert.match(help, new RegExp(`href="/downloads/FeedEx-for-Mac\\.zip\\?v=${MAC_APP_VERSION.replace('.', '\\.')}"`)); assert.match(help, /download="FeedEx-for-Mac\.zip"/);
   assert.match(help, /href="feedex-reader:\/\/launch"/);
-  assert.match(help, /브라우저 앱으로 설치/, 'the browser install steps follow the Mac app');
+  assert.match(help, /aria-label="브라우저 앱"/, 'the browser app follows the Mac app');
+  assert.ok(help.indexOf('aria-label="맥 앱"') < help.indexOf('aria-label="브라우저 앱"'), 'the Mac app comes first');
   assert.match(help, /href="x-apple\.systempreferences:com\.apple\.preference\.security\?General"[^>]*>시스템 설정 열기</, 'a button opens the security settings where macOS offers to open the app anyway');
   assert.ok(help.indexOf('한 번 열어요') < help.indexOf('시스템 설정 열기'), 'the steps say to try opening the app first');
   assert.doesNotMatch(help, /feedex-install-banner/, 'no floating install banner on the desktop');

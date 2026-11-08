@@ -1,7 +1,8 @@
 import { useLayoutEffect, useSyncExternalStore, type RefObject } from 'react';
 
-// 맥 앱 안에서 열렸을 때만 있는 연결. 앱이 WKWebView에 'feedex' 메시지 통로를 만든다.
-// 크롬 앱이나 일반 브라우저에는 없다.
+// 데스크톱 앱 안에서 열렸을 때만 있는 연결. 크롬 앱이나 일반 브라우저에는 없다.
+// 맥 앱은 WKWebView에 'feedex' 메시지 통로를 만들고, 윈도우 앱은 WebView2의 chrome.webview 통로에
+// 윈도우 앱이라는 표시(feedexWindowsApp)를 함께 둔다. 두 앱은 같은 메시지를 받는다.
 export type NativeRect = { x: number; y: number; width: number; height: number };
 export type NativeMessage =
   | { type: 'signIn' }
@@ -10,17 +11,55 @@ export type NativeMessage =
   | { type: 'article'; url: string | null; rect?: NativeRect; zoom?: number; hidden?: boolean }
   | { type: 'openExternal'; url: string };
 interface NativeBridge { postMessage(message: NativeMessage): void }
-type BridgeHost = { webkit?: { messageHandlers?: { feedex?: Partial<NativeBridge> } } };
+/** 윈도우 앱이 주고받는 통로. 보낼 때는 어느 통로인지(channel) 붙이고, 답은 message 이벤트로 받는다. */
+export interface WindowsWebView {
+  postMessage(message: unknown): void;
+  addEventListener?(type: 'message', listener: (event: { data: unknown }) => void): void;
+}
+export type BridgeHost = {
+  webkit?: { messageHandlers?: { feedex?: Partial<NativeBridge> } };
+  chrome?: { webview?: Partial<WindowsWebView> };
+  feedexWindowsApp?: unknown;
+};
+export type NativePlatform = 'mac' | 'windows';
 
+/** 윈도우 앱의 통로. 앱이 문서마다 넣는 표시가 있을 때만 쓴다. WebView2를 쓰는 다른 프로그램은 해당하지 않는다. */
+export function windowsWebView(host: BridgeHost = globalThis as BridgeHost): WindowsWebView | null {
+  const view = host.chrome?.webview;
+  return host.feedexWindowsApp === true && typeof view?.postMessage === 'function' ? view as WindowsWebView : null;
+}
+export function nativePlatform(host: BridgeHost = globalThis as BridgeHost): NativePlatform | null {
+  if (typeof host.webkit?.messageHandlers?.feedex?.postMessage === 'function') return 'mac';
+  return windowsWebView(host) ? 'windows' : null;
+}
 export function nativeBridge(host: BridgeHost = globalThis as BridgeHost): NativeBridge | null {
   const handler = host.webkit?.messageHandlers?.feedex;
-  return handler && typeof handler.postMessage === 'function' ? handler as NativeBridge : null;
+  if (handler && typeof handler.postMessage === 'function') return handler as NativeBridge;
+  const view = windowsWebView(host);
+  return view ? { postMessage: (message) => view.postMessage({ channel: 'feedex', body: message }) } : null;
 }
 export const inNativeApp = (host?: BridgeHost) => Boolean(nativeBridge(host));
-/** 맥 앱이 연 시스템 로그인 창(Safari) 안인지. 이 창에서는 로그인한 계정을 맥 앱에 넘기기만 한다. */
+/** 화면에 쓰는 앱 이름과 운영체제 이름. */
+export const nativeAppName = (platform: NativePlatform | null = nativePlatform()) => platform === 'windows' ? '윈도우 앱' : '맥 앱';
+export const nativeSystemName = (platform: NativePlatform | null = nativePlatform()) => platform === 'windows' ? 'Windows' : 'macOS';
+/** 데스크톱 앱이 연 시스템 로그인 창(맥은 Safari, 윈도우는 기본 브라우저) 안인지. 이 창에서는 로그인한 계정을 앱에 넘기기만 한다. */
 export const inNativeSignInWindow = (search = typeof location === 'undefined' ? '' : location.search) => new URLSearchParams(search).has('native-sign-in');
+/** 로그인을 넘길 앱. 윈도우 앱은 native-sign-in=windows로 연다. */
+export const nativeSignInPlatform = (search = typeof location === 'undefined' ? '' : location.search): NativePlatform => new URLSearchParams(search).get('native-sign-in') === 'windows' ? 'windows' : 'mac';
+/**
+ * 윈도우 앱이 로그인을 시작할 때 붙인 상태 값. 아무 웹사이트나 앱 주소를 열 수 있으므로, 앱은 이 값이 함께 돌아올 때만
+ * 코드를 받는다. 모양이 다르면 넘기지 않는다.
+ */
+export function nativeSignInState(search = typeof location === 'undefined' ? '' : location.search): string | null {
+  const state = new URLSearchParams(search).get('state');
+  return state && /^[0-9a-f]{64}$/.test(state) ? state : null;
+}
+/** 시스템 로그인 창이 앱으로 돌려보내는 주소. 상태 값이 있으면 그대로 돌려준다. */
+export function nativeSignInCallback(code: string, state: string | null) {
+  return `feedex-reader://signed-in?code=${encodeURIComponent(code)}${state ? `&state=${state}` : ''}`;
+}
 
-// 웹 보기 자리를 가리는 창들. 맥 앱의 원문 화면은 웹 화면 위에 놓이므로, 이것들이 열리면 원문 화면을 잠시 숨긴다.
+// 웹 보기 자리를 가리는 창들. 앱의 원문 화면은 웹 화면 위에 놓이므로, 이것들이 열리면 원문 화면을 잠시 숨긴다.
 export const NATIVE_COVERS = 'dialog[open], [aria-modal="true"], .feedex-desktop-settings[open], .feedex-mobile-settings[open], .feedex-context-menu';
 
 /**
@@ -62,7 +101,7 @@ export function useNativeArticle(slot: RefObject<HTMLElement | null>, url: strin
   }, [slot, url, zoom]);
 }
 
-/** 맥 앱이 보낸 실제 배율. 계정 설정이나 기사 글자 크기에 섞어 저장하지 않는다. */
+/** 앱이 보낸 실제 배율. 계정 설정이나 기사 글자 크기에 섞어 저장하지 않는다. */
 export function nativeAppScale(host: { feedexAppScale?: number } = globalThis as { feedexAppScale?: number }): number {
   const scale = host.feedexAppScale;
   return typeof scale === 'number' && Number.isFinite(scale) && scale >= 0.5 && scale <= 1.5 ? scale : 0.9;
