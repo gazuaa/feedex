@@ -1571,11 +1571,10 @@ export const App: React.FC = () => {
         }
       >
         {(filterAllFeeds || articleBlocks.some((rule) => rule.enabled)) && <div className="feedex-block-bar">
-          <span title="피드와 폴더의 숫자는 제외 전 전체 글 기준입니다.">{showBlockedArticles ? `차단 대상 ${blockedArticles.length}개 표시 중` : `불러온 글 중 ${blockedArticles.length}개 숨김`}</span>
           {filterAllFeeds && <button type="button" onClick={() => setFeedExclusionsOpen(true)}>피드 제외{subscriptions.some(feed => excludedFeedSet.has(feed.feed_id)) ? ` ${subscriptions.filter(feed => excludedFeedSet.has(feed.feed_id)).length}개` : ''}</button>}
-          {articleBlocks.some(rule => rule.enabled) && <><button type="button" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles(value => !value)}>{showBlockedArticles ? '차단 적용' : '숨긴 글 보기'}</button><button type="button" onClick={onManageArticleBlocks}>규칙 관리</button></>}
+          {articleBlocks.some(rule => rule.enabled) && <><button type="button" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles(value => !value)}>{`숨긴 글 ${showBlockedArticles ? '숨기기' : '보기'} (${blockedArticles.length}개)`}</button><button type="button" onClick={onManageArticleBlocks}>규칙 관리</button></>}
         </div>}
-        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>표시할 글이 없습니다.</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>제외한 피드 변경</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기</button></div> : <ArticleList
+        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>표시할 글이 없습니다.</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>제외한 피드 변경</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기 ({blockedArticles.length}개)</button></div> : <ArticleList
           accountId={user.id}
           onUpdateArticleFields={handleUpdateArticleFields}
           onPrepareArticle={handlePrepareArticle}
@@ -1605,7 +1604,7 @@ export const App: React.FC = () => {
           />
         )}
       </ResizableWorkspace>
-      {feedExclusionsOpen && <FeedExclusionsDialog key={user.id} subscriptions={subscriptions} excluded={excludedFeedIds} onClose={() => setFeedExclusionsOpen(false)} onSave={async ids => {
+      {feedExclusionsOpen && <FeedExclusionsDialog key={user.id} subscriptions={subscriptions} folders={folders} excluded={excludedFeedIds} onClose={() => setFeedExclusionsOpen(false)} onSave={async ids => {
         await saveFeedExclusions(ids);
         if (filterAllFeeds) {
           forgetListAnchor(); pendingScroll.current = 0; articleListRef.current?.scrollTo({ top: 0 });

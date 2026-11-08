@@ -29,7 +29,7 @@ html.dark .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-va
 .feedex-block-setting { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 34px; font-size: 13px; cursor: pointer; text-align: left; }
 .feedex-block-setting > span:nth-of-type(2) { margin-left: auto; color: var(--feedex-muted); font-size: 12px; }
 .feedex-block-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; font-size: 12px; border-bottom: 1px solid var(--feedex-border); color: var(--feedex-muted); }
-.feedex-block-bar > span { flex: 1; min-width: 140px; }
+.feedex-block-bar { justify-content: flex-end; }
 .feedex-block-bar button, .feedex-block-empty button { color: #059669; cursor: pointer; font-weight: 600; }
 .feedex-block-empty { padding: 64px 24px; text-align: center; color: var(--feedex-muted); font-size: 13px; line-height: 1.8; }
 .feedex-block-overlay { position: fixed; inset: 0; z-index: 260; display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); background: #02061780; }
@@ -520,9 +520,9 @@ html:not(.dark) .feedex-login [class*="border-slate-8"] { border-color: var(--fe
 .feedex-exclusions-count { display: flex; justify-content: space-between; padding: 8px 20px; font-size: 12px; color: var(--feedex-muted); }
 .feedex-exclusions-count button { color: #059669; cursor: pointer; }
 .feedex-exclusions-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 20px; }
-.feedex-exclusions-list > label { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 10px 0; border-bottom: 1px solid var(--feedex-border); cursor: pointer; }
+.feedex-exclusions-feeds > label { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 10px 0; border-bottom: 1px solid var(--feedex-border); cursor: pointer; }
 .feedex-exclusions-list input { width: 18px; height: 18px; flex-shrink: 0; accent-color: #059669; }
-.feedex-exclusions-list > label > span { min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.feedex-exclusions-feeds > label > span { min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
 .feedex-exclusions-list small { display: block; color: var(--feedex-muted); font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .feedex-exclusions-list > p, .feedex-exclusions-dialog > [role="alert"] { padding: 16px 20px; font-size: 13px; }
 .feedex-exclusions-dialog > [role="alert"] { color: #f43f5e; }
@@ -532,3 +532,13 @@ html:not(.dark) .feedex-login [class*="border-slate-8"] { border-color: var(--fe
 .feedex-exclusions-actions button:last-child { color: white; background: #059669; }
 .feedex-exclusions-dialog button:disabled { opacity: .5; cursor: default; }
 html.dark .feedex-exclusions-count button { color: #34d399; }
+
+.feedex-exclusions-group { border-bottom: 1px solid var(--feedex-border); }
+.feedex-exclusions-folder { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+.feedex-exclusions-folder > button { display: flex; align-items: center; gap: 8px; align-self: stretch; min-width: 0; flex: 1; text-align: left; cursor: pointer; }
+.feedex-exclusions-folder > button > span { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+.feedex-exclusions-folder svg { flex-shrink: 0; color: var(--feedex-muted); }
+.feedex-exclusions-folder svg.is-open { transform: rotate(90deg); }
+.feedex-exclusions-folder small { flex-shrink: 0; font-size: 12px; }
+.feedex-exclusions-feeds { padding-left: 30px; }
+.feedex-exclusions-feeds > label:last-child { border-bottom: 0; }
