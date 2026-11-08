@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { Copy, Download, ExternalLink, Share2, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Apple, Chrome, Compass, Copy, Download, Share2, X } from 'lucide-react';
 import { installAddress, installPlatform, isIOSSafari, openInstallHelp, promptInstall, useInstallState } from '../client/pwa';
 import { inNativeApp } from '../client/nativeApp';
+import { launchDesktopApp, useKnownDesktopApp, type DesktopApp } from '../client/desktopApp';
 import { MAC_APP_DOWNLOAD, MAC_APP_OPEN, MAC_SECURITY_SETTINGS, onMacBrowser } from '../shared/macApp';
 import { WINDOWS_APP_DOWNLOAD, WINDOWS_APP_OPEN, onWindowsBrowser } from '../shared/windowsApp';
 
@@ -43,8 +44,16 @@ export function InstallCard() {
   return <aside className="feedex-install-card" aria-label="앱 설치 안내"><InstallPromptContent prompt={prompt} /></aside>;
 }
 
-type DesktopApp = 'mac' | 'windows';
 const DESKTOP_APP_NAME: Record<DesktopApp, string> = { mac: '맥 앱', windows: '윈도우 앱' };
+const DESKTOP_APP_OPEN: Record<DesktopApp, string> = { mac: MAC_APP_OPEN, windows: WINDOWS_APP_OPEN };
+
+/** 윈도우 로고 모양. 아이콘 묶음에 없어 직접 그린다. */
+function WindowsLogo({ size = 16 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h8.5v8.5H3zM12.5 3H21v8.5h-8.5zM3 12.5h8.5V21H3zM12.5 12.5H21V21h-8.5z" /></svg>;
+}
+function DesktopAppIcon({ app, size = 16 }: { app: DesktopApp; size?: number }) {
+  return app === 'windows' ? <WindowsLogo size={size - 2} /> : <Apple size={size} aria-hidden="true" />;
+}
 
 /** 맥·윈도우 브라우저에서 연 FeedEx에서만 데스크톱 앱을 권한다. 앱 안에서는 이미 쓰고 있다. */
 export function desktopAppOffered(userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent, touchPoints = typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints || 0): DesktopApp | null {
@@ -62,24 +71,55 @@ export function installEntry(state: ReturnType<typeof useInstallState>, target: 
   if (state === 'installed') return desktop ? `${DESKTOP_APP_NAME[desktop]} 받기` : null;
   return target === 'ios' ? iosSafari ? '홈 화면 추가 안내' : 'Safari로 열기' : '앱 설치';
 }
+
+/** 앱이 열리지 않으면 설치 안내 창을 열고, 앱이 없는 것 같다고 알린다. */
+const showMissingApp = (app: DesktopApp) => window.dispatchEvent(new CustomEvent('sfeed:install', { detail: { missingApp: app } }));
+
+/**
+ * 데스크톱 앱 열기. 앱이 없을 때 아무 반응이 없지 않게, 열리지 않으면 onMissing으로 설치를 안내한다.
+ * 주소는 링크에도 남겨 두어 새 탭 열기 등에서도 같은 앱 주소를 쓴다.
+ */
+function OpenDesktopApp({ app, onMissing, className, size = 16 }: { app: DesktopApp; onMissing: () => void; className: string; size?: number }) {
+  const address = DESKTOP_APP_OPEN[app];
+  return <a href={address} onClick={(event) => { event.preventDefault(); launchDesktopApp(app, address, onMissing); }} className={className}><DesktopAppIcon app={app} size={size} />{DESKTOP_APP_NAME[app]}으로 열기</a>;
+}
+
 export function InstallAppButton() {
   const state = useInstallState();
   const desktop = desktopAppOffered();
+  // 이 브라우저에서 앱이 열린 적이 있을 때만 '앱으로 열기'를 앞에 둔다. 아직이면 설치 안내로 들어간다.
+  const known = useKnownDesktopApp(desktop);
   const label = installEntry(state, platform(), desktop, typeof navigator !== 'undefined' && isIOSSafari(navigator));
   if (!label) return null;
-  const name = desktop && DESKTOP_APP_NAME[desktop];
+  const opener = desktop && known ? desktop : null;
+  const name = opener && DESKTOP_APP_NAME[opener];
   return <div className="flex items-center gap-1">
-    {name && <a href={desktop === 'mac' ? MAC_APP_OPEN : WINDOWS_APP_OPEN} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"><ExternalLink size={16} aria-hidden="true" />{name}으로 열기</a>}
-    <button type="button" onClick={openInstallHelp} aria-label={name ? `${name} 설치 안내` : label} title={name ? `${name} 설치 안내` : undefined} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-emerald-500 hover:bg-emerald-500/10 cursor-pointer"><Download size={16} aria-hidden="true" />{!name && label}</button>
+    {opener && <OpenDesktopApp app={opener} onMissing={() => showMissingApp(opener)} className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400" />}
+    <button type="button" onClick={() => openInstallHelp()} aria-label={name ? `${name} 설치 안내` : label} title={name ? `${name} 설치 안내` : undefined} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-emerald-500 hover:bg-emerald-500/10 cursor-pointer"><Download size={16} aria-hidden="true" />{!name && label}</button>
   </div>;
 }
 
+/** 안내 창의 앱 한 칸. 아이콘과 이름을 왼쪽에, 주요 단추를 오른쪽에 둔다. */
+function OptionTitle({ icon, title, children }: { icon: ReactNode; title: string; children?: ReactNode }) {
+  return <div className="flex items-center justify-between gap-3">
+    <span className="flex min-w-0 items-center gap-2.5"><span className="feedex-install-icon">{icon}</span><strong className="text-sm">{title}</strong></span>
+    {children}
+  </div>;
+}
+
+/** 이 브라우저에서 열린 적이 있으면 '열기'를, 아직이면 '받기'를 앞에 둔다. */
+function openButtonClass(known: boolean) {
+  return known
+    ? 'mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950'
+    : 'mt-3 inline-flex items-center gap-2 rounded-xl border border-emerald-500 px-4 py-2 text-sm font-bold text-emerald-500 hover:bg-emerald-500/10';
+}
+
 /** 맥이면 안내 창 맨 위에 맥 앱을 둔다. 웹 보기에서 언론사 로그인이 유지되는 것은 데스크톱 앱뿐이다. */
-function MacAppOption() {
+function MacAppOption({ known, onMissing }: { known: boolean; onMissing: () => void }) {
   return <section className="feedex-install-app" aria-label="맥 앱">
-    <div className="flex items-center justify-between gap-3"><strong className="text-sm">맥 앱</strong><a href={MAC_APP_DOWNLOAD} download="FeedEx-for-Mac.zip" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950">받기</a></div>
+    <OptionTitle icon={<Apple size={18} aria-hidden="true" />} title="맥 앱"><a href={MAC_APP_DOWNLOAD} download="FeedEx-for-Mac.zip" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950">받기</a></OptionTitle>
     <p className="mt-2 text-xs leading-5">웹 보기에서 언론사 로그인이 유지되는 맥 앱이에요. 설치되어 있다면 바로 열 수 있어요. 열리지 않으면 최신 맥 앱을 받아 교체해 주세요.</p>
-    <a href={MAC_APP_OPEN} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950"><ExternalLink size={15} aria-hidden="true" />맥 앱으로 열기</a>
+    <OpenDesktopApp app="mac" onMissing={onMissing} size={15} className={openButtonClass(known)} />
     {/* Apple 서명이 없어 처음 한 번은 macOS가 막는다. '그래도 열기'는 한 번 열어 본 뒤에만 보이므로 순서대로 안내한다. */}
     <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5">
       <li>받은 zip을 풀어 FeedEx를 응용 프로그램 폴더에 넣어요.</li>
@@ -91,11 +131,11 @@ function MacAppOption() {
 }
 
 /** 윈도우면 안내 창 맨 위에 윈도우 앱을 둔다. 처음 켜면 시작 메뉴와 '윈도우 앱으로 열기' 주소가 등록된다. */
-function WindowsAppOption() {
+function WindowsAppOption({ known, onMissing }: { known: boolean; onMissing: () => void }) {
   return <section className="feedex-install-app" aria-label="윈도우 앱">
-    <div className="flex items-center justify-between gap-3"><strong className="text-sm">윈도우 앱</strong><a href={WINDOWS_APP_DOWNLOAD} download="FeedEx-for-Windows.zip" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950">받기</a></div>
+    <OptionTitle icon={<WindowsLogo size={16} />} title="윈도우 앱"><a href={WINDOWS_APP_DOWNLOAD} download="FeedEx-for-Windows.zip" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950">받기</a></OptionTitle>
     <p className="mt-2 text-xs leading-5">웹 보기에서 언론사 로그인이 유지되는 윈도우 앱이에요. 설치되어 있다면 바로 열 수 있어요.</p>
-    <a href={WINDOWS_APP_OPEN} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950"><ExternalLink size={15} aria-hidden="true" />윈도우 앱으로 열기</a>
+    <OpenDesktopApp app="windows" onMissing={onMissing} size={15} className={openButtonClass(known)} />
     {/* 코드 서명이 없어 처음 한 번은 SmartScreen이 막는다. '추가 정보'를 눌러야 '실행' 단추가 보인다. */}
     <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5">
       <li>받은 zip을 마우스 오른쪽 단추로 눌러 '모두 압축 풀기'를 해요.</li>
@@ -108,11 +148,12 @@ function WindowsAppOption() {
 /** 데스크톱 브라우저 앱(크롬·엣지 앱, Safari의 Dock 앱). 설치 단추나 한 줄 안내만 둔다. */
 function BrowserAppOption({ target, nativePrompt, onInstall }: { target: ReturnType<typeof platform>; nativePrompt: boolean; onInstall: () => void }) {
   const hint = nativePrompt ? '주소창 없이 창으로 열어요' : target === 'mac-safari' ? "메뉴 막대의 '파일 → Dock에 추가…'로 설치해요" : '주소창 오른쪽의 설치 아이콘으로 설치해요';
+  const icon = target === 'mac-safari' ? <Compass size={18} aria-hidden="true" /> : <Chrome size={18} aria-hidden="true" />;
   return <section className="feedex-install-app" aria-label="브라우저 앱">
-    <div className="flex items-center justify-between gap-3">
-      <span className="min-w-0"><strong className="block text-sm">브라우저 앱</strong><span className="mt-1 block text-xs leading-5 text-[var(--feedex-muted)]">{hint}</span></span>
+    <OptionTitle icon={icon} title="브라우저 앱">
       {nativePrompt && <button type="button" onClick={onInstall} className="shrink-0 rounded-xl border border-emerald-500 px-4 py-2 text-sm font-bold text-emerald-500 hover:bg-emerald-500/10 cursor-pointer">설치</button>}
-    </div>
+    </OptionTitle>
+    <p className="mt-1 pl-[42px] text-xs leading-5">{hint}</p>
   </section>;
 }
 
@@ -123,6 +164,9 @@ export function PwaInstall() {
   const needsSafari = ios && !isIOSSafari(navigator);
   const prompt = useInstallPrompt();
   const desktop = desktopAppOffered();
+  const known = useKnownDesktopApp(desktop);
+  // 앱을 열려고 했는데 열리지 않았을 때. 안내 창 맨 위에 설치하라고 알린다.
+  const [missing, setMissing] = useState<DesktopApp | null>(null);
   // 브라우저 앱을 이미 설치한 맥·윈도우에서는 데스크톱 앱만 안내한다.
   const browserSteps = state !== 'installed';
   const mobile = ios || target === 'android';
@@ -132,7 +176,7 @@ export function PwaInstall() {
   const closeButton = useRef<HTMLButtonElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
   const address = typeof window !== 'undefined' && window.location ? installAddress(window.location.href) : '';
-  useEffect(() => { const show = (event: Event) => { const status = (event as CustomEvent<{ safariFailed?: boolean; copied?: boolean }>).detail; setCopyStatus(status?.safariFailed ? status.copied ? '주소를 복사했습니다. Safari를 열어 주소창에 붙여넣어 주세요.' : 'Safari가 열리지 않으면 아래 주소를 복사해 Safari에서 열어 주세요.' : ''); setOpen(true); }; window.addEventListener('sfeed:install', show); return () => window.removeEventListener('sfeed:install', show); }, []);
+  useEffect(() => { const show = (event: Event) => { const status = (event as CustomEvent<{ safariFailed?: boolean; copied?: boolean; missingApp?: DesktopApp }>).detail; setMissing(status?.missingApp ?? null); setCopyStatus(status?.safariFailed ? status.copied ? '주소를 복사했습니다. Safari를 열어 주소창에 붙여넣어 주세요.' : 'Safari가 열리지 않으면 아래 주소를 복사해 Safari에서 열어 주세요.' : ''); setOpen(true); }; window.addEventListener('sfeed:install', show); return () => window.removeEventListener('sfeed:install', show); }, []);
   useEffect(() => { if (open) { dialog.current?.showModal(); closeButton.current?.focus(); } else dialog.current?.close(); }, [open]);
   useEffect(() => { if (state === 'installed' && !desktop) setOpen(false); }, [state, desktop]);
   const copyAddress = async () => {
@@ -142,8 +186,9 @@ export function PwaInstall() {
   return <>
     <dialog ref={dialog} aria-labelledby="install-title" className="feedex-install-dialog" onCancel={() => setOpen(false)} onClose={() => setOpen(false)} onClick={(event) => { if (event.target === dialog.current) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) setOpen(false); } }}>
       <div className="flex items-center gap-3 mb-5"><img src="/icons/icon-192.png" alt="" width="44" height="44" /><h2 id="install-title" className="text-xl font-bold">{ios ? '홈 화면에 추가' : browserSteps || !desktop ? 'FeedEx 앱 설치' : `${DESKTOP_APP_NAME[desktop]} 받기`}</h2></div>
-      {desktop === 'mac' && <MacAppOption />}
-      {desktop === 'windows' && <WindowsAppOption />}
+      {missing && <p role="status" className="feedex-install-notice">{DESKTOP_APP_NAME[missing]}이 열리지 않았어요. 아직 설치하지 않았다면 아래에서 받아 설치해 주세요.</p>}
+      {desktop === 'mac' && <MacAppOption known={known} onMissing={() => setMissing('mac')} />}
+      {desktop === 'windows' && <WindowsAppOption known={known} onMissing={() => setMissing('windows')} />}
       {browserSteps && !mobile && <div className={desktop ? 'mt-3' : ''}><BrowserAppOption target={target} nativePrompt={prompt.nativePrompt} onInstall={() => { void prompt.act(); }} /></div>}
       {browserSteps && mobile && <>
       <p className="text-sm text-slate-400 leading-6 mb-5">{ios ? needsSafari ? 'Safari로 열기를 누르면 설치할 수 있는 브라우저로 이동합니다. 이동되지 않으면 아래 주소를 복사해 Safari에서 열어 주세요.' : 'Safari의 공유 메뉴에서 홈 화면에 추가할 수 있어요.' : '홈 화면에서 브라우저 주소창 없이 FeedEx를 열 수 있어요.'}</p>

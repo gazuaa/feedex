@@ -186,15 +186,26 @@ import UserNotifications
   const agent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
   Object.defineProperty(navigator, 'userAgent', { configurable: true, value: mac });
   let help;
+  const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const browserStorage = new Map();
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key) => browserStorage.get(key) ?? null, setItem: (key, value) => browserStorage.set(key, String(value)), removeItem: (key) => browserStorage.delete(key) } });
   try {
     help = renderToStaticMarkup(React.createElement(PwaInstall));
+    // 이 브라우저에서 맥 앱이 열린 적이 없으면 '맥 앱으로 열기' 대신 설치 안내로 들어간다.
+    const first = renderToStaticMarkup(React.createElement(InstallAppButton));
+    assert.doesNotMatch(first, /맥 앱으로 열기/, 'no open button before the app has opened from this browser');
+    assert.match(first, /앱 설치/);
+    browserStorage.set('sfeed:desktop-app:mac', '1');
     const entry = renderToStaticMarkup(React.createElement(InstallAppButton));
     assert.equal(MAC_APP_OPEN, 'feedex-reader://launch');
     assert.match(entry, /href="feedex-reader:\/\/launch"/, 'the primary Mac action launches the native app, even with browser-app support');
     assert.match(entry, /맥 앱으로 열기/);
     assert.match(entry, /aria-label="맥 앱 설치 안내"/, 'installation stays available separately');
     assert.ok(entry.indexOf('맥 앱으로 열기') < entry.indexOf('맥 앱 설치 안내'), 'opening the native app comes first');
-  } finally { if (agent) Object.defineProperty(navigator, 'userAgent', agent); else delete navigator.userAgent; }
+  } finally {
+    if (agent) Object.defineProperty(navigator, 'userAgent', agent); else delete navigator.userAgent;
+    if (storageDescriptor) Object.defineProperty(globalThis, 'localStorage', storageDescriptor); else delete globalThis.localStorage;
+  }
   assert.match(help, new RegExp(`href="/downloads/FeedEx-for-Mac\\.zip\\?v=${MAC_APP_VERSION.replace('.', '\\.')}"`)); assert.match(help, /download="FeedEx-for-Mac\.zip"/);
   assert.match(help, /href="feedex-reader:\/\/launch"/);
   assert.match(help, /aria-label="브라우저 앱"/, 'the browser app follows the Mac app');

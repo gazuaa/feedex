@@ -187,6 +187,9 @@ html.dark .feedex-setting-link { color: #34d399; }
 .feedex-reader-toolbar { padding-top: calc(.75rem + env(safe-area-inset-top)); }
 aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 .feedex-install-app { padding: 14px 16px; border: 1px solid var(--feedex-border); border-radius: 16px; background: var(--feedex-background); }
+.feedex-install-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px; background: #10b9811a; color: #10b981; }
+.feedex-install-notice { margin-bottom: 14px; padding: 10px 14px; border: 1px solid #f59e0b66; border-radius: 12px; background: #f59e0b1a; font-size: 13px; line-height: 1.6; }
+.feedex-install-dialog .feedex-install-notice { color: var(--feedex-text); }
 .feedex-install-dialog { margin: auto; width: min(460px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; padding: 28px; border: 1px solid var(--feedex-border); border-radius: 24px; background: var(--feedex-panel); color: var(--feedex-text); box-shadow: 0 24px 80px #0007; }
 .feedex-install-dialog p { color: var(--feedex-muted); }
 .feedex-install-dialog::backdrop { background: #020617b3; backdrop-filter: blur(4px); }

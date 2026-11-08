@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiRequest } from '../client/api';
 import { nativeAppName, nativeSignInCallback, nativeSignInPlatform, nativeSignInState } from '../client/nativeApp';
+import { rememberDesktopApp } from '../client/desktopApp';
 
 /**
  * 데스크톱 앱이 연 시스템 로그인 창(맥은 Safari, 윈도우는 기본 브라우저)에서 보이는 화면. 로그인한 계정을 보여 주고,
@@ -10,6 +11,8 @@ import { nativeAppName, nativeSignInCallback, nativeSignInPlatform, nativeSignIn
 export function NativeHandoff({ email, isDark, onUseAnother }: { email: string; isDark: boolean; onUseAnother: () => void }) {
   const [state, setState] = useState<'ready' | 'sending' | 'sent' | 'failed'>('ready');
   const name = nativeAppName(nativeSignInPlatform());
+  // 앱이 이 브라우저로 로그인 창을 열었으니 이 컴퓨터에는 앱이 있다. 다음부터 위쪽에 '앱으로 열기'를 둔다.
+  useEffect(() => { rememberDesktopApp(nativeSignInPlatform()); }, []);
   const send = async () => {
     setState('sending');
     try {

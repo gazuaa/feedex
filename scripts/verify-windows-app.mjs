@@ -106,14 +106,50 @@ try {
   const { WINDOWS_APP_VERSION, WINDOWS_APP_DOWNLOAD, WINDOWS_APP_OPEN } = await vite.ssrLoadModule('/src/shared/windowsApp.ts');
   assert.equal(WINDOWS_APP_DOWNLOAD, `/downloads/FeedEx-for-Windows.zip?v=${WINDOWS_APP_VERSION}`);
   assert.equal(WINDOWS_APP_OPEN, 'feedex-reader://launch');
-  let help, entry, plain;
+  let help, first, entry, knownHelp, plain;
+  const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const stored = new Map();
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key) => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, String(value)), removeItem: (key) => stored.delete(key) } });
   try {
     useAgent(windows);
     help = renderToStaticMarkup(React.createElement(PwaInstall));
+    first = renderToStaticMarkup(React.createElement(InstallAppButton));
+    // 앱이 열린 적이 있는 브라우저. 앱 주소를 열어 브라우저가 포커스를 잃으면 기억한다.
+    const { launchDesktopApp, knownDesktopApp, LAUNCH_WAIT_MS } = await vite.ssrLoadModule('/src/client/desktopApp.ts');
+    const fakeHost = () => {
+      const handlers = new Map(), timers = [];
+      const on = (type, listener) => handlers.set(type, listener), off = (type) => handlers.delete(type);
+      return { handlers, timers, location: { href: 'https://feedex.test/' }, addEventListener: on, removeEventListener: off, setTimeout: (run, ms) => { timers.push({ run, ms }); return timers.length; }, clearTimeout() {}, document: { visibilityState: 'visible', addEventListener: on, removeEventListener: off } };
+    };
+    let missing = 0;
+    const absent = fakeHost();
+    launchDesktopApp('windows', WINDOWS_APP_OPEN, () => missing++, absent);
+    assert.equal(absent.location.href, WINDOWS_APP_OPEN, 'the app address is opened');
+    assert.equal(absent.timers[0].ms, LAUNCH_WAIT_MS);
+    absent.timers[0].run();
+    assert.equal(missing, 1, 'nothing happening means the app is missing, so install help opens');
+    assert.equal(knownDesktopApp('windows'), false);
+    assert.equal(absent.handlers.size, 0, 'listeners are removed');
+    const present = fakeHost();
+    launchDesktopApp('windows', WINDOWS_APP_OPEN, () => missing++, present);
+    present.handlers.get('blur')();
+    present.timers[0].run();
+    assert.equal(missing, 1, 'a browser prompt or the app taking focus is not missing');
+    assert.equal(knownDesktopApp('windows'), true, 'an app that opened is remembered on this browser');
     entry = renderToStaticMarkup(React.createElement(InstallAppButton));
+    knownHelp = renderToStaticMarkup(React.createElement(PwaInstall));
     useAgent(linux);
     plain = renderToStaticMarkup(React.createElement(PwaInstall));
-  } finally { if (agent) Object.defineProperty(navigator, 'userAgent', agent); else delete navigator.userAgent; }
+  } finally {
+    if (agent) Object.defineProperty(navigator, 'userAgent', agent); else delete navigator.userAgent;
+    if (storageDescriptor) Object.defineProperty(globalThis, 'localStorage', storageDescriptor); else delete globalThis.localStorage;
+  }
+  assert.doesNotMatch(first, /윈도우 앱으로 열기/, 'without the app the header offers installation, not a button that does nothing');
+  assert.match(first, /앱 설치/);
+  assert.match(help, /class="feedex-install-icon"><svg[^>]*><path d="M3 3h8\.5v8\.5H3z/, 'the Windows app has a Windows icon');
+  assert.match(help, /lucide-chrome/, 'the browser app has a browser icon');
+  assert.match(help, /border border-emerald-500[^"]*"[^>]*>.*?윈도우 앱으로 열기/, 'before the app has opened, download is the main action');
+  assert.match(knownHelp, /href="feedex-reader:\/\/launch" class="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500/, 'after it has opened, opening is the main action');
   assert.match(help, new RegExp(`href="/downloads/FeedEx-for-Windows\\.zip\\?v=${WINDOWS_APP_VERSION.replace('.', '\\.')}"`)); assert.match(help, /download="FeedEx-for-Windows\.zip"/);
   assert.match(help, /href="feedex-reader:\/\/launch"[^>]*>.*윈도우 앱으로 열기/);
   assert.match(help, /모두 압축 풀기/); assert.match(help, /Windows의 PC 보호/); assert.match(help, /추가 정보/);
