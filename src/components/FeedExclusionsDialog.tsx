@@ -26,12 +26,14 @@ export function FeedExclusionsDialog({ subscriptions, folders, excluded, onSave,
   const count = feeds.filter(feed => selected.has(feed.feed_id)).length;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector('input')?.focus();
+    // 손가락으로 쓰는 기기에서는 검색칸에 바로 초점을 주면 키보드가 창을 가린다. 창에만 초점을 둔다.
+    if (window.matchMedia?.('(pointer: coarse)').matches) ref.current?.focus({ preventScroll: true });
+    else ref.current?.querySelector('input')?.focus();
     return () => previous?.focus();
   }, []);
   const close = () => { if (!busy) onClose(); };
   return createPortal(<div className="feedex-block-overlay" onClick={event => { if (event.target === event.currentTarget) close(); }}>
-    <dialog open ref={ref} className="feedex-block-dialog feedex-exclusions-dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={event => {
+    <dialog open ref={ref} tabIndex={-1} className="feedex-block-dialog feedex-exclusions-dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={event => {
       event.stopPropagation();
       if (event.key === 'Escape') { event.preventDefault(); close(); }
       if (event.key === 'Tab') {

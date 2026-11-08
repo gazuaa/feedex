@@ -5,6 +5,8 @@ html { --feedex-background: #f8fafc; --feedex-panel: #fff; --feedex-text: #0f172
 html.dark { --feedex-background: #020617; --feedex-panel: #0f172a; --feedex-text: #f1f5f9; --feedex-muted: #94a3b8; --feedex-border: #334155; color-scheme: dark; }
 :root { --feedex-article-font: 1rem; --feedex-text-scale: 1; }
 body { margin: 0; min-height: 100dvh; background: var(--feedex-background); color: var(--feedex-text); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+/* 한국어는 낱말 가운데서 줄을 바꾸지 않는다. 띄어쓰기 없이 긴 글자(주소 등)는 넘칠 때만 끊는다. */
+body { word-break: keep-all; overflow-wrap: break-word; }
 .min-h-screen { min-height: 100dvh; }
 .feedex-glass-sample { display: none; position: fixed; top: 0; left: 0; right: 0; height: 6px; background: var(--feedex-panel); z-index: 1000; pointer-events: none; }
 @media (max-width: 1023px), (display-mode: standalone) {
@@ -158,6 +160,7 @@ html.dark .feedex-setting-link { color: #34d399; }
 .feedex-reader-content { scrollbar-gutter: stable; }
 /* 번역해서 보여 주는 중이라는 띠. */
 .feedex-translation-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid; border-radius: 12px; background: #10b9810f; font-size: 13px; line-height: 1.5; }
+.feedex-translation-bar button { min-height: 32px; }
 /* 웹 보기의 AI 요약 칸. 사이트를 너무 가리지 않게 높이를 줄이고, 긴 요약은 칸 안에서 스크롤한다. */
 .feedex-web-summary { flex-shrink: 0; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; border-bottom: 1px solid var(--feedex-border); background: var(--feedex-background); }
 .feedex-reader { container-type: inline-size; }

@@ -34,10 +34,11 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   const dialog = document.createElement('dialog');
   dialog.setAttribute('data-sfeed-photo-viewer', '');
   dialog.setAttribute('aria-label', '사진 크게 보기');
-  dialog.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;max-width:100vw;max-height:100vh;margin:0;padding:0;border:0;background:rgba(2,6,23,0.92);backdrop-filter:blur(6px);color:#f8fafc;overflow:hidden;display:flex;flex-direction:column;user-select:none;z-index:9999';
+  dialog.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;max-width:100vw;max-height:100vh;max-height:100dvh;margin:0;padding:0;border:0;background:rgba(2,6,23,0.92);backdrop-filter:blur(6px);color:#f8fafc;overflow:hidden;display:flex;flex-direction:column;user-select:none;z-index:9999';
 
+  // 홈 화면 앱에서는 화면 위쪽 상태 표시줄·노치 아래로 닫기 단추를 내린다.
   const header = document.createElement('div');
-  header.style.cssText = 'height:52px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;background:linear-gradient(to bottom,rgba(2,6,23,0.75),transparent);z-index:2';
+  header.style.cssText = 'height:calc(52px + env(safe-area-inset-top));box-sizing:border-box;padding:env(safe-area-inset-top) calc(16px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left));display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;background:linear-gradient(to bottom,rgba(2,6,23,0.75),transparent);z-index:2';
 
   const counter = document.createElement('span');
   counter.setAttribute('data-photo-counter', '');
@@ -65,7 +66,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
 
   const stage = document.createElement('div');
   stage.setAttribute('data-photo-stage', '');
-  stage.style.cssText = 'flex:1;min-height:0;width:100%;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px 16px 24px';
+  stage.style.cssText = 'flex:1;min-height:0;width:100%;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px 16px calc(24px + env(safe-area-inset-bottom))';
 
   const img = document.createElement('img');
   img.setAttribute('data-photo-img', '');
@@ -95,7 +96,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     stage.style.alignItems = zoomed ? 'flex-start' : 'center';
     img.style.cssText = zoomed
       ? 'width:min(94vw,1080px);max-width:none;max-height:none;height:auto;border-radius:8px;cursor:zoom-out;margin:0 auto;display:block'
-      : 'max-width:min(92vw,1200px);max-height:calc(100vh - 84px);width:auto;height:auto;object-fit:contain;border-radius:8px;cursor:zoom-in;display:block';
+      : 'max-width:min(92vw,1200px);max-height:calc(100dvh - 84px - env(safe-area-inset-top) - env(safe-area-inset-bottom));width:auto;height:auto;object-fit:contain;border-radius:8px;cursor:zoom-in;display:block';
     if (urls.length > 1) {
       prevBtn.disabled = index === 0;
       nextBtn.disabled = index === urls.length - 1;
@@ -146,6 +147,8 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     if (zoomed || e.changedTouches.length !== 1) return;
     const dx = e.changedTouches[0].clientX - touchX, dy = e.changedTouches[0].clientY - touchY;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+    // 휴대폰에서는 사진을 아래로 끌어내려 닫는다.
+    else if (dy > 90 && dy > Math.abs(dx) * 1.5) close();
   }, { passive: true });
 
   dialog.append(header, stage);

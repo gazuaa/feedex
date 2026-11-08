@@ -207,13 +207,19 @@ function webCopyNotice(xWaiting: boolean, xFailed: boolean, copy: { thread?: boo
  * Cloudflare Workers AI 핵심 요약 카드. 피드·리더 보기에서는 본문 위에, 웹 보기에서는 사이트 위의 칸에 놓는다.
  * 웹 보기의 칸은 사이트를 가리므로 닫기 단추를 함께 둔다.
  */
+/** 요약의 **굵은 글씨** 표시를 실제 굵은 글씨로 보여 준다. 다른 마크다운은 그대로 둔다. */
+function SummaryText({ text }: { text: string }) {
+  return <>{text.split(/\*\*(.+?)\*\*/g).map((part, index) => index % 2 ? <strong key={index}>{part}</strong> : part)}</>;
+}
+
 function AiSummaryCard({ isDark, summarizing, summary, model, onRegenerate, onClose }: { isDark: boolean; summarizing: boolean; summary?: string | null; model?: string; onRegenerate: () => void; onClose?: () => void }) {
-  return <div className={`p-5 rounded-2xl border relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
+  // 웹 보기의 칸(onClose가 있는 경우)은 사이트를 덜 가리게 여백과 제목을 줄인다.
+  return <div className={`${onClose ? 'p-3.5' : 'p-5'} rounded-2xl border relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
     <div className="flex items-center justify-between gap-2 mb-3">
       <div className="flex min-w-0 items-center gap-2">
         <div className="shrink-0 p-1.5 rounded-lg bg-emerald-500 text-slate-950"><Sparkles className="w-4 h-4" /></div>
         <div className="min-w-0">
-          <h3 className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-900'}`}>Cloudflare Workers AI 핵심 요약</h3>
+          <h3 className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-900'}`}>{onClose ? 'AI 핵심 요약' : 'Cloudflare Workers AI 핵심 요약'}</h3>
           <p className="text-[11px] text-slate-400">{model || '@cf/meta/llama-3.1-8b-instruct'}</p>
         </div>
       </div>
@@ -225,7 +231,7 @@ function AiSummaryCard({ isDark, summarizing, summary, model, onRegenerate, onCl
     {summarizing ? (
       <div className="py-4 flex items-center gap-2.5 text-xs text-emerald-400"><Loader2 className="w-4 h-4 animate-spin" /><span>Cloudflare Workers AI가 아티클의 핵심 내용을 분석하고 있습니다...</span></div>
     ) : (
-      <div className={`text-sm whitespace-pre-line leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{summary}</div>
+      <div className={`text-sm whitespace-pre-line leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}><SummaryText text={summary || ''} /></div>
     )}
   </div>;
 }
@@ -264,7 +270,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [checkingDate, setCheckingDate] = useState(false);
   const [scrapingReader, setScrapingReader] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
-  const [aiOpen, setAiOpen] = useState(Boolean(article?.ai_summary));
+  // 저장된 요약은 본문 위에 펼쳐 둔다. 웹 보기에서는 사이트를 가리므로 누를 때만 연다.
+  const [aiOpen, setAiOpen] = useState(Boolean(article?.ai_summary) && viewMode !== 'web');
   const summaryRequest = useRef<AbortController | null>(null);
   const summaryScope = `${accountId}:${article?.id || ''}`;
   const currentSummaryScope = useRef(summaryScope); currentSummaryScope.current = summaryScope;
@@ -272,7 +279,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     null
   );
   useEffect(() => {
-    setAiOpen(Boolean(article?.ai_summary)); setSummarizing(false); setAiMeta(null);
+    setAiOpen(Boolean(article?.ai_summary) && mode !== 'web'); setSummarizing(false); setAiMeta(null);
     return () => { summaryRequest.current?.abort(); summaryRequest.current = null; };
   }, [summaryScope]);
   // 번역. 피드 보기는 피드 본문을, 리더·웹 보기는 원문 본문을 번역해 같은 자리에 보여 준다.
@@ -1164,9 +1171,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           {/* 번역해서 보여 주는 중이라는 표시. 누르면 원문으로 돌아간다. */}
           {showTranslation && <div role="status" className={`feedex-translation-bar ${isDark ? 'border-emerald-500/30 text-emerald-300' : 'border-emerald-200 text-emerald-800'}`}>
             <Languages className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1">{translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'}로 번역한 글이에요.</span>
-            {translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL} className="shrink-0 font-semibold hover:underline cursor-pointer">DeepL에서 보기</button>}
-            <button type="button" onClick={() => setTranslated(false)} className="shrink-0 font-semibold hover:underline cursor-pointer">원문 보기</button>
+            <span className="min-w-0 flex-1 truncate">{translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역</span>
+            {translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL} className="shrink-0 whitespace-nowrap font-semibold hover:underline cursor-pointer">DeepL에서 보기</button>}
+            <button type="button" onClick={() => setTranslated(false)} className="shrink-0 whitespace-nowrap font-semibold hover:underline cursor-pointer">원문 보기</button>
           </div>}
 
           {/* Cloudflare Workers AI 요약 카드 */}

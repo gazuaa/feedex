@@ -63,5 +63,15 @@ try {
   assert.match(drawer, /useLayoutEffect\(\(\) => \{ if \(framed\) setPeek\(\(value\) => value \+ 1\); \}, \[framed\]\);/, 'a loaded site keeps its bars for a moment before folding');
   assert.match(drawer, /setTimeout\(\(\) => setPeek\(0\), PEEK_MS\)/, 'the bars fold again once the peek ends');
   assert.match(drawer, /const barsHidden = chromeHidden \|\| \(framed && !peek && /, 'only an ended peek folds the bars over a framed site');
-  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling and a brief bar peek after a framed site loads.');
+  // 휴대폰 다듬기: 한국어 줄바꿈, 피드 제외 창의 키보드, 사진 보기의 안전 영역과 아래로 밀어 닫기, 번역 띠 한 줄.
+  const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  assert.match(styles, /body \{ word-break: keep-all; overflow-wrap: break-word; \}/, 'Korean lines break between words');
+  const exclusions = readFileSync(new URL('../src/components/FeedExclusionsDialog.tsx', import.meta.url), 'utf8');
+  assert.match(exclusions, /matchMedia\?\.\('\(pointer: coarse\)'\)\.matches\) ref\.current\?\.focus\(\{ preventScroll: true \}\);\s*else ref\.current\?\.querySelector\('input'\)\?\.focus\(\);/, 'phones do not pop the keyboard when the exclusion dialog opens');
+  const viewer = readFileSync(new URL('../src/client/xPostFrame.ts', import.meta.url), 'utf8');
+  assert.match(viewer, /height:calc\(52px \+ env\(safe-area-inset-top\)\)/, 'the photo viewer close button clears the notch');
+  assert.match(viewer, /height:100dvh/); assert.match(viewer, /padding:8px 16px calc\(24px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(viewer, /else if \(dy > 90 && dy > Math\.abs\(dx\) \* 1\.5\) close\(\);/, 'a downward swipe closes the photo viewer');
+  assert.match(drawer, /\{translation!\.provider === 'deepl' \? 'DeepL' : 'Workers AI'\} 번역<\/span>/, 'the translation bar fits one line on phones');
+  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer and a one-line translation bar.');
 } finally { await vite.close(); }
