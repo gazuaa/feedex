@@ -76,7 +76,7 @@ try {
   const panel=summarized.querySelector('.feedex-web-view > .feedex-web-summary');
   assert.ok(panel,'the summary sits above the site in the web view');
   assert.match(panel.textContent,/웹 보기 요약 한 줄/); assert.ok(panel.querySelector('button[aria-label="AI 요약 닫기"]'),'the summary over the site can be closed');
-  assert.match(readFileSync('src/components/ArticleDrawer.tsx','utf8'),/if \(mode === 'web' && !article\.full_content_html\) \{[\s\S]*?reader-view[\s\S]*?\/summarize/,'the web view fetches the article body before summarizing');
+  assert.match(readFileSync('src/components/ArticleDrawer.tsx','utf8'),/const fetchFullText = [\s\S]*?reader-view[\s\S]*?if \(mode === 'web' && !article\.full_content_html\) \{\s*await fetchFullText\(controller\.signal\);[\s\S]*?\/summarize/,'the web view fetches the article body before summarizing');
   const cover=renderToStaticMarkup(React.createElement(WebLoading,{overlay:true}));
   assert.match(cover,/absolute inset-0/,'the cover hides a frame that is still loading');
   assert.doesNotMatch(cover,/role="status"/,'the cover does not add its own notice row');

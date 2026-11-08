@@ -23,6 +23,7 @@ import {
   Link2,
   RotateCw,
   X,
+  Languages,
 } from 'lucide-react';
 import {
   apiRequest,
@@ -38,6 +39,7 @@ import { presentReaderSlide } from '../client/swipeBack';
 import type { ArticleResources } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
 import { WebLabel, WebStatusBar } from './WebStatusBar';
+import { htmlToText, openInDeepL } from '../client/deeplWeb';
 import { TextSizeControl } from './ReadingSettings';
 import { publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
@@ -273,6 +275,20 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     setAiOpen(Boolean(article?.ai_summary)); setSummarizing(false); setAiMeta(null);
     return () => { summaryRequest.current?.abort(); summaryRequest.current = null; };
   }, [summaryScope]);
+  // 번역. 피드 보기는 피드 본문을, 리더·웹 보기는 원문 본문을 번역해 같은 자리에 보여 준다.
+  // 웹 보기에서 번역을 켜면 사이트 대신 번역한 글을 보여 준다.
+  const [translation, setTranslation] = useState<{ articleId: string; source: 'full' | 'feed'; title: string; html: string; provider: string } | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [translated, setTranslated] = useState(false);
+  const translateRequest = useRef<AbortController | null>(null);
+  const translationSource: 'full' | 'feed' = mode === 'feed' ? 'feed' : 'full';
+  const showTranslation = translated && Boolean(article) && translation?.articleId === article?.id && translation?.source === translationSource;
+  useEffect(() => {
+    setTranslated(false); setTranslating(false);
+    return () => { translateRequest.current?.abort(); translateRequest.current = null; };
+  }, [summaryScope, translationSource]);
+  // 웹 보기에서 번역을 보여 주는 동안은 사이트 대신 글을 그린다.
+  const siteShown = mode === 'web' && !showTranslation;
   const [fontScale] = useTextSize();
   const [webZoom, setWebZoom] = useState(() => loadWebZoom(accountId, article?.feed_id || ''));
   const [framePaneWidth, setFramePaneWidth] = useState(0);
@@ -305,17 +321,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   useXPostFrame(copyRef, onOpenXPost);
   const { activeYouTube, ytOverlayRef, closeYouTube } = useYouTubeCopyFrame(copyRef, webZoom, `${article?.id}:${mode}:${Boolean(copyHtml)}`);
   // 프레임 안 사이트의 스크롤은 손이 닿지 않으므로, 피드·리더·웹 사본만 막대를 숨긴다.
-  const showingCopy = mode === 'web' && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
-  const chromeHidden = useScrollChrome(bodyRef, isMobile && Boolean(article) && !mobileToolsOpen && !sizeToolsOpen, `${article?.id}:${mode}:${showingCopy}`, copyRef);
+  const showingCopy = siteShown && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
+  const chromeHidden = useScrollChrome(bodyRef, isMobile && Boolean(article) && !mobileToolsOpen && !sizeToolsOpen, `${article?.id}:${mode}:${showingCopy}:${showTranslation}`, copyRef);
   // 맥 앱에서는 웹 보기 자리에 앱이 원문 화면을 겹쳐 띄운다. 사이트를 직접 연 화면이라 로그인이 유지되고
   // 프레임을 막는 사이트도 그대로 보인다. X 글은 공개 미러 사본으로 보여 준다.
-  const nativeWeb = mode === 'web' && Boolean(article) && !xPost && inNativeApp();
+  const nativeWeb = siteShown && Boolean(article) && !xPost && inNativeApp();
   const nativeSlotRef = useRef<HTMLDivElement>(null);
   useNativeArticle(nativeSlotRef, nativeWeb && article ? article.url : null, webZoom);
   // 프레임 안 사이트 자체의 스크롤은 따라갈 수 없으므로, 불러온 뒤 몇 초만 막대를 보여 주고 접어 둔다.
   // 그 뒤에는 요청할 때만 꺼냈다가 몇 초 동안 움직임이 없으면 다시 접는다.
   const [loadedFrame, setLoadedFrame] = useState<string | null>(null);
-  const framed = isMobile && mode === 'web' && frame?.articleId === article?.id && frame?.embeddable === true && loadedFrame === article?.id;
+  const framed = isMobile && siteShown && frame?.articleId === article?.id && frame?.embeddable === true && loadedFrame === article?.id;
   const [peek, setPeek] = useState(0);
   // 글을 열자마자 막대가 사라지지 않도록, 사이트를 다 불러온 순간부터 잠깐 더 보여 준다.
   // 화면에 그리기 전에 정해야 막대가 한 번 접혔다가 다시 나타나는 깜빡임이 없다.
@@ -528,6 +544,54 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 사이트맵으로 만든 피드나 제목만 있는 피드에는 본문이 아예 없다.
   const bodyless = !showingReader && !article.content_html && !article.summary;
 
+  /** 원문 본문(리더 본문)이 아직 없으면 받아 둔다. 받지 못하면 그대로 둔다. */
+  const fetchFullText = async (signal: AbortSignal) => {
+    if (article.full_content_html) return;
+    try {
+      const reader = resources
+        ? await resources.reader(article).then((body) => ({ fullContentHtml: body.full_content_html!, publishedAt: body.published_at }))
+        : await apiRequest<{ fullContentHtml: string; publishedAt?: string }>(`/api/articles/${article.id}/reader-view`, { method: 'POST', body: '{}', signal });
+      if (!signal.aborted && reader.fullContentHtml) onUpdateArticleFields(article.id, { full_content_html: reader.fullContentHtml, ...(reader.publishedAt ? { published_at: reader.publishedAt } : {}) });
+    } catch { /* 피드 내용으로 대신한다 */ }
+  };
+
+  const handleTranslate = async (force = false) => {
+    translateRequest.current?.abort();
+    const controller = new AbortController();
+    translateRequest.current = controller;
+    const current = () => !controller.signal.aborted && translateRequest.current === controller && currentSummaryScope.current === summaryScope;
+    const source = translationSource;
+    setTranslating(true);
+    try {
+      if (source === 'full') { await fetchFullText(controller.signal); if (!current()) return; }
+      const res = await apiRequest<{ title: string; html: string; provider: string; notice?: string; alreadyKorean?: boolean }>(`/api/articles/${article.id}/translate`, {
+        method: 'POST', body: JSON.stringify({ source, force }), signal: controller.signal,
+      });
+      if (!current()) return;
+      if (res.alreadyKorean) { setTranslated(false); onNotice('이미 한국어로 된 글이에요.'); return; }
+      setTranslation({ articleId: article.id, source, title: res.title, html: res.html, provider: res.provider });
+      setTranslated(true);
+      if (res.notice) onNotice(res.notice);
+    } catch (error) {
+      if (current()) { setTranslated(false); onNotice(error instanceof Error && error.message ? error.message : '번역하지 못했어요. 다시 시도해 주세요.'); }
+    } finally {
+      if (translateRequest.current === controller) { translateRequest.current = null; setTranslating(false); }
+    }
+  };
+  const toggleTranslation = () => {
+    if (translating) { translateRequest.current?.abort(); translateRequest.current = null; setTranslating(false); return; }
+    if (showTranslation) { setTranslated(false); return; }
+    // 이미 받아 둔 번역은 다시 요청하지 않는다.
+    if (translation?.articleId === article.id && translation.source === translationSource) { setTranslated(true); return; }
+    void handleTranslate();
+  };
+  const translateAction = translating ? '번역 취소' : showTranslation ? '원문 보기' : '번역';
+  /** 사용자의 DeepL 웹 번역기에 제목과 본문을 넘긴다. DeepL API 없이 로그인한 DeepL 계정으로 번역한다. */
+  const openArticleInDeepL = () => {
+    const body = htmlToText(article.full_content_html || article.content_html || `<p>${article.summary || ''}</p>`);
+    openInDeepL(`${article.title}\n\n${body}`);
+  };
+
   const handleSummarizeAI = async (force = false) => {
     summaryRequest.current?.abort();
     const controller = new AbortController();
@@ -538,15 +602,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       // 웹 보기는 사이트를 그대로 보여 줄 뿐 본문을 뽑아 두지 않는다. 피드에 딸려 온 몇 줄만 요약하지 않게
       // 원문 본문을 먼저 받아 둔다. 받지 못하면 피드 내용으로 요약한다.
       if (mode === 'web' && !article.full_content_html) {
-        try {
-          const reader = resources
-            ? await resources.reader(article).then((body) => ({ fullContentHtml: body.full_content_html!, publishedAt: body.published_at }))
-            : await apiRequest<{ fullContentHtml: string; publishedAt?: string }>(`/api/articles/${article.id}/reader-view`, { method: 'POST', body: '{}', signal: controller.signal });
-          if (!current()) return;
-          if (reader.fullContentHtml) onUpdateArticleFields(article.id, { full_content_html: reader.fullContentHtml, ...(reader.publishedAt ? { published_at: reader.publishedAt } : {}) });
-        } catch {
-          if (!current()) return;
-        }
+        await fetchFullText(controller.signal);
+        if (!current()) return;
       }
       const res = await apiRequest<{
         aiSummary: string;
@@ -585,7 +642,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
   // 두 가지를 하나의 조절기로 다룬다: 피드·리더 보기에서는 글자 크기,
   // 웹 보기에서는 사이트 배율.
-  const sizeControl = (className: string) => mode === 'web'
+  const sizeControl = (className: string) => siteShown
     ? <div role="group" aria-label="사이트 확대·축소" className={className}>
         <button type="button" aria-label="사이트 축소" disabled={webZoom === WEB_ZOOM_STEPS[0]} onClick={() => changeWebZoom(-1)}><ZoomOut size={18} /></button>
         <button type="button" aria-label={`현재 ${Math.round(webZoom * 100)}%, 100%로 되돌리기`} onClick={() => changeWebZoom(0)}>{Math.round(webZoom * 100)}%</button>
@@ -629,8 +686,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <button className="feedex-mobile-icon" aria-label="본문 도구" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((value) => !value)}><MoreHorizontal size={22} /></button>
           {mobileToolsOpen && <div className="feedex-mobile-reader-menu">
             <button aria-pressed={aiOpen} onClick={() => { setMobileToolsOpen(false); toggleAiSummary(); }}><Sparkles size={18} />{aiAction}</button>
+            <button aria-pressed={showTranslation} onClick={() => { setMobileToolsOpen(false); toggleTranslation(); }}>{translating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}{translateAction}</button>
+            <button onClick={() => { setMobileToolsOpen(false); openArticleInDeepL(); }}><ExternalLink size={18} />DeepL에서 번역</button>
             <button disabled={refreshing} onClick={() => { setMobileToolsOpen(false); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />기사 새로고침</button>
-            <p className="feedex-mobile-menu-label">{mode === 'web' ? '사이트 확대·축소' : '글자 크기'}</p>
+            <p className="feedex-mobile-menu-label">{siteShown ? '사이트 확대·축소' : '글자 크기'}</p>
             {sizeControl('feedex-mobile-zoom')}
             <a href={article.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={18} />원문 사이트 열기</a>
           </div>}
@@ -839,6 +898,20 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               )}
               <span className="feedex-reader-control-label">AI 핵심 요약</span>
             </button>
+
+            {/* 번역 버튼 */}
+            <button
+              type="button"
+              onClick={toggleTranslation}
+              aria-label={translateAction}
+              aria-pressed={showTranslation}
+              title={translateAction}
+              className={`feedex-reader-icon ${showTranslation
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+            >
+              {translating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Languages className="w-4 h-4" />}
+            </button>
           </div>
 
           {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
@@ -883,7 +956,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
         </div>
 
-        {mode === 'web' ? (
+        {siteShown ? (
           <div className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
             {/* 웹 보기에서는 사이트 위에 요약을 접을 수 있는 칸으로 둔다. 길면 이 칸 안에서 스크롤한다. */}
             {aiOpen && (article.ai_summary || summarizing) && <div className="feedex-web-summary">
@@ -1084,9 +1157,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 isDark ? 'text-white' : 'text-slate-900'
               }`}
             >
-              {article.title}
+              {showTranslation ? translation!.title : article.title}
             </h1>
           </div>
+
+          {/* 번역해서 보여 주는 중이라는 표시. 누르면 원문으로 돌아간다. */}
+          {showTranslation && <div role="status" className={`feedex-translation-bar ${isDark ? 'border-emerald-500/30 text-emerald-300' : 'border-emerald-200 text-emerald-800'}`}>
+            <Languages className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'}로 번역한 글이에요.</span>
+            {translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL} className="shrink-0 font-semibold hover:underline cursor-pointer">DeepL에서 보기</button>}
+            <button type="button" onClick={() => setTranslated(false)} className="shrink-0 font-semibold hover:underline cursor-pointer">원문 보기</button>
+          </div>}
 
           {/* Cloudflare Workers AI 요약 카드 */}
           {aiOpen && (article.ai_summary || summarizing) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={article.ai_summary} model={aiMeta?.model} onRegenerate={() => handleSummarizeAI(true)} />}
@@ -1125,7 +1206,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           )}
 
           {/* 본문 HTML. 피드에 본문이 없으면 어디서 읽을 수 있는지 안내한다 */}
-          {bodyless ? (
+          {bodyless && !showTranslation ? (
             !scrapingReader && (
               <div className={`rounded-2xl border p-6 text-center ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'}`}>
                 <p className="text-sm font-semibold">{readerFailed ? '원문 본문을 불러오지 못했어요' : '이 글은 피드에 본문이 없어요'}</p>
@@ -1159,10 +1240,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             )
           ) : (
             <ArticleBody
-              html={activeHtml}
+              html={showTranslation ? translation!.html : activeHtml}
               onOpenXPost={xPost ? onOpenXPost : undefined}
               base={article.url}
-              title={showingReader ? article.title : undefined}
+              title={showTranslation ? translation!.title : showingReader ? article.title : undefined}
               style={{ fontSize: `calc(var(--feedex-article-font) * ${fontScale})` }}
               className={`feedex-article-content ${
                 isDark ? 'text-slate-200' : 'text-slate-800'

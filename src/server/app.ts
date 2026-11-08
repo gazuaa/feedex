@@ -36,6 +36,8 @@ import { refreshStoredFeeds, storedFeedColumns, type RefreshProgress, type Store
 import { extractOriginalPublishedAt } from './publicationDate';
 import { resolveArticlePublication, type PublicationArticle } from './articlePublication';
 import { summarizeArticleWithAI } from './aiSummarizer';
+import { clearDeepLKey, DeepLError, deeplProblem, deeplUsage, ensureTranslationTable, readDeepLKey, saveDeepLKey, sourceHash, translateArticle, TranslationError, validDeepLKey } from './translator';
+import { canManageX } from './xSettings';
 import {
   generateId,
   upsertFeedAndArticles,
@@ -1424,6 +1426,71 @@ app.post('/api/articles/:id/reader-view', async (c) => {
     scrapedFromWeb: scraped.scrapedFromWeb,
     cached: false,
   });
+});
+
+// 글 번역. 같은 원문이면 저장해 둔 번역을 쓴다. 리더 본문이 있으면 그것을, 없으면 피드 본문을 번역한다.
+app.post('/api/articles/:id/translate', async (c) => {
+  const body = await c.req.json<{ source?: unknown; force?: unknown }>().catch(() => ({} as { source?: unknown; force?: unknown }));
+  const source = body.source === 'feed' ? 'feed' : 'full';
+  const article = await c.env.DB.prepare(
+    `SELECT id, title, summary, content_html, full_content_html
+     FROM articles WHERE id = ? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
+  ).bind(c.req.param('id'), c.get('user').id).first<{ id: string; title: string; summary: string | null; content_html: string | null; full_content_html: string | null }>();
+  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const html = (source === 'full' ? realFullContent(article.full_content_html) : null) || article.content_html || (article.summary ? `<p>${escaped(article.summary)}</p>` : '');
+  if (!html.trim() && !article.title.trim()) return c.json({ error: '번역할 본문이 없어요.' }, 422);
+  await ensureTranslationTable(c.env);
+  const hash = await sourceHash(article.title, html);
+  if (body.force !== true) {
+    const saved = await c.env.DB.prepare('SELECT title, content_html, provider, model FROM article_translations WHERE article_id=? AND target_lang=? AND source_kind=? AND source_hash=?')
+      .bind(article.id, 'KO', source, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
+    if (saved) return c.json({ title: saved.title, html: saved.content_html, provider: saved.provider, model: saved.model, cached: true });
+  }
+  let result;
+  try { result = await translateArticle(c.env, { title: article.title, html }); }
+  catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : '번역하지 못했어요. 잠시 후 다시 시도해 주세요.' }, error instanceof TranslationError ? error.status as 502 : 502); }
+  if (!result.alreadyKorean) {
+    await c.env.DB.prepare(`INSERT INTO article_translations(article_id,target_lang,source_kind,source_hash,title,content_html,provider,model,created_at) VALUES(?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(article_id,target_lang,source_kind) DO UPDATE SET source_hash=excluded.source_hash,title=excluded.title,content_html=excluded.content_html,provider=excluded.provider,model=excluded.model,created_at=excluded.created_at`)
+      .bind(article.id, 'KO', source, hash, result.title, result.html, result.provider, result.model, new Date().toISOString()).run();
+  }
+  return c.json({ title: result.title, html: result.html, provider: result.provider, model: result.model, notice: result.notice, alreadyKorean: Boolean(result.alreadyKorean), cached: false });
+});
+
+// 번역 설정. DeepL API 키는 운영자만 넣고 지운다. 키는 응답에 돌려주지 않는다.
+async function translationConfig(env: Env, user: UserRecord) {
+  if (!canManageX(env, user)) return { canManage: false };
+  const deepl = await readDeepLKey(env).catch(() => null);
+  let usage: { used: number; limit: number } | null = null, problem: string | null = null;
+  if (deepl) {
+    try { usage = await deeplUsage(deepl.key); }
+    catch (error) { problem = deeplProblem(error instanceof DeepLError ? error.status : 0); }
+  }
+  return { canManage: true, provider: deepl ? 'deepl' : 'workers-ai', managed: Boolean(deepl?.managed), usage, problem, storage: Boolean(env.X_SETTINGS_SECRET && env.X_SETTINGS_SECRET.length >= 32) };
+}
+app.get('/api/translation/config', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  return c.json(await translationConfig(c.env, c.get('user')));
+});
+app.put('/api/translation/deepl', async (c) => {
+  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 FeedEx 운영자만 바꿀 수 있습니다.' }, 403);
+  if (c.env.DEEPL_API_KEY?.trim()) return c.json({ error: '이 키는 서버에서 관리 중입니다.' }, 400);
+  const body = await c.req.json<{ key?: unknown }>().catch(() => ({} as { key?: unknown }));
+  const key = typeof body.key === 'string' ? body.key.trim() : '';
+  if (!validDeepLKey(key)) return c.json({ error: 'DeepL API 키 모양이 아니에요. DeepL 계정의 API Keys에서 복사해 주세요.' }, 400);
+  // 저장하기 전에 키가 실제로 되는지 DeepL에 사용량을 물어 확인한다.
+  try { await deeplUsage(key); }
+  catch (error) { return c.json({ error: deeplProblem(error instanceof DeepLError ? error.status : 0) }, 400); }
+  try { await saveDeepLKey(c.env, key); }
+  catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : 'DeepL API 키를 저장하지 못했어요.' }, 503); }
+  return c.json(await translationConfig(c.env, c.get('user')));
+});
+app.delete('/api/translation/deepl', async (c) => {
+  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 FeedEx 운영자만 바꿀 수 있습니다.' }, 403);
+  if (c.env.DEEPL_API_KEY?.trim()) return c.json({ error: '이 키는 서버에서 관리 중입니다.' }, 400);
+  await clearDeepLKey(c.env);
+  return c.json(await translationConfig(c.env, c.get('user')));
 });
 
 // Cloudflare Workers AI 요약 엔드포인트

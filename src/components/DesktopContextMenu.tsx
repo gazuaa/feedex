@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Archive, BookOpen, Bookmark, CheckCheck, CheckCircle2, Circle, Copy, ExternalLink, FolderInput, FolderOpen, FolderX, History, Link2, ListFilter, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, UserRoundMinus, type LucideIcon } from 'lucide-react';
+import { Archive, BookOpen, Bookmark, CheckCheck, CheckCircle2, Circle, Copy, ExternalLink, FolderInput, FolderOpen, FolderX, History, Languages, Link2, ListFilter, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, UserRoundMinus, type LucideIcon } from 'lucide-react';
 import { bindLongPress } from '../client/longPress';
 
 export interface AppContextTarget { articleId?: string; folderId?: string; feedId?: string; link?: string; selection?: string }
@@ -11,6 +11,7 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   'open-feed': Newspaper, 'mark-feed': CheckCheck, 'move-feed': FolderInput, updates: Pause,
   unsubscribe: UserRoundMinus, 'open-folder': FolderOpen, 'mark-folder': CheckCheck, 'delete-folder': FolderX,
   'open-original': ExternalLink, 'copy-link': Link2, all: Archive, refresh: RefreshCw, add: Plus,
+  'deepl-selection': Languages, 'deepl-article': Languages,
 };
 export function contextMenuIcon(item: Pick<AppContextAction, 'id' | 'label'>): LucideIcon {
   if (item.id === 'updates' && item.label.includes('다시')) return Play;

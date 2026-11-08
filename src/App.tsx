@@ -36,6 +36,7 @@ import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
 import { NativeHandoff } from './components/NativeHandoff';
 import { inNativeApp, inNativeSignInWindow } from './client/nativeApp';
+import { htmlToText, openInDeepL } from './client/deeplWeb';
 import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileChrome';
 import { MobileLibrary } from './components/MobileLibrary';
 import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type ArticlePage } from './client/readerCache';
@@ -1443,7 +1444,9 @@ export const App: React.FC = () => {
       if (isMobile) { handleSelectScope(scope === 'all' && mobileTab === 'saved' ? 'saved' : scope, folderId, feedId); setMobileSidebarOpen(false); }
       else handleSelectDesktopScope(scope, folderId, feedId);
     };
-    if (target.selection) items.push({ id: 'copy-text', label: '선택한 텍스트 복사', run: () => navigator.clipboard.writeText(target.selection!) });
+    if (target.selection) items.push({ id: 'copy-text', label: '선택한 텍스트 복사', run: () => navigator.clipboard.writeText(target.selection!) },
+      // DeepL API 없이 사용자의 DeepL 웹 번역기로 넘긴다. X의 'DeepL로 번역'처럼 고른 글만 번역한다.
+      { id: 'deepl-selection', label: '선택한 글 DeepL로 번역', run: () => openInDeepL(target.selection!) });
     const article = target.articleId ? articleCache.current.get(target.articleId) : null;
     const feed = target.feedId ? subscriptions.find((sub) => sub.feed_id === target.feedId) : null;
     const folder = target.folderId ? folders.find((item) => item.id === target.folderId) : null;
@@ -1451,6 +1454,7 @@ export const App: React.FC = () => {
       items.push({ id: 'open-article', label: '앱에서 글 열기', run: () => handleSelectArticle(article) },
         { id: 'read', label: article.is_read ? '안 읽음으로 표시' : '읽음으로 표시', run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
         { id: 'save', label: article.is_saved ? '저장 취소' : '나중에 읽기', run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
+      items.push({ id: 'deepl-article', label: '이 글 DeepL로 번역', run: () => { const latest = articleCache.current.get(article.id) ?? article; openInDeepL(`${latest.title}\n\n${htmlToText(latest.full_content_html || latest.content_html || `<p>${latest.summary || ''}</p>`)}`); } });
       items.push({ id: 'block-title', label: '비슷한 글 숨기기…', separator: true, run: () => setBlockDialog({ accountId: user.id, article }) });
     } else if (feed) {
       if (feed.builder_id) items.push({ id: 'edit-builder', label: 'RSS 빌더 피드 수정…', run: () => setBuilderEditor({ accountId: user.id, id: feed.builder_id! }) });

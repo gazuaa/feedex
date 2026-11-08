@@ -122,6 +122,8 @@ html:not(.dark) :is(.feedex-segmented, .feedex-setting-row > .feedex-text-size-c
 .feedex-cache-clear, .feedex-cache-actions button { flex-shrink: 0; min-height: 34px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--feedex-background); font-size: 12px; font-weight: 500; color: var(--feedex-text); cursor: pointer; }
 .feedex-cache-clear:hover, .feedex-cache-actions button:hover, .feedex-auto-refresh-setting select:hover { filter: brightness(.97); }
 html:not(.dark) :is(.feedex-cache-clear, .feedex-cache-actions button, .feedex-auto-refresh-setting select) { background-color: #f1f5f9; }
+.feedex-translation-key { display: flex; gap: 8px; margin-top: 8px; }
+.feedex-translation-key input { min-width: 0; flex: 1; min-height: 34px; padding: 0 10px; border: 1px solid var(--feedex-border); border-radius: 10px; background: var(--feedex-background); color: var(--feedex-text); font-size: 12px; }
 .feedex-setting-link { margin-left: 2px; padding: 0; color: #059669; font-weight: 600; cursor: pointer; }
 .feedex-setting-link:hover { text-decoration: underline; }
 html.dark .feedex-setting-link { color: #34d399; }
@@ -154,6 +156,8 @@ html.dark .feedex-setting-link { color: #34d399; }
 .feedex-global-controls { margin-left: auto; }
 .feedex-header-divider { display: none; }
 .feedex-reader-content { scrollbar-gutter: stable; }
+/* 번역해서 보여 주는 중이라는 띠. */
+.feedex-translation-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid; border-radius: 12px; background: #10b9810f; font-size: 13px; line-height: 1.5; }
 /* 웹 보기의 AI 요약 칸. 사이트를 너무 가리지 않게 높이를 줄이고, 긴 요약은 칸 안에서 스크롤한다. */
 .feedex-web-summary { flex-shrink: 0; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; border-bottom: 1px solid var(--feedex-border); background: var(--feedex-background); }
 .feedex-reader { container-type: inline-size; }
