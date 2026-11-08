@@ -22,6 +22,7 @@ import {
   Share2,
   Link2,
   RotateCw,
+  X,
 } from 'lucide-react';
 import {
   apiRequest,
@@ -198,6 +199,33 @@ function webCopyNotice(xWaiting: boolean, xFailed: boolean, copy: { thread?: boo
   if (copy?.textOnly) return ['사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.', '본문만 보여드려요'];
   if (copy?.fitting) return ['휴대폰 화면에 맞춘 사본을 준비하고 있어요.', '화면에 맞추는 중'];
   return ['사이트가 직접 표시를 막아 사본으로 보여드려요. 동영상·댓글은 원문에서 동작해요.', '사본 · 영상·댓글은 원문에서'];
+}
+
+/**
+ * Cloudflare Workers AI 핵심 요약 카드. 피드·리더 보기에서는 본문 위에, 웹 보기에서는 사이트 위의 칸에 놓는다.
+ * 웹 보기의 칸은 사이트를 가리므로 닫기 단추를 함께 둔다.
+ */
+function AiSummaryCard({ isDark, summarizing, summary, model, onRegenerate, onClose }: { isDark: boolean; summarizing: boolean; summary?: string | null; model?: string; onRegenerate: () => void; onClose?: () => void }) {
+  return <div className={`p-5 rounded-2xl border relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
+    <div className="flex items-center justify-between gap-2 mb-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="shrink-0 p-1.5 rounded-lg bg-emerald-500 text-slate-950"><Sparkles className="w-4 h-4" /></div>
+        <div className="min-w-0">
+          <h3 className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-900'}`}>Cloudflare Workers AI 핵심 요약</h3>
+          <p className="text-[11px] text-slate-400">{model || '@cf/meta/llama-3.1-8b-instruct'}</p>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        {!summarizing && <button type="button" onClick={onRegenerate} title="다시 요약하기" className="whitespace-nowrap text-xs text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"><RefreshCw className="w-3 h-3" /><span>재생성</span></button>}
+        {onClose && <button type="button" onClick={onClose} aria-label="AI 요약 닫기" title="AI 요약 닫기" className="text-slate-400 hover:text-emerald-400 cursor-pointer"><X className="w-4 h-4" /></button>}
+      </div>
+    </div>
+    {summarizing ? (
+      <div className="py-4 flex items-center gap-2.5 text-xs text-emerald-400"><Loader2 className="w-4 h-4 animate-spin" /><span>Cloudflare Workers AI가 아티클의 핵심 내용을 분석하고 있습니다...</span></div>
+    ) : (
+      <div className={`text-sm whitespace-pre-line leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{summary}</div>
+    )}
+  </div>;
 }
 
 function siteHost(url: string) {
@@ -507,6 +535,19 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const current = () => !controller.signal.aborted && summaryRequest.current === controller && currentSummaryScope.current === summaryScope;
     setAiOpen(true); setSummarizing(true);
     try {
+      // 웹 보기는 사이트를 그대로 보여 줄 뿐 본문을 뽑아 두지 않는다. 피드에 딸려 온 몇 줄만 요약하지 않게
+      // 원문 본문을 먼저 받아 둔다. 받지 못하면 피드 내용으로 요약한다.
+      if (mode === 'web' && !article.full_content_html) {
+        try {
+          const reader = resources
+            ? await resources.reader(article).then((body) => ({ fullContentHtml: body.full_content_html!, publishedAt: body.published_at }))
+            : await apiRequest<{ fullContentHtml: string; publishedAt?: string }>(`/api/articles/${article.id}/reader-view`, { method: 'POST', body: '{}', signal: controller.signal });
+          if (!current()) return;
+          if (reader.fullContentHtml) onUpdateArticleFields(article.id, { full_content_html: reader.fullContentHtml, ...(reader.publishedAt ? { published_at: reader.publishedAt } : {}) });
+        } catch {
+          if (!current()) return;
+        }
+      }
       const res = await apiRequest<{
         aiSummary: string;
         provider: string;
@@ -779,7 +820,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </a>
 
             {/* AI 요약 버튼 */}
-            {mode !== 'web' && <button
+            <button
               type="button"
               onClick={toggleAiSummary}
               aria-label={aiAction}
@@ -797,7 +838,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 <Sparkles className="w-3.5 h-3.5" />
               )}
               <span className="feedex-reader-control-label">AI 핵심 요약</span>
-            </button>}
+            </button>
           </div>
 
           {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
@@ -844,6 +885,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
         {mode === 'web' ? (
           <div className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
+            {/* 웹 보기에서는 사이트 위에 요약을 접을 수 있는 칸으로 둔다. 길면 이 칸 안에서 스크롤한다. */}
+            {aiOpen && (article.ai_summary || summarizing) && <div className="feedex-web-summary">
+              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={article.ai_summary} model={aiMeta?.model} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} />
+            </div>}
             {nativeWeb ? (<>
               <WebStatusBar key={article.id} url={article.url} isDark={isDark} hidden={false} canLogin={false} notice={article.url} shortNotice={siteHost(article.url)}>
                 <button type="button" onClick={() => nativeBridge()?.postMessage({ type: 'openExternal', url: article.url })} className="inline-flex items-center gap-1 hover:underline">
@@ -1044,64 +1089,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>
 
           {/* Cloudflare Workers AI 요약 카드 */}
-          {aiOpen && (article.ai_summary || summarizing) && (
-            <div
-              className={`p-5 rounded-2xl border relative overflow-hidden ${
-                isDark
-                  ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30'
-                  : 'bg-emerald-50/70 border-emerald-200'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-emerald-500 text-slate-950">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3
-                      className={`text-sm font-bold ${
-                        isDark ? 'text-emerald-300' : 'text-emerald-900'
-                      }`}
-                    >
-                      Cloudflare Workers AI 핵심 요약
-                    </h3>
-                    <p className="text-[11px] text-slate-400">
-                      {aiMeta?.model || '@cf/meta/llama-3.1-8b-instruct'}
-                    </p>
-                  </div>
-                </div>
-
-                {!summarizing && (
-                  <button
-                    type="button"
-                    onClick={() => handleSummarizeAI(true)}
-                    title="다시 요약하기"
-                    className="text-xs text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>재생성</span>
-                  </button>
-                )}
-              </div>
-
-              {summarizing ? (
-                <div className="py-4 flex items-center gap-2.5 text-xs text-emerald-400">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>
-                    Cloudflare Workers AI가 아티클의 핵심 내용을 분석하고 있습니다...
-                  </span>
-                </div>
-              ) : (
-                <div
-                  className={`text-sm whitespace-pre-line leading-relaxed ${
-                    isDark ? 'text-slate-200' : 'text-slate-800'
-                  }`}
-                >
-                  {article.ai_summary}
-                </div>
-              )}
-            </div>
-          )}
+          {aiOpen && (article.ai_summary || summarizing) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={article.ai_summary} model={aiMeta?.model} onRegenerate={() => handleSummarizeAI(true)} />}
 
           {/* 대표 썸네일 이미지 (contentHtml에 이미 들어 있지 않을 때) */}
           {article.thumbnail_url &&

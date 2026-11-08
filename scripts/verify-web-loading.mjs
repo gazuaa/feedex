@@ -70,6 +70,13 @@ try {
   // 웹 보기는 피드 요약을 먼저 보여 주지 않고, 사이트를 다 불러온 뒤에 한 번에 보여 준다.
   assert.doesNotMatch(initial,/Prepared reader body/,'the web view does not show the feed text before the site is ready');
   assert.equal(initialDocument.querySelectorAll('[data-web-loading]').length,1,'the web view shows a loading cover until the site is ready');
+  // 웹 보기에도 AI 요약이 있다. 요약이 있으면 사이트 위의 칸에 보여 주고, 칸에는 닫기 단추가 있다.
+  assert.equal(initialDocument.querySelectorAll('button[aria-label="AI 핵심 요약"]').length,1,'the web view offers the AI summary');
+  const summarized=new DOMParser().parseFromString(renderToStaticMarkup(React.createElement(ArticleDrawer,{...props,article:{...articles[0],ai_summary:'- 웹 보기 요약 한 줄'}})),'text/html');
+  const panel=summarized.querySelector('.feedex-web-view > .feedex-web-summary');
+  assert.ok(panel,'the summary sits above the site in the web view');
+  assert.match(panel.textContent,/웹 보기 요약 한 줄/); assert.ok(panel.querySelector('button[aria-label="AI 요약 닫기"]'),'the summary over the site can be closed');
+  assert.match(readFileSync('src/components/ArticleDrawer.tsx','utf8'),/if \(mode === 'web' && !article\.full_content_html\) \{[\s\S]*?reader-view[\s\S]*?\/summarize/,'the web view fetches the article body before summarizing');
   const cover=renderToStaticMarkup(React.createElement(WebLoading,{overlay:true}));
   assert.match(cover,/absolute inset-0/,'the cover hides a frame that is still loading');
   assert.doesNotMatch(cover,/role="status"/,'the cover does not add its own notice row');
@@ -156,7 +163,7 @@ try {
   await maintainDeviceCache('x-owner',true);
   await maintainDeviceCache('fast-owner',true);
   await maintainDeviceCache('reader-owner',true);
-  console.log('PASS: per-site frame decisions; old X copies replaced by saved post-and-replies copies; article refresh replacing saved web copies, reader bodies and feed details; view-aware prefetch, two web requests at once, shared foreground request, zero-network cached opening without repeated HTML parsing; live sites unchanged, other blocked origins prepared; cache-clear/account guards; web selected with a loading cover until the site is ready.');
+  console.log('PASS: per-site frame decisions; old X copies replaced by saved post-and-replies copies; article refresh replacing saved web copies, reader bodies and feed details; view-aware prefetch, two web requests at once, shared foreground request, zero-network cached opening without repeated HTML parsing; live sites unchanged, other blocked origins prepared; cache-clear/account guards; web selected with a loading cover until the site is ready; AI summary in the web view above the site, after fetching the article body.');
 } finally {
   globalThis.fetch=originalFetch;
   for(const [key,descriptor] of originals){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}

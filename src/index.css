@@ -154,6 +154,8 @@ html.dark .feedex-setting-link { color: #34d399; }
 .feedex-global-controls { margin-left: auto; }
 .feedex-header-divider { display: none; }
 .feedex-reader-content { scrollbar-gutter: stable; }
+/* 웹 보기의 AI 요약 칸. 사이트를 너무 가리지 않게 높이를 줄이고, 긴 요약은 칸 안에서 스크롤한다. */
+.feedex-web-summary { flex-shrink: 0; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; border-bottom: 1px solid var(--feedex-border); background: var(--feedex-background); }
 .feedex-reader { container-type: inline-size; }
 .feedex-reader-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border-width: 1px; border-radius: 8px; transition: color .15s, background-color .15s; cursor: pointer; }
 @container (max-width: 600px) {
