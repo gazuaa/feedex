@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
@@ -57,5 +58,10 @@ try {
     setTextSize(20); assert.equal(readTextSize(), 1.35, 'invalid sizes cannot break layout');
     setTextSize(1);
   } finally { if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage); else delete globalThis.localStorage; }
-  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce and focused-input handling.');
+  // 사이트를 그대로 띄운 웹 보기는 다 불러온 순간 막대를 잠깐 보여 준 뒤 접는다.
+  const drawer = readFileSync(new URL('../src/components/ArticleDrawer.tsx', import.meta.url), 'utf8');
+  assert.match(drawer, /useLayoutEffect\(\(\) => \{ if \(framed\) setPeek\(\(value\) => value \+ 1\); \}, \[framed\]\);/, 'a loaded site keeps its bars for a moment before folding');
+  assert.match(drawer, /setTimeout\(\(\) => setPeek\(0\), PEEK_MS\)/, 'the bars fold again once the peek ends');
+  assert.match(drawer, /const barsHidden = chromeHidden \|\| \(framed && !peek && /, 'only an ended peek folds the bars over a framed site');
+  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling and a brief bar peek after a framed site loads.');
 } finally { await vite.close(); }

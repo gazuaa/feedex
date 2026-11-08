@@ -284,11 +284,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const nativeWeb = mode === 'web' && Boolean(article) && !xPost && inNativeApp();
   const nativeSlotRef = useRef<HTMLDivElement>(null);
   useNativeArticle(nativeSlotRef, nativeWeb && article ? article.url : null, webZoom);
-  // 프레임 안 사이트 자체의 스크롤은 따라갈 수 없으므로, 불러온 뒤에는 막대를 접어 두고
-  // 요청할 때만 꺼냈다가 몇 초 동안 움직임이 없으면 다시 접는다.
+  // 프레임 안 사이트 자체의 스크롤은 따라갈 수 없으므로, 불러온 뒤 몇 초만 막대를 보여 주고 접어 둔다.
+  // 그 뒤에는 요청할 때만 꺼냈다가 몇 초 동안 움직임이 없으면 다시 접는다.
   const [loadedFrame, setLoadedFrame] = useState<string | null>(null);
   const framed = isMobile && mode === 'web' && frame?.articleId === article?.id && frame?.embeddable === true && loadedFrame === article?.id;
   const [peek, setPeek] = useState(0);
+  // 글을 열자마자 막대가 사라지지 않도록, 사이트를 다 불러온 순간부터 잠깐 더 보여 준다.
+  // 화면에 그리기 전에 정해야 막대가 한 번 접혔다가 다시 나타나는 깜빡임이 없다.
+  useLayoutEffect(() => { if (framed) setPeek((value) => value + 1); }, [framed]);
   useEffect(() => {
     if (!peek || mobileToolsOpen || sizeToolsOpen) return;
     const timer = setTimeout(() => setPeek(0), PEEK_MS);
