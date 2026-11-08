@@ -57,12 +57,10 @@ export class ReaderPreloader {
       for (const query of queries) {
         if (!valid()) return;
         const key = articlePageKey(query);
-        if (this.cache.epoch) {
-          const page = await this.cache.get<ArticlePage>(key);
-          if (!valid()) return;
-          if (page?.syncEpoch === this.cache.epoch && !page.needsRefresh) continue;
-        }
-        if (this.versions.get(key) === version && this.cache.has(key)) continue;
+        const page = this.cache.epoch ? await this.cache.get<ArticlePage>(key) : undefined;
+        if (!valid()) return;
+        if (this.cache.epoch && page?.syncEpoch === this.cache.epoch && !page.needsRefresh) continue;
+        if (!page?.needsRefresh && this.versions.get(key) === version && this.cache.has(key)) continue;
         try {
           // 첫 화면만 있으면 이동이 바로 된다. 나머지는 평소 커서가 불러온다.
           // 이동이 이 요청을 함께 쓸 때도 마찬가지다.

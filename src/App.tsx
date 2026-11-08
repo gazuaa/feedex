@@ -40,7 +40,7 @@ import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileCh
 import { MobileLibrary } from './components/MobileLibrary';
 import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type ArticlePage } from './client/readerCache';
 import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './client/readerPreload';
-import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
+import { filteredPage, hasVisibleArticles, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, takeResumePoint, watchAppVersion } from './client/appVersion';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
@@ -523,13 +523,19 @@ export const App: React.FC = () => {
     try {
       const res = ready ?? await readerSync.page(qs, current, () => Promise.allSettled([...stateWrites.current.values()]));
       if (res && current()) {
-        const keepRange = preserveRange && articleSort === 'oldest' && activeScope === 'all'
-          && displayedArticleQuery.current === qs.toString() && displayedArticleReset.current === articleReset.current;
+        const sameDisplayed = preserveRange && displayedArticleQuery.current === qs.toString() && displayedArticleReset.current === articleReset.current;
+        const keepRange = sameDisplayed && articleSort === 'oldest' && activeScope === 'all';
         displayedArticleQuery.current = qs.toString();
         displayedArticleReset.current = articleReset.current;
         const complete = !hasMoreArticlesRef.current;
-        setArticles(previous => retainReadRows ? unreadSession.merge(res.articles, articleSort)
-          : keepRange ? mergeOldestWindow(qs, previous, res.articles, articleCache.current, complete) : res.articles);
+        setArticles(previous => {
+          const seen = new Set(res.articles.map(article => article.id));
+          const base = keepRange ? mergeOldestWindow(qs, previous, res.articles, articleCache.current, complete)
+            : sameDisplayed && previous.length > res.articles.length && !hasVisibleArticles(res.articles, qs, cache.account)
+              ? [...res.articles, ...previous.filter(article => !seen.has(article.id)).map(article => articleCache.current.get(article.id) ?? article).filter(article => matchesPage(qs, article))]
+              : res.articles;
+          return retainReadRows ? unreadSession.merge(base, articleSort) : base;
+        });
         setHasMoreArticles(previous => Boolean(res.hasMore) && (!keepRange || previous));
       }
     } catch { /* 오프라인이어도 캐시된 화면은 그대로 쓸 수 있다 */ }
@@ -651,6 +657,22 @@ export const App: React.FC = () => {
       setLoadingMoreArticles(false);
     }
   }, [user, articles, hasMoreArticles, loadingMoreArticles, retainReadRows, unreadSession, articleSort]);
+
+  // 첫 페이지의 글이 모두 차단·제외 규칙에 걸려 보이는 글이 없을 때는 뒤의 글을 자동으로 이어 받는다.
+  // 모든 글이 차단된 피드에서 끝없이 요청하지 않도록 연속 자동 호출은 3번까지만 한다.
+  const autoMoreCount = useRef(0);
+  useEffect(() => {
+    autoMoreCount.current = 0;
+  }, [user?.id, activeScope, activeFolderId, activeFeedId, unreadOnly, savedOnly, committedSearch, articleSort]);
+  useEffect(() => {
+    if (visibleArticles.length > 0) {
+      autoMoreCount.current = 0;
+      return;
+    }
+    if (!user || showBlockedArticles || !articles.length || !hasMoreArticles || loadingArticles || loadingBootstrap || loadingMoreArticles || autoMoreCount.current >= 3) return;
+    autoMoreCount.current += 1;
+    void loadMoreArticles();
+  }, [user, showBlockedArticles, visibleArticles.length, articles.length, hasMoreArticles, loadingArticles, loadingBootstrap, loadingMoreArticles, loadMoreArticles]);
 
   useEffect(() => {
     if (user) {
@@ -1592,7 +1614,7 @@ export const App: React.FC = () => {
             <button type="button" className="feedex-filter-manage" aria-label="규칙 관리" title="규칙 관리" onClick={onManageArticleBlocks}><SlidersHorizontal size={14} aria-hidden="true" /><span>규칙 관리</span></button>
           </>}
         </div>}
-        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>표시할 글이 없습니다.</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>제외한 피드 변경</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기 ({blockedArticles.length}개)</button></div> : <ArticleList
+        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>표시할 글이 없습니다.</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>제외한 피드 변경</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap && !(hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3)) ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기 ({blockedArticles.length}개)</button></div> : <ArticleList
           accountId={user.id}
           onUpdateArticleFields={handleUpdateArticleFields}
           onPrepareArticle={handlePrepareArticle}
@@ -1608,7 +1630,7 @@ export const App: React.FC = () => {
             setDiscoverOpen(true);
           }}
           isDark={isDark}
-          loading={loadingArticles || loadingBootstrap}
+          loading={loadingArticles || loadingBootstrap || (!showBlockedArticles && !visibleArticles.length && hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3))}
           hasSubscriptions={subscriptions.length > 0}
           retainReadRows={retainReadRows}
           timeline={xTimeline}

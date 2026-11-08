@@ -1,6 +1,7 @@
 import { apiRequest, type ArticleItem, type BootstrapResponse } from './api';
 import type { ReaderSyncDelta } from '../shared/readerSync';
 import { ReaderCache, type ArticlePage, articlePageKey } from './readerCache';
+import { hasVisibleArticles } from './syncPages';
 
 type Request = typeof apiRequest;
 interface SyncResult { bootstrap?: BootstrapResponse; changed: boolean; reset: boolean; delta?: ReaderSyncDelta }
@@ -44,15 +45,21 @@ export class ReaderSync {
     this.cache.put('bootstrap', bootstrap);
     return { bootstrap, changed: true, reset: true };
   }
+  // 읽은 글이 빠져 차단·제외된 글만 남은 불완전한 캐시 조각은 서버의 첫 페이지로 다시 채운다.
+  private usable(cached: ArticlePage | undefined, query: URLSearchParams): cached is ArticlePage {
+    if (!cached || cached.needsRefresh || !cached.syncEpoch || cached.syncEpoch !== this.cache.epoch) return false;
+    const limit = Math.min(200, Number(query.get('limit') || 80));
+    return !(cached.hasMore && cached.articles.length < limit && !hasVisibleArticles(cached.articles, query, this.cache.account));
+  }
   /** 이미 메모리에 있는 최신 목록. 그 밖의 것은 page()를 거친다. */
   ready(query: URLSearchParams): ArticlePage | undefined {
     const cached = this.cache.peek<ArticlePage>(articlePageKey(query));
-    return cached && !cached.needsRefresh && cached.syncEpoch && cached.syncEpoch === this.cache.epoch ? cached : undefined;
+    return this.usable(cached, query) ? cached : undefined;
   }
   async page(query: URLSearchParams, current: () => boolean, pending: () => Promise<unknown>): Promise<ArticlePage | undefined> {
     const key = articlePageKey(query);
     const cached = await this.cache.get<ArticlePage>(key);
-    if (cached && !cached.needsRefresh && cached.syncEpoch && cached.syncEpoch === this.cache.epoch) return cached;
+    if (this.usable(cached, query)) return cached;
     await pending();
     if (!current() || !this.cache.active) return;
     const revision = this.cache.revision, epoch = this.cache.epoch;

@@ -1,6 +1,17 @@
 import { scopedExcludedFeeds } from '../shared/feedExclusions';
 import type { ArticleItem, BootstrapResponse } from './api';
+import { compileArticleBlocks, readArticleBlocks } from './articleBlocks';
 import type { ArticlePage } from './readerCache';
+
+// 차단 규칙이나 피드 제외 규칙을 거친 뒤 실제로 화면에 보일 글이 하나라도 있는지 확인한다.
+export function hasVisibleArticles(articles: readonly ArticleItem[], query: URLSearchParams, account = ''): boolean {
+  if (!articles.length) return false;
+  const scope = query.get('scope');
+  const saved = scope === 'saved' || query.get('savedOnly') === 'true';
+  const excluded = new Set(scopedExcludedFeeds(scope, saved, query.get('excludedFeedIds')));
+  const isBlocked = account ? compileArticleBlocks(readArticleBlocks(account)) : () => false;
+  return articles.some((article) => !excluded.has(article.feed_id) && !isBlocked(article));
+}
 
 export function matchesPage(query: URLSearchParams, article: ArticleItem, now = Date.now()) {
   const scope = query.get('scope');
@@ -38,7 +49,7 @@ export function sameListOtherTab(before: string, after: URLSearchParams): boolea
   const list = (query: URLSearchParams) => { const copy = new URLSearchParams(query); copy.delete('unreadOnly'); copy.delete('savedOnly'); copy.sort(); return copy.toString(); };
   return Boolean(before) && before !== after.toString() && list(new URLSearchParams(before)) === list(after);
 }
-export function patchPage(page: ArticlePage, key: string, changes: ArticleItem[], removed: Set<string>, changedBodies: Set<string>, bootstrap?: BootstrapResponse): ArticlePage {
+export function patchPage(page: ArticlePage, key: string, changes: ArticleItem[], removed: Set<string>, changedBodies: Set<string>, bootstrap?: BootstrapResponse, account = ''): ArticlePage {
   const query = new URLSearchParams(key.slice(9));
   const compare = query.get('sort') === 'oldest' ? (a: ArticleItem, b: ArticleItem) => -order(a, b) : order;
   const rows = new Map(page.articles.map((article) => [article.id, article]));
@@ -58,6 +69,7 @@ export function patchPage(page: ArticlePage, key: string, changes: ArticleItem[]
     return sub ? { ...article, feed_title: sub.title, feed_favicon: sub.favicon_url, feed_html_url: sub.html_url, folder_id: sub.folder_id, folder_name: sub.folder_id ? folders.get(sub.folder_id) ?? null : null } : article;
   }).filter((article) => matchesPage(query, article)).sort(compare);
   const limit = Math.min(200, Number(query.get('limit') || 80));
+  const slice = articles.slice(0, limit);
   const hasMore = Boolean(page.hasMore || articles.length > limit);
-  return { ...page, articles: articles.slice(0, limit), hasMore, needsRefresh: Boolean(page.needsRefresh || hasMore && articles.length === 0), syncEpoch: bootstrap?.cacheEpoch ?? page.syncEpoch };
+  return { ...page, articles: slice, hasMore, needsRefresh: Boolean(page.needsRefresh || hasMore && !hasVisibleArticles(slice, query, account)), syncEpoch: bootstrap?.cacheEpoch ?? page.syncEpoch };
 }

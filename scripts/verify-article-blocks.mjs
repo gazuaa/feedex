@@ -117,6 +117,45 @@ try {
   let duringDelivery = 0;
   await notifyNewArticles(owner, [{ ...sample, id: 'first-delivery', title: '일반 뉴스' }, { ...sample, id: 'blocked-during-delivery' }], async () => { duringDelivery++; await saveArticleBlock(owner, rule); });
   assert.equal(duringDelivery, 1, '알림을 보내는 중 규칙을 켜면 뒤의 차단 기사 알림은 보내지 않는다.');
+
+  // 프리로드나 읽음 처리 뒤에 차단된 글만 남은 캐시 조각은 그대로 멈추지 않고 서버의 남은 안 읽은 글로 다시 채운다.
+  const { ReaderCache, articlePageKey } = await vite.ssrLoadModule('/src/client/readerCache.ts');
+  const { ReaderSync } = await vite.ssrLoadModule('/src/client/readerSync.ts');
+  const { patchPage } = await vite.ssrLoadModule('/src/client/syncPages.ts');
+  const nowIso = new Date().toISOString();
+  const blockedRows = Array.from({ length: 4 }, (_, index) => ({
+    ...sample, id: `blocked-${index}`, published_at: nowIso, is_read: false, is_saved: false, folder_id: 'crypto',
+  }));
+  const visibleRow = { ...sample, id: 'visible-1', title: '이더리움 재단 로드맵 공개', published_at: nowIso, is_read: false, is_saved: false, folder_id: 'crypto' };
+  const olderVisible = { ...visibleRow, id: 'visible-2', title: '솔라나 네트워크 업그레이드 발표' };
+  const folderQuery = new URLSearchParams('scope=folder&folderId=crypto&unreadOnly=true');
+  const folderKey = articlePageKey(folderQuery);
+  const memRows = new Map();
+  const cache = new ReaderCache(owner, {
+    async read(account, key) { return structuredClone(memRows.get(`${account}:${key}`)); },
+    async write(row) { memRows.set(`${row.account}:${row.key}`, structuredClone(row)); },
+    async remove(account) { for (const [k, v] of memRows) if (v.account === account) memRows.delete(k); },
+  });
+  cache.put('bootstrap', { folders: [{ id: 'crypto', name: '크립토' }], subscriptions: [{ feed_id: sample.feed_id, folder_id: 'crypto', title: sample.feed_title, unread_count: 145, total_count: 200, saved_count: 0 }], curatedFeeds: [], counts: { totalUnread: 145, totalArticles: 200, savedCount: 0, todayCount: 5, todayTotal: 10 }, cacheEpoch: 'epoch-1' });
+  cache.put(folderKey, { articles: [...blockedRows, visibleRow], hasMore: true, syncEpoch: 'epoch-1' });
+  cache.updateArticle(visibleRow, { ...visibleRow, is_read: true });
+  assert.equal((await cache.get(folderKey)).needsRefresh, true, '보이는 글을 다 읽어 차단된 글만 남고 뒤 페이지가 있으면 캐시를 다시 채우도록 표시한다.');
+  const patchedBlockedOnly = patchPage({ articles: [...blockedRows, visibleRow], hasMore: true, syncEpoch: 'epoch-1' }, folderKey, [{ ...visibleRow, is_read: true }], new Set(), new Set(), undefined, owner);
+  assert.equal(patchedBlockedOnly.needsRefresh, true, '동기화 패치 뒤 차단된 글만 남은 페이지도 다시 채우도록 표시한다.');
+
+  // 이전 실행에서 needsRefresh 없이 차단된 글 4개만 남아 있던 캐시 조각도 열자마자 서버 첫 페이지로 복구한다.
+  cache.put(folderKey, { articles: blockedRows, hasMore: true, needsRefresh: false, syncEpoch: 'epoch-1' });
+  let refetched = 0;
+  const sync = new ReaderSync(cache, async () => {
+    refetched += 1;
+    return { articles: [...blockedRows, olderVisible], hasMore: true };
+  });
+  assert.equal(sync.ready(folderQuery), undefined, '차단된 글만 남은 불완전한 캐시 조각은 즉시 화면을 멈추지 않는다.');
+  const refilled = await sync.page(folderQuery, () => true, async () => {});
+  assert.equal(refetched, 1);
+  assert.ok(refilled.articles.some((item) => item.id === 'visible-2'), '서버에서 남은 안 읽은 글을 받아 목록을 복구한다.');
+  assert.equal(sync.ready(folderQuery)?.articles.length, 5, '보이는 글이 채워진 뒤에는 캐시를 바로 재사용한다.');
+
   console.log('PASS: recurring-title suggestions, AND/OR literals, feed scopes, Unicode/spacing, empty/corrupt safeguards, account-synced durable rules, legacy migration, concurrent writes, toggle/delete/restore, full-device-cache fallback and notification exclusions.');
 } finally {
   for (const [name, descriptor] of Object.entries(originals)) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }

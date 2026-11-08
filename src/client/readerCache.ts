@@ -1,6 +1,6 @@
 import type { ArticleItem, BootstrapResponse } from './api';
 import type { ReaderSyncDelta } from '../shared/readerSync';
-import { patchPage } from './syncPages';
+import { hasVisibleArticles, patchPage } from './syncPages';
 import { openDeviceDatabase as openDatabase } from './deviceDatabase';
 import { retentionAge, SNAPSHOT_LIMITS } from './cachePolicy';
 import { rememberArticles } from './deviceContent';
@@ -138,7 +138,7 @@ export class ReaderCache {
     // 디스크를 읽는 동안 더 빠른 네트워크 응답이 메모리를 채웠을 수 있다.
     const snapshot = this.entries.get(key) ?? loaded;
     if (this.closed || revision !== this.revision || snapshot?.account !== this.account || snapshot.savedAt + retentionAge(this.account) <= this.now()) return;
-    if (key.startsWith('articles?') && this.overrides.size) snapshot.data = patchPage(snapshot.data as ArticlePage, key, [...this.overrides.values()], new Set(), new Set(), this.entries.get('bootstrap')?.data as BootstrapResponse | undefined);
+    if (key.startsWith('articles?') && this.overrides.size) snapshot.data = patchPage(snapshot.data as ArticlePage, key, [...this.overrides.values()], new Set(), new Set(), this.entries.get('bootstrap')?.data as BootstrapResponse | undefined, this.account);
     this.entries.delete(key); this.entries.set(key, snapshot);
     this.trim();
     return snapshot.data as T;
@@ -147,7 +147,7 @@ export class ReaderCache {
   peek<T extends Snapshot['data']>(key: string): T | undefined {
     const snapshot = this.entries.get(key);
     if (this.closed || !snapshot || snapshot.savedAt + retentionAge(this.account) <= this.now()) return;
-    if (key.startsWith('articles?') && this.overrides.size) snapshot.data = patchPage(snapshot.data as ArticlePage, key, [...this.overrides.values()], new Set(), new Set(), this.entries.get('bootstrap')?.data as BootstrapResponse | undefined);
+    if (key.startsWith('articles?') && this.overrides.size) snapshot.data = patchPage(snapshot.data as ArticlePage, key, [...this.overrides.values()], new Set(), new Set(), this.entries.get('bootstrap')?.data as BootstrapResponse | undefined, this.account);
     return snapshot.data as T;
   }
   put(key: string, data: Snapshot['data']) {
@@ -180,7 +180,9 @@ export class ReaderCache {
         const data = snapshot.data as ArticlePage, query = new URLSearchParams(key.slice(9));
         const saved = query.get('scope') === 'saved' || query.get('savedOnly') === 'true';
         const unread = !saved && query.get('unreadOnly') === 'true';
-        this.put(key, { ...data, articles: data.articles.map((article) => article.id === after.id ? { ...article, is_read: after.is_read, is_saved: after.is_saved } : article).filter((article) => (!saved || article.is_saved) && (!unread || !article.is_read)) });
+        const articles = data.articles.map((article) => article.id === after.id ? { ...article, is_read: after.is_read, is_saved: after.is_saved } : article).filter((article) => (!saved || article.is_saved) && (!unread || !article.is_read));
+        const needsRefresh = Boolean(data.needsRefresh || data.hasMore && !hasVisibleArticles(articles, query, this.account));
+        this.put(key, { ...data, articles, ...(needsRefresh ? { needsRefresh: true } : {}) });
       }
     }
   }
@@ -232,7 +234,7 @@ export class ReaderCache {
     for (const id of removed) this.overrides.delete(id);
     this.put('bootstrap', next);
     for (const [key, page] of pages) if (page) {
-      const patched = patchPage(page, key, changes, removed, changedBodies, next);
+      const patched = patchPage(page, key, changes, removed, changedBodies, next, this.account);
       const query = new URLSearchParams(key.slice(9));
       // 이미 있는 피드는 글을 쓰지 않고도 새로 구독되거나 캐시된 폴더로 옮겨질 수 있다.
       // 그때 영향을 받는 페이지만 다시 채운다.
