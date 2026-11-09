@@ -44,6 +44,26 @@ try {
     const s = setup(); s.message(1, {}); s.edge(); s.tick(200); s.render(); assert.equal(s.backs(), 1, '다른 프레임은 현재 밀기를 잠그지 못한다'); s.cleanup();
   }
   {
+    // X 글은 미리보기 프레임을 스레드 프레임으로 바꾼다. 지워진 프레임이 남긴 터치 때문에 리더가 화면 밖에 걸려 남지 않는다.
+    const s = setup(); s.message(1);
+    const replaced = s.document.createElement('iframe'); Object.defineProperty(replaced, 'contentWindow', { value: {} });
+    s.document.querySelector('iframe').replaceWith(replaced);
+    s.edge(); s.tick(200); s.render(); assert.equal(s.backs(), 1, '바뀐 프레임의 터치는 잊고 뒤로 간다'); s.cleanup();
+  }
+  {
+    // 지워진 프레임이 사라지기 직전에 보낸 '손가락 뗌' 알림도 받는다.
+    const s = setup(), old = {}; s.message(1); s.message(0, old); s.edge(); s.tick(200); s.render();
+    assert.equal(s.backs(), 0, '다른 프레임의 뗌 알림이 지금 프레임의 터치를 지우지 않는다');
+    s.message(0); s.tick(200); s.render(); assert.equal(s.backs(), 1); s.cleanup();
+  }
+  {
+    // 터치를 시작한 덮개가 지워지면 종료가 페이저까지 오지 않는다. 그 터치는 잊는다.
+    const s = setup(), cover = s.document.createElement('div'); s.pager.lastElementChild.append(cover);
+    const start = new s.window.Event('touchstart', { bubbles: true }); Object.assign(start, { touches: [{}] }); cover.dispatchEvent(start);
+    s.edge(); s.tick(2000); s.render(); assert.equal(s.backs(), 0, '덮개 위 손가락이 그대로면 닫지 않는다');
+    cover.remove(); s.edge(); s.tick(200); s.render(); assert.equal(s.backs(), 1, '덮개가 사라진 뒤에는 남은 터치 때문에 멈추지 않는다'); s.cleanup();
+  }
+  {
     const s = setup(); s.edge(); s.pager.scrollLeft = 393; s.pager.dispatchEvent(new s.window.Event('scroll')); s.tick(200); s.render(); assert.equal(s.backs(), 0, '취소한 밀기는 뒤로 가지 않는다');
     s.edge(); s.cleanup(); s.tick(2000); s.render(); assert.equal(s.backs(), 0, '닫힌 프레임의 예약 작업은 실행하지 않는다');
   }
@@ -62,5 +82,5 @@ try {
     assert.equal(list.closest('[inert]'), null, '목록의 네이티브 스크롤 영역은 비활성화하지 않는다');
     assert.equal(list.firstElementChild.hasAttribute('inert'), Boolean(state.mobileReaderOpen || state.inactive), '배경의 글·버튼은 계속 입력과 포커스에서 제외한다');
   }
-  console.log('통과: 길게 누른 웹뷰 밀기·종료 확인·취소·다른 프레임 무시·기록 이동 정리·스크롤 영역과 배경 포커스 분리.');
+  console.log('통과: 길게 누른 웹뷰 밀기·종료 확인·취소·다른 프레임 무시·바뀐 프레임과 지워진 덮개의 남은 터치 정리·기록 이동 정리·스크롤 영역과 배경 포커스 분리.');
 } finally { globalThis.ResizeObserver = previousObserver; await vite.close(); }
