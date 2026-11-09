@@ -14,19 +14,25 @@ export function hasVisibleArticles(articles: readonly ArticleItem[], query: URLS
 }
 
 export function matchesPage(query: URLSearchParams, article: ArticleItem, now = Date.now()) {
+  if (!article) return false;
   const scope = query.get('scope');
   if (scope === 'folder' && article.folder_id !== query.get('folderId')) return false;
   if (scope === 'feed' && article.feed_id !== query.get('feedId')) return false;
   const saved = scope === 'saved' || query.get('savedOnly') === 'true';
   if (scopedExcludedFeeds(scope, saved, query.get('excludedFeedIds')).includes(article.feed_id)) return false;
   if (saved && !article.is_saved) return false;
-  const age = now - Date.parse(article.published_at);
+  const parsedTime = article.published_at ? Date.parse(article.published_at) : NaN;
+  const age = Number.isFinite(parsedTime) ? now - parsedTime : 0;
   if (scope === 'today' && age > 86400_000) return false;
   if (!saved && query.get('unreadOnly') === 'true' && (article.is_read || age > 30 * 86400_000)) return false;
   const search = query.get('search')?.trim().toLocaleLowerCase();
   return !search || [article.title, article.summary, article.feed_title, article.author].some((value) => value?.toLocaleLowerCase().includes(search));
 }
-const order = (a: ArticleItem, b: ArticleItem) => b.published_at.localeCompare(a.published_at) || b.id.localeCompare(a.id);
+const order = (a: ArticleItem, b: ArticleItem) => {
+  const pubA = a?.published_at || '', pubB = b?.published_at || '';
+  const idA = a?.id || '', idB = b?.id || '';
+  return pubB.localeCompare(pubA) || idB.localeCompare(idA);
+};
 // 같은 목록에서 탭(전체·안 읽음·저장)만 바꿀 때, 이미 받은 글로 새 탭의 목록을 먼저 그린다. 서버 답이 오면 그것으로 바꾼다.
 export function filteredPage(query: URLSearchParams, pool: Iterable<ArticleItem>, now = Date.now()): ArticleItem[] {
   const compare = query.get('sort') === 'oldest' ? (a: ArticleItem, b: ArticleItem) => -order(a, b) : order;
@@ -38,9 +44,9 @@ export function mergeOldestWindow(query: URLSearchParams, loaded: ArticleItem[],
   const tail = loaded.at(-1);
   const rows = new Map<string, ArticleItem>();
   for (const article of cache.values()) {
-    if (matchesPage(query, article) && (complete || (tail && order(article, tail) >= 0))) rows.set(article.id, article);
+    if (article && matchesPage(query, article) && (complete || (tail && order(article, tail) >= 0))) rows.set(article.id, article);
   }
-  for (const article of incoming) rows.set(article.id, article);
+  for (const article of incoming) if (article?.id) rows.set(article.id, article);
   return [...rows.values()].sort((a, b) => -order(a, b));
 }
 

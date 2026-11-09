@@ -11,12 +11,17 @@ export class UnreadSession {
   private articles = new Map<string, ArticleItem>();
   merge(incoming: ArticleItem[], sort: 'newest' | 'oldest' = 'newest') {
     for (const article of incoming) {
+      if (!article?.id) continue;
       const previous = this.articles.get(article.id);
       // 여기서 읽은 글만 남긴다. 이미 읽음으로 온 글은 다른 곳에서 읽은 것이다.
       if (article.is_read && !previous?.is_read) { this.articles.delete(article.id); continue; }
       this.articles.set(article.id, { ...article, is_read: previous?.is_read || article.is_read });
     }
-    return [...this.articles.values()].sort((a, b) => (sort === 'oldest' ? -1 : 1) * (b.published_at.localeCompare(a.published_at) || b.id.localeCompare(a.id)));
+    return [...this.articles.values()].sort((a, b) => {
+      const pubA = a.published_at || '', pubB = b.published_at || '';
+      const idA = a.id || '', idB = b.id || '';
+      return (sort === 'oldest' ? -1 : 1) * (pubB.localeCompare(pubA) || idB.localeCompare(idA));
+    });
   }
   update(article: ArticleItem) { this.articles.set(article.id, article); }
   patch(id: string, fields: Partial<ArticleItem>) { const article = this.articles.get(id); if (article) this.articles.set(id, { ...article, ...fields }); }

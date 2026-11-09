@@ -34,15 +34,17 @@ export function xFeedAccount(article: Pick<ArticleItem, 'feed_title' | 'feed_htm
 
 // 미러 RSS 본문: 첫 문단이 글이고, 사진·동영상 썸네일이 뒤따른다. <hr/> 뒤에는 링크 카드나 인용 글이 온다.
 export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | undefined = globalThis.DOMParser): XPost {
+  if (!article) return { name: 'X', handle: 'X', avatar: null, repostedBy: null, replyTo: null, text: '', media: [], card: null, quote: null };
   const owner = xFeedAccount(article);
-  const author = statusUser(article.url) || owner.handle;
-  const reposted = /^RT by @([a-z\d_]{1,15}):\s*/i.exec(article.title);
-  const reply = /^R to @([a-z\d_]{1,15}):\s*/i.exec(article.title);
-  const own = author.toLowerCase() === owner.handle.toLowerCase();
+  const author = statusUser(article.url || '') || owner.handle || 'X';
+  const title = article.title || '';
+  const reposted = /^RT by @([a-z\d_]{1,15}):\s*/i.exec(title);
+  const reply = /^R to @([a-z\d_]{1,15}):\s*/i.exec(title);
+  const own = author.toLowerCase() === (owner.handle || '').toLowerCase();
   const post: XPost = {
     name: own ? owner.name : author, handle: author, avatar: own && article.feed_favicon && /^https:\/\/pbs\.twimg\.com\/profile_images\//.test(article.feed_favicon) ? article.feed_favicon : null,
     repostedBy: reposted && !own ? owner.name : null, replyTo: reply?.[1] || null,
-    text: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), media: [], card: null, quote: null,
+    text: title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), media: [], card: null, quote: null,
   };
   if (!article.content_html || !Parser) return post;
   // <hr/> 앞은 글과 사진, 뒤는 링크 카드나 인용 글이다. 두 부분을 따로 읽는다.

@@ -47,7 +47,8 @@
     "test:native-app": "node scripts/verify-native-app.mjs",
     "test:native-notifications": "node scripts/verify-native-notifications.mjs",
     "test:windows-app": "node scripts/verify-windows-app.mjs",
-    "test:translation": "node scripts/verify-translation.mjs"
+    "test:translation": "node scripts/verify-translation.mjs",
+    "test:sort-toggle": "node scripts/verify-sort-toggle.mjs"
   },
   "dependencies": {
     "@cloudflare/puppeteer": "^1.4.0",

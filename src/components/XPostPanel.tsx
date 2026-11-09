@@ -54,7 +54,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   const handle = /^https:\/\/x\.com\/([^/]+)\//.exec(url)?.[1] || 'X';
   const preview = useMemo(() => {
     const quote = activeQuote;
-    const media = quote?.media.map((item) => item.video ? `<a href="${escape(url)}">Video<img src="${escape(item.src)}"></a>` : `<img src="${escape(item.src)}">`).join('') || '';
+    const media = (quote?.media || []).map((item) => item.video ? `<a href="${escape(url)}">Video<img src="${escape(item.src)}"></a>` : `<img src="${escape(item.src)}">`).join('');
     const paragraphs = (quote?.text || '').split(/\n{2,}/).filter(Boolean);
     const textHtml = paragraphs.length
       ? paragraphs.map((p) => `<p>${escape(p).replace(/\n/g, '<br>')}</p>`).join('')

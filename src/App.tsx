@@ -71,6 +71,7 @@ import { RenameFeedDialog } from './components/RenameFeedDialog';
 import { useFeedExclusions } from './client/feedExclusions';
 import { FeedExclusionsDialog } from './components/FeedExclusionsDialog';
 import { ArticleBlockDialog } from './components/ArticleBlockDialog';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // 워커는 응답 뒤에 30초까지 일한다. 그 뒤에 받은 글을 한 번 더 맞춘다.
 const REFRESH_FOLLOW_UP_MS = 31_000;
@@ -159,10 +160,11 @@ export const App: React.FC = () => {
   const filterAllFeeds = activeScope === 'all' && !savedOnly;
   const excludedSubscriptionCount = subscriptions.filter(feed => excludedFeedSet.has(feed.feed_id)).length;
   const includedArticles = useMemo(() => {
-    const base = filterAllFeeds ? articles.filter(article => !excludedFeedSet.has(article.feed_id)) : articles;
-    if (!selectedArticleId || base.some(a => a.id === selectedArticleId)) return base;
+    const validArticles = articles.filter(Boolean);
+    const base = filterAllFeeds ? validArticles.filter(article => !excludedFeedSet.has(article.feed_id)) : validArticles;
+    if (!selectedArticleId || base.some(a => a?.id === selectedArticleId)) return base;
     const current = articleCache.current.get(selectedArticleId);
-    if (!current) return base;
+    if (!current?.id) return base;
     const folderFeeds = activeFolderId ? subscriptions.filter((s) => s.folder_id === activeFolderId).map((s) => s.feed_id) : [];
     const matches = (activeScope === 'all' || (activeScope === 'saved' ? current.is_saved : true))
       && (!activeFeedId || current.feed_id === activeFeedId)
@@ -1619,26 +1621,28 @@ export const App: React.FC = () => {
           </>
         }
         reader={
-          xPostTarget && selectedArticle?.id === xPostTarget.articleId ? <XPostPanel key={`${selectedArticle.id}:${xPostTarget.url}`} accountId={user.id} source={selectedArticle} target={xPostTarget} onBack={() => setXPostTarget(null)} isDark={isDark} /> : <ArticleDrawer
-            key={selectedArticle?.id || 'empty-reader'}
-            article={selectedArticle}
-            resources={articleResources}
-            accountId={user.id}
-            onClose={() => setSelectedArticleId(null)}
-            onOpenXPost={(url, hint) => selectedArticle && handleOpenXPost(selectedArticle, url, hint)}
-            onToggleRead={handleToggleRead}
-            onToggleSaved={handleToggleSaved}
-            onUpdateArticleFields={handleUpdateArticleFields}
-            viewMode={selectedViewMode}
-            onChangeViewMode={(mode) => selectedArticle && handleChangeViewMode(selectedArticle.feed_id, mode)}
-            onNavigateRelative={handleNavigateRelative}
-            onCopyLink={handleCopyLink}
-            onNotice={setNotice}
-            onLeaveForOriginal={() => saveResumePoint(true)}
-            hasPrev={Boolean(articleNeighbors.prev)}
-            hasNext={Boolean(articleNeighbors.next)}
-            isDark={isDark}
-          />
+          <ErrorBoundary fallbackTitle="본문을 표시하는 중 오류가 발생했습니다" onReset={() => { setXPostTarget(null); setSelectedArticleId(null); }}>
+            {xPostTarget && selectedArticle?.id === xPostTarget.articleId ? <XPostPanel key={`${selectedArticle.id}:${xPostTarget.url}`} accountId={user.id} source={selectedArticle} target={xPostTarget} onBack={() => setXPostTarget(null)} isDark={isDark} /> : <ArticleDrawer
+              key={selectedArticle?.id || 'empty-reader'}
+              article={selectedArticle}
+              resources={articleResources}
+              accountId={user.id}
+              onClose={() => setSelectedArticleId(null)}
+              onOpenXPost={(url, hint) => selectedArticle && handleOpenXPost(selectedArticle, url, hint)}
+              onToggleRead={handleToggleRead}
+              onToggleSaved={handleToggleSaved}
+              onUpdateArticleFields={handleUpdateArticleFields}
+              viewMode={selectedViewMode}
+              onChangeViewMode={(mode) => selectedArticle && handleChangeViewMode(selectedArticle.feed_id, mode)}
+              onNavigateRelative={handleNavigateRelative}
+              onCopyLink={handleCopyLink}
+              onNotice={setNotice}
+              onLeaveForOriginal={() => saveResumePoint(true)}
+              hasPrev={Boolean(articleNeighbors.prev)}
+              hasNext={Boolean(articleNeighbors.next)}
+              isDark={isDark}
+            />}
+          </ErrorBoundary>
         }
         footer={
           <footer
@@ -1691,27 +1695,31 @@ export const App: React.FC = () => {
             <button type="button" className="feedex-filter-manage" aria-label="규칙 관리" title="규칙 관리" onClick={onManageArticleBlocks}><SlidersHorizontal size={14} aria-hidden="true" /><span>규칙 관리</span></button>
           </>}
         </div>}
-        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>표시할 글이 없습니다.</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>제외한 피드 변경</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap && !(hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3)) ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기 ({blockedArticles.length}개)</button></div> : <ArticleList
-          accountId={user.id}
-          onUpdateArticleFields={handleUpdateArticleFields}
-          onPrepareArticle={handlePrepareArticle}
-          articles={visibleArticles}
-          layout={layout}
-          selectedArticleId={selectedArticleId}
-          onSelectArticle={handleSelectArticle}
-          blockedArticleIds={blockedArticleIds}
-          onToggleRead={handleToggleRead}
-          onToggleSaved={handleToggleSaved}
-          onOpenDiscover={() => {
-            setDiscoverTab('curated');
-            setDiscoverOpen(true);
-          }}
-          isDark={isDark}
-          loading={loadingArticles || loadingBootstrap || (!showBlockedArticles && !visibleArticles.length && hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3))}
-          hasSubscriptions={subscriptions.length > 0}
-          retainReadRows={retainReadRows}
-          timeline={xTimeline}
-        />}
+        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>표시할 글이 없습니다.</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>제외한 피드 변경</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap && !(hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3)) ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기 ({blockedArticles.length}개)</button></div> : (
+          <ErrorBoundary fallbackTitle="글 목록을 표시하는 중 오류가 발생했습니다" onReset={() => void fetchArticles()}>
+            <ArticleList
+              accountId={user.id}
+              onUpdateArticleFields={handleUpdateArticleFields}
+              onPrepareArticle={handlePrepareArticle}
+              articles={visibleArticles}
+              layout={layout}
+              selectedArticleId={selectedArticleId}
+              onSelectArticle={handleSelectArticle}
+              blockedArticleIds={blockedArticleIds}
+              onToggleRead={handleToggleRead}
+              onToggleSaved={handleToggleSaved}
+              onOpenDiscover={() => {
+                setDiscoverTab('curated');
+                setDiscoverOpen(true);
+              }}
+              isDark={isDark}
+              loading={loadingArticles || loadingBootstrap || (!showBlockedArticles && !visibleArticles.length && hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3))}
+              hasSubscriptions={subscriptions.length > 0}
+              retainReadRows={retainReadRows}
+              timeline={xTimeline}
+            />
+          </ErrorBoundary>
+        )}
         {hasMoreArticles && articles.length > 0 && !loadingArticles && !loadingBootstrap && (
           <LoadMoreArticles
             auto={visibleArticles.length > 0}

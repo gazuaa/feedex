@@ -29,7 +29,7 @@ export function XTimeline({ articles, selectedArticleId, onSelectArticle, onTogg
   const tabStop = articles.some((article) => article.id === selectedArticleId) ? selectedArticleId : articles[0]?.id;
   const avatarOf = useXAvatars([...posts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
   return <div ref={listRef} data-render-deferred={articles.length >= 120 || undefined} className={`feedex-list-items feedex-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
-    {articles.map((article) => <XPostRow tabIndex={tabStop === article.id ? 0 : -1} blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id)!} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />)}
+    {articles.map((article) => <XPostRow tabIndex={tabStop === article.id ? 0 : -1} blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id) || parseXPost(article)} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />)}
   </div>;
 }
 
@@ -71,7 +71,7 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
     aria-current={selected ? 'true' : undefined}
     role="button"
     tabIndex={tabIndex}
-    aria-label={`${post.name}: ${post.text.slice(0, 80)}`}
+    aria-label={`${post?.name || 'X'}: ${(post?.text || '').slice(0, 80)}`}
     onClick={() => onSelectArticle(article)}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelectArticle(article); } }}
     data-x-variant={variant}
@@ -92,7 +92,7 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
       </div>
       {post.replyTo && <p className="text-[15px] leading-5 text-slate-500"><span className="text-sky-500">@{post.replyTo}</span> 님에게 보내는 답글</p>}
       {post.text && <p className={`feedex-x-text mt-0.5 whitespace-pre-wrap break-words leading-snug line-clamp-[14] ${strong}`}>{post.text}</p>}
-      <MediaGrid media={post.media} line={line} onImageError={refreshExpiredImage} />
+      <MediaGrid media={post?.media || []} line={line} onImageError={refreshExpiredImage} />
       {post.card && <a href={post.card.href} target="_blank" rel="noopener noreferrer" onClick={stop} className={`mt-3 block overflow-hidden rounded-2xl border ${line}`}>
         {post.card.image && brokenCard !== post.card.image && !failedCardImages.has(post.card.image) && <img src={post.card.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { failedCardImages.add(post.card!.image!); setBrokenCard(post.card!.image); (e.currentTarget as HTMLElement).style.display = 'none'; refreshExpiredImage(post.card!.image!); }} className="aspect-[1.91/1] w-full object-cover" />}
         <span className="block px-3 py-2"><span className="block truncate text-[13px] text-slate-500">{hostOf(post.card.href)}</span><span className={`block truncate text-[15px] ${strong}`}>{post.card.title}</span></span>
@@ -102,7 +102,7 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
         <span className="flex min-w-0 items-center gap-1 text-[15px]"><Avatar post={{ name: post.quote.name, handle: post.quote.handle, avatar: avatarOf(post.quote.handle) || null }} isDark={isDark} size="mini" /><span className={`truncate font-bold ${strong}`}>{post.quote.name}</span>{post.quote.handle && <span className="truncate text-slate-500">@{post.quote.handle}</span>}</span>
         {/* block을 함께 주면 줄 수 제한(line-clamp)의 표시 방식을 덮어 긴 인용 글이 다 펼쳐진다. */}
         {post.quote.text && <span className={`mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-5 line-clamp-6 ${strong}`}>{post.quote.text}</span>}
-        <MediaGrid media={post.quote.media} line={line} compact onImageError={refreshExpiredImage} />
+        <MediaGrid media={post.quote.media || []} line={line} compact onImageError={refreshExpiredImage} />
       </div>}
       <div className="-ml-2 mt-1 flex max-w-[425px] items-center justify-between text-slate-500">
         <button type="button" title="댓글 보기" aria-label="댓글 보기" onClick={(event) => { stop(event); onSelectArticle(article); }} className={`${action} hover:bg-sky-500/10 hover:text-sky-500`}><MessageCircle className="h-[18px] w-[18px]" /></button>
@@ -119,14 +119,15 @@ function Avatar({ post, isDark, size = 'full' }: { post: Pick<XPost, 'name' | 'h
   const [broken, setBroken] = useState<string | null>(null);
   const box = size === 'mini' ? 'h-5 w-5 shrink-0 text-[11px]' : 'h-10 w-10 text-base';
   if (post.avatar && broken !== post.avatar) return <img src={post.avatar} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(post.avatar)} className={`${box} rounded-full object-cover`} />;
-  return <span aria-hidden="true" className={`flex ${box} items-center justify-center rounded-full font-bold ${isDark ? 'bg-slate-700 text-slate-100' : 'bg-slate-200 text-slate-700'}`}>{(post.name || post.handle).slice(0, 1).toUpperCase()}</span>;
+  const label = (post.name || post.handle || 'X').trim() || 'X';
+  return <span aria-hidden="true" className={`flex ${box} items-center justify-center rounded-full font-bold ${isDark ? 'bg-slate-700 text-slate-100' : 'bg-slate-200 text-slate-700'}`}>{label.slice(0, 1).toUpperCase()}</span>;
 }
 
 // X처럼 사진 1장은 크게, 2~4장은 격자로 놓는다. 동영상은 썸네일에 재생 표시만 단다.
 // compact는 인용 글 안이다. 테두리 없이 낮게 놓는다.
-function MediaGrid({ media, line, compact = false, onImageError }: { media: XMedia[]; line: string; compact?: boolean; onImageError?: (src: string) => void }) {
+function MediaGrid({ media = [], line, compact = false, onImageError }: { media?: XMedia[]; line: string; compact?: boolean; onImageError?: (src: string) => void }) {
   const [broken, setBroken] = useState<string[]>([]);
-  const items = media.filter((item) => !broken.includes(item.src)).slice(0, 4);
+  const items = (media || []).filter((item) => item?.src && !broken.includes(item.src)).slice(0, 4);
   if (!items.length) return null;
   const many = items.length > 1;
   return <div className={`overflow-hidden ${compact ? 'mt-2 rounded-xl' : `mt-3 rounded-2xl border ${line}`} ${many ? `grid aspect-[16/9] grid-cols-2 gap-0.5 ${items.length > 2 ? 'grid-rows-2' : ''}` : ''}`}>
