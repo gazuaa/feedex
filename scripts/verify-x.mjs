@@ -30,6 +30,23 @@ try {
   mediaEvents.error(null, { fatal: true }); assert.equal(destroyed, true); assert.equal(button.hidden, false); assert.equal(box.dataset.failed, '1');
   }
 
+  {
+    const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    try {
+      Object.defineProperty(globalThis, 'location', { configurable: true, value: { origin: 'https://feedex.test' } });
+      const { framedCopy } = await vite.ssrLoadModule('/src/client/mobile.ts');
+      const { X_THREAD_MARK } = await vite.ssrLoadModule('/src/shared/xThreadStyle.ts');
+      const cached = `<!doctype html><html><head>${X_THREAD_MARK}</head><body><video data-hls-src="https://video.twimg.com/vid/movie.m3u8"></video></body></html>`;
+      const wrapped = framedCopy(cached);
+      const policy = wrapped.indexOf('<meta name="referrer" content="no-referrer">');
+      assert.ok(policy >= 0 && policy < wrapped.indexOf('data-hls='), '저장된 X 사본에도 재생기를 열기 전에 내부 요청의 Referrer 정책을 적용한다.');
+      assert.doesNotMatch(cached, /name="referrer"/, '기존 저장 사본 자체는 다시 받지 않아도 된다.');
+      assert.doesNotMatch(framedCopy('<p>일반 기사</p>'), /name="referrer"/, '원문 사이트의 정책은 바꾸지 않는다.');
+    } finally {
+      if (previousLocation) Object.defineProperty(globalThis, 'location', previousLocation); else delete globalThis.location;
+    }
+  }
+
   const { xProfile } = await vite.ssrLoadModule('/src/shared/xFeed.ts');
   const { normalizeFeedUrl } = await vite.ssrLoadModule('/src/shared/feedDiscovery.ts');
   for (const input of ['@NASA', 'https://x.com/NASA?lang=en', 'twitter.com/NASA/', 'https://mobile.twitter.com/NASA']) assert.equal(xProfile(input)?.url, 'https://x.com/nasa');
