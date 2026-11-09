@@ -52,6 +52,7 @@ import { useSyncStatus } from './client/syncStatus';
 import { useAutoRefresh } from './client/autoRefresh';
 import { DEFAULT_AUTO_REFRESH_MINUTES } from './shared/preferences';
 import { isXProfileFeed, isXStatusUrl, xProfile } from './shared/xFeed';
+import type { XQuoteHint } from './client/xPostFrame';
 import { xFolderIds, parseXPost } from './client/xTimeline';
 import { rememberXAvatars } from './client/xAvatars';
 import { ReaderSync } from './client/readerSync';
@@ -148,6 +149,7 @@ export const App: React.FC = () => {
 
   // 글 목록과 리더 상태
   const [articles, setArticles] = useState<ArticleItem[]>([]);
+  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [showBlockedArticles, setShowBlockedArticles] = useState(false);
   const [xPostTarget, setXPostTarget] = useState<XPostTarget | null>(null);
   const [renameFeed, setRenameFeed] = useState<{ accountId: string; feed: SubscriptionItem } | null>(null);
@@ -156,7 +158,20 @@ export const App: React.FC = () => {
   const [blockDialog, setBlockDialog] = useState<{ accountId: string; article: ArticleItem | null } | null>(null);
   const filterAllFeeds = activeScope === 'all' && !savedOnly;
   const excludedSubscriptionCount = subscriptions.filter(feed => excludedFeedSet.has(feed.feed_id)).length;
-  const includedArticles = useMemo(() => filterAllFeeds ? articles.filter(article => !excludedFeedSet.has(article.feed_id)) : articles, [articles, filterAllFeeds, excludedFeedSet]);
+  const includedArticles = useMemo(() => {
+    const base = filterAllFeeds ? articles.filter(article => !excludedFeedSet.has(article.feed_id)) : articles;
+    if (!selectedArticleId || base.some(a => a.id === selectedArticleId)) return base;
+    const current = articleCache.current.get(selectedArticleId);
+    if (!current) return base;
+    const folderFeeds = activeFolderId ? subscriptions.filter((s) => s.folder_id === activeFolderId).map((s) => s.feed_id) : [];
+    const matches = (activeScope === 'all' || (activeScope === 'saved' ? current.is_saved : true))
+      && (!activeFeedId || current.feed_id === activeFeedId)
+      && (!activeFolderId || folderFeeds.includes(current.feed_id));
+    if (matches && (!filterAllFeeds || !excludedFeedSet.has(current.feed_id))) {
+      return [current, ...base];
+    }
+    return base;
+  }, [articles, filterAllFeeds, excludedFeedSet, selectedArticleId, activeScope, activeFolderId, activeFeedId, subscriptions]);
   const { blocked: blockedArticles, visible: unblockedArticles } = useMemo(() => {
     const blocked: ArticleItem[] = [], visible: ArticleItem[] = [];
     for (const article of includedArticles) (isBlockedArticle(article) ? blocked : visible).push(article);
@@ -187,7 +202,6 @@ export const App: React.FC = () => {
     setBackgroundSyncs((count) => count + 1);
     return task.finally(() => setBackgroundSyncs((count) => count - 1));
   }, []);
-  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
 
   // 대화상자와 모바일 사이드바
   const [discoverOpen, setDiscoverOpen] = useState(() => new URLSearchParams(window.location.search).has('x_callback'));
@@ -507,9 +521,9 @@ export const App: React.FC = () => {
   useLayoutEffect(() => {
     if (isMobile && mobileSidebarOpen) {
       unreadSessions.forEach((session) => session.clear());
-      if (retainReadRows) setArticles((prev) => prev.filter((article) => !article.is_read));
+      if (retainReadRows) setArticles((prev) => prev.filter((article) => !article.is_read || article.id === selectedArticleId));
     }
-  }, [isMobile, mobileSidebarOpen, unreadSessions, unreadSession, retainReadRows]);
+  }, [isMobile, mobileSidebarOpen, unreadSessions, unreadSession, retainReadRows, selectedArticleId]);
   // 최신순에서 화면을 잠갔다가 돌아오면 읽은 행을 빼고 맨 위부터 보여 준다. 글을 보던 중이면 돌아갈 목록 위치가
   // 달라지므로 그대로 두고, 읽은 행이 없으면 훑어보던 자리일 수 있으니 옮기지 않는다.
   afterAway.current = (away) => {
@@ -519,7 +533,7 @@ export const App: React.FC = () => {
     if (!articles.some((article) => article.is_read)) return;
     forgetListAnchor();
     list?.scrollTo({ top: 0 });
-    setArticles((rows) => rows.filter((article) => !article.is_read));
+    setArticles((rows) => rows.filter((article) => !article.is_read || article.id === selectedArticleId));
   };
 
   const fetchArticles = useCallback(async (preserveRange = false): Promise<void> => {
@@ -773,7 +787,7 @@ export const App: React.FC = () => {
   };
   const handleSelectDesktopScope = (scope: ScopeType, folderId: string | null = null, feedId: string | null = null, tab: LibraryTab = desktopLibraryTab, keepSelection = false) => {
     unreadSessions.forEach((session) => session.clear());
-    if (retainReadRows) setArticles((rows) => rows.filter((article) => !article.is_read));
+    if (retainReadRows) setArticles((rows) => rows.filter((article) => !article.is_read || article.id === selectedArticleId));
     const unread = tab === 'unread';
     setUnreadOnly(unread); setSavedOnly(tab === 'saved' && (scope === 'folder' || scope === 'feed'));
     if (unread !== unreadOnly) void savePreferences({ unreadOnly: unread });
@@ -820,7 +834,7 @@ export const App: React.FC = () => {
         );
         if (retainReadRows) return next;
         const savedView = savedOnly || activeScope === 'saved';
-        return next.filter((a) => (!savedView || a.is_saved) && (savedView || !unreadOnly || !a.is_read));
+        return next.filter((a) => (!savedView || a.is_saved) && (savedView || !unreadOnly || !a.is_read || a.id === selectedArticleId));
       });
 
       // 여러 번 빠르게 바꿔도 사용자가 누른 순서를 지킨다.
@@ -888,12 +902,23 @@ export const App: React.FC = () => {
     [handleUpdateArticleState]
   );
 
-  const handleOpenXPost = (article: ArticleItem, url: string) => {
+  const handleOpenXPost = (article: ArticleItem, url: string, hint?: XQuoteHint) => {
     if (!isXStatusUrl(url)) return;
     handleSelectArticle(article);
-    const quote = parseXPost(article).quote;
+    const parsedQuote = parseXPost(article).quote;
     const samePost = (a?: string | null, b?: string | null) => Boolean(a && b && a.replace(/#.*$/, '').replace(/^https?:\/\/[^/]+/, 'https://x.com') === b.replace(/#.*$/, '').replace(/^https?:\/\/[^/]+/, 'https://x.com'));
-    setXPostTarget({ articleId: article.id, url, quote: samePost(quote?.href, url) ? quote : null });
+    const matched = samePost(parsedQuote?.href, url) ? parsedQuote : null;
+    const text = (hint?.text && hint.text.length > (matched?.text?.length || 0)) ? hint.text : (matched?.text || hint?.text || '');
+    const quote = text
+      ? {
+          name: hint?.name || matched?.name || '',
+          handle: hint?.handle || matched?.handle || '',
+          text,
+          href: url,
+          media: matched?.media || [],
+        }
+      : matched;
+    setXPostTarget({ articleId: article.id, url, quote: quote || null });
   };
   useEffect(() => { setXPostTarget(null); }, [user?.id, activeScope, activeFeedId, activeFolderId]);
 
@@ -1598,7 +1623,7 @@ export const App: React.FC = () => {
             resources={articleResources}
             accountId={user.id}
             onClose={() => setSelectedArticleId(null)}
-            onOpenXPost={(url) => selectedArticle && handleOpenXPost(selectedArticle, url)}
+            onOpenXPost={(url, hint) => selectedArticle && handleOpenXPost(selectedArticle, url, hint)}
             onToggleRead={handleToggleRead}
             onToggleSaved={handleToggleSaved}
             onUpdateArticleFields={handleUpdateArticleFields}

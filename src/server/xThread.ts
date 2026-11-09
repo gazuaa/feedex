@@ -32,6 +32,44 @@ function feedQuoteMedia(feedHtml: string | null | undefined): string {
   return html ? `<div class="media">${html}</div>` : '';
 }
 
+// 인용 상자 안의 작성자(b)나 링크(cite)를 제외하고 글 본문과 줄바꿈만 추출한다.
+function quoteNodeText(element: Element | null): string {
+  if (!element) return '';
+  let text = '';
+  for (const node of element.childNodes) {
+    if (node.nodeType === 3) text += node.textContent || '';
+    else if (node.nodeName === 'BR') text += '\n';
+    else if (node.nodeName === 'B' || node.nodeName === 'CITE' || node.nodeName === 'IMG' || node.nodeName === 'FOOTER') { /* 제외 */ }
+    else if (node.nodeType === 1) text += quoteNodeText(node as unknown as Element);
+  }
+  return text;
+}
+
+// 공개 미러가 긴 트윗을 140자~280자에서 잘라 보냈을 때, 피드 인용문에 있던 전체 글로 보충한다.
+function feedQuoteText(feedHtml: string | null | undefined, statusUrl: string): string {
+  if (!feedHtml) return '';
+  const cut = feedHtml.search(/<hr\b/i);
+  if (cut < 0) return '';
+  const { document } = parseHTML(`<!doctype html><html><body>${feedHtml.slice(cut)}</body></html>`);
+  const quote = document.querySelector('blockquote') as unknown as Element | null;
+  if (!quote) return '';
+  const href = quote.querySelector('cite a')?.getAttribute('href') || '';
+  const match = /(?:https?:\/\/[^/]+)?\/([a-z\d_]{1,15})\/status\/(\d{1,20})/i.exec(href);
+  const targetMatch = /(?:https?:\/\/[^/]+)?\/([a-z\d_]{1,15})\/status\/(\d{1,20})/i.exec(statusUrl);
+  if (match && targetMatch && match[2] !== targetMatch[2]) return '';
+  const paragraphs = [...quote.querySelectorAll('p')].map((p) => {
+    let t = '';
+    for (const node of (p as unknown as Element).childNodes) {
+      if (node.nodeType === 3) t += node.textContent || '';
+      else if (node.nodeName === 'BR') t += '\n';
+      else if (node.nodeName === 'B' || node.nodeName === 'CITE' || node.nodeName === 'IMG' || node.nodeName === 'FOOTER') { /* 제외 */ }
+    }
+    return t.replace(/[ \t]*[\r\n]+[ \t]*/g, '\n').trim();
+  }).filter(Boolean);
+  if (paragraphs.length) return paragraphs.join('\n\n');
+  return quoteNodeText(quote).replace(/[ \t]*[\r\n]+[ \t]*/g, '\n').trim();
+}
+
 // X의 외부 링크 카드 이미지(pbs.twimg.com/card_img/...)는 일주일이 지나면 새 주소로 바뀌고 예전 주소는 404가 된다.
 // 그림이 깨졌을 때 공개 미러의 글 상세 페이지에서 현재 카드 이미지 주소를 받아와 본문과 썸네일을 갱신한다.
 async function fetchXCardImage(url: string): Promise<string | null> {
@@ -188,10 +226,22 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     const href = link(date?.getAttribute('href') || null) || statusUrl;
     const when = escape(kind === 'main' ? item.querySelector('.tweet-published')?.textContent?.trim() || date?.getAttribute('title') || '' : date?.textContent?.trim() || '');
     const replying = own(item, '.replying-to');
+    const contentNode = own(item, '.tweet-content');
+    let contentHtml = rich(contentNode);
+    if (kind === 'main') {
+      const feedQuote = feedQuoteText(feedHtml, statusUrl);
+      const textOnly = contentNode?.textContent?.trim() || '';
+      if (feedQuote && feedQuote.length > textOnly.length + 30) {
+        const paragraphs = feedQuote.split(/\n{2,}/).filter(Boolean);
+        contentHtml = paragraphs.length
+          ? paragraphs.map((p) => `<p>${escape(p).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}">${u}</a>`).replace(/\n/g, '<br>')}</p>`).join('')
+          : escape(feedQuote).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}">${u}</a>`).replace(/\n/g, '<br>');
+      }
+    }
     return `<article class="post ${kind}">${avatar ? `<img class="avatar" src="${escape(avatar)}" alt="" loading="lazy">` : '<span class="avatar"></span>'}<div class="body">`
       + `<p class="who"><b>${name}</b> <span>${user}</span> · <a href="${escape(href)}" title="${escape(date?.getAttribute('title') || '')}">${when}</a></p>`
       + (replying ? `<p class="replying">${rich(replying)}</p>` : '')
-      + `<div class="text">${rich(own(item, '.tweet-content'))}</div>${media(item, href)}${card(item)}${quote(item, kind)}${stats(item)}</div></article>`;
+      + `<div class="text">${contentHtml}</div>${media(item, href)}${card(item)}${quote(item, kind)}${stats(item)}</div></article>`;
   };
   // "이전 답글 더 보기" 같은 칸은 글이 아니므로 뺀다.
   const items = (selector: string, kind: string) => [...document.querySelectorAll(selector)].filter((item) => item.querySelector('.tweet-header')).map((item) => post(item, kind)).join('');

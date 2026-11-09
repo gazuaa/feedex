@@ -71,9 +71,18 @@ export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | unde
   if (quote) {
     const who = /^(.*?)\s*\(@([a-z\d_]{1,15})\)\s*$/i.exec(quote.querySelector('b')?.textContent?.trim() || '');
     const href = quote.querySelector('cite a')?.getAttribute('href') || '';
-    const quoteStatus = /^https?:\/\/[^/]+\/([a-z\d_]{1,15})\/status\/(\d{1,20})/i.exec(href);
+    const quoteStatus = /(?:https?:\/\/[^/]+)?\/([a-z\d_]{1,15})\/status\/(\d{1,20})/i.exec(href);
     const quoteUrl = quoteStatus ? `https://x.com/${quoteStatus[1]}/status/${quoteStatus[2]}` : /^https:\/\//.test(href) ? href : article.url;
-    post.quote = { name: who?.[1] || who?.[2] || '', handle: who?.[2] || statusUser(quoteUrl) || '', text: [...quote.querySelectorAll('p')].map(textOf).filter(Boolean).join('\n\n') || '', href: quoteUrl, media: mediaOf(quote) };
+    const copy = quote.cloneNode(true) as Element;
+    copy.querySelector('b')?.remove();
+    copy.querySelector('cite')?.remove();
+    copy.querySelector('footer')?.remove();
+    copy.querySelectorAll('img').forEach((img) => img.remove());
+    copy.querySelectorAll('br').forEach((br) => br.replaceWith('\u2028'));
+    const allP = [...quote.querySelectorAll('p')].map(textOf).filter(Boolean).join('\n\n');
+    const directText = (copy.textContent || '').replace(/[ \t]*[\r\n]+[ \t]*/g, '\n').replace(/[ \t]*\u2028[ \t]*/g, '\n').trim();
+    const quoteText = allP || directText;
+    post.quote = { name: who?.[1] || who?.[2] || '', handle: who?.[2] || statusUser(quoteUrl) || '', text: quoteText, href: quoteUrl, media: mediaOf(quote) };
   } else if (extra) {
     const link = extra.querySelector('a[href]');
     const href = link?.getAttribute('href') || '';

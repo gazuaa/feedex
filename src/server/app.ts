@@ -1326,11 +1326,11 @@ app.get('/api/articles/:id/embeddable', async (c) => {
 app.get('/api/articles/:id/x-post', async (c) => {
   const url = c.req.query('url') || '';
   if (!xStatusUrl(url)) return c.json({ error: 'X 글 주소를 확인해 주세요.' }, 400);
-  const source = await c.env.DB.prepare('SELECT a.url FROM articles a WHERE a.id=? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=a.feed_id AND s.user_id=?)')
-    .bind(c.req.param('id'), c.get('user').id).first<{ url: string }>();
+  const source = await c.env.DB.prepare('SELECT a.url, a.content_html FROM articles a WHERE a.id=? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=a.feed_id AND s.user_id=?)')
+    .bind(c.req.param('id'), c.get('user').id).first<{ url: string; content_html: string | null }>();
   if (!source || !xStatusUrl(source.url)) return c.json({ error: 'X 글을 찾을 수 없습니다.' }, 404);
   c.header('Cache-Control', 'no-store');
-  try { return c.json(await fetchXThread(url)); }
+  try { return c.json(await fetchXThread(url, source.content_html)); }
   catch { return c.json({ error: 'X 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' }, 502); }
 });
 

@@ -13,7 +13,7 @@ export function xFrameTools(html: string): string {
   if (!html.includes(X_THREAD_MARK)) return yt;
   const asset = (path: string) => escape(new URL(path, location.origin).href);
   // srcdoc 프레임은 바깥 iframe의 referrerPolicy만으로 내부 영상 요청의 Referer를 없애지 못한다.
-  return `<meta name="referrer" content="no-referrer"><script nonce="sfeed-scroll">addEventListener('error',e=>{if(e.target?.tagName==='IMG')e.target.style.display='none'},true);addEventListener('click',e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;const p=e.target.closest('a.photo:not(.video)');if(p){e.preventDefault();const box=p.closest('.media,.quote,article')||document,all=[...box.querySelectorAll('a.photo:not(.video)')],urls=all.map(x=>x.href||x.querySelector('img')?.src||'').filter(Boolean);if(urls.length)parent.postMessage({sfeedXPhotos:{urls,index:Math.max(0,all.indexOf(p))}},'*');return}const a=e.target.closest('a[href]');if(!a||a.hasAttribute('data-x-external'))return;const u=a.href;if(/^https:\\/\\/x\\.com\\/[a-z\\d_]{1,15}\\/status\\/\\d{1,20}$/i.test(u)){e.preventDefault();parent.postMessage({sfeedXPost:u},'*')}})</script>`
+  return `<meta name="referrer" content="no-referrer"><script nonce="sfeed-scroll">addEventListener('error',e=>{if(e.target?.tagName==='IMG')e.target.style.display='none'},true);addEventListener('click',e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;const p=e.target.closest('a.photo:not(.video)');if(p){e.preventDefault();const box=p.closest('.media,.quote,article')||document,all=[...box.querySelectorAll('a.photo:not(.video)')],urls=all.map(x=>x.href||x.querySelector('img')?.src||'').filter(Boolean);if(urls.length)parent.postMessage({sfeedXPhotos:{urls,index:Math.max(0,all.indexOf(p))}},'*');return}const a=e.target.closest('a[href]');if(!a||a.hasAttribute('data-x-external'))return;const u=a.href;if(/^https:\\/\\/x\\.com\\/[a-z\\d_]{1,15}\\/status\\/\\d{1,20}$/i.test(u)){e.preventDefault();const q=a.closest('.quote');let t='',n='',h='';if(q){const c=q.querySelector('.text')?.cloneNode(true);if(c){c.querySelectorAll('br').forEach(b=>b.replaceWith('\u2028'));t=(c.textContent||'').replace(/[ \\t]*[\\r\\n]+[ \\t]*/g,'\\n').replace(/[ \\t]*\u2028[ \\t]*/g,'\\n').trim()}n=q.querySelector('.who b')?.textContent?.trim()||'';h=q.querySelector('.who span')?.textContent?.trim()||''}parent.postMessage({sfeedXPost:u,quoteText:t,quoteName:n,quoteHandle:h},'*')}})</script>`
     + (html.includes('data-hls-src=') ? `<script nonce="sfeed-scroll" defer src="${asset(playerUrl)}" data-hls="${asset(hlsUrl)}"></script>` : '')
     + yt;
 }
@@ -176,7 +176,13 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   return close;
 }
 
-export function useXPostFrame(frame: RefObject<HTMLIFrameElement | null>, onOpen?: (url: string) => void, resetKey = '') {
+export interface XQuoteHint {
+  text: string;
+  name?: string;
+  handle?: string;
+}
+
+export function useXPostFrame(frame: RefObject<HTMLIFrameElement | null>, onOpen?: (url: string, hint?: XQuoteHint) => void, resetKey = '') {
   const open = useRef(onOpen); open.current = onOpen;
   useEffect(() => {
     let closePhoto: (() => void) | undefined;
@@ -188,7 +194,12 @@ export function useXPostFrame(frame: RefObject<HTMLIFrameElement | null>, onOpen
         return;
       }
       const url = event.data?.sfeedXPost;
-      if (typeof url === 'string' && isXStatusUrl(url)) open.current?.(url);
+      if (typeof url === 'string' && isXStatusUrl(url)) {
+        const text = typeof event.data?.quoteText === 'string' ? event.data.quoteText : '';
+        const name = typeof event.data?.quoteName === 'string' ? event.data.quoteName : '';
+        const handle = typeof event.data?.quoteHandle === 'string' ? event.data.quoteHandle.replace(/^@/, '') : '';
+        open.current?.(url, text ? { text, name, handle } : undefined);
+      }
     };
     window.addEventListener('message', message);
     return () => { window.removeEventListener('message', message); closePhoto?.(); };

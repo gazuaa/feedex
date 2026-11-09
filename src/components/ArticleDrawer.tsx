@@ -46,7 +46,7 @@ import { publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
 import { xThreadPreview } from '../client/xThreadPreview';
 import { retryChallenged } from '../client/publicWebCopy';
-import { useXPostFrame, useYouTubeCopyFrame } from '../client/xPostFrame';
+import { useXPostFrame, useYouTubeCopyFrame, type XQuoteHint } from '../client/xPostFrame';
 import { youtubeEmbedSrc } from '../shared/youtubeEmbed';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 import { shownThumbnail } from '../client/thumbnails';
@@ -95,7 +95,7 @@ function loadWebZoom(account: string, feed: string): number {
 }
 
 // 본문을 HTML로 넣으므로, 바뀔 때마다 그 자리에서 이미지를 보정한다.
-function ArticleBody({ html, base, title, className, style, onOpenXPost }: { html: string; base: string; title?: string; className: string; style: React.CSSProperties; onOpenXPost?: (url: string) => void }) {
+function ArticleBody({ html, base, title, className, style, onOpenXPost }: { html: string; base: string; title?: string; className: string; style: React.CSSProperties; onOpenXPost?: (url: string, hint?: XQuoteHint) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (!ref.current) return;
@@ -106,7 +106,20 @@ function ArticleBody({ html, base, title, className, style, onOpenXPost }: { htm
   }, [html, base, title]);
   return <div ref={ref} style={style} className={className} onClick={(event) => {
     const link = (event.target as Element).closest('a[href]') as HTMLAnchorElement | null;
-    if (onOpenXPost && link && isXStatusUrl(link.href) && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); onOpenXPost(link.href); }
+    if (onOpenXPost && link && isXStatusUrl(link.href) && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      event.preventDefault();
+      const q = link.closest('.quote, blockquote');
+      let text = '';
+      if (q) {
+        const c = q.cloneNode(true) as Element;
+        c.querySelector('b')?.remove();
+        c.querySelector('cite')?.remove();
+        c.querySelectorAll('img').forEach((i) => i.remove());
+        c.querySelectorAll('br').forEach((b) => b.replaceWith('\u2028'));
+        text = (c.textContent || '').replace(/[ \t]*[\r\n]+[ \t]*/g, '\n').replace(/[ \t]*\u2028[ \t]*/g, '\n').trim();
+      }
+      onOpenXPost(link.href, text ? { text } : undefined);
+    }
   }} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
@@ -151,7 +164,7 @@ interface ArticleDrawerProps {
   resources?: ArticleResources | null;
   article: ArticleItem | null;
   onClose: () => void;
-  onOpenXPost?: (url: string) => void;
+  onOpenXPost?: (url: string, hint?: XQuoteHint) => void;
   onToggleRead: (article: ArticleItem) => void;
   onToggleSaved: (article: ArticleItem) => void;
   onUpdateArticleFields: (
