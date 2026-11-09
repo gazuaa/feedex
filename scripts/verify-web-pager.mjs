@@ -34,7 +34,21 @@ try {
     const s = setup(); s.message(1); s.edge(); s.tick(2000); s.render();
     assert.equal(s.backs(), 0, '사본 안에서 손가락을 누르고 멈춰도 리더를 지우지 않는다');
     s.message(0); s.tick(200); s.render(); assert.equal(s.backs(), 1);
-    assert.equal(s.document.querySelector('.feedex-feed-list').style.transform || '', '', '돌아오기 전에 목록의 변형을 정리한다'); s.cleanup();
+    assert.equal(s.document.querySelector('.feedex-feed-list').style.transform || '', '', '돌아오기 전에 목록의 변형을 정리한다');
+    assert.equal(s.document.querySelector('.feedex-article-reader').style.transform, 'translate3d(393px, 0, 0)', '닫히는 리더는 언마운트될 때까지 화면 밖에 두어 다시 번쩍 나타나지 않게 한다');
+    s.cleanup();
+  }
+  {
+    // 스냅 자식에는 변형을 걸지 않고, 화면 중간에서 멈춘 끌기도 끝까지 닫거나 제자리로 되돌린다.
+    const s = setup(); s.pager.scrollLeft = 221; s.pager.dispatchEvent(new s.window.Event('scroll'));
+    assert.equal(s.pager.lastElementChild.style.transform || '', '', '스냅 자식에는 변형을 걸지 않아 스냅 위치가 깨지지 않는다');
+    assert.equal(s.pager.style.transform, 'translate3d(-172px, 0, 0)', '페이저 자체를 반대로 옮겨 화면 자리에 고정한다');
+    s.tick(150); assert.equal(s.backs(), 0);
+    s.tick(230); assert.equal(s.backs(), 1, '화면의 40% 이상 밀다 중간에 멈추면 끝까지 미끄러져 닫는다'); s.cleanup();
+    const r = setup(); r.pager.scrollLeft = 330; r.pager.dispatchEvent(new r.window.Event('scroll'));
+    r.tick(150); assert.equal(r.document.querySelector('.feedex-article-reader').style.transform, 'translate3d(0px, 0, 0)');
+    r.tick(230); assert.equal(r.backs(), 0, '조금만 밀다 멈추면 닫지 않고 제자리로 돌아간다');
+    assert.equal(r.pager.scrollLeft, 393); assert.equal(r.document.querySelector('.feedex-article-reader').style.transform || '', ''); r.cleanup();
   }
   {
     const s = setup(); s.touch('touchstart', 1); s.edge(); s.tick(2000); s.render(); assert.equal(s.backs(), 0);

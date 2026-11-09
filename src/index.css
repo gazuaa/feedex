@@ -17,15 +17,23 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .feedex-feed-list { padding-bottom: env(safe-area-inset-bottom); }
 /* 목록의 글은 선택 동작을 막고, 별도 본문 영역에서는 텍스트 선택을 유지한다. */
 .feedex-feed-list [data-article-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition-property: opacity, color; }
-/* 선택 표시는 피드 종류와 보기 방식에 관계없이 하나만 쓴다. 기본 포커스 테두리는 겹치지 않는다. */
+/* 선택 표시는 목록과 본문을 함께 보는 화면에서만 그린다. 휴대폰에서는 뒤로 돌아올 때 선택이 풀리며 깜빡이지 않게 한다. */
 .feedex-feed-list [data-article-id]:focus { outline: none; }
-.feedex-feed-list [data-article-id][data-article-selected="true"], .feedex-feed-list [data-article-id]:focus-visible { outline: 1px solid #10b981; outline-offset: -1px; border-color: #10b981; background: #ecfdf5; }
-html.dark .feedex-feed-list [data-article-selected="true"], html.dark .feedex-feed-list [data-article-id]:focus-visible { background: #10b98114; }
-/* 매거진 목록과 X 줄은 구분선으로 나뉜 줄이다. 선택한 글은 테두리 대신 왼쪽 강조선으로 표시하고 구분선 색은 그대로 둔다. */
-.feedex-feed-list .feedex-magazine-row[data-article-selected="true"], .feedex-feed-list .feedex-magazine-row:focus-visible,
-.feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-variant="timeline"]):is([data-article-selected="true"], :focus-visible) { outline: none; border-color: #e2e8f0; box-shadow: inset 3px 0 0 #10b981; }
-html.dark .feedex-feed-list .feedex-magazine-row:is([data-article-selected="true"], :focus-visible),
-html.dark .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-variant="timeline"]):is([data-article-selected="true"], :focus-visible) { border-color: #1e293b; }
+.feedex-feed-list [data-article-id]:focus-visible { outline: 1px solid #10b981; outline-offset: -1px; border-color: #10b981; background: #ecfdf5; }
+html.dark .feedex-feed-list [data-article-id]:focus-visible { background: #10b98114; }
+.feedex-feed-list .feedex-magazine-row:focus-visible,
+.feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-variant="timeline"]):focus-visible { outline: none; border-color: #e2e8f0; box-shadow: inset 3px 0 0 #10b981; }
+html.dark .feedex-feed-list .feedex-magazine-row:focus-visible,
+html.dark .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-variant="timeline"]):focus-visible { border-color: #1e293b; }
+@media (min-width: 1024px) {
+  .feedex-feed-list [data-article-id][data-article-selected="true"] { outline: 1px solid #10b981; outline-offset: -1px; border-color: #10b981; background: #ecfdf5; }
+  html.dark .feedex-feed-list [data-article-selected="true"] { background: #10b98114; }
+  /* 매거진 목록과 X 줄은 구분선으로 나뉜 줄이다. 선택한 글은 테두리 대신 왼쪽 강조선으로 표시하고 구분선 색은 그대로 둔다. */
+  .feedex-feed-list .feedex-magazine-row[data-article-selected="true"],
+  .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-variant="timeline"])[data-article-selected="true"] { outline: none; border-color: #e2e8f0; box-shadow: inset 3px 0 0 #10b981; }
+  html.dark .feedex-feed-list .feedex-magazine-row[data-article-selected="true"],
+  html.dark .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-variant="timeline"])[data-article-selected="true"] { border-color: #1e293b; }
+}
 /* 오래 누르면 메뉴가 손가락 바로 아래에 뜬다. 메뉴 글자를 고를 수 있으면 iOS가 이어서 글자를 선택해 메뉴를 가린다. */
 .feedex-context-menu { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .feedex-block-setting { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 34px; font-size: 13px; cursor: pointer; text-align: left; }

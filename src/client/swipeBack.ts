@@ -5,9 +5,9 @@ export function isBackSwipe(start: Point, end: Point) {
 }
 
 /** 느리게 천천히 끌어도 화면의 이 비율만큼 움직이면 뒤로 간다. */
-const COMMIT_SHARE = 0.4;
+export const COMMIT_SHARE = 0.4;
 const PARALLAX = 0.3;
-const DURATION = 220;
+export const DURATION = 220;
 const EASING = 'cubic-bezier(.2, .8, .2, 1)';
 
 export interface SwipeNavigation {
@@ -25,7 +25,7 @@ function readerScene(document: Document): SwipeScene | null {
   const view = document.defaultView;
   if (!view || view.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return null;
   const reader = document.querySelector<HTMLElement>('.feedex-article-reader');
-  if (!reader || view.getComputedStyle(reader).position !== 'fixed' || !reader.querySelector('.feedex-reader')) return null;
+  if (!reader || view.getComputedStyle(reader).position !== 'fixed' || !reader.querySelector('.feedex-reader, .feedex-linked-post-header')) return null;
   const under = [document.querySelector<HTMLElement>('.feedex-workspace-header'), document.querySelector<HTMLElement>('.feedex-feed-list')];
   return { top: [reader], under: under.filter((node): node is HTMLElement => Boolean(node)), revealLibrary: false };
 }
@@ -60,13 +60,18 @@ function present(document: Document, scene: SwipeScene) {
     }
     for (const node of scene.under) node.style.transform = `translate3d(${-(1 - progress) * PARALLAX * width}px, 0, 0)`;
   };
-  const clear = () => {
-    for (const node of [...scene.top, ...scene.under]) {
+  const clearNodes = (nodes: HTMLElement[]) => {
+    for (const node of nodes) {
       for (const property of ['transform', 'transition', 'will-change', 'box-shadow', 'z-index']) node.style.removeProperty(property);
     }
+  };
+  // 돌아온 아래 화면은 정위치(0px)에 도착한 즉시 변형을 풀고, 떠나는 위 화면은 언마운트될 때까지 화면 밖에 유지한다.
+  const clearUnder = () => clearNodes(scene.under);
+  const clear = () => {
+    clearNodes([...scene.top, ...scene.under]);
     delete root.dataset.sfeedSwipe;
   };
-  return { width, place, clear };
+  return { width, place, clearUnder, clear };
 }
 
 /**
@@ -107,6 +112,7 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
     settling = true;
     current.place(current.width, true);
     view.setTimeout(() => {
+      current.clearUnder();
       let done = false;
       const finish = () => {
         if (done) return;
