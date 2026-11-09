@@ -235,13 +235,23 @@ export const App: React.FC = () => {
 
   // 맥 앱·탭·홈 화면 앱에서 새 배포를 정기적으로 확인하고 자동 반영한다(appVersion.ts).
   // 바꾸기 직전에 지금 보던 목록과 글, 스크롤 위치를 남긴다.
-  const resumeSource = useRef({ account: '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId });
-  resumeSource.current = { account: user?.id ?? '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, articleId: selectedArticleId };
-  // 지금 보던 목록과 글, 스크롤 위치를 이 탭에 남긴다. 새 배포로 바꿀 때와 원문을 읽으러 이 창을 떠날 때 쓴다.
+  const resumeSource = useRef({ account: '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, unread: unreadOnly, articleId: selectedArticleId });
+  resumeSource.current = { account: user?.id ?? '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, unread: unreadOnly, articleId: selectedArticleId };
+  // 지금 보던 목록과 글, 스크롤 위치를 이 탭에 남긴다. 새 배포로 바꿀 때, 새로고침할 때와 원문을 읽으러 이 창을 떠날 때 쓴다.
   const saveResumePoint = useCallback((original = false) => {
     const source = resumeSource.current; if (!source.account) return;
     keepResumePoint({ ...source, at: Date.now(), listScroll: articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.feedex-reader-content')?.scrollTop ?? 0, ...(original ? { original: true } : {}) });
   }, []);
+  // 새로고침이나 탭 이동 시 현재 보고 있는 글과 스크롤 위치를 남겨 즉시 복원한다.
+  useEffect(() => {
+    const onLeave = () => saveResumePoint();
+    window.addEventListener('beforeunload', onLeave);
+    window.addEventListener('pagehide', onLeave);
+    return () => {
+      window.removeEventListener('beforeunload', onLeave);
+      window.removeEventListener('pagehide', onLeave);
+    };
+  }, [saveResumePoint]);
   useEffect(() => watchAppVersion({
     canSwap: () => {
       const focused = document.activeElement;
@@ -310,7 +320,15 @@ export const App: React.FC = () => {
     const point = takeResumePoint(user.id); if (!point) return;
     if (!isMobile) {
       setActiveScope(point.scope); setActiveFolderId(point.folderId); setActiveFeedId(point.feedId);
-      setSearchQuery(point.search); setSavedOnly(point.saved); setSelectedArticleId(point.articleId);
+      setSearchQuery(point.search); setSavedOnly(point.saved);
+      if (typeof point.unread === 'boolean') {
+        setUnreadOnly(point.unread);
+        setDesktopLibraryTab(point.saved ? 'saved' : point.unread ? 'unread' : 'all');
+      }
+      setSelectedArticleId(point.articleId);
+    } else if (point.articleId) {
+      setSelectedArticleId(point.articleId);
+      setMobileSidebarOpen(false);
     }
     setResumePlace({ articleId: point.articleId, list: isMobile ? 0 : point.listScroll, reader: point.articleId ? point.readerScroll : 0 });
   }, [user?.id, authChecking]);
@@ -734,7 +752,8 @@ export const App: React.FC = () => {
   const handleSelectScope = (
     scope: ScopeType,
     folderId: string | null = null,
-    feedId: string | null = null
+    feedId: string | null = null,
+    keepSelection = false
   ) => {
     // 목록을 고르면 같은 목록이라도 맨 위부터 보여 준다. 그사이 읽은 글이 빠져 예전 위치는 다른 글을 가리킨다.
     pendingScroll.current = null;
@@ -743,29 +762,30 @@ export const App: React.FC = () => {
     setActiveScope(scope);
     setActiveFolderId(folderId);
     setActiveFeedId(feedId);
-    setSelectedArticleId(null);
+    if (!keepSelection) setSelectedArticleId(null);
   };
 
-  const handleSelectLibraryTab = (tab: 'all' | 'unread' | 'saved') => {
+  const handleSelectLibraryTab = (tab: 'all' | 'unread' | 'saved', keepSelection = false) => {
     const unread = tab === 'unread';
     setUnreadOnly(unread);
     savePreferences({ unreadOnly: unread });
-    handleSelectScope(tab === 'saved' ? 'saved' : 'all');
+    handleSelectScope(tab === 'saved' ? 'saved' : 'all', null, null, keepSelection);
   };
-  const handleSelectDesktopScope = (scope: ScopeType, folderId: string | null = null, feedId: string | null = null, tab: LibraryTab = desktopLibraryTab) => {
+  const handleSelectDesktopScope = (scope: ScopeType, folderId: string | null = null, feedId: string | null = null, tab: LibraryTab = desktopLibraryTab, keepSelection = false) => {
     unreadSessions.forEach((session) => session.clear());
     if (retainReadRows) setArticles((rows) => rows.filter((article) => !article.is_read));
     const unread = tab === 'unread';
     setUnreadOnly(unread); setSavedOnly(tab === 'saved' && (scope === 'folder' || scope === 'feed'));
     if (unread !== unreadOnly) void savePreferences({ unreadOnly: unread });
     // 검색어는 지우기 전까지 남아서, 다음에 고른 목록도 좁혀 보여 준다.
-    handleSelectScope(scope === 'all' && tab === 'saved' ? 'saved' : scope, folderId, feedId);
+    handleSelectScope(scope === 'all' && tab === 'saved' ? 'saved' : scope, folderId, feedId, keepSelection);
   };
   // 사이드바 위 탭(전체·안 읽음·저장)은 고른 폴더·피드를 그대로 두고, 그 목록을 새 탭으로 거른다.
+  // 아티클을 선택해서 읽는 중일 때 탭을 바꿔도 선택이 풀리지 않는다.
   const handleSelectDesktopTab = (tab: LibraryTab) => {
     if (tab === desktopLibraryTab) return;
     setDesktopLibraryTab(tab);
-    handleSelectDesktopScope(activeScope === 'saved' ? 'all' : activeScope, activeFolderId, activeFeedId, tab);
+    handleSelectDesktopScope(activeScope === 'saved' ? 'all' : activeScope, activeFolderId, activeFeedId, tab, true);
   };
 
   const handleUpdateArticleState = useCallback(
@@ -1313,6 +1333,25 @@ export const App: React.FC = () => {
         return;
       }
 
+      // 전체 | 안 읽음 | 저장 탭 전환 단축키 (Cmd+1 / Cmd+2 / Cmd+3, Windows/Linux는 Ctrl+1 / Ctrl+2 / Ctrl+3)
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+        if (e.key === '1' || e.code === 'Digit1') {
+          e.preventDefault();
+          handleSelectDesktopTab('all');
+          return;
+        }
+        if (e.key === '2' || e.code === 'Digit2') {
+          e.preventDefault();
+          handleSelectDesktopTab('unread');
+          return;
+        }
+        if (e.key === '3' || e.code === 'Digit3') {
+          e.preventDefault();
+          handleSelectDesktopTab('saved');
+          return;
+        }
+      }
+
       // 한글 자판에서도 글자 단축키는 키 자리를 따른다.
       const key = shortcutKey(e);
       if (key === 'Escape') {
@@ -1363,6 +1402,7 @@ export const App: React.FC = () => {
     handleToggleSaved,
     handleRefreshFeeds,
     handleCopyLink,
+    handleSelectDesktopTab,
   ]);
 
   const headerInfo = useMemo(() => {
@@ -1428,7 +1468,7 @@ export const App: React.FC = () => {
   const isDark = theme === 'dark';
   const mobileTab: LibraryTab = activeScope === 'saved' || savedOnly ? 'saved' : unreadOnly ? 'unread' : 'all';
   const openMobileDiscover = (tab: 'curated' | 'opml' = 'curated') => { setDiscoverTab(tab); setDiscoverOpen(true); };
-  const selectMobileTab = (tab: LibraryTab) => { setSavedOnly(false); handleSelectLibraryTab(tab); setMobileSidebarOpen(false); };
+  const selectMobileTab = (tab: LibraryTab) => { setSavedOnly(false); handleSelectLibraryTab(tab, true); setMobileSidebarOpen(false); };
   // 하단 탭은 다른 목록을 여는 대신 화면에 보이는 것을 거른다. 보관함에서는 피드마다
   // 보여 줄 개수를 바꾸고, 폴더나 피드 안에서는 그 목록을 거른다.
   const applyMobileFilter = (tab: LibraryTab) => {
@@ -1439,7 +1479,6 @@ export const App: React.FC = () => {
       setUnreadOnly(unread);
       savePreferences({ unreadOnly: unread });
     }
-    setSelectedArticleId(null);
   };
   const filterMobileList = (tab: LibraryTab) => {
     if (activeScope === 'folder' || activeScope === 'feed') applyMobileFilter(tab);
