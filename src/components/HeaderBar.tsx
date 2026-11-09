@@ -17,6 +17,7 @@ interface HeaderBarProps extends DesktopSettingsProps {
   onToggleSort: () => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  onCommitSearch?: (q?: string) => void;
   layout: LayoutMode;
   onChangeLayout: (layout: LayoutMode) => void;
   theme: ThemeMode;
@@ -36,6 +37,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onManageArticleBlocks,
   searchQuery,
   onSearchChange,
+  onCommitSearch,
   layout,
   onChangeLayout,
   theme,
@@ -85,7 +87,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="키워드 검색 (제목, 요약, 피드)..."
+              onKeyDown={(e) => { if (e.key === 'Enter') onCommitSearch?.(searchQuery); }}
+              placeholder="키워드 검색 (제목, 요약, 피드, 작성자)..."
               className={`w-full pl-9 pr-7 py-1.5 rounded-xl text-xs border transition focus:outline-none focus:border-emerald-500 ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500'
@@ -96,7 +99,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               <button
                 type="button"
                 aria-label="검색어 지우기"
-                onClick={() => onSearchChange('')}
+                onClick={() => { onSearchChange(''); onCommitSearch?.(''); }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />

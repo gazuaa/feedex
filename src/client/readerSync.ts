@@ -48,11 +48,15 @@ export class ReaderSync {
   // 읽은 글이 빠져 차단·제외된 글만 남은 불완전한 캐시 조각은 서버의 첫 페이지로 다시 채운다.
   private usable(cached: ArticlePage | undefined, query: URLSearchParams): cached is ArticlePage {
     if (!cached || cached.needsRefresh || !cached.syncEpoch || cached.syncEpoch !== this.cache.epoch) return false;
+    // 검색 쿼리에서 글이 0개인 캐시는 빈 화면으로 굳어지지 않도록 서버에서 다시 확인한다.
+    if (query.get('search')?.trim() && !cached.articles.length) return false;
     const limit = Math.min(200, Number(query.get('limit') || 80));
     return !(cached.hasMore && cached.articles.length < limit && !hasVisibleArticles(cached.articles, query, this.cache.account));
   }
   /** 이미 메모리에 있는 최신 목록. 그 밖의 것은 page()를 거친다. */
   ready(query: URLSearchParams): ArticlePage | undefined {
+    // 검색어가 있으면 사용자가 실시간으로 찾는 중이므로 ready로 캐시를 즉시 확정해 서버 조회를 생략하지 않는다.
+    if (query.get('search')?.trim()) return undefined;
     const cached = this.cache.peek<ArticlePage>(articlePageKey(query));
     return this.usable(cached, query) ? cached : undefined;
   }

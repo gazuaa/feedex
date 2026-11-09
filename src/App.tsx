@@ -129,8 +129,11 @@ export const App: React.FC = () => {
   const [articleSort, setArticleSort] = useState<'newest' | 'oldest'>('newest');
   useEffect(() => {
     if (!searchQuery) { setCommittedSearch(''); return; }
-    const timer = setTimeout(() => setCommittedSearch(searchQuery), 200);
+    const timer = setTimeout(() => setCommittedSearch(searchQuery), 150);
     return () => clearTimeout(timer);
+  }, [searchQuery]);
+  const commitSearch = useCallback((value?: string) => {
+    setCommittedSearch(typeof value === 'string' ? value.trim() : searchQuery.trim());
   }, [searchQuery]);
 
   // 사용자 설정
@@ -517,8 +520,9 @@ export const App: React.FC = () => {
     const qs = buildArticleQuery();
     articleQueryRef.current = qs.toString();
     const ready = readerSync.ready(qs);
-    // 같은 목록에서 탭만 바꿨으면 이미 받은 글로 새 탭을 먼저 그린다. 맞는 글이 하나도 없을 때만 기다리는 화면을 보인다.
-    const draft = !ready && sameListOtherTab(displayedArticleQuery.current, qs) ? filteredPage(qs, articleCache.current.values()) : [];
+    const isSearching = Boolean(qs.get('search')?.trim());
+    // 같은 목록에서 탭만 바꿨으면 이미 받은 글로 새 탭을 먼저 그린다. 검색 중에는 이전 캐시 초안을 그리지 않는다.
+    const draft = !isSearching && !ready && sameListOtherTab(displayedArticleQuery.current, qs) ? filteredPage(qs, articleCache.current.values()) : [];
     if (draft.length) {
       displayedArticleQuery.current = qs.toString();
       setArticles(retainReadRows ? unreadSession.merge(draft, articleSort) : draft);
@@ -541,7 +545,7 @@ export const App: React.FC = () => {
             : keptTail
               ? [...res.articles, ...previous.filter(article => !seen.has(article.id)).map(article => articleCache.current.get(article.id) ?? article).filter(article => matchesPage(qs, article))]
               : res.articles;
-          return retainReadRows ? unreadSession.merge(base, articleSort) : base;
+          return retainReadRows && !isSearching ? unreadSession.merge(base, articleSort) : base;
         });
         setHasMoreArticles(previous => Boolean(res.hasMore) && (!(keepRange || keptTail) || previous));
       }
@@ -1522,7 +1526,7 @@ export const App: React.FC = () => {
         }
         header={
           <>
-          <div className="lg:hidden"><MobileHeader hidden={chromeHidden} title={headerInfo.title.replace(/\s*\([^)]*\)/g, '')} search={searchQuery} onSearch={setSearchQuery} onBack={() => setMobileSidebarOpen(true)} onAdd={() => openMobileDiscover()} {...mobileSettings} /></div>
+          <div className="lg:hidden"><MobileHeader hidden={chromeHidden} title={headerInfo.title.replace(/\s*\([^)]*\)/g, '')} search={searchQuery} onSearch={setSearchQuery} onCommitSearch={commitSearch} onBack={() => setMobileSidebarOpen(true)} onAdd={() => openMobileDiscover()} {...mobileSettings} /></div>
           <div className="hidden lg:block"><HeaderBar
             sort={articleSort}
             onToggleSort={() => setArticleSort((sort) => sort === 'newest' ? 'oldest' : 'newest')}
@@ -1530,6 +1534,7 @@ export const App: React.FC = () => {
             onManageArticleBlocks={onManageArticleBlocks}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
+            onCommitSearch={commitSearch}
             layout={layout}
             onChangeLayout={handleChangeLayout}
             theme={theme}

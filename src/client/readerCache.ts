@@ -165,6 +165,8 @@ export class ReaderCache {
     const snapshot: Snapshot = { account: this.account, key, data, savedAt: this.now(), size };
     this.entries.delete(key); this.entries.set(key, snapshot);
     this.trim();
+    // 검색 결과는 임시 질의이므로 디스크 스냅샷에 영구 저장하지 않는다.
+    if (key.includes('search=')) return;
     // 로그아웃 전에 받은 쓰기는 끝까지 마쳐야 한다. 닫힌 인스턴스는 새 저장을 거부한다.
     void this.queue(() => this.storage.write(snapshot));
   }
@@ -214,7 +216,9 @@ export class ReaderCache {
       this.put('bootstrap', next); return next;
     }
     const keys = new Set([...this.entries.keys(), ...await this.storage.keys?.(this.account).catch(() => []) ?? []]);
-    const pages = await Promise.all([...keys].filter((key) => key.startsWith('articles?')).map(async (key) => [key, await this.get<ArticlePage>(key)] as const));
+    // 검색 결과 페이지는 백그라운드 동기화 대상이 아니므로 메모리에서 정리한다.
+    for (const key of keys) if (key.includes('search=')) this.entries.delete(key);
+    const pages = await Promise.all([...keys].filter((key) => key.startsWith('articles?') && !key.includes('search=')).map(async (key) => [key, await this.get<ArticlePage>(key)] as const));
     if (!current() || !this.active || revision !== this.revision) return;
     const old = new Map(bootstrap.subscriptions.map((sub) => [sub.feed_id, sub]));
     const counts = new Map(delta.subscriptionCounts.map((sub) => [sub.feed_id, sub]));

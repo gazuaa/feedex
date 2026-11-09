@@ -24,7 +24,7 @@ export function matchesPage(query: URLSearchParams, article: ArticleItem, now = 
   if (scope === 'today' && age > 86400_000) return false;
   if (!saved && query.get('unreadOnly') === 'true' && (article.is_read || age > 30 * 86400_000)) return false;
   const search = query.get('search')?.trim().toLocaleLowerCase();
-  return !search || [article.title, article.summary, article.feed_title].some((value) => value?.toLocaleLowerCase().includes(search));
+  return !search || [article.title, article.summary, article.feed_title, article.author].some((value) => value?.toLocaleLowerCase().includes(search));
 }
 const order = (a: ArticleItem, b: ArticleItem) => b.published_at.localeCompare(a.published_at) || b.id.localeCompare(a.id);
 // 같은 목록에서 탭(전체·안 읽음·저장)만 바꿀 때, 이미 받은 글로 새 탭의 목록을 먼저 그린다. 서버 답이 오면 그것으로 바꾼다.
