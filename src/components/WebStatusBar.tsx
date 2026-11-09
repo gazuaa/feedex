@@ -29,7 +29,8 @@ export function WebStatusBar({ url, isDark, hidden, canLogin, busy = false, noti
   const original = canLogin ? originalArticleUrl(url) : null;
   // 글자가 작아서 밝은 배경에서는 한 단계 진한 색을 쓴다.
   const accent = isDark ? 'text-emerald-400' : 'text-emerald-600';
-  return <div className={`feedex-web-status @container shrink-0 border-b text-[11px] ${hidden ? 'hidden' : ''} ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
+  // 휴대폰에서는 접혀도 막대를 지우지 않고 사이트 위로 올려 보내, 사이트가 자리를 지키게 한다(index.css).
+  return <div data-scroll-hidden={hidden || undefined} inert={hidden || undefined} className={`feedex-web-status @container shrink-0 border-b text-[11px] ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
     <div className="flex min-h-[33px] items-center gap-3 px-4">
       {busy && <Loader2 className="w-3 h-3 shrink-0 animate-spin" aria-hidden="true" />}
       <span role="status" className="min-w-0 flex-1 truncate" title={notice}><WebLabel short={shortNotice} long={notice} /></span>

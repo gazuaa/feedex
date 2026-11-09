@@ -74,6 +74,10 @@ export function fixedLayoutFit(layoutWidth: number | undefined, paneWidth: numbe
   if (!layoutWidth || !paneWidth || /iPhone|iPod|Android.*Mobile/i.test(userAgent)) return 1;
   return Math.min(1, paneWidth / (layoutWidth + FRAME_SCROLLBAR));
 }
+/** 휴대폰 웹 보기 위쪽의 상태 줄 높이. index.css의 --feedex-web-status-height와 같아야 한다. */
+const WEB_STATUS_HEIGHT = 28;
+/** 휴대폰 하단 막대가 사이트 아래쪽을 가리는 높이. 사본은 이만큼 끝에 여백을 둔다. */
+const WEB_DOCK_SPACE = 64;
 /** 프레임 안 사이트 위로 꺼낸 막대가 다시 접히기 전까지 머무는 시간. */
 const PEEK_MS = 4000;
 // 사이트 프레임이 다 불러왔다고 알리지 않아도 이만큼 기다린 뒤에는 보여 준다. 광고나 끝나지 않는 요청이 있는 사이트가 있다.
@@ -347,11 +351,24 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         ? { notice: '웹 페이지를 다 불러오면 보여 드려요.', short: '불러오는 중', xUrl: undefined }
         : null;
   const hasArticle = Boolean(article);
-  // 접힌 상단 막대는 자기 높이만큼 올라간다. 높이는 안전 영역과 글자 크기에 따라 다르다.
+  // 막대는 본문 위에 떠 있어서 나타나고 사라져도 본문은 움직이지 않는다. 그 대신 본문은 막대 높이만큼 비워 두고 시작한다.
+  // 막대 높이는 안전 영역과 글자 크기에 따라 다르므로 재서 읽기 영역의 변수로 넘긴다.
+  const webViewRef = useRef<HTMLDivElement>(null);
+  const insetCopy = useRef<() => void>(() => {});
+  // 웹 사본은 문서 안에 위·아래 여백을 두어, 사이트 위에 뜬 막대 아래에서 시작하고 끝까지 읽을 수 있게 한다.
+  // 사본은 배율로 키워 보이므로 보이는 크기를 배율로 나눠 넘긴다.
+  insetCopy.current = () => {
+    const target = copyRef.current?.contentWindow, top = topRef.current, view = webViewRef.current;
+    if (!target) return;
+    const safe = isMobile && view ? parseFloat(getComputedStyle(view).paddingTop) || 0 : 0;
+    const inset = isMobile && top ? Math.max(0, top.offsetHeight + WEB_STATUS_HEIGHT - safe) : 0;
+    target.postMessage({ sfeedInset: [inset / webZoom, (isMobile ? WEB_DOCK_SPACE : 0) / webZoom] }, '*');
+  };
+  useEffect(() => { insetCopy.current(); }, [isMobile, webZoom, article?.id, webCopyShown, xWaiting]);
   useLayoutEffect(() => {
     const top = topRef.current;
     if (!top) return;
-    const measure = () => top.style.setProperty('--feedex-reader-top-height', `${top.offsetHeight}px`);
+    const measure = () => { top.parentElement?.style.setProperty('--feedex-reader-top-height', `${top.offsetHeight}px`); insetCopy.current(); };
     const observer = new ResizeObserver(measure);
     observer.observe(top); measure();
     return () => observer.disconnect();
@@ -663,9 +680,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         }`}
       >
         <div ref={topRef} className="feedex-mobile-reader-top lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
-          <button className="feedex-mobile-icon" onClick={onClose} aria-label="목록으로 돌아가기"><ChevronDown size={24} /></button>
-          <div role="radiogroup" aria-label="본문 보기 방식" className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}<span>{label}</span></button>)}</div>
-          <button className="feedex-mobile-icon" aria-label="본문 도구" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((value) => !value)}><MoreHorizontal size={22} /></button>
+          <button className="feedex-mobile-icon" onClick={onClose} aria-label="목록으로 돌아가기"><ChevronDown size={22} /></button>
+          <div role="radiogroup" aria-label="본문 보기 방식" className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}<span>{label}</span></button>)}</div>
+          <button className="feedex-mobile-icon" aria-label="본문 도구" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((value) => !value)}><MoreHorizontal size={20} /></button>
           {mobileToolsOpen && <div className="feedex-mobile-reader-menu">
             <button aria-pressed={aiOpen} onClick={() => { setMobileToolsOpen(false); toggleAiSummary(); }}><Sparkles size={18} />{aiAction}</button>
             <button aria-pressed={showTranslation} onClick={() => { setMobileToolsOpen(false); toggleTranslation(); }}>{translating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}{translateAction}</button>
@@ -939,7 +956,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         </div>
 
         {siteShown ? (
-          <div className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
+          <div ref={webViewRef} className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
             {/* 웹 보기에서는 사이트 위에 요약을 접을 수 있는 칸으로 둔다. 길면 이 칸 안에서 스크롤한다. */}
             {aiOpen && (article.ai_summary || summarizing) && <div className="feedex-web-summary">
               <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={article.ai_summary} model={aiMeta?.model} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} />
@@ -987,6 +1004,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     ref={copyRef}
                     key={`copy-${article.id}-${xWaiting ? 'preview' : 'ready'}`}
                     srcDoc={xWaiting ? xPreview : copyHtml}
+                    onLoad={() => insetCopy.current()}
                     title={article.title}
                     className="absolute left-0 top-0 border-0 feedex-web-frame"
                     style={{
@@ -1057,7 +1075,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             ) : webCopy?.articleId !== article.id ? (
               <WebLoading />
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
+              <div className="feedex-web-fill flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
                 <Globe className="w-9 h-9 text-slate-400" aria-hidden="true" />
                 <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   {webCopy?.articleId === article.id && webCopy.error ? webCopy.error : frame.reason === 'challenge' ? '사이트의 보안 확인 때문에 웹 보기를 열 수 없어요.' : frame.reason === 'http' ? '사이트에서 페이지를 불러오지 못했어요.' : '이 사이트는 다른 서비스 안에서 열리지 않도록 막아 두었어요.'}
@@ -1260,12 +1278,12 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         {shareNotice && <p role="status" className="feedex-mobile-share-notice lg:hidden">{shareNotice}</p>}
         {framed && barsHidden && <button type="button" className="feedex-web-peek lg:hidden" aria-label="메뉴 보이기" onClick={() => setPeek(1)}><ChevronUp size={22} /></button>}
         <nav aria-label="본문 조작" className="feedex-mobile-dock feedex-mobile-reader-dock lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
-          <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={22} /> : <Circle size={22} />}</button>
-          <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={22} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
-          <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={24} /></button>
-          <button aria-label="다음 아티클" disabled={!hasNext} onClick={() => onNavigateRelative('next')}><ChevronRight size={24} /></button>
-          <button aria-label="글 공유" onClick={() => void shareArticle()}><Share2 size={21} /></button>
-          <button aria-label={mode === 'web' ? '사이트 확대·축소' : '글자 크기'} aria-expanded={sizeToolsOpen} onClick={() => setSizeToolsOpen((open) => !open)}><Type size={22} /></button>
+          <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
+          <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
+          <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>
+          <button aria-label="다음 아티클" disabled={!hasNext} onClick={() => onNavigateRelative('next')}><ChevronRight size={21} /></button>
+          <button aria-label="글 공유" onClick={() => void shareArticle()}><Share2 size={18} /></button>
+          <button aria-label={mode === 'web' ? '사이트 확대·축소' : '글자 크기'} aria-expanded={sizeToolsOpen} onClick={() => setSizeToolsOpen((open) => !open)}><Type size={19} /></button>
         </nav>
         {sizeToolsOpen && sizeControl('feedex-mobile-size-popover lg:hidden')}
       </div>

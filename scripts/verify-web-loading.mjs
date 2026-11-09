@@ -102,7 +102,8 @@ try {
   assert.match(shownBar,/role="status" class="min-w-0 flex-1 truncate" title="긴 안내 문구"/,'a cut-off notice keeps its full text');
   assert.match(shownBar,/whitespace-nowrap/,'actions never wrap into a second row');
   assert.doesNotMatch(statusBar({canLogin:false}),/원문에서 읽기/,'X posts have no sign-in action');
-  assert.match(statusBar({hidden:true}),/class="feedex-web-status [^"]*\bhidden\b/,'the bar folds away with the other bars');
+  assert.match(statusBar({hidden:true}),/data-scroll-hidden="true"/,'the bar folds away with the other bars without moving the page');
+  assert.doesNotMatch(statusBar({hidden:false}),/data-scroll-hidden/);
   assert.match(statusBar({busy:true}),/animate-spin/,'loading shows a spinner in the same row');
   assert.match(initial,/aria-label="기사 새로고침"/,'the article toolbar offers a refresh');
 
