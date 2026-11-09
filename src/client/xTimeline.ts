@@ -70,7 +70,7 @@ export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | unde
   if (quote) {
     const who = /^(.*?)\s*\(@([a-z\d_]{1,15})\)\s*$/i.exec(quote.querySelector('b')?.textContent?.trim() || '');
     const href = quote.querySelector('cite a')?.getAttribute('href') || '';
-    post.quote = { name: who?.[1] || who?.[2] || '', handle: who?.[2] || statusUser(href) || '', text: [...quote.querySelectorAll('p')].map(textOf).find(Boolean) || '', href: /^https:\/\//.test(href) ? href : article.url, media: mediaOf(quote) };
+    post.quote = { name: who?.[1] || who?.[2] || '', handle: who?.[2] || statusUser(href) || '', text: [...quote.querySelectorAll('p')].map(textOf).filter(Boolean).join('\n\n') || '', href: /^https:\/\//.test(href) ? href : article.url, media: mediaOf(quote) };
   } else if (extra) {
     const link = extra.querySelector('a[href]');
     const href = link?.getAttribute('href') || '';

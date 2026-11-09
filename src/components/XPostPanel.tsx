@@ -28,7 +28,11 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   const preview = useMemo(() => {
     const quote = url === target.url ? target.quote : null, handle = /^https:\/\/x\.com\/([^/]+)\//.exec(url)?.[1] || 'X';
     const media = quote?.media.map((item) => item.video ? `<a href="${escape(url)}">Video<img src="${escape(item.src)}"></a>` : `<img src="${escape(item.src)}">`).join('') || '';
-    return xThreadPreview({ ...source, url, title: quote?.text || '글을 불러오는 중…', published_at: '', feed_title: `${quote?.name || handle} (@${handle})`, feed_html_url: `https://x.com/${handle}`, feed_favicon: null, content_html: `<p>${escape(quote?.text || '')}</p>${media}` }, Boolean(error));
+    const paragraphs = (quote?.text || '').split(/\n{2,}/).filter(Boolean);
+    const textHtml = paragraphs.length
+      ? paragraphs.map((p) => `<p>${escape(p).replace(/\n/g, '<br>')}</p>`).join('')
+      : `<p>${escape(quote?.text || '')}</p>`;
+    return xThreadPreview({ ...source, url, title: quote?.text || '글을 불러오는 중…', published_at: '', feed_title: `${quote?.name || handle} (@${handle})`, feed_html_url: `https://x.com/${handle}`, feed_favicon: null, content_html: `${textHtml}${media}` }, Boolean(error));
   }, [url, target, source, error]);
   useEffect(() => {
     let active = true;
@@ -55,6 +59,6 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       <a href={url} target="_blank" rel="noopener noreferrer" aria-label="X에서 열기" className="p-3"><ExternalLink size={19} /></a>
     </header>
     {error && <p role="status" className="px-4 py-2 text-sm text-slate-500">{error}</p>}
-    <WebPager enabled={isMobile} onBack={back}><div className="flex min-h-0 w-full flex-col"><iframe key={`${url}:${copy?.url === url ? 'ready' : 'preview'}`} ref={frame} title="인용한 X 글" srcDoc={html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" style={{ colorScheme: isDark ? 'dark' : 'light' }} className="min-h-0 w-full flex-1 border-0 feedex-web-frame" /></div></WebPager>
+    <WebPager enabled={isMobile} onBack={back}><div className="relative flex-1 min-h-0 w-full h-full flex flex-col"><iframe key={`${url}:${copy?.url === url ? 'ready' : 'preview'}`} ref={frame} title="인용한 X 글" srcDoc={html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" style={{ colorScheme: isDark ? 'dark' : 'light' }} className="h-full min-h-0 w-full flex-1 border-0 feedex-web-frame" /></div></WebPager>
   </section>;
 }

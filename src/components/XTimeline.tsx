@@ -7,6 +7,7 @@ import { useXAvatars } from '../client/xAvatars';
 
 // 만료된 X 카드 이미지(pbs.twimg.com/card_img/...)는 글마다 한 번만 미러에서 새 주소를 받아온다.
 const refreshedCards = new Set<string>();
+const failedCardImages = new Set<string>();
 
 interface Props {
   articles: ArticleItem[];
@@ -50,7 +51,9 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
           ...(res.thumbnailUrl ? { thumbnail_url: res.thumbnailUrl } : {}),
         });
       }
-    }).catch(() => {});
+    }).catch(() => {
+      refreshedCards.delete(article.id);
+    });
   };
   const line = isDark ? 'border-slate-800' : 'border-slate-200';
   // 줄 모양은 바탕을 깔지 않는다. 목록 칸의 바탕을 그대로 쓰고 다른 글 줄과 같은 색으로 반응한다.
@@ -91,7 +94,7 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
       {post.text && <p className={`feedex-x-text mt-0.5 whitespace-pre-wrap break-words leading-snug line-clamp-[14] ${strong}`}>{post.text}</p>}
       <MediaGrid media={post.media} line={line} onImageError={refreshExpiredImage} />
       {post.card && <a href={post.card.href} target="_blank" rel="noopener noreferrer" onClick={stop} className={`mt-3 block overflow-hidden rounded-2xl border ${line}`}>
-        {post.card.image && brokenCard !== post.card.image && <img src={post.card.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBrokenCard(post.card!.image); refreshExpiredImage(post.card!.image!); }} className="aspect-[1.91/1] w-full object-cover" />}
+        {post.card.image && brokenCard !== post.card.image && !failedCardImages.has(post.card.image) && <img src={post.card.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { failedCardImages.add(post.card!.image!); setBrokenCard(post.card!.image); (e.currentTarget as HTMLElement).style.display = 'none'; refreshExpiredImage(post.card!.image!); }} className="aspect-[1.91/1] w-full object-cover" />}
         <span className="block px-3 py-2"><span className="block truncate text-[13px] text-slate-500">{hostOf(post.card.href)}</span><span className={`block truncate text-[15px] ${strong}`}>{post.card.title}</span></span>
       </a>}
       {/* 목록에서 인용 글을 누르면 먼저 이 글을 연다. 인용한 글은 열린 글 안에서 누르면 보인다. */}

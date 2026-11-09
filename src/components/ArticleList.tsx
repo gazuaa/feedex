@@ -35,7 +35,7 @@ function Thumbnail({ article, accountId, onUpdateArticleFields, card = false, is
   const { ref, url: found } = useArticleThumbnail<HTMLDivElement>(article, accountId, onUpdateArticleFields);
   const url = shownThumbnail(found, article);
   return <div ref={ref} className={card ? 'h-full w-full' : `feedex-magazine-thumbnail h-16 w-16 rounded-lg overflow-hidden shrink-0 border ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-    {url && url !== broken ? <img src={url} alt={article.title} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={() => setBroken(url)} /> : <FeedLogo article={article} />}
+    {url && url !== broken ? <img src={url} alt={article.title} loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; setBroken(url); }} /> : <FeedLogo article={article} />}
   </div>;
 }
 const MagazineThumbnail = Thumbnail;
