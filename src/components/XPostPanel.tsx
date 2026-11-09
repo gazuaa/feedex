@@ -81,7 +81,20 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     void load().catch(() => { if (active) setError('글을 불러오지 못했어요. 다시 시도해 주세요.'); });
     return () => { active = false; controller.abort(); };
   }, [accountId, source.id, url, retry, activeQuote]);
-  const html = useMemo(() => framedCopy(copy?.url === url ? copy.html : preview), [copy, url, preview]);
+  const isReady = copy?.url === url;
+  const html = useMemo(() => framedCopy(isReady ? copy.html : preview), [isReady, copy?.html, preview]);
+  // 사본이 준비되면 새 프레임으로 넘어가되, 새 프레임이 로드될 때까지 미리보기를 유지해 검은 화면 깜빡임을 막는다.
+  const [holdingPreview, setHoldingPreview] = useState<{ url: string; html: string } | null>(null);
+  useEffect(() => {
+    if (!isReady && preview) setHoldingPreview({ url, html: framedCopy(preview) });
+  }, [isReady, preview, url]);
+  useEffect(() => { setHoldingPreview(null); }, [url]);
+  useEffect(() => {
+    if (isReady && holdingPreview) {
+      const timer = setTimeout(() => setHoldingPreview(null), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [isReady, holdingPreview]);
   return <section aria-label="앱에서 X 글 보기" className={`feedex-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto flex h-full min-h-0 min-w-0 w-full flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
     <header className={`feedex-linked-post-header flex items-center gap-2 border-b px-3 py-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
       <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2" onClick={back}><ChevronLeft size={21} /><span>{trail.length > 1 ? '이전 글' : '원래 글'}</span></button>
@@ -90,6 +103,29 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       <a href={url} target="_blank" rel="noopener noreferrer" aria-label="X에서 열기" className="p-3"><ExternalLink size={19} /></a>
     </header>
     {error && <p role="status" className="px-4 py-2 text-sm text-slate-500">{error}</p>}
-    <WebPager enabled={isMobile} onBack={back}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame"><iframe key={`${url}:${copy?.url === url ? 'ready' : 'preview'}`} ref={frame} title={`${activeQuote?.name || handle} X 글`} srcDoc={html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" style={{ colorScheme: isDark ? 'dark' : 'light' }} className="absolute inset-0 h-full w-full border-0 feedex-web-frame" /></div></WebPager>
+    <WebPager enabled={isMobile} onBack={back}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
+      <iframe
+        key={`${url}:${isReady ? 'ready' : 'preview'}`}
+        ref={frame}
+        title={`${activeQuote?.name || handle} X 글`}
+        srcDoc={html}
+        onLoad={() => { if (isReady) setHoldingPreview(null); }}
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        referrerPolicy="no-referrer"
+        style={{ colorScheme: isDark ? 'dark' : 'light' }}
+        className="absolute inset-0 h-full w-full border-0 feedex-web-frame"
+      />
+      {isReady && holdingPreview && holdingPreview.url === url && (
+        <iframe
+          key={`${url}:preview-hold`}
+          title={`${activeQuote?.name || handle} X 글`}
+          srcDoc={holdingPreview.html}
+          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+          referrerPolicy="no-referrer"
+          style={{ colorScheme: isDark ? 'dark' : 'light', zIndex: 1, pointerEvents: 'none' }}
+          className="absolute inset-0 h-full w-full border-0 feedex-web-frame"
+        />
+      )}
+    </div></WebPager>
   </section>;
 }

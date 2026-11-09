@@ -36,6 +36,10 @@ export class ArticleResources {
     if (!result.embeddable && result.reason !== 'framing') return;
     try { this.frameDecisions.set(new URL(url).origin, { embeddable: result.embeddable, ...(result.layoutWidth ? { layoutWidth: result.layoutWidth } : {}) }); } catch {}
   }
+  /** 이미 준비된 사본이 메모리에 있으면 비동기 대기 없이 바로 돌려준다. */
+  peekCachedWeb(article: ArticleItem): WebResult | undefined {
+    return this.preparedCopies.get(article.id)?.result;
+  }
   async cachedWeb(article: ArticleItem): Promise<WebResult | undefined> {
     const stored = await readContent(this.account, `web:${article.id}`);
     // 예전 X 글 사본은 댓글 자리만 회색으로 남은 x.com 화면이거나, 인용 글 상자가 깨진 사본이다. 지금 방식의 사본을 새로 받게 한다.
@@ -52,7 +56,7 @@ export class ArticleResources {
     if (prepared?.source === stored.data) return prepared.result;
     const result = { ...stored.data, html: revealCopyImages(stored.data.html) };
     this.preparedCopies.delete(article.id); this.preparedCopies.set(article.id, { source: stored.data, result });
-    if (this.preparedCopies.size > 3) this.preparedCopies.delete(this.preparedCopies.keys().next().value!);
+    if (this.preparedCopies.size > 24) this.preparedCopies.delete(this.preparedCopies.keys().next().value!);
     return result;
   }
   private async once<T>(key: string, load: () => Promise<T>): Promise<T> {
@@ -112,7 +116,12 @@ export class ArticleResources {
         try { result = await this.request<WebResult>(`/api/articles/${article.id}/web-copy`); }
         catch (error) { throw deviceError || error; }
       }
-      if (!result.textOnly && !result.partial && this.current() && generation === cacheGeneration.get(this.account)) await writeContent(this.account, `web:${article.id}`, result);
+      if (!result.textOnly && !result.partial && this.current() && generation === cacheGeneration.get(this.account)) {
+        await writeContent(this.account, `web:${article.id}`, result);
+        this.preparedCopies.delete(article.id);
+        this.preparedCopies.set(article.id, { source: result, result: { ...result, html: revealCopyImages(result.html) } });
+        if (this.preparedCopies.size > 24) this.preparedCopies.delete(this.preparedCopies.keys().next().value!);
+      }
       try { this.copyOrigins.add(new URL(article.url).origin); } catch {}
       return result;
     });

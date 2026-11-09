@@ -306,7 +306,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 프레임을 거부하는 사이트는 서버가 받아 온 스크립트 없는 사본으로 보여 준다.
   // textOnly: 원문 사이트가 원래 배치를 잠시 막아 받은 본문만 보여 주는 사본.
   // retrying: 보안 확인으로 막혀 잠시 뒤 자동으로 다시 받는 중.
-  const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean; textOnly?: boolean; retrying?: boolean; thread?: boolean } | null>(null);
+  const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean; textOnly?: boolean; retrying?: boolean; thread?: boolean } | null>(() => {
+    if (!article || !resources) return null;
+    const peeked = resources.peekCachedWeb?.(article);
+    return peeked ? { articleId: article.id, html: peeked.html, phone: peeked.phone, thread: peeked.thread, textOnly: peeked.textOnly } : null;
+  });
   const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html) : undefined, [webCopy?.html]);
   // X 글은 미러에서 사본을 받는 몇 초 동안, 피드로 받은 글을 사본과 같은 모양으로 같은 프레임에 먼저 그린다.
   // 사본을 받지 못하면 그 자리에 남기고 댓글 칸에만 알린다. 미러 대신 받은 x.com 화면 사본은 글도 댓글도
@@ -317,6 +321,18 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const xWaiting = mode === 'web' && xPost && !copyReady && !(frame?.articleId === article?.id && frame?.embeddable);
   const xFailed = Boolean(copyFor) && !copyReady;
   const xPreview = useMemo(() => xWaiting && article ? framedCopy(xThreadPreview(article, xFailed)) : undefined, [xWaiting, xFailed, article?.id, article?.title, article?.content_html, article?.feed_title, article?.feed_favicon]);
+  // 미리보기를 거친 뒤 완성된 사본이 도착했을 때, 새 프레임이 로드될 때까지 미리보기를 유지해 검은 화면 깜빡임을 막는다.
+  const [holdingPreview, setHoldingPreview] = useState<{ articleId: string; html: string } | null>(null);
+  useEffect(() => {
+    if (xWaiting && xPreview && article) setHoldingPreview({ articleId: article.id, html: xPreview });
+  }, [xWaiting, xPreview, article?.id]);
+  useEffect(() => { setHoldingPreview(null); }, [article?.id]);
+  useEffect(() => {
+    if (!xWaiting && holdingPreview) {
+      const timer = setTimeout(() => setHoldingPreview(null), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [xWaiting, holdingPreview]);
   const [shareNotice, setShareNotice] = useState('');
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const isMobile = useMobileViewport();
@@ -1022,7 +1038,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     ref={copyRef}
                     key={`copy-${article.id}-${xWaiting ? 'preview' : 'ready'}`}
                     srcDoc={xWaiting ? xPreview : copyHtml}
-                    onLoad={() => insetCopy.current()}
+                    onLoad={() => {
+                      insetCopy.current();
+                      if (!xWaiting) setHoldingPreview(null);
+                    }}
                     title={article.title}
                     className="absolute left-0 top-0 border-0 feedex-web-frame"
                     style={{
@@ -1035,6 +1054,25 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
                     referrerPolicy="no-referrer"
                   />
+                  {/* 새 사본 프레임이 준비될 때까지 화면이 깜빡이지 않도록 이전 미리보기 프레임을 유지한다. */}
+                  {!xWaiting && holdingPreview && holdingPreview.articleId === article.id && (
+                    <iframe
+                      key={`copy-${article.id}-preview-hold`}
+                      srcDoc={holdingPreview.html}
+                      title={article.title}
+                      className="absolute left-0 top-0 border-0 feedex-web-frame pointer-events-none"
+                      style={{
+                        width: `${100 / webZoom}%`,
+                        height: `${100 / webZoom}%`,
+                        transform: `scale(${webZoom})`,
+                        transformOrigin: '0 0',
+                        colorScheme: isDark ? 'dark' : 'light',
+                        zIndex: 1,
+                      }}
+                      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
                   {activeYouTube && (
                     <div
                       ref={ytOverlayRef}
