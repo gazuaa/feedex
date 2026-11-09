@@ -2,16 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { maintainDeviceCache } from '../client/deviceContent';
 import { retentionDays, RETENTION_OPTIONS, setRetentionDays } from '../client/cachePolicy';
 
-export function CacheSettings({ accountId }: { accountId: string }) {
+export function CacheSettings({ accountId, active: visible = false }: { accountId: string; active?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [days, setDays] = useState(() => retentionDays(accountId));
   const [bytes, setBytes] = useState<number | null>(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(false);
   useEffect(() => {
     let active = true;
-    const update = () => { if (ref.current?.closest('details')?.open && document.visibilityState !== 'hidden') void maintainDeviceCache(accountId).then((value) => { if (active) setBytes(value.bytes); }); };
+    const update = () => { if ((visible || ref.current?.closest<HTMLDetailsElement | HTMLDialogElement>('details,dialog')?.open) && document.visibilityState !== 'hidden') void maintainDeviceCache(accountId).then((value) => { if (active) setBytes(value.bytes); }); };
     update(); const timer = setInterval(update, 10000); document.addEventListener('toggle', update, true);
     return () => { active = false; clearInterval(timer); document.removeEventListener('toggle', update, true); };
-  }, [accountId]);
+  }, [accountId, visible]);
   const clear = async () => {
     setBusy(true);
     window.dispatchEvent(new CustomEvent('sfeed-cache-cleared', { detail: accountId }));

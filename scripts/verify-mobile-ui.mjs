@@ -25,7 +25,7 @@ try {
   assert.match(framedCopy('<p>bare</p>'), /sfeedSqueezed/, 'a copy laid out for a desktop says so');
 
   const { MobileLibrary } = await vite.ssrLoadModule('/src/components/MobileLibrary.tsx');
-  const { MobileSettings, MobileHeader } = await vite.ssrLoadModule('/src/components/MobileChrome.tsx');
+  const { MobileSettingsContent: MobileSettings, MobileHeader } = await vite.ssrLoadModule('/src/components/MobileChrome.tsx');
   const settings = { theme: 'dark', layout: 'magazine', markReadOnScroll: false, autoRefreshMinutes: 15, onChangeAutoRefreshMinutes() {}, onChangeMarkReadOnScroll() {}, onChangeTheme() {}, onChangeLayout() {}, onOpenOpml() {} };
   const props = { ...settings, user: { id: 'test', name: 'Test', email: 'mobile@example.test' }, folders: [], subscriptions: [], counts: { totalArticles: 123, totalUnread: 24, savedCount: 7 }, onChangeCountTab() {}, onSelectTab() {}, onSelectFolder() {}, onSelectFeed() {}, onAdd() {}, onRefresh() {}, refreshing: false, onCreateFolder() {}, onDeleteFolder() {}, onUnsubscribe() {}, onLogout() {} };
   for (const [countTab, count] of [['all', 123], ['unread', 24], ['saved', 7]]) {
@@ -44,7 +44,7 @@ try {
   assert.match(list, /매거진 뷰/);
   assert.ok(!renderToStaticMarkup(React.createElement(MobileSettings, { ...settings, sort: 'oldest', onChangeSort() {} })).includes('오래된순'), 'the article order is not hidden in the settings menu');
   const header = (fields) => renderToStaticMarkup(React.createElement(MobileHeader, { ...settings, title: 'X', search: '', onSearch() {}, onAdd() {}, onChangeSort() {}, ...fields }));
-  assert.match(header({ sort: 'oldest' }), /class="feedex-mobile-sort"[^>]*aria-label="정렬: 오래된순, 최신순으로 전환"[\s\S]*?<span>오래된순<\/span><\/button><details[^>]*feedex-mobile-settings/, 'a list shows its current order as a button just left of the settings');
+  assert.match(header({ sort: 'oldest' }), /class="feedex-mobile-sort"[^>]*aria-label="정렬: 오래된순, 최신순으로 전환"[\s\S]*?<span>오래된순<\/span><\/button><div[^>]*feedex-mobile-settings/, 'a list shows its current order as a button just left of the settings');
   assert.match(header({ sort: 'newest' }), /<span>최신순<\/span>/);
   assert.ok(!header({ sort: 'newest', library: true }).includes('feedex-mobile-sort'), 'the library has no article order button');
   assert.match(list, /스크롤 시 읽음 처리/); assert.match(list, /자동 새로고침/);

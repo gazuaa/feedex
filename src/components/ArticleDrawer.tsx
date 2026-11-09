@@ -31,6 +31,7 @@ import {
   type ArticleItem,
   type ArticleViewMode as ViewMode,
 } from '../client/api';
+import { useCopyTheme } from '../client/copyTheme';
 import { useTextSize } from '../client/textSize';
 import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile';
 import { dropSiteClasses } from '../shared/siteClasses';
@@ -107,11 +108,11 @@ function ArticleBody({ html, base, title, className, style, onOpenXPost }: { htm
 
 /**
  * 웹 페이지를 다 불러올 때까지 보이는 자리. 피드 요약을 먼저 보여 주면 요약만 있는 사이트는
- * 짧은 글이 떴다가 다른 화면으로 바뀐다. 사이트와 같은 흰 바탕이라 다 불러온 뒤 바뀌어도 튀지 않는다.
+ * 짧은 글이 떴다가 다른 화면으로 바뀐다. 앱 테마와 같은 바탕을 써서 다크 모드에서 흰 화면이 번쩍이지 않게 한다.
  * 무엇을 하는 중인지는 위 막대가 알린다.
  */
 export function WebLoading({ overlay = false }: { overlay?: boolean }) {
-  return <div data-web-loading className={`${overlay ? 'absolute inset-0 z-10' : 'flex-1 min-h-0'} flex items-center justify-center bg-white`}>
+  return <div data-web-loading className={`${overlay ? 'absolute inset-0 z-10' : 'flex-1 min-h-0'} flex items-center justify-center feedex-web-frame`}>
     <Loader2 className="h-6 w-6 animate-spin text-slate-400" aria-hidden="true" />
   </div>;
 }
@@ -325,7 +326,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const isMobile = useMobileViewport();
   const topRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), copyRef = useRef<HTMLIFrameElement>(null);
-  useXPostFrame(copyRef, onOpenXPost);
+  useCopyTheme(copyRef, isDark);
+  useXPostFrame(copyRef, onOpenXPost, `${article?.id || ''}:${mode}`);
   const { activeYouTube, ytOverlayRef, closeYouTube } = useYouTubeCopyFrame(copyRef, webZoom, `${article?.id}:${mode}:${Boolean(copyHtml)}`);
   // 프레임 안 사이트의 스크롤은 손이 닿지 않으므로, 피드·리더·웹 사본만 막대를 숨긴다.
   const showingCopy = siteShown && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
@@ -991,7 +993,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             >
               {webCopyShown && !xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="원래 모양" long="원래 모양 다시 받기" /></button>}
               {webCopyShown && xWaiting && xFailed && <button type="button" onClick={showWebCopy} className="hover:underline">다시 시도</button>}
-              {webFrameShown && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="사본으로" long="웹 사본으로 보기" /></button>}
+              {webFrameShown && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short={isDark ? "다크 사본" : "사본으로"} long={isDark ? "다크 웹 사본으로 보기" : "웹 사본으로 보기"} /></button>}
               {/* X 글은 공개 미러로 보여 주므로, 로그인한 상태로 보려면 X에서 연다. 다른 글의 원문은 막대가 이 창에서 연다. */}
               {webStatus?.xUrl && (
                 <a href={webStatus.xUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
@@ -1002,7 +1004,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             {webCopyShown ? (
               <>
                 <WebPager enabled={isMobile} onBack={onClose}>
-                <div className="relative flex-1 min-h-0 overflow-hidden bg-white">
+                <div className="relative flex-1 min-h-0 overflow-hidden feedex-web-frame">
                   {/*
                     * 스크립트는 스크롤 알림용으로만 돈다. 사본은 정리돼 있고 보안 정책이 나머지를 막는다.
                     * allow-same-origin이 없으므로 앱에 닿을 수 없고, X 글 링크는 앱에 알리고, 나머지 링크는 새 탭에서 연다.
@@ -1013,12 +1015,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     key={`copy-${article.id}-${xWaiting ? 'preview' : 'ready'}`}
                     srcDoc={xWaiting ? xPreview : copyHtml}
                     title={article.title}
-                    className="absolute left-0 top-0 border-0 bg-white"
+                    className="absolute left-0 top-0 border-0 feedex-web-frame"
                     style={{
                       width: `${100 / webZoom}%`,
                       height: `${100 / webZoom}%`,
                       transform: `scale(${webZoom})`,
                       transformOrigin: '0 0',
+                      colorScheme: isDark ? 'dark' : 'light',
                     }}
                     sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
                     referrerPolicy="no-referrer"
@@ -1062,13 +1065,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             ) : frame.embeddable ? (
               <>
                 <WebPager enabled={isMobile} onBack={onClose}>
-                <div ref={framePaneRef} className="relative flex-1 min-h-0 overflow-hidden bg-white">
+                <div ref={framePaneRef} className="relative flex-1 min-h-0 overflow-hidden feedex-web-frame">
                   <iframe
                     key={`${article.id}:${frameReloads}`}
                     src={frame.url}
                     title={article.title}
-                    className="absolute left-0 top-0 border-0 bg-white"
-                    style={frameScaleStyle(webZoom * fixedLayoutFit(frame.layoutWidth, framePaneWidth))}
+                    className="absolute left-0 top-0 border-0 feedex-web-frame"
+                    style={{ ...frameScaleStyle(webZoom * fixedLayoutFit(frame.layoutWidth, framePaneWidth)), colorScheme: isDark ? 'dark' : 'light' }}
                     sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-storage-access-by-user-activation"
                     onError={showWebCopy}
                     onLoad={() => setLoadedFrame(article.id)}

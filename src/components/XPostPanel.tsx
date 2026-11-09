@@ -5,6 +5,7 @@ import { readContent, writeContent } from '../client/deviceContent';
 import { WebPager } from './ArticleDrawer';
 import { framedCopy, useMobileViewport } from '../client/mobile';
 import { xThreadPreview } from '../client/xThreadPreview';
+import { useCopyTheme } from '../client/copyTheme';
 import { useXPostFrame } from '../client/xPostFrame';
 import { isXStatusUrl } from '../shared/xFeed';
 import { X_THREAD_MARK } from '../shared/xThreadStyle';
@@ -22,7 +23,8 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   const isMobile = useMobileViewport();
   const back = () => trail.length > 1 ? setTrail((items) => items.slice(0, -1)) : onBack();
   const open = useCallback((next: string) => { if (isXStatusUrl(next)) setTrail((items) => items.at(-1) === next ? items : [...items, next]); }, []);
-  useXPostFrame(frame, open);
+  useCopyTheme(frame, isDark);
+  useXPostFrame(frame, open, url);
   const preview = useMemo(() => {
     const quote = url === target.url ? target.quote : null, handle = /^https:\/\/x\.com\/([^/]+)\//.exec(url)?.[1] || 'X';
     const media = quote?.media.map((item) => item.video ? `<a href="${escape(url)}">Video<img src="${escape(item.src)}"></a>` : `<img src="${escape(item.src)}">`).join('') || '';
@@ -53,6 +55,6 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       <a href={url} target="_blank" rel="noopener noreferrer" aria-label="X에서 열기" className="p-3"><ExternalLink size={19} /></a>
     </header>
     {error && <p role="status" className="px-4 py-2 text-sm text-slate-500">{error}</p>}
-    <WebPager enabled={isMobile} onBack={back}><div className="flex min-h-0 w-full flex-col"><iframe key={`${url}:${copy?.url === url ? 'ready' : 'preview'}`} ref={frame} title="인용한 X 글" srcDoc={html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" className="min-h-0 w-full flex-1 border-0 bg-white" /></div></WebPager>
+    <WebPager enabled={isMobile} onBack={back}><div className="flex min-h-0 w-full flex-col"><iframe key={`${url}:${copy?.url === url ? 'ready' : 'preview'}`} ref={frame} title="인용한 X 글" srcDoc={html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" style={{ colorScheme: isDark ? 'dark' : 'light' }} className="min-h-0 w-full flex-1 border-0 feedex-web-frame" /></div></WebPager>
   </section>;
 }

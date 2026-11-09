@@ -1,4 +1,7 @@
-import { useRef } from 'react';
+import { useLayoutEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
+import type { SyncStatus } from '../client/syncStatus';
+import { SyncStatusNotice } from './SyncStatusNotice';
 import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, LayoutGrid, LayoutList, AlignJustify, Plus, Rss, Search, Settings2, Sun, Moon, X, FileCode2 } from 'lucide-react';
 import type { LayoutMode, ThemeMode } from '../client/api';
 import { InstallAppButton } from './PwaInstall';
@@ -8,10 +11,11 @@ import { CacheSettings } from './CacheSettings';
 import { TranslationSetting } from './TranslationSetting';
 import { ArticleBlockSetting } from './ArticleBlockDialog';
 import { RefreshIcon } from './RefreshIcon';
-import { useOutsideDismiss } from '../client/outsideDismiss';
 
 export type LibraryTab = 'all' | 'unread' | 'saved';
 export interface MobileSettingsProps extends ScrollReadSettingsProps, RefreshSettingsProps, Partial<SortSettingProps> {
+  syncStatus?: SyncStatus;
+  syncBusy?: boolean;
   accountId?: string;
   onManageArticleBlocks?: () => void;
   theme: ThemeMode;
@@ -21,13 +25,33 @@ export interface MobileSettingsProps extends ScrollReadSettingsProps, RefreshSet
   onOpenOpml: () => void;
 }
 
-export function MobileSettings({ theme, onChangeTheme, layout, onChangeLayout, onOpenOpml, library, markReadOnScroll, onChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes, accountId, onManageArticleBlocks }: MobileSettingsProps & { library?: boolean }) {
-  const ref = useRef<HTMLDetailsElement>(null);
-  const close = () => { if (ref.current) ref.current.open = false; };
-  useOutsideDismiss(ref);
-  return <details ref={ref} className="feedex-mobile-settings" onKeyDown={(event) => { if (event.key === 'Escape') { close(); ref.current?.querySelector('summary')?.focus(); } }}>
-    <summary aria-label="보기 설정" className="feedex-mobile-icon"><Settings2 size={21} /></summary>
-    <div className="feedex-mobile-settings-panel">
+function MobileSettingsSheet({ children, onClose, trigger }: { children: ReactNode; onClose: () => void; trigger: RefObject<HTMLButtonElement | null> }) {
+  const ref = useRef<HTMLDialogElement>(null), titleId = useId();
+  const pressed = useRef(false);
+  useLayoutEffect(() => {
+    const previous = trigger.current || document.activeElement as HTMLElement | null;
+    const dialog = ref.current;
+    dialog?.showModal();
+    return () => { dialog?.close(); if (previous?.isConnected) previous.focus({ preventScroll: true }); };
+  }, [trigger]);
+  return createPortal(<dialog ref={ref} className="feedex-mobile-settings-sheet" aria-labelledby={titleId} onCancel={event => { event.preventDefault(); onClose(); }} onPointerDown={event => { pressed.current = event.target === event.currentTarget; }} onClick={event => { if (pressed.current && event.target === event.currentTarget) onClose(); pressed.current = false; }}>
+    <header className="feedex-mobile-settings-heading"><h2 id={titleId}>설정</h2><button type="button" aria-label="설정 닫기" onClick={onClose}><X size={22} /></button></header>
+    {children}
+  </dialog>, document.body);
+}
+
+export function MobileSettings(props: MobileSettingsProps & { library?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  return <div className="feedex-mobile-settings">
+    <button ref={trigger} type="button" aria-label="보기 설정" aria-haspopup="dialog" aria-expanded={open} className="feedex-mobile-icon" onClick={() => setOpen(true)}><Settings2 size={21} /></button>
+    {open && <MobileSettingsSheet trigger={trigger} onClose={() => setOpen(false)}><MobileSettingsContent {...props} onDismiss={() => setOpen(false)} /></MobileSettingsSheet>}
+  </div>;
+}
+
+export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLayout, onOpenOpml, library, markReadOnScroll, onChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes, accountId, onManageArticleBlocks, onDismiss }: MobileSettingsProps & { library?: boolean; onDismiss?: () => void }) {
+  const close = () => onDismiss?.();
+  return <div className="feedex-mobile-settings-panel">
       <SettingGroup title="보기">
         <SettingRow label="화면"><div className="feedex-segmented" role="group" aria-label="화면">{(['light', 'dark'] as const).map((value) => { const Icon = value === 'light' ? Sun : Moon; return <button key={value} aria-label={value === 'light' ? '낮 모드' : '밤 모드'} aria-pressed={theme === value} onClick={() => onChangeTheme(value)}><Icon size={17} /></button>; })}</div></SettingRow>
         <TextSizeSetting />
@@ -36,17 +60,16 @@ export function MobileSettings({ theme, onChangeTheme, layout, onChangeLayout, o
       {!library && <SettingGroup title="읽기"><ScrollReadSetting markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} /></SettingGroup>}
       <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
       {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} /><TranslationSetting /></SettingGroup>}
-      {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} /></SettingGroup>}
+      {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} active /></SettingGroup>}
       <SettingGroup title="기타">
         <button type="button" onClick={() => { close(); onOpenOpml(); }}><FileCode2 size={17} />OPML 가져오기 / 내보내기</button>
         <InstallAppButton />
       </SettingGroup>
-    </div>
-  </details>;
+    </div>;
 }
 
 // 글 정렬은 설정 메뉴에 숨기지 않고 설정 버튼 왼쪽에 둔다. 누를 때마다 최신순과 오래된순을 바꾼다.
-export function MobileHeader({ title, library, hidden, search, onSearch, onBack, onAdd, sort, onChangeSort, ...settings }: MobileSettingsProps & { title: string; library?: boolean; hidden?: boolean; search: string; onSearch: (value: string) => void; onBack?: () => void; onAdd: () => void }) {
+export function MobileHeader({ title, library, hidden, search, onSearch, onBack, onAdd, sort, onChangeSort, syncStatus, syncBusy, ...settings }: MobileSettingsProps & { title: string; library?: boolean; hidden?: boolean; search: string; onSearch: (value: string) => void; onBack?: () => void; onAdd: () => void }) {
   return <header className="feedex-mobile-header" data-scroll-hidden={hidden || undefined} inert={hidden || undefined} aria-hidden={hidden || undefined}>
     <div className="feedex-mobile-heading">
       {library ? <span className="feedex-mobile-brand-icon"><Rss size={21} strokeWidth={2.4} /></span> : <button className="feedex-mobile-icon" onClick={onBack} aria-label="내 피드로 돌아가기"><ArrowLeft size={22} /></button>}
@@ -54,6 +77,7 @@ export function MobileHeader({ title, library, hidden, search, onSearch, onBack,
       <div className="feedex-mobile-header-actions">{!library && sort && onChangeSort && <button type="button" className="feedex-mobile-sort" onClick={() => onChangeSort(sort === 'oldest' ? 'newest' : 'oldest')} aria-label={`정렬: ${sort === 'oldest' ? '오래된순, 최신순으로 전환' : '최신순, 오래된순으로 전환'}`}><ArrowDownUp size={15} aria-hidden="true" /><span>{sort === 'oldest' ? '오래된순' : '최신순'}</span></button>}<MobileSettings library={library} {...settings} /><button className="feedex-mobile-icon" onClick={onAdd} aria-label="피드 추가"><Plus size={23} /></button></div>
     </div>
     <label className="feedex-mobile-search"><Search size={18} aria-hidden="true" /><input type="search" aria-label={library ? '폴더 및 피드 검색' : '글 검색'} placeholder={library ? '폴더 또는 피드 검색' : '글 검색'} value={search} onChange={(event) => onSearch(event.target.value)} autoComplete="off" />{search && <button aria-label="검색어 지우기" onClick={() => onSearch('')}><X size={18} /></button>}</label>
+    {syncStatus && <SyncStatusNotice status={syncStatus} busy={syncBusy} />}
   </header>;
 }
 

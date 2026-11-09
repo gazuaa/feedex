@@ -178,7 +178,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   // 1. 간단한 목록 보기 (Feedly 제목만 보기)
   if (layout === 'list') {
     return (
-      <div ref={listRef} className="feedex-list-items p-4 lg:p-8 max-w-6xl mx-auto" data-retain-read={retainReadRows || undefined}>
+      <div ref={listRef} data-render-deferred={articles.length >= 120 || undefined} className="feedex-list-items p-4 lg:p-8 max-w-6xl mx-auto" data-retain-read={retainReadRows || undefined}>
         <div
           className={`rounded-2xl border overflow-hidden divide-y ${
             isDark
@@ -306,7 +306,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   // 2. 카드 보기 (격자 배치)
   if (layout === 'cards') {
     return (
-      <div ref={listRef} className="feedex-list-items feedex-article-cards p-4 lg:p-8 max-w-7xl mx-auto grid grid-cols-1 gap-5" data-retain-read={retainReadRows || undefined}>
+      <div ref={listRef} data-render-deferred={articles.length >= 120 || undefined} className="feedex-list-items feedex-article-cards p-4 lg:p-8 max-w-7xl mx-auto grid grid-cols-1 gap-5" data-retain-read={retainReadRows || undefined}>
         {articles.map((article) => {
           const x = xRow(article, 'card'); if (x) return x;
           return (
@@ -444,7 +444,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
   // 3. 매거진 보기 (Feedly 기본 클래식 배치)
   // 글마다 상자를 두지 않고 구분선으로 나눈다. 썸네일은 왼쪽, 제목을 먼저 읽게 하고 출처·시간은 아래에 둔다.
   return (
-    <div ref={listRef} className="feedex-list-items feedex-magazine-list max-w-5xl mx-auto" data-retain-read={retainReadRows || undefined}>
+    <div ref={listRef} data-render-deferred={articles.length >= 120 || undefined} className="feedex-list-items feedex-magazine-list max-w-5xl mx-auto" data-retain-read={retainReadRows || undefined}>
       {articles.map((article) => {
         const x = xRow(article, 'row'); if (x) return x;
         return (

@@ -27,7 +27,7 @@ export function XTimeline({ articles, selectedArticleId, onSelectArticle, onTogg
   const posts = useMemo(() => new Map(articles.map((article) => [article.id, parseXPost(article)])), [articles]);
   const tabStop = articles.some((article) => article.id === selectedArticleId) ? selectedArticleId : articles[0]?.id;
   const avatarOf = useXAvatars([...posts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
-  return <div ref={listRef} className={`feedex-list-items feedex-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
+  return <div ref={listRef} data-render-deferred={articles.length >= 120 || undefined} className={`feedex-list-items feedex-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
     {articles.map((article) => <XPostRow tabIndex={tabStop === article.id ? 0 : -1} blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id)!} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />)}
   </div>;
 }

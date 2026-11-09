@@ -23,10 +23,14 @@ export function fullXPhotoUrl(url: string): string {
 }
 
 /** 본문 사진을 새 탭으로 내보내지 않고 앱 안의 모달 뷰어로 크게 보여 준다. */
+let activePhotoClose: (() => void) | null = null;
+
 export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   const urls = rawUrls.filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u)).map(fullXPhotoUrl);
   if (!urls.length || typeof document === 'undefined') return;
-  document.querySelector('dialog[data-sfeed-photo-viewer]')?.remove();
+  activePhotoClose?.();
+  const previous = document.querySelector<HTMLDialogElement>('dialog[data-sfeed-photo-viewer]');
+  if (previous) { if (previous.open) previous.close(); previous.remove(); }
 
   let index = Math.max(0, Math.min(urls.length - 1, Math.floor(startIndex) || 0));
   let zoomed = false;
@@ -107,7 +111,13 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     }
   };
 
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
+    window.removeEventListener('popstate', close);
+    window.removeEventListener('pagehide', close);
+    if (activePhotoClose === close) activePhotoClose = null;
     if (typeof dialog.close === 'function' && dialog.open) dialog.close();
     dialog.remove();
   };
@@ -133,6 +143,11 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   prevBtn.addEventListener('click', (e) => { e.stopPropagation(); step(-1); });
   nextBtn.addEventListener('click', (e) => { e.stopPropagation(); step(1); });
   dialog.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
+  // 브라우저 기본 닫기나 기록 이동에서도 닫힌 레이어가 목록 위에 남지 않게 한다.
+  dialog.addEventListener('close', close);
+  window.addEventListener('popstate', close);
+  window.addEventListener('pagehide', close);
+  activePhotoClose = close;
   dialog.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); step(-1); }
@@ -157,23 +172,26 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   render();
   if (typeof dialog.showModal === 'function') dialog.showModal();
   else dialog.setAttribute('open', '');
+  return close;
 }
 
-export function useXPostFrame(frame: RefObject<HTMLIFrameElement | null>, onOpen?: (url: string) => void) {
+export function useXPostFrame(frame: RefObject<HTMLIFrameElement | null>, onOpen?: (url: string) => void, resetKey = '') {
+  const open = useRef(onOpen); open.current = onOpen;
   useEffect(() => {
+    let closePhoto: (() => void) | undefined;
     const message = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow) return;
       const photos = event.data?.sfeedXPhotos;
       if (photos && Array.isArray(photos.urls)) {
-        openPhotoViewer(photos.urls, Number(photos.index) || 0);
+        closePhoto?.(); closePhoto = openPhotoViewer(photos.urls, Number(photos.index) || 0);
         return;
       }
       const url = event.data?.sfeedXPost;
-      if (typeof url === 'string' && isXStatusUrl(url)) onOpen?.(url);
+      if (typeof url === 'string' && isXStatusUrl(url)) open.current?.(url);
     };
     window.addEventListener('message', message);
-    return () => window.removeEventListener('message', message);
-  }, [frame, onOpen]);
+    return () => { window.removeEventListener('message', message); closePhoto?.(); };
+  }, [frame, resetKey]);
 }
 
 export interface ActiveYouTubeEmbed {

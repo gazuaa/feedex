@@ -47,6 +47,7 @@ import { keepResumePoint, takeResumePoint, watchAppVersion } from './client/appV
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { readRowsExpired, UnreadSession } from './client/unreadSession';
+import { useSyncStatus } from './client/syncStatus';
 import { useAutoRefresh } from './client/autoRefresh';
 import { DEFAULT_AUTO_REFRESH_MINUTES } from './shared/preferences';
 import { isXProfileFeed, isXStatusUrl, xProfile } from './shared/xFeed';
@@ -77,6 +78,7 @@ export const App: React.FC = () => {
   const { feedIds: excludedFeedIds, save: saveFeedExclusions } = useFeedExclusions(user?.id || '');
   const excludedFeedSet = useMemo(() => new Set(excludedFeedIds), [excludedFeedIds]);
   const [feedExclusionsOpen, setFeedExclusionsOpen] = useState(false);
+  const syncStatus = useSyncStatus(user?.id || '');
   const articleBlocks = useArticleBlocks(user?.id || '');
   useArticleBlockAccountSync(user?.id || '');
   const isBlockedArticle = useMemo(() => compileArticleBlocks(articleBlocks), [articleBlocks]);
@@ -431,8 +433,9 @@ export const App: React.FC = () => {
       }
     };
     document.addEventListener('visibilitychange', visible);
+    window.addEventListener('online', visible);
     window.addEventListener('storage', sessionChanged);
-    return () => { document.removeEventListener('visibilitychange', visible); window.removeEventListener('storage', sessionChanged); };
+    return () => { document.removeEventListener('visibilitychange', visible); window.removeEventListener('online', visible); window.removeEventListener('storage', sessionChanged); };
   }, [readerCache, syncInBackground]);
 
   const buildArticleQuery = useCallback(() => {
@@ -1436,7 +1439,7 @@ export const App: React.FC = () => {
     else selectMobileTab(tab);
   };
   const onManageArticleBlocks = () => setBlockDialog({ accountId: user.id, article: null });
-  const mobileSettings = { theme, onChangeTheme: handleChangeTheme, layout, onChangeLayout: handleChangeLayout, onOpenOpml: () => openMobileDiscover('opml'), sort: articleSort, onChangeSort: setArticleSort, markReadOnScroll, onChangeMarkReadOnScroll: handleChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes: handleChangeAutoRefreshMinutes, accountId: user.id, onManageArticleBlocks };
+  const mobileSettings = { syncStatus, syncBusy: refreshingFeeds || backgroundSyncs > 0, theme, onChangeTheme: handleChangeTheme, layout, onChangeLayout: handleChangeLayout, onOpenOpml: () => openMobileDiscover('opml'), sort: articleSort, onChangeSort: setArticleSort, markReadOnScroll, onChangeMarkReadOnScroll: handleChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes: handleChangeAutoRefreshMinutes, accountId: user.id, onManageArticleBlocks };
 
   const contextActions = (target: AppContextTarget): AppContextAction[] => {
     const items: AppContextAction[] = [];

@@ -73,6 +73,7 @@ export function bindArticleImages(container: HTMLElement, base: string) {
     if (link && (/^https:\/\/pbs\.twimg\.com\/media\//i.test(link.href) || /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i.test(link.href))) return link.href;
     return img.currentSrc || img.src;
   };
+  let closePhoto: (() => void) | undefined;
   const onClick = (event: MouseEvent) => {
     if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target instanceof Element ? event.target.closest('img') : null;
@@ -80,7 +81,7 @@ export function bindArticleImages(container: HTMLElement, base: string) {
     event.preventDefault();
     event.stopPropagation();
     const all = Array.from(container.querySelectorAll('img')).filter(isViewablePhoto);
-    openPhotoViewer(all.map(photoUrlOf), Math.max(0, all.indexOf(target)));
+    closePhoto?.(); closePhoto = openPhotoViewer(all.map(photoUrlOf), Math.max(0, all.indexOf(target)));
   };
   container.addEventListener('error', hide, true);
   container.addEventListener('load', hide, true);
@@ -89,6 +90,7 @@ export function bindArticleImages(container: HTMLElement, base: string) {
     container.removeEventListener('error', hide, true);
     container.removeEventListener('load', hide, true);
     container.removeEventListener('click', onClick);
+    closePhoto?.();
   };
 }
 

@@ -130,7 +130,7 @@ html:not(.dark) :is(.feedex-cache-clear, .feedex-cache-actions button, .feedex-a
 .feedex-setting-link:hover { text-decoration: underline; }
 html.dark .feedex-setting-link { color: #34d399; }
 .feedex-cache-actions button[data-danger] { color: #e11d48; }
-.feedex-desktop-settings-panel, .feedex-mobile-settings-panel { max-height: calc(100dvh - 96px - env(safe-area-inset-top)); overflow-y: auto; }
+.feedex-desktop-settings-panel { max-height: calc(100dvh - 96px - env(safe-area-inset-top)); overflow-y: auto; }
 .feedex-text-size-control { display: inline-flex; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--feedex-border); border-radius: 12px; color: var(--feedex-text); }
 .feedex-text-size-control > button { display: flex; align-items: center; justify-content: center; min-width: 34px; min-height: 34px; padding: 4px 8px; border-radius: 9px; cursor: pointer; }
 .feedex-text-size-control > button:hover { background: var(--feedex-background); }
@@ -229,7 +229,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
 .feedex-install-address button { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 8px; color: #10b981; font-size: 12px; }
 .feedex-install-address > p { margin-top: 8px; font-size: 12px; line-height: 1.6; }
 @media (max-width: 1023px) {
-  :root { --feedex-mobile-header-height: calc(105px + env(safe-area-inset-top)); }
+  :root { --feedex-mobile-header-height: calc(129px + env(safe-area-inset-top)); }
   .feedex-workspace-main { position: relative; }
   /*
    * 실제 고정 뷰포트를 채운다. inset: 0과 따로 준 100dvh 높이를 함께 쓰면
@@ -248,7 +248,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-heading { display: flex; align-items: center; gap: 10px; min-width: 0; margin-bottom: 6px; }
   .feedex-mobile-heading h1 { min-width: 0; flex: 1; margin: 0; font-size: 23px; font-weight: 750; line-height: 1.25; letter-spacing: -.7px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .feedex-mobile-header-actions { display: flex; flex-shrink: 0; align-items: center; gap: 2px; }
-  .feedex-mobile-sort { display: inline-flex; flex-shrink: 0; align-items: center; gap: 5px; height: 34px; margin-right: 2px; padding: 0 11px; border: 1px solid var(--feedex-mobile-line); border-radius: 17px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+  .feedex-mobile-sort { display: inline-flex; flex-shrink: 0; align-items: center; gap: 5px; height: 44px; margin-right: 2px; padding: 0 11px; border: 1px solid var(--feedex-mobile-line); border-radius: 17px; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
   .feedex-mobile-sort:hover, .feedex-mobile-sort:focus-visible { background: var(--feedex-mobile-raised); }
   .feedex-mobile-icon { width: 44px; height: 44px; display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; }
   .feedex-mobile-icon:hover, .feedex-mobile-icon:focus-visible { background: var(--feedex-mobile-raised); }
@@ -260,12 +260,26 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-settings { position: relative; }
   .feedex-mobile-settings summary { list-style: none; }
   .feedex-mobile-settings summary::-webkit-details-marker { display: none; }
-  .feedex-mobile-settings-panel { max-height: calc(100dvh - 180px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); position: absolute; right: -42px; top: 52px; z-index: 8; width: min(304px, calc(100vw - 32px)); padding: 16px; border-radius: 22px; border: 1px solid var(--feedex-mobile-line); background: var(--feedex-mobile-surface); box-shadow: 0 12px 40px #0003; }
+  .feedex-mobile-settings-sheet { position: fixed; inset: auto 0 0; display: flex; flex-direction: column; width: min(540px, calc(100% - 16px)); max-width: none; max-height: min(88dvh, 820px); margin: 0 auto; padding: 0; border: 1px solid var(--feedex-mobile-line); border-bottom: 0; border-radius: 24px 24px 0 0; background: var(--feedex-mobile-surface); color: var(--feedex-text); box-shadow: 0 -12px 48px #02061733; overflow: hidden; }
+  .feedex-mobile-settings-sheet::backdrop { background: #02061766; backdrop-filter: blur(3px); }
+  .feedex-mobile-settings-heading { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 10px 16px 10px 20px; border-bottom: 1px solid var(--feedex-mobile-line); }
+  .feedex-mobile-settings-heading h2 { margin: 0; font-size: 18px; font-weight: 700; }
+  .feedex-mobile-settings-heading > button { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; color: var(--feedex-mobile-muted); background: var(--feedex-mobile-raised); cursor: pointer; }
+  .feedex-mobile-settings-panel { position: static; flex: 1; min-height: 0; width: 100%; max-height: none; padding: 16px 20px calc(24px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: auto; }
+  .feedex-mobile-settings-panel :is(button, select):not([role="switch"]) { min-height: 44px; }
+  .feedex-mobile-settings-panel .feedex-text-size-control > button { min-width: 44px; min-height: 44px; }
+  .feedex-mobile-settings-panel .feedex-segmented button { min-width: 44px; min-height: 44px; }
+  .feedex-mobile-sync-status { display: flex; align-items: center; gap: 5px; min-height: 20px; margin-top: 4px; font-size: 11px; line-height: 1.4; color: var(--feedex-mobile-muted); }
+  .feedex-mobile-sync-status > svg { flex-shrink: 0; }
+  .feedex-mobile-sync-status > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .feedex-mobile-sync-status > small { margin-left: auto; flex-shrink: 0; font-size: 10px; color: var(--feedex-mobile-muted); }
+  .feedex-mobile-sync-status[data-warning] { color: #b45309; }
+  html.dark .feedex-mobile-sync-status[data-warning] { color: #fbbf24; }
   /* 휴대폰 패널은 공용 설정 스타일에 휴대폰 색 구성을 쓴다. */
   .feedex-mobile-settings-panel { --feedex-border: var(--feedex-mobile-line); --feedex-muted: var(--feedex-mobile-muted); --feedex-background: var(--feedex-mobile-raised); --feedex-panel: var(--feedex-mobile-surface); }
-  .feedex-mobile-settings-panel :is(.feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting) { min-height: 38px; font-size: 14px; }
-  .feedex-mobile-settings-panel :is(.feedex-segmented, .feedex-setting-row > .feedex-text-size-control) button { min-height: 34px; }
-  .feedex-mobile-settings-panel .feedex-setting-items > button { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0; border-radius: 0; font-size: 14px; color: var(--feedex-text); background: none; }
+  .feedex-mobile-settings-panel :is(.feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting) { min-height: 44px; font-size: 14px; }
+  .feedex-mobile-settings-panel :is(.feedex-segmented, .feedex-setting-row > .feedex-text-size-control) button { min-height: 44px; }
+  .feedex-mobile-settings-panel .feedex-setting-items > button { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0; border-radius: 0; font-size: 14px; color: var(--feedex-text); background: none; }
   .feedex-mobile-settings-panel .feedex-setting-items > button svg { color: #10b981; }
   /* 열려 있지 않으면 닫혀 있다. 단, 목록으로 밀어서 돌아가는 동안에는 목록 아래에 드러난다. */
   .feedex-mobile-library-host:not([data-open]) { display: none; }
@@ -569,3 +583,14 @@ html.dark .feedex-exclusions-count button { color: #34d399; }
 .feedex-exclusions-folder small { flex-shrink: 0; font-size: 12px; }
 .feedex-exclusions-feeds { padding-left: 30px; }
 .feedex-exclusions-feeds > label:last-child { border-bottom: 0; }
+
+/* 화면 밖의 긴 목록은 배치·그리기를 미루되 행 자체는 남겨 위치 복원과 읽음 처리를 유지한다. */
+@media (max-width: 1023px) {
+@supports (content-visibility: auto) {
+  .feedex-list-items[data-render-deferred] > [data-article-id]:not([data-article-selected="true"]):not(:focus-within) { content-visibility: auto; contain-intrinsic-block-size: auto calc(124px * var(--feedex-text-scale, 1)); }
+  .feedex-list-items.feedex-article-cards[data-render-deferred] > [data-article-id] { contain-intrinsic-block-size: auto calc(380px * var(--feedex-text-scale, 1)); }
+  .feedex-list-items.feedex-x-timeline[data-render-deferred] > [data-article-id], .feedex-list-items[data-render-deferred] > .feedex-x-post { contain-intrinsic-block-size: auto calc(280px * var(--feedex-text-scale, 1)); }
+}
+}
+
+.feedex-web-frame { background: var(--feedex-panel); }

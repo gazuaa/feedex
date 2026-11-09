@@ -153,23 +153,26 @@ export async function apiRequest<T>(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const res = await fetch(path, {
-    ...options,
-    headers,
-  });
-
-  if (!res.ok) {
-    let errorMsg = `HTTP ${res.status}`;
-    try {
-      const data = await res.json();
-      if (data?.error) errorMsg = data.error;
-    } catch {
-      // 무시한다
+  const endpoint = path.split('?')[0];
+  const tracked = ['/api/bootstrap', '/api/sync', '/api/feeds/refresh'].includes(endpoint);
+  const report = (ok: boolean) => {
+    if (!tracked || (ok && endpoint === '/api/feeds/refresh') || typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('feedex-sync-status', { detail: { token, ok, at: Date.now() } }));
+  };
+  try {
+    const res = await fetch(path, { ...options, headers });
+    if (!res.ok) {
+      let errorMsg = `HTTP ${res.status}`;
+      try { const data = await res.json(); if (data?.error) errorMsg = data.error; } catch { /* 오류 본문이 없으면 상태 코드를 쓴다. */ }
+      throw new ApiError(errorMsg, res.status);
     }
-    throw new ApiError(errorMsg, res.status);
+    const data = await res.json() as T;
+    report(true);
+    return data;
+  } catch (error) {
+    if (!options.signal?.aborted && !(error instanceof Error && error.name === 'AbortError')) report(false);
+    throw error;
   }
-
-  return res.json() as Promise<T>;
 }
 
 export function formatRelativeTime(isoDate: string): string {
