@@ -39,11 +39,13 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   const isMobile = useMobileViewport();
   const back = () => trail.length > 1 ? setTrail((items) => items.slice(0, -1)) : onBack();
   const open = useCallback((next: string, hint?: { text: string; name?: string; handle?: string }) => {
-    if (isXStatusUrl(next)) {
+    const match = /^https?:\/\/(?:(?:www\.|mobile\.)?(?:twitter\.com|x\.com)|[^/]+)\/([a-z\d_]{1,15})\/status\/(\d{1,20})(?:[/?#]|$)/i.exec(next);
+    if (match) {
+      const normalized = `https://x.com/${match[1]}/status/${match[2]}`;
       if (hint?.text) {
-        setHints((m) => new Map(m).set(next, { name: hint.name || '', handle: hint.handle || '', text: hint.text, href: next, media: [] }));
+        setHints((m) => new Map(m).set(normalized, { name: hint.name || '', handle: hint.handle || '', text: hint.text, href: normalized, media: [] }));
       }
-      setTrail((items) => items.at(-1) === next ? items : [...items, next]);
+      setTrail((items) => items.at(-1) === normalized ? items : [...items, normalized]);
     }
   }, []);
   useCopyTheme(frame, isDark);

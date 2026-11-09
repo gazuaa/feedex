@@ -902,8 +902,10 @@ export const App: React.FC = () => {
     [handleUpdateArticleState]
   );
 
-  const handleOpenXPost = (article: ArticleItem, url: string, hint?: XQuoteHint) => {
-    if (!isXStatusUrl(url)) return;
+  const handleOpenXPost = (article: ArticleItem, rawUrl: string, hint?: XQuoteHint) => {
+    const match = /^https?:\/\/(?:(?:www\.|mobile\.)?(?:twitter\.com|x\.com)|[^/]+)\/([a-z\d_]{1,15})\/status\/(\d{1,20})(?:[/?#]|$)/i.exec(rawUrl);
+    if (!match) return;
+    const url = `https://x.com/${match[1]}/status/${match[2]}`;
     handleSelectArticle(article);
     const parsedQuote = parseXPost(article).quote;
     const samePost = (a?: string | null, b?: string | null) => Boolean(a && b && a.replace(/#.*$/, '').replace(/^https?:\/\/[^/]+/, 'https://x.com') === b.replace(/#.*$/, '').replace(/^https?:\/\/[^/]+/, 'https://x.com'));

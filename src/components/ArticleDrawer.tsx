@@ -106,19 +106,24 @@ function ArticleBody({ html, base, title, className, style, onOpenXPost }: { htm
   }, [html, base, title]);
   return <div ref={ref} style={style} className={className} onClick={(event) => {
     const link = (event.target as Element).closest('a[href]') as HTMLAnchorElement | null;
-    if (onOpenXPost && link && isXStatusUrl(link.href) && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-      event.preventDefault();
-      const q = link.closest('.quote, blockquote');
-      let text = '';
-      if (q) {
-        const c = q.cloneNode(true) as Element;
-        c.querySelector('b')?.remove();
-        c.querySelector('cite')?.remove();
-        c.querySelectorAll('img').forEach((i) => i.remove());
-        c.querySelectorAll('br').forEach((b) => b.replaceWith('\u2028'));
-        text = (c.textContent || '').replace(/[ \t]*[\r\n]+[ \t]*/g, '\n').replace(/[ \t]*\u2028[ \t]*/g, '\n').trim();
+    if (onOpenXPost && link && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      const match = /^https?:\/\/(?:(?:www\.|mobile\.)?(?:twitter\.com|x\.com)|[^/]+)\/([a-z\d_]{1,15})\/status\/(\d{1,20})(?:[/?#]|$)/i.exec(link.href);
+      if (match) {
+        event.preventDefault();
+        const normalized = `https://x.com/${match[1]}/status/${match[2]}`;
+        const q = link.closest('.quote, blockquote');
+        let text = '';
+        if (q) {
+          const c = q.cloneNode(true) as Element;
+          c.querySelector('b')?.remove();
+          c.querySelector('cite')?.remove();
+          c.querySelector('footer')?.remove();
+          c.querySelectorAll('img').forEach((i) => i.remove());
+          c.querySelectorAll('br').forEach((b) => b.replaceWith('\u2028'));
+          text = (c.textContent || '').replace(/[ \t]*[\r\n]+[ \t]*/g, '\n').replace(/[ \t]*\u2028[ \t]*/g, '\n').trim();
+        }
+        onOpenXPost(normalized, text ? { text } : undefined);
       }
-      onOpenXPost(link.href, text ? { text } : undefined);
     }
   }} dangerouslySetInnerHTML={{ __html: html }} />;
 }
