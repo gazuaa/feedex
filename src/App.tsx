@@ -872,7 +872,8 @@ export const App: React.FC = () => {
     if (!isXStatusUrl(url)) return;
     handleSelectArticle(article);
     const quote = parseXPost(article).quote;
-    setXPostTarget({ articleId: article.id, url, quote: quote?.href === url ? quote : null });
+    const samePost = (a?: string | null, b?: string | null) => Boolean(a && b && a.replace(/#.*$/, '').replace(/^https?:\/\/[^/]+/, 'https://x.com') === b.replace(/#.*$/, '').replace(/^https?:\/\/[^/]+/, 'https://x.com'));
+    setXPostTarget({ articleId: article.id, url, quote: samePost(quote?.href, url) ? quote : null });
   };
   useEffect(() => { setXPostTarget(null); }, [user?.id, activeScope, activeFeedId, activeFolderId]);
 

@@ -204,7 +204,7 @@ html.dark .feedex-setting-link { color: #34d399; }
   .feedex-workspace { display: grid; grid-template-columns: var(--feedex-channel-width) 8px minmax(0, 1fr); }
   .feedex-workspace .feedex-sidebar { width: var(--feedex-channel-width); }
   .feedex-content-panes { display: grid; grid-template-columns: var(--feedex-list-width) 8px minmax(0, 1fr); }
-  .feedex-reader-pane { display: block; }
+  .feedex-reader-pane { display: block; height: 100%; min-height: 0; }
   .feedex-pane-splitter { display: block; position: relative; cursor: col-resize; touch-action: none; background: var(--feedex-background); outline: none; }
   .feedex-pane-splitter::before { content: ''; position: absolute; inset: 0; width: 1px; margin-inline: auto; background: var(--feedex-border); }
   .feedex-pane-splitter:hover::before, .feedex-pane-splitter:focus-visible::before { background: #10b981; }

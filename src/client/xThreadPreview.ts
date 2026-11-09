@@ -5,7 +5,7 @@ import { X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadS
 
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 // 글자 속 주소만 링크로 바꾼다. 나머지는 모두 글자로 둔다.
-const linked = (text: string) => escape(text).replace(/https?:\/\/[^\s<]+/g, (url) => `<a href="${url}">${url}</a>`);
+const linked = (text: string) => escape(text).replace(/https?:\/\/[^\s<]+/g, (url) => `<a href="${url}">${url}</a>`).replace(/\n/g, '<br>');
 
 /**
  * 공개 미러에서 X 글 페이지를 받는 데 몇 초 걸린다. 그동안 피드로 받은 글로 웹 사본과 같은 모양의 문서를

@@ -59,6 +59,6 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       <a href={url} target="_blank" rel="noopener noreferrer" aria-label="X에서 열기" className="p-3"><ExternalLink size={19} /></a>
     </header>
     {error && <p role="status" className="px-4 py-2 text-sm text-slate-500">{error}</p>}
-    <WebPager enabled={isMobile} onBack={back}><div className="relative flex-1 min-h-0 w-full h-full flex flex-col"><iframe key={`${url}:${copy?.url === url ? 'ready' : 'preview'}`} ref={frame} title="인용한 X 글" srcDoc={html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" style={{ colorScheme: isDark ? 'dark' : 'light' }} className="h-full min-h-0 w-full flex-1 border-0 feedex-web-frame" /></div></WebPager>
+    <WebPager enabled={isMobile} onBack={back}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame"><iframe key={`${url}:${copy?.url === url ? 'ready' : 'preview'}`} ref={frame} title="인용한 X 글" srcDoc={html} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" style={{ colorScheme: isDark ? 'dark' : 'light' }} className="absolute inset-0 h-full w-full border-0 feedex-web-frame" /></div></WebPager>
   </section>;
 }

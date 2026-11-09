@@ -63,14 +63,17 @@ export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | unde
     const holder = image.parentElement;
     return [{ src, video: /video_thumb/.test(src) || (holder?.tagName === 'A' && /\bVideo\b/.test(holder.textContent || '')) }];
   });
-  post.text = textOf(main.querySelector('p')) || post.text;
+  const paragraphs = [...main.querySelectorAll('p')].map(textOf).filter(Boolean);
+  post.text = paragraphs.join('\n\n') || post.text;
   post.media = mediaOf(main);
   // 미러는 인용 글을 <p> 안에 <p>로 감싸 보내서, 읽고 나면 빈 문단과 글 문단이 나란히 남는다.
   const quote = extra?.querySelector('blockquote');
   if (quote) {
     const who = /^(.*?)\s*\(@([a-z\d_]{1,15})\)\s*$/i.exec(quote.querySelector('b')?.textContent?.trim() || '');
     const href = quote.querySelector('cite a')?.getAttribute('href') || '';
-    post.quote = { name: who?.[1] || who?.[2] || '', handle: who?.[2] || statusUser(href) || '', text: [...quote.querySelectorAll('p')].map(textOf).filter(Boolean).join('\n\n') || '', href: /^https:\/\//.test(href) ? href : article.url, media: mediaOf(quote) };
+    const quoteStatus = /^https?:\/\/[^/]+\/([a-z\d_]{1,15})\/status\/(\d{1,20})/i.exec(href);
+    const quoteUrl = quoteStatus ? `https://x.com/${quoteStatus[1]}/status/${quoteStatus[2]}` : /^https:\/\//.test(href) ? href : article.url;
+    post.quote = { name: who?.[1] || who?.[2] || '', handle: who?.[2] || statusUser(quoteUrl) || '', text: [...quote.querySelectorAll('p')].map(textOf).filter(Boolean).join('\n\n') || '', href: quoteUrl, media: mediaOf(quote) };
   } else if (extra) {
     const link = extra.querySelector('a[href]');
     const href = link?.getAttribute('href') || '';

@@ -82,7 +82,7 @@ export function ResizableWorkspace({ userId, isDark, sidebar, header, reader, fo
         {/* 스크롤 영역 자체는 비활성화하지 않는다. iOS가 복귀 후 터치 스크롤을 계속 막는 것을 피한다. */}
         <main ref={listRef} data-reader-covered={mobileReaderOpen || undefined} aria-hidden={mobileReaderOpen || undefined} id="feed-article-list" aria-label="피드 목록" tabIndex={inactive || mobileReaderOpen ? -1 : 0} className="feedex-feed-list min-w-0 min-h-0 overflow-y-auto overscroll-contain"><div inert={inactive || mobileReaderOpen || undefined}>{children}</div></main>
         {splitter('list')}
-        <aside inert={inactive || undefined} id="article-reader-pane" aria-label="글 본문" className="feedex-reader-pane min-w-0 min-h-0 overflow-hidden">{reader}</aside>
+        <aside inert={inactive || undefined} id="article-reader-pane" aria-label="글 본문" className="feedex-reader-pane h-full min-w-0 min-h-0 overflow-hidden">{reader}</aside>
       </div>
       {footer}
     </div>
