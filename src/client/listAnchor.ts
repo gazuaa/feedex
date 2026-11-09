@@ -1,3 +1,4 @@
+import { rebuildingScroll } from './mobileScrollRecovery';
 import { useCallback, useLayoutEffect, useRef, type RefObject } from 'react';
 export function useListAnchor(ref: RefObject<HTMLElement | null>, rows: unknown[], scope: string) {
   // 맨 위에 보이던 행이 목록에서 빠져도 바로 다음 행으로 자리를 잡도록 뒤의 행도 기억한다.
@@ -5,6 +6,7 @@ export function useListAnchor(ref: RefObject<HTMLElement | null>, rows: unknown[
   useLayoutEffect(() => {
     const root = ref.current; if (!root) return;
     const remember = () => {
+      if (rebuildingScroll(root)) return;
       if (root.scrollTop < 8) { anchor.current = null; return; }
       const top = root.getBoundingClientRect().top;
       const items = [...root.querySelectorAll<HTMLElement>('[data-article-id]')];
@@ -16,7 +18,7 @@ export function useListAnchor(ref: RefObject<HTMLElement | null>, rows: unknown[
     const switched = shown.current !== scope; shown.current = scope;
     if (switched) anchor.current = null;
     const previous = anchor.current;
-    if (previous?.scope === scope) {
+    if (previous?.scope === scope && !rebuildingScroll(root)) {
       const items = new Map([...root.querySelectorAll<HTMLElement>('[data-article-id]')].map((item) => [item.dataset.articleId, item]));
       const row = previous.ids.map((id) => items.get(id)).find(Boolean);
       if (row) root.scrollTop += row.getBoundingClientRect().top - root.getBoundingClientRect().top - previous.offset;

@@ -1,3 +1,4 @@
+import { rebuildingScroll } from './mobileScrollRecovery';
 import { COPY_THEME_MARKUP } from './copyTheme';
 import { xFrameTools } from './xPostFrame';
 import { useEffect, useState, useSyncExternalStore, type RefObject } from 'react';
@@ -38,7 +39,7 @@ export function useScrollChrome(ref: RefObject<HTMLElement | null>, enabled: boo
       setHidden(position.hidden);
     };
     if (element) {
-      const scroll = () => move(element.scrollTop, element.scrollHeight - element.clientHeight, element.clientHeight);
+      const scroll = () => { if (!rebuildingScroll(element)) move(element.scrollTop, element.scrollHeight - element.clientHeight, element.clientHeight); };
       element.addEventListener('scroll', scroll, { passive: true });
       return () => element.removeEventListener('scroll', scroll);
     }

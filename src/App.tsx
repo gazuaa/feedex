@@ -34,6 +34,7 @@ import { applyTheme, readStoredTheme } from './client/theme';
 import { emptiesUnreadList, useMobileViewport, useScrollChrome } from './client/mobile';
 import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
+import { useMobileScrollRecovery } from './client/mobileScrollRecovery';
 import { NativeHandoff } from './components/NativeHandoff';
 import { inNativeApp, inNativeSignInWindow } from './client/nativeApp';
 import { htmlToText, openInDeepL } from './client/deeplWeb';
@@ -192,6 +193,7 @@ export const App: React.FC = () => {
   );
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
   const isMobile = useMobileViewport();
+  useMobileScrollRecovery(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId, `${user?.id}:${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${searchQuery}:${articleSort}`);
   const chromeHidden = useScrollChrome(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${searchQuery}`);
   const [textSize] = useTextSize();
   useEffect(() => { document.documentElement.style.setProperty('--feedex-text-scale', String(textSize)); }, [textSize]);
