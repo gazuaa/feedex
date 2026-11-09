@@ -19,5 +19,7 @@ try {
   message(parent, { sfeedTheme: '<script>' }); assert.equal(root.dataset.sfeedTheme, 'dark');
   message(parent, { sfeedTheme: 'light' }); assert.equal(root.dataset.sfeedTheme, 'light', '다시 불러오지 않고 밝은 테마로 돌아간다');
   assert.doesNotMatch(COPY_THEME_MARKUP, /filter\s*:/, '사진과 영상은 반전하지 않는다');
-  console.log('통과: 격리된 사본의 앱 테마 전달, 준비 알림, 출처 검사, 기기 설정과 분리, 사진 색 보존.');
+  assert.match(COPY_THEME_MARKUP, /\.quote-post \.text[\s\S]*#e2e8f0/, '인용글 본문은 다크 모드에서도 일반 텍스트 색상을 유지한다');
+  assert.match(COPY_THEME_MARKUP, /\.quote \.link[\s\S]*#6ee7b7/, '인용글 속 실제 링크만 강조 색상으로 표시한다');
+  console.log('통과: 격리된 사본의 앱 테마 전달, 준비 알림, 출처 검사, 기기 설정과 분리, 사진 색 보존, 인용글 색상.');
 } finally { await vite.close(); }
