@@ -36,7 +36,7 @@ import { useTextSize } from '../client/textSize';
 import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile';
 import { dropSiteClasses } from '../shared/siteClasses';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
-import { presentReaderSlide } from '../client/swipeBack';
+import { bindWebPager } from '../client/webPager';
 import type { ArticleResources } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
 import { WebLabel, WebStatusBar } from './WebStatusBar';
@@ -133,34 +133,7 @@ export function WebPager({ enabled, onBack, children }: { enabled: boolean; onBa
   useLayoutEffect(() => {
     const pager = ref.current;
     if (!enabled || !pager) return;
-    let gone = false, timer = 0;
-    let slide: ReturnType<typeof presentReaderSlide> = null;
-    const page = pager.lastElementChild as HTMLElement | null;
-    const rest = () => { slide?.clear(); slide = null; page?.style.removeProperty('transform'); };
-    const home = () => { if (!gone) pager.scrollLeft = pager.scrollWidth - pager.clientWidth; };
-    home();
-    const observer = new ResizeObserver(home);
-    observer.observe(pager);
-    const leave = () => {
-      window.clearTimeout(timer);
-      if (gone || pager.scrollLeft > 1) return;
-      gone = true; back.current();
-    };
-    // scrollend는 손가락을 떼고 스크롤이 끝나야 온다. 이 알림이 없는 브라우저는 스크롤이 잠잠해지면 닫는다.
-    const settle = () => { window.clearTimeout(timer); timer = window.setTimeout(leave, 'onscrollend' in window ? 1000 : 160); };
-    const scroll = () => {
-      if (gone) return;
-      if (pager.scrollLeft <= 1) settle(); else window.clearTimeout(timer);
-      const dx = Math.max(0, pager.scrollWidth - pager.clientWidth - pager.scrollLeft);
-      if (dx < 1) { rest(); return; }
-      slide ??= presentReaderSlide(document);
-      if (!slide) return;
-      slide.place(dx, false);
-      if (page) page.style.transform = `translate3d(${-dx}px, 0, 0)`;
-    };
-    pager.addEventListener('scroll', scroll, { passive: true });
-    pager.addEventListener('scrollend', leave);
-    return () => { observer.disconnect(); window.clearTimeout(timer); pager.removeEventListener('scroll', scroll); pager.removeEventListener('scrollend', leave); rest(); };
+    return bindWebPager(pager, () => back.current());
   }, [enabled]);
   if (!enabled) return <>{children}</>;
   return <div ref={ref} className="feedex-web-pager">

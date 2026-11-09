@@ -172,13 +172,15 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
   document.addEventListener('touchmove', move, { passive: false, capture: true });
   document.addEventListener('touchend', end, { passive: false, capture: true });
   document.addEventListener('touchcancel', abort, { passive: true, capture: true });
-  view.addEventListener('popstate', cancel);
+  // 네이티브 뒤로가기가 밀기를 중단해도 목록에 변형·합성 레이어가 남지 않게 한다.
+  const historyChanged = () => { cancel(); stage?.clear(); stage = null; };
+  view.addEventListener('popstate', historyChanged);
   return () => {
     document.removeEventListener('touchstart', begin, { capture: true });
     document.removeEventListener('touchmove', move, { capture: true });
     document.removeEventListener('touchend', end, { capture: true });
     document.removeEventListener('touchcancel', abort, { capture: true });
-    view.removeEventListener('popstate', cancel);
+    view.removeEventListener('popstate', historyChanged);
     stage?.clear();
     stage = null;
   };
