@@ -201,6 +201,11 @@ try {
     await checkFeedPublicationDates(failingSelect('D1_ERROR: some other failure', (count) => count === 1), feedIds);
     assert.equal(selects, PUBLICATION_CHECK_FEEDS, 'any other failure only skips that feed');
     // 어느 단계가 실패해도 정기 실행은 오류로 끝나지 않고 뒤 단계까지 돈다.
+    const scheduledAt = new Date().toISOString();
+    await checkDb.prepare('INSERT INTO users(id,email,name,created_at) VALUES(?,?,?,?)')
+      .bind('scheduled-user', 'scheduled@example.test', 'Scheduled', scheduledAt).run();
+    await checkDb.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)')
+      .bind('scheduled-sub', 'scheduled-user', bigFeed, scheduledAt).run();
     const attempted = [];
     const down = {
       prepare(sql) {

@@ -46,27 +46,8 @@ export async function upsertFeedAndArticles(
     .bind(parsed.xmlUrl)
     .first<{ id: string }>();
 
-  let feedId: string;
-  if (existingFeed) {
-    feedId = existingFeed.id;
-    await db
-      .prepare(
-        `UPDATE feeds
-         SET title = ?, description = COALESCE(?, description), html_url = COALESCE(?, html_url),
-             favicon_url = COALESCE(?, favicon_url), last_fetched_at = ?, last_error = NULL
-         WHERE id = ?`
-      )
-      .bind(
-        parsed.title,
-        parsed.description,
-        parsed.htmlUrl,
-        parsed.faviconUrl,
-        now,
-        feedId
-      )
-      .run();
-  } else {
-    feedId = generateId('feed');
+  const feedId = existingFeed?.id ?? generateId('feed');
+  if (!existingFeed) {
     await db
       .prepare(
         `INSERT INTO feeds (id, xml_url, html_url, title, description, favicon_url, last_fetched_at, created_at)
@@ -86,6 +67,24 @@ export async function upsertFeedAndArticles(
   }
 
   const { insertedCount } = await saveFeedArticles(db, feedId, parsed.articles, now);
+  if (existingFeed) {
+    await db
+      .prepare(
+        `UPDATE feeds
+         SET title = ?, description = COALESCE(?, description), html_url = COALESCE(?, html_url),
+             favicon_url = COALESCE(?, favicon_url), last_fetched_at = ?, last_error = NULL
+         WHERE id = ?`
+      )
+      .bind(
+        parsed.title,
+        parsed.description,
+        parsed.htmlUrl,
+        parsed.faviconUrl,
+        now,
+        feedId
+      )
+      .run();
+  }
   return { feedId, insertedCount };
 }
 

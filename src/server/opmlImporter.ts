@@ -45,7 +45,7 @@ export async function importOpmlFeed(
   // 받기 실패는 그대로 알리고, 예시 글로 바꾸지 않는다.
   let parsed;
   try {
-    parsed = await fetchAndParseFeed(item.xmlUrl);
+    parsed = await fetchAndParseFeed(item.xmlUrl, db);
   } catch (error) {
     throw new OpmlSourceError(error);
   }

@@ -1,7 +1,8 @@
 import { app } from './server/app';
 import { pruneReaderChanges } from './server/readerSync';
 import type { Env } from './server/types';
-import { generatedRss, refreshStoredFeeds, storedFeedColumns, type StoredFeed } from './server/feedLoader';
+import { generatedRss, refreshStoredFeeds, storedFeedColumns, type RefreshProgress, type StoredFeed } from './server/feedLoader';
+import { pauseSupported } from './server/feedPause';
 import { checkFeedPublicationDates } from './server/articlePublication';
 import { backfillXFeeds } from './server/xBackfill';
 import { refreshQueryStats } from './server/queryStats';
@@ -55,20 +56,34 @@ export default {
 
   async scheduled(event: { scheduledTime?: number }, env: Env, _ctx: unknown): Promise<void> {
     if (!env.DB) return;
-    const res = await env.DB.prepare(
+    // 한 단계가 실패해도 다음 예약 작업은 이어서 실행한다.
+    const step = async <T>(name: string, work: () => Promise<T>) => {
+      try { return await work(); }
+      catch (error) { console.error(`예약 실행 ${name} 실패:`, error instanceof Error ? error.message : error); }
+    };
+    const now = Date.now();
+    const regular = event.scheduledTime === undefined || new Date(event.scheduledTime).getUTCMinutes() % 15 === 0;
+    if (regular) await step('쿼리 통계', () => refreshQueryStats(env.DB, event.scheduledTime));
+    const paused = await step('구독 상태 조회', () => pauseSupported(env.DB));
+    const select = (x: boolean) => env.DB.prepare(
       `SELECT ${storedFeedColumns} FROM feeds f LEFT JOIN rss_builders b ON b.feed_id=f.id
-       WHERE b.id IS NULL OR EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=f.id)
-       ORDER BY f.last_fetched_at ASC LIMIT 100`
-    ).all<StoredFeed>();
-
-    const feeds = res.results || [];
-    // 한 단계가 실패해도 다음 단계는 돈다. 실패는 로그에 남기고 다음 예약 실행이 이어받는다.
-    const step = (name: string, work: () => Promise<unknown>) => work().catch((error) => console.error(`예약 실행 ${name} 실패:`, error instanceof Error ? error.message : error));
-    await step('쿼리 통계', () => refreshQueryStats(env.DB, event.scheduledTime));
-    await step('피드 새로고침', () => refreshStoredFeeds(env, feeds));
-    // X 계정의 예전 글은 새로고침이 끝난 뒤 몇 쪽씩 채운다.
-    await step('X 예전 글 채우기', () => backfillXFeeds(env.DB));
-    await step('발행일 확인', () => checkFeedPublicationDates(env.DB, feeds.map((feed) => feed.id)));
-    await step('동기화 기록 정리', () => pruneReaderChanges(env.DB));
+       LEFT JOIN feed_refresh_state r ON r.feed_id=f.id
+       WHERE EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=f.id ${paused ? 'AND s.paused_at IS NULL' : ''})
+         AND COALESCE(r.retry_at,0)<=? AND COALESCE(r.lease_until,0)<=?
+         AND f.xml_url ${x ? 'LIKE' : 'NOT LIKE'} 'https://x.com/%'
+         ${x ? 'AND (f.last_fetched_at IS NULL OR f.last_fetched_at<=?)' : ''}
+       ORDER BY COALESCE(r.attempted_at,f.last_fetched_at) ASC, f.id LIMIT ${x ? 24 : 100}`
+    ).bind(now, now, ...(x ? [new Date(now - 15 * 60_000).toISOString()] : [])).all<StoredFeed>();
+    const rss = regular ? await step('RSS 피드 조회', () => select(false)) : undefined;
+    const x = await step('X 피드 조회', () => select(true));
+    const feeds = [...(rss?.results || []), ...(x?.results || [])];
+    const progress: RefreshProgress = { done: 0, inserted: 0 };
+    const refreshed = await step('피드 새로고침', () => refreshStoredFeeds(env, feeds, progress));
+    // 최신 글 수집이 끝난 뒤에만 과거 글을 조금씩 채운다.
+    if (regular && x && refreshed !== undefined && !progress.xRateLimited) await step('X 예전 글 채우기', () => backfillXFeeds(env.DB, 2));
+    if (regular) {
+      await step('발행일 확인', () => checkFeedPublicationDates(env.DB, feeds.map((feed) => feed.id)));
+      await step('동기화 기록 정리', () => pruneReaderChanges(env.DB));
+    }
   },
 };

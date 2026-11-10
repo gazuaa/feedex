@@ -5,6 +5,16 @@ import { extractOriginalPublishedAt, extractSummaryPublishedAt, parsePublication
 import { xProfile } from '../shared/xFeed';
 import { sanitizeYouTubeIframesInHtml } from '../shared/youtubeEmbed';
 import { fetchXFeed, type XOlderPage } from './xFeed';
+import { retryAfterMs } from './retryAfter';
+import type { D1DatabaseLike } from './types';
+
+export class FeedRequestError extends Error {
+  constructor(readonly status: number, readonly retryDelayMs: number) { super(`HTTP ${status}`); }
+}
+
+function feedRequestError(response: Response): FeedRequestError {
+  return new FeedRequestError(response.status, retryAfterMs(response.headers.get('Retry-After')));
+}
 
 export interface ParsedArticle {
   guid: string;
@@ -420,9 +430,9 @@ function publisherFeed(url: string): string | null {
   } catch { return null; }
 }
 
-export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
-  if (xProfile(inputUrl)) return fetchXFeed(inputUrl, parseXmlFeedContent);
-  if (/^(?:https?:\/\/)?(?:(?:www|mobile|m)\.)?(?:x|twitter)\.com(?:[/?#]|$)/i.test(inputUrl.trim())) return fetchXFeed(inputUrl, parseXmlFeedContent);
+export async function fetchAndParseFeed(inputUrl: string, db?: D1DatabaseLike): Promise<ParsedFeed> {
+  if (xProfile(inputUrl)) return fetchXFeed(inputUrl, parseXmlFeedContent, db);
+  if (/^(?:https?:\/\/)?(?:(?:www|mobile|m)\.)?(?:x|twitter)\.com(?:[/?#]|$)/i.test(inputUrl.trim())) return fetchXFeed(inputUrl, parseXmlFeedContent, db);
   let normalizedUrl = inputUrl.trim();
   if (!/^https?:\/\//i.test(normalizedUrl)) {
     normalizedUrl = `https://${normalizedUrl}`;
@@ -460,8 +470,10 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
           const xml = await res.text();
           return parseXmlFeedContent(xml, candidateUrl);
         }
-      } catch {
-        // 계속 시도한다
+        await res.body?.cancel();
+        if (res.status === 429) throw feedRequestError(res);
+      } catch (error) {
+        if (error instanceof FeedRequestError) throw error;
       }
     }
     return null;
@@ -474,13 +486,13 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
     });
 
     if (!response.ok) {
-      // 웹페이지는 서버 요청을 막아도(403·429) 피드 경로는 열어 둔 사이트가 있다(The Block 등).
-      if (response.status === 403 || response.status === 429) {
-        await response.body?.cancel();
+      await response.body?.cancel();
+      // 웹페이지는 막아도 공개 RSS 주소를 따로 제공하는 사이트가 있다.
+      if (response.status === 403) {
         const found = await commonFeed();
         if (found) return found;
       }
-      throw new Error(`HTTP ${response.status}`);
+      throw feedRequestError(response);
     }
 
     const text = await response.text();
@@ -503,6 +515,8 @@ export async function fetchAndParseFeed(inputUrl: string): Promise<ParsedFeed> {
           const subXml = await subRes.text();
           return parseXmlFeedContent(subXml, discoveredUrl);
         }
+        await subRes.body?.cancel();
+        if (subRes.status === 429) throw feedRequestError(subRes);
       }
 
       // 흔한 접미 경로를 시도한다

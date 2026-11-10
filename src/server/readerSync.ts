@@ -4,6 +4,14 @@ import type { ArticleItem, FolderItem } from '../client/api';
 import type { ReaderSyncCursor, ReaderSyncDelta, SubscriptionCounts, SubscriptionMetadata } from '../shared/readerSync';
 
 const DAY = 86400_000;
+// 계정의 저장 목록에서 시작해 피드별 개수를 한 번만 센다.
+export const savedCountsJoin = `LEFT JOIN (
+  SELECT a.feed_id, COUNT(*) AS saved_count
+  FROM article_states st CROSS JOIN articles a ON a.id=st.article_id
+  WHERE st.user_id=? AND st.is_saved=1
+  GROUP BY a.feed_id
+) saved ON saved.feed_id=s.feed_id`;
+
 export async function syncHead(db: D1DatabaseLike) {
   return (await db.prepare(`SELECT COALESCE((SELECT seq FROM sqlite_sequence WHERE name='reader_sync_changes'),0) AS sequence, (SELECT floor FROM reader_sync_meta WHERE id=1) AS floor`).first<{ sequence: number; floor: number }>())!;
 }
@@ -104,9 +112,10 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
     const counts = await db.prepare(`SELECT s.feed_id,
       (SELECT COUNT(*) FROM articles a WHERE a.feed_id=s.feed_id AND ${shown}) AS total_count,
       (SELECT COUNT(*) FROM articles a LEFT JOIN article_states st ON st.article_id=a.id AND st.user_id=s.user_id WHERE a.feed_id=s.feed_id AND a.published_at>=? AND COALESCE(st.is_read,0)=0 AND ${shown}) AS unread_count,
-      (SELECT COUNT(*) FROM article_states st JOIN articles a ON a.id=st.article_id WHERE st.user_id=s.user_id AND st.is_saved=1 AND a.feed_id=s.feed_id) AS saved_count
-      FROM subscriptions s WHERE s.user_id=? AND s.feed_id IN (${chunk.map(() => '?').join(',')})`)
-      .bind(new Date(now - 30 * DAY).toISOString(), userId, ...chunk).all<SubscriptionCounts>();
+      COALESCE(saved.saved_count,0) AS saved_count
+      FROM subscriptions s ${savedCountsJoin}
+      WHERE s.user_id=? AND s.feed_id IN (${chunk.map(() => '?').join(',')})`)
+      .bind(new Date(now - 30 * DAY).toISOString(), userId, userId, ...chunk).all<SubscriptionCounts>();
     delta.subscriptionCounts.push(...counts.results.map((row) => ({ ...row, total_count: Number(row.total_count), unread_count: Number(row.unread_count), saved_count: Number(row.saved_count) })));
   }
   if (metadata) {

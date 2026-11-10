@@ -21,10 +21,9 @@ binding = "AI"
 enabled = true
 head_sampling_rate = 1
 
-# Cron 트리거: 구독한 RSS 피드를 백그라운드에서 15분마다 새로고침한다.
-# 뉴스 피드는 최근 10~50개만 싣기 때문에, 더 느리게 새로고침하면 글을 놓친다.
+# RSS는 15분마다 받고, X 최신 글 요청은 5분 단위로 나눠 보낸다.
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["*/5 * * * *"]
 
 [vars]
 OWNER_EMAIL = "jonyq659@gmail.com"

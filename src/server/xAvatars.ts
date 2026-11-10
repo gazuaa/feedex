@@ -33,7 +33,7 @@ export async function resolveXAvatars(db: D1DatabaseLike, input: unknown): Promi
   for (const handle of handles.filter((item) => !(item in found))) {
     if (lookups++ >= MIRROR_LOOKUPS) { more = true; break; }
     try {
-      const feed = await fetchAndParseFeed(`https://x.com/${handle}`);
+      const feed = await fetchAndParseFeed(`https://x.com/${handle}`, db);
       found[handle] = feed.faviconUrl && PROFILE_IMAGE.test(feed.faviconUrl) ? feed.faviconUrl : null;
     } catch (error) {
       // 미러가 한도에 걸렸으면 이번에는 그만 묻는다. 그 밖에 받지 못한 계정도 기억하지 않고 나중에 다시 묻는다.

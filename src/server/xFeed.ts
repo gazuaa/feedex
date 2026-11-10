@@ -1,5 +1,7 @@
 import type { ParsedArticle, ParsedFeed } from './rssParser';
 import { xProfile } from '../shared/xFeed';
+import { retryAfterMs } from './retryAfter';
+import type { D1DatabaseLike } from './types';
 
 export const providers = ['https://nitter.mie.foundation', 'https://nitter.mizuki.st'];
 const cache = new Map<string, { expires: number; feed: ParsedFeed; bytes: number }>();
@@ -8,15 +10,22 @@ const flights = new Map<string, Promise<ParsedFeed>>();
 const limited = new Map<string, number>();
 let turn = 0;
 // 한도를 알린 경로는 그 시간까지 쉬게 한다. 글 피드와 글 페이지 요청이 같은 기록을 쓴다.
-export function restingUntil(provider: string): number {
-  const until = limited.get(provider) || 0;
-  return until > Date.now() ? until : 0;
+export async function restingUntil(provider: string, db?: D1DatabaseLike): Promise<number> {
+  const now = Date.now(), local = limited.get(provider) || 0;
+  if (local > now) return local;
+  const shared = await db?.prepare('SELECT retry_at FROM x_provider_cooldowns WHERE provider=? AND retry_at>?')
+    .bind(provider, now).first<number>('retry_at').catch(() => null);
+  if (shared) limited.set(provider, shared);
+  return shared || 0;
 }
-export function restProvider(provider: string, retryAfter: string | null): number {
-  const wait = /^\d+$/.test(retryAfter || '') ? Number(retryAfter) * 1000 : Date.parse(retryAfter || '') - Date.now();
-  // Nitter는 대개 대기 시간을 알려 주지 않는다. 그때는 30초 동안 이 경로만 쉬게 한다.
-  const resume = Date.now() + Math.min(600_000, Math.max(30_000, Number.isFinite(wait) ? wait : 0));
+export async function restProvider(provider: string, retryAfter: string | null, db?: D1DatabaseLike): Promise<number> {
+  const now = Date.now();
+  // 경로가 정해 준 대기 시간을 다음 워커 실행과 수동 요청에도 적용한다.
+  const resume = Math.max(limited.get(provider) || 0, now + Math.max(30_000, retryAfterMs(retryAfter, now)));
   limited.set(provider, resume);
+  await db?.prepare(`INSERT INTO x_provider_cooldowns(provider,retry_at) VALUES(?,?)
+    ON CONFLICT(provider) DO UPDATE SET retry_at=MAX(retry_at,excluded.retry_at)`)
+    .bind(provider, resume).run().catch(() => {});
   return resume;
 }
 const LIMIT_MESSAGE = 'X 게시물 제공 경로의 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.';
@@ -108,10 +117,10 @@ function readXPage(xml: string, provider: string, profile: { username: string; u
  * 미러가 알려 준 다음 쪽(더 옛날 글 약 20개)을 받는다. `limited`는 미러가 쉬는 중이라 나중에 다시 받을 것,
  * `failed`는 이 쪽을 받지 못한 것이다. 다음 쪽이 없으면 `older`가 비어 있다.
  */
-export async function fetchXOlderPage(profileUrl: string, page: XOlderPage, parse: Parse): Promise<{ articles: ParsedArticle[]; older?: XOlderPage } | 'limited' | 'failed'> {
+export async function fetchXOlderPage(profileUrl: string, page: XOlderPage, parse: Parse, db?: D1DatabaseLike): Promise<{ articles: ParsedArticle[]; older?: XOlderPage } | 'limited' | 'failed'> {
   const profile = xProfile(profileUrl);
   if (!profile || !providers.includes(page.provider)) return 'failed';
-  if (restingUntil(page.provider)) return 'limited';
+  if (await restingUntil(page.provider, db)) return 'limited';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
@@ -119,7 +128,7 @@ export async function fetchXOlderPage(profileUrl: string, page: XOlderPage, pars
       headers: { Accept: 'application/rss+xml, application/xml;q=0.9', 'User-Agent': 'FeedExRSS/1.0' },
       redirect: 'manual', credentials: 'omit', signal: controller.signal,
     });
-    if (response.status === 429) { restProvider(page.provider, response.headers.get('Retry-After')); await response.body?.cancel(); return 'limited'; }
+    if (response.status === 429) { await response.body?.cancel(); await restProvider(page.provider, response.headers.get('Retry-After'), db); return 'limited'; }
     if (!response.ok) { await response.body?.cancel(); return 'failed'; }
     const read = readXPage(await readFeed(response), page.provider, profile, parse);
     if (!read) return 'failed';
@@ -130,7 +139,7 @@ export async function fetchXOlderPage(profileUrl: string, page: XOlderPage, pars
   finally { clearTimeout(timer); }
 }
 
-export async function fetchXFeed(input: string, parse: Parse): Promise<ParsedFeed> {
+export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLike): Promise<ParsedFeed> {
   const profile = xProfile(input);
   if (!profile) throw new XFeedError('X 계정의 프로필 주소를 입력해 주세요.');
   const cached = cache.get(profile.url);
@@ -144,7 +153,7 @@ export async function fetchXFeed(input: string, parse: Parse): Promise<ParsedFee
     for (const provider of [...providers.slice(start), ...providers.slice(0, start)]) {
       if (Date.now() >= deadline) break;
       // 한도에 걸린 경로는 알려 준 시간까지 다시 부르지 않고, 아직 받을 수 있는 다른 경로를 쓴다.
-      const until = restingUntil(provider);
+      const until = await restingUntil(provider, db);
       if (until) { limitedUntil = limitedUntil ? Math.min(limitedUntil, until) : until; continue; }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.min(5000, Math.max(1, deadline - Date.now())));
@@ -154,9 +163,9 @@ export async function fetchXFeed(input: string, parse: Parse): Promise<ParsedFee
           redirect: 'manual', credentials: 'omit', signal: controller.signal,
         });
         if (response.status === 429) {
-          const resume = restProvider(provider, response.headers.get('Retry-After'));
-          limitedUntil = limitedUntil ? Math.min(limitedUntil, resume) : resume;
           await response.body?.cancel();
+          const resume = await restProvider(provider, response.headers.get('Retry-After'), db);
+          limitedUntil = limitedUntil ? Math.min(limitedUntil, resume) : resume;
           continue;
         }
         if (!response.ok) { await response.body?.cancel(); continue; }

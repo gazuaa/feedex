@@ -87,6 +87,8 @@ export class LocalD1Database implements D1DatabaseLike {
       if (fs.existsSync(backfillMigration)) this.db.exec(fs.readFileSync(backfillMigration, 'utf-8'));
       const historyMigration = path.join(path.dirname(schemaFilePath), '0007_feed_history.sql');
       if (fs.existsSync(historyMigration)) this.db.exec(fs.readFileSync(historyMigration, 'utf-8'));
+      const refreshMigration = path.join(path.dirname(schemaFilePath), '0009_feed_refresh_state.sql');
+      if (fs.existsSync(refreshMigration)) this.db.exec(fs.readFileSync(refreshMigration, 'utf-8'));
     }
   }
 

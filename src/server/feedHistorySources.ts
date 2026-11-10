@@ -99,9 +99,9 @@ function htmlArticles(html: string, url: string, selector?: string): { articles:
   return { articles: parsed.articles, selector: group.selector };
 }
 export async function readHistorySource(source: HistorySource, env: Env): Promise<HistoryPage> {
-  if (source.kind === 'x-start') { const parsed = await fetchAndParseFeed(source.url); return { articles: parsed.articles, next: parsed.xOlder ? { kind: 'x-page', url: source.url, x: parsed.xOlder } : null }; }
+  if (source.kind === 'x-start') { const parsed = await fetchAndParseFeed(source.url, env.DB); return { articles: parsed.articles, next: parsed.xOlder ? { kind: 'x-page', url: source.url, x: parsed.xOlder } : null }; }
   if (source.kind === 'x-page') {
-    const page = await fetchXOlderPage(source.url, source.x!, parseXmlFeedContent);
+    const page = await fetchXOlderPage(source.url, source.x!, parseXmlFeedContent, env.DB);
     if (page === 'limited') throw new HistorySourceError('X 공개 피드 제공 경로가 쉬는 중입니다. 잠시 뒤 이어받아 주세요.', Date.now() + 60_000);
     if (page === 'failed') throw new HistorySourceError('X의 과거 글 목록을 받지 못했습니다. 잠시 뒤 이어받아 주세요.');
     return { articles: page.articles, next: page.older ? { ...source, x: page.older, offset: 0 } : null };

@@ -111,12 +111,68 @@ try {
     assert.ok(mostOpen <= 4, `plain feeds stay within the connection limit (${mostOpen} open)`);
     const stored = () => db.prepare('SELECT COUNT(*) AS n FROM articles WHERE feed_id = ?').bind('slow').first();
     assert.equal((await stored()).n, 0);
+    const concurrent = await (await request('/api/feeds/refresh', { feedId: 'slow' })).json();
+    assert.equal(concurrent.refreshedFeeds, 0);
+    assert.equal(asked.filter(id => id === 'slow').length, 1, '수집 중인 피드는 중복 요청하지 않는다');
     releaseSlow();
-    for (let i = 0; i < 50 && !(await stored()).n; i++) await new Promise((resolve) => setTimeout(resolve, 20));
+    for (let i = 0; i < 50; i++) {
+      const claim = await db.prepare("SELECT lease_until FROM feed_refresh_state WHERE feed_id='slow'").first();
+      if ((await stored()).n && claim?.lease_until === 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
     assert.equal((await stored()).n, 1, 'the slow feed finishes after the answer');
     const again = await (await request('/api/feeds/refresh', { feedId: 'slow' })).json();
     assert.equal(again.refreshedFeeds, 1, 'refreshing one feed always fetches it');
     assert.equal(again.pendingFeeds, 0);
+
+    const lastSuccess = (await db.prepare("SELECT last_fetched_at FROM feeds WHERE id='slow'").first()).last_fetched_at;
+    let limitedRequests = 0;
+    globalThis.fetch = async () => {
+      limitedRequests++;
+      return new Response('', { status: 429, headers: { 'Retry-After': '7200' } });
+    };
+    await request('/api/feeds/refresh', { feedId: 'slow' });
+    const failure = await db.prepare("SELECT last_fetched_at,last_error,retry_at FROM feeds JOIN feed_refresh_state ON feed_id=id WHERE id='slow'").first();
+    assert.equal(failure.last_fetched_at, lastSuccess, '실패는 마지막 성공 시각을 덮지 않는다');
+    assert.equal(failure.last_error, 'HTTP 429');
+    assert.ok(failure.retry_at > Date.now() + 7_190_000, '원본이 준 2시간 대기를 지킨다');
+    await request('/api/feeds/refresh', { feedId: 'slow' });
+    assert.equal(limitedRequests, 1, '429 직후 다른 경로를 탐색하거나 다시 요청하지 않는다');
+  }
+  {
+    const old = new Date(Date.now() - 60 * 60_000).toISOString();
+    for (let i = 0; i < 26; i++) {
+      const id = `schedule${String(i).padStart(2, '0')}`;
+      await db.prepare('INSERT INTO feeds(id,xml_url,title,last_fetched_at,created_at) VALUES(?,?,?,?,?)')
+        .bind(id, `https://x.com/${id}`, id, old, now).run();
+      await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at,paused_at) VALUES(?,?,?,?,?)')
+        .bind(`sub-${id}`, user.id, id, now, i === 0 ? now : null).run();
+    }
+    const requested = [];
+    globalThis.fetch = async input => {
+      const url = new URL(input.url || input);
+      const id = url.pathname.split('/')[1];
+      assert.match(id, /^schedule\d+$/);
+      requested.push(id);
+      return new Response(`<rss version="2.0"><channel><title>${id}</title><link>https://x.com/${id}</link>
+        <item><guid>latest</guid><title>Latest</title><link>https://x.com/${id}/status/1234567890</link></item></channel></rss>`);
+    };
+    const xTick = Date.UTC(2026, 10, 11, 0, 5);
+    await worker.scheduled({ scheduledTime: xTick }, env, {});
+    assert.equal(requested.length, 24, 'X 전용 회차는 최신 글 요청을 나눠 보낸다');
+    assert.ok(!requested.includes('schedule00'), '멈춘 구독에는 자동 수집을 하지 않는다');
+    await worker.scheduled({ scheduledTime: xTick + 5 * 60_000 }, env, {});
+    assert.equal(requested.at(-1), 'schedule25', '다음 회차에서 남은 계정을 먼저 받는다');
+    assert.equal(requested.length, 25);
+
+    const providers = ['https://nitter.mie.foundation', 'https://nitter.mizuki.st'];
+    for (const provider of providers) {
+      await db.prepare('INSERT INTO x_provider_cooldowns(provider,retry_at) VALUES(?,?)')
+        .bind(provider, Date.now() + 7200_000).run();
+    }
+    globalThis.fetch = async () => { throw new Error('대기 시간 중 외부 요청'); };
+    const { fetchAndParseFeed } = await vite.ssrLoadModule('/src/server/rssParser.ts');
+    await assert.rejects(fetchAndParseFeed('@another', db), error => error.retryAfter > 7100);
   }
   console.log('PASS: failed subscribe/refresh/cron never creates synthetic articles; empty feeds stay empty; precise cleanup is idempotent and preserves real articles, subscriptions and bookmarks.');
 } finally {

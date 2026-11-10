@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { accountArticleBlocks, changeArticleBlocks, ArticleBlockError } from './articleBlocks';
-import { initialSyncCursor, readerDelta, syncHead } from './readerSync';
+import { initialSyncCursor, readerDelta, savedCountsJoin, syncHead } from './readerSync';
 import { pausedAtColumn, pauseSupported, shownToSubscriber } from './feedPause';
 import { DEFAULT_AUTO_REFRESH_MINUTES, validAutoRefresh } from '../shared/preferences';
 import { cors } from 'hono/cors';
@@ -464,19 +464,15 @@ app.get('/api/bootstrap', async (c) => {
          WHERE a.feed_id = f.id AND a.published_at >= ? AND COALESCE(st.is_read, 0) = 0 AND ${shownToSubscriber(paused)}
        ) as unread_count,
        (SELECT COUNT(*) FROM articles a WHERE a.feed_id = f.id AND ${shownToSubscriber(paused)}) as total_count,
-       (
-         SELECT COUNT(*)
-         FROM article_states st
-         JOIN articles a ON a.id = st.article_id
-         WHERE st.user_id = s.user_id AND st.is_saved = 1 AND a.feed_id = f.id
-       ) as saved_count,
+       COALESCE(saved.saved_count,0) as saved_count,
        (SELECT v.view_mode FROM feed_view_modes v WHERE v.user_id = s.user_id AND v.feed_id = s.feed_id) as view_mode
      FROM subscriptions s
      JOIN feeds f ON f.id = s.feed_id
+     ${savedCountsJoin}
      WHERE s.user_id = ?
      ORDER BY title ASC`
   )
-    .bind(unreadCutoff(), user.id)
+    .bind(unreadCutoff(), user.id, user.id)
     .all<SubscriptionItem>();
 
   const subscriptions = (subsRes.results || []).map((s) => ({
@@ -489,15 +485,7 @@ app.get('/api/bootstrap', async (c) => {
   const totalUnread = subscriptions.reduce((sum, s) => sum + s.unread_count, 0);
   const totalArticles = subscriptions.reduce((sum, s) => sum + s.total_count, 0);
 
-  const savedRow = await c.env.DB.prepare(
-    `SELECT COUNT(*) as cnt
-     FROM article_states st
-     JOIN articles a ON a.id = st.article_id
-     JOIN subscriptions s ON s.feed_id = a.feed_id AND s.user_id = st.user_id
-     WHERE st.user_id = ? AND st.is_saved = 1`
-  )
-    .bind(user.id)
-    .first<{ cnt: number }>();
+  const savedCount = subscriptions.reduce((sum, s) => sum + s.saved_count, 0);
 
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const todayRow = await c.env.DB.prepare(
@@ -518,7 +506,7 @@ app.get('/api/bootstrap', async (c) => {
     counts: {
       totalUnread,
       totalArticles,
-      savedCount: Number(savedRow?.cnt || 0),
+      savedCount,
       todayCount: Number(todayRow?.unread || 0),
       todayTotal: Number(todayRow?.cnt || 0),
     },
@@ -546,7 +534,7 @@ app.post('/api/discover/preview', async (c) => {
   const url = typeof body?.url === 'string' ? normalizeFeedUrl(body.url) : null;
   if (!url) return c.json({ error: '올바른 RSS 또는 웹사이트 주소를 입력해 주세요.' }, 400);
   try {
-    return c.json(feedPreviewResponse(await fetchAndParseFeed(url)));
+    return c.json(feedPreviewResponse(await fetchAndParseFeed(url, c.env.DB)));
   } catch (error) {
     if (error instanceof XFeedError) return c.json({ error: error.message }, 502);
     return c.json({ error: '피드를 찾지 못했습니다. RSS 주소와 연결 상태를 확인한 뒤 다시 시도해 주세요.' }, 502);
@@ -631,7 +619,7 @@ app.get('/api/discover/feeds/:id/preview', async (c) => {
   if (!feed) return c.json({ error: '추천 피드를 찾을 수 없습니다.' }, 404);
 
   try {
-    const parsed = await fetchAndParseFeed(feed.xmlUrl);
+    const parsed = await fetchAndParseFeed(feed.xmlUrl, c.env.DB);
     return c.json(feedPreviewResponse(parsed));
   } catch {
     return c.json({ error: '최근 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' }, 502);
@@ -728,7 +716,7 @@ app.post('/api/subscriptions', async (c) => {
 
   let parsed;
   try {
-    parsed = await fetchAndParseFeed(rawUrl);
+    parsed = await fetchAndParseFeed(rawUrl, c.env.DB);
   } catch (error) {
     return c.json({ error: new OpmlSourceError(error).message }, 502);
   }
@@ -917,7 +905,7 @@ app.post('/api/feeds/refresh', async (c) => {
   if (pendingFeeds) { try { c.executionCtx.waitUntil(work); } catch { /* 위와 같다 */ } }
 
   return c.json({
-    refreshedFeeds: progress.done,
+    refreshedFeeds: progress.done - (progress.skipped || 0),
     newArticles: progress.inserted,
     pendingFeeds,
   });
@@ -1295,7 +1283,7 @@ app.post('/api/articles/:id/thumbnail', async (c) => {
     .first<{ id: string; url: string; thumbnail_url: string | null; content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
   if (body.refresh && xStatusUrl(article.url)) {
-    const refreshed = await refreshXCardImages(article.url, article.content_html);
+    const refreshed = await refreshXCardImages(article.url, article.content_html, c.env.DB);
     if (!refreshed) return c.json({ thumbnailUrl: null });
     await c.env.DB.prepare('UPDATE articles SET thumbnail_url = ?, content_html = ? WHERE id = ?')
       .bind(refreshed.thumbnailUrl, refreshed.contentHtml, article.id)
@@ -1330,7 +1318,7 @@ app.get('/api/articles/:id/x-post', async (c) => {
     .bind(c.req.param('id'), c.get('user').id).first<{ url: string; content_html: string | null }>();
   if (!source || !xStatusUrl(source.url)) return c.json({ error: 'X 글을 찾을 수 없습니다.' }, 404);
   c.header('Cache-Control', 'no-store');
-  try { return c.json(await fetchXThread(url, source.content_html)); }
+  try { return c.json(await fetchXThread(url, source.content_html, c.env.DB)); }
   catch { return c.json({ error: 'X 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' }, 502); }
 });
 
@@ -1344,7 +1332,7 @@ app.get('/api/articles/:id/web-copy', async (c) => {
     .first<{ url: string; content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
   // X 글은 공개 미러의 글 페이지로 글과 댓글을 보여 준다. 받지 못하면 원래 방식으로 x.com을 그린다.
-  if (xStatusUrl(article.url)) try { return c.json(await fetchXThread(article.url, article.content_html)); } catch { /* 아래 원래 방식으로 넘어간다. */ }
+  if (xStatusUrl(article.url)) try { return c.json(await fetchXThread(article.url, article.content_html, c.env.DB)); } catch { /* 아래 원래 방식으로 넘어간다. */ }
   try {
     return c.json(await fetchWebView(article.url, c.env, c.req.query('layout') === 'phone', pageAssetProxy(c.env, new URL(c.req.url).origin)));
   } catch {
@@ -1591,7 +1579,7 @@ app.post('/api/opml/check', async (c) => {
     return c.json({ error: '올바른 HTTP 또는 HTTPS RSS 주소가 아닙니다.' }, 400);
   }
   try {
-    const parsed = await fetchAndParseFeed(url.href);
+    const parsed = await fetchAndParseFeed(url.href, c.env.DB);
     return c.json({ ok: true, title: parsed.title, articles: parsed.articles.length });
   } catch (error) {
     return c.json({ ok: false, error: new OpmlSourceError(error).message });

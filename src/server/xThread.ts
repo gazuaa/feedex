@@ -1,3 +1,4 @@
+import type { D1DatabaseLike } from './types';
 import { parseHTML } from 'linkedom';
 import { xVideoHtml } from '../shared/xMedia';
 import { originalUrl, providers, readFeed, restProvider, restingUntil } from './xFeed';
@@ -72,19 +73,19 @@ function feedQuoteText(feedHtml: string | null | undefined, statusUrl: string): 
 
 // X의 외부 링크 카드 이미지(pbs.twimg.com/card_img/...)는 일주일이 지나면 새 주소로 바뀌고 예전 주소는 404가 된다.
 // 그림이 깨졌을 때 공개 미러의 글 상세 페이지에서 현재 카드 이미지 주소를 받아와 본문과 썸네일을 갱신한다.
-async function fetchXCardImage(url: string): Promise<string | null> {
+async function fetchXCardImage(url: string, db?: D1DatabaseLike): Promise<string | null> {
   const match = STATUS.exec(url);
   if (!match) return null;
   const [, username, id] = match;
   for (const provider of providers) {
-    if (restingUntil(provider) || (pageless.get(provider) || 0) > Date.now()) continue;
+    if (await restingUntil(provider, db) || (pageless.get(provider) || 0) > Date.now()) continue;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(`${provider}/${username}/status/${id}`, {
         headers: { Accept: 'text/html', 'User-Agent': 'FeedExRSS/1.0' }, redirect: 'manual', credentials: 'omit', signal: controller.signal,
       });
-      if (response.status === 429) { restProvider(provider, response.headers.get('Retry-After')); await response.body?.cancel(); continue; }
+      if (response.status === 429) { await response.body?.cancel(); await restProvider(provider, response.headers.get('Retry-After'), db); continue; }
       if (!response.ok) { await response.body?.cancel(); continue; }
       const { document } = parseHTML(await readFeed(response, 3_000_000));
       const main = document.querySelector('.main-tweet .timeline-item') as unknown as Element | null;
@@ -103,30 +104,30 @@ async function fetchXCardImage(url: string): Promise<string | null> {
   return null;
 }
 
-export async function refreshXCardImages(url: string, contentHtml: string | null | undefined): Promise<{ contentHtml: string; thumbnailUrl: string } | null> {
+export async function refreshXCardImages(url: string, contentHtml: string | null | undefined, db?: D1DatabaseLike): Promise<{ contentHtml: string; thumbnailUrl: string } | null> {
   if (!contentHtml || !/https:\/\/pbs\.twimg\.com\/card_img\//i.test(contentHtml)) return null;
   const quotedUrl = /<blockquote[\s\S]*?https:\/\/pbs\.twimg\.com\/card_img\/[\s\S]*?<cite>\s*<a[^>]+href="(https:\/\/x\.com\/[a-z\d_]{1,15}\/status\/\d{1,20})"/i.exec(contentHtml)?.[1];
-  const fresh = await fetchXCardImage(quotedUrl || url);
+  const fresh = await fetchXCardImage(quotedUrl || url, db);
   if (!fresh) return null;
   const updated = contentHtml.replace(/https:\/\/pbs\.twimg\.com\/card_img\/[^"'\s>]+/gi, escape(fresh));
   return { contentHtml: updated, thumbnailUrl: fresh };
 }
 
 /** `partial`은 답글인데 미러가 원글을 불러오지 못한 사본이다. 기기는 저장하지 않고 다음에 다시 받는다. */
-export async function fetchXThread(url: string, feedHtml?: string | null): Promise<{ html: string; url: string; thread: true; partial?: true }> {
+export async function fetchXThread(url: string, feedHtml?: string | null, db?: D1DatabaseLike): Promise<{ html: string; url: string; thread: true; partial?: true }> {
   const match = STATUS.exec(url);
   if (!match) throw new Error('X 글 주소가 아닙니다.');
   const [, username, id] = match;
   let partial: { html: string; url: string; thread: true; partial: true } | null = null;
   for (const provider of providers) {
-    if (restingUntil(provider) || (pageless.get(provider) || 0) > Date.now()) continue;
+    if (await restingUntil(provider, db) || (pageless.get(provider) || 0) > Date.now()) continue;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(`${provider}/${username}/status/${id}`, {
         headers: { Accept: 'text/html', 'User-Agent': 'FeedExRSS/1.0' }, redirect: 'manual', credentials: 'omit', signal: controller.signal,
       });
-      if (response.status === 429) { restProvider(provider, response.headers.get('Retry-After')); await response.body?.cancel(); continue; }
+      if (response.status === 429) { await response.body?.cancel(); await restProvider(provider, response.headers.get('Retry-After'), db); continue; }
       if (!response.ok) { await response.body?.cancel(); continue; }
       const { document } = parseHTML(await readFeed(response, 3_000_000));
       const main = document.querySelector('.main-tweet .timeline-item') as unknown as Element | null;

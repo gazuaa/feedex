@@ -2,6 +2,7 @@ import type { D1DatabaseLike } from './types';
 import { parseXmlFeedContent, type ParsedFeed } from './rssParser';
 import { fetchXOlderPage } from './xFeed';
 import { saveFeedArticles } from './seedService';
+import { pauseSupported } from './feedPause';
 
 // X 계정은 공개 미러 RSS가 최신 글 약 20개만 준다. 미러가 알려 주는 다음 쪽으로 예전 글을 채운다.
 // 미러는 요청 한도가 빡빡하므로, 정기 새로고침 뒤에 몇 쪽씩만 천천히 받는다.
@@ -42,7 +43,7 @@ export async function noteXFeed(db: D1DatabaseLike, feedId: string, parsed: Pars
   if (Number(stored?.count || 0) <= insertedCount) return;
   let page = start;
   for (let step = 0; step < GAP_PAGES; step++) {
-    const result = await fetchXOlderPage(parsed.xmlUrl, page, parseXmlFeedContent);
+    const result = await fetchXOlderPage(parsed.xmlUrl, page, parseXmlFeedContent, db);
     if (typeof result === 'string') return;
     const saved = await saveFeedArticles(db, feedId, result.articles);
     // 이미 받은 글이 나오면 빠진 구간을 다 채운 것이다.
@@ -54,13 +55,14 @@ export async function noteXFeed(db: D1DatabaseLike, feedId: string, parsed: Pars
 /** 정기 새로고침 뒤에 돈다. 오래 기다린 계정부터 다음 쪽을 하나씩 받는다. */
 export async function backfillXFeeds(db: D1DatabaseLike, requests = BACKFILL_REQUESTS): Promise<number> {
   if (!await xBackfillSupported(db)) return 0;
+  const paused = await pauseSupported(db);
   const rows = await db.prepare(`SELECT x.feed_id,x.provider,x.cursor,f.xml_url FROM x_backfill x JOIN feeds f ON f.id=x.feed_id
-    WHERE x.cursor IS NOT NULL AND x.pages<? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=x.feed_id)
+    WHERE x.cursor IS NOT NULL AND x.pages<? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=x.feed_id ${paused ? 'AND s.paused_at IS NULL' : ''})
     ORDER BY x.updated_at ASC LIMIT ?`).bind(X_BACKFILL_PAGES, requests).all<{ feed_id: string; provider: string; cursor: string; xml_url: string }>();
   let inserted = 0;
   for (const row of rows.results || []) {
     const now = new Date().toISOString();
-    const result = await fetchXOlderPage(row.xml_url, { provider: row.provider, cursor: row.cursor }, parseXmlFeedContent);
+    const result = await fetchXOlderPage(row.xml_url, { provider: row.provider, cursor: row.cursor }, parseXmlFeedContent, db);
     // 미러가 한도를 알렸으면 이번에는 그만 받는다. 위치는 그대로 두고 다음에 이어 받는다.
     if (result === 'limited') break;
     if (result === 'failed') {
