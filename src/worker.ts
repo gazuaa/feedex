@@ -73,7 +73,7 @@ export default {
        WHERE EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=f.id ${paused ? 'AND s.paused_at IS NULL' : ''})
          AND COALESCE(r.retry_at,0)<=? AND COALESCE(r.lease_until,0)<=?
          AND f.xml_url ${x ? 'LIKE' : 'NOT LIKE'} 'https://x.com/%'
-         ${x ? 'AND (f.last_fetched_at IS NULL OR f.last_fetched_at<=?)' : ''}
+         ${x ? 'AND (f.last_error IS NOT NULL OR f.last_fetched_at IS NULL OR f.last_fetched_at<=?)' : ''}
        ORDER BY COALESCE(r.attempted_at,f.last_fetched_at) ASC, f.id LIMIT ${x ? 24 : 100}`
     ).bind(now, now, ...(x ? [xFreshCutoff] : [])).all<StoredFeed>();
     const rss = regular ? await step('RSS 피드 조회', () => select(false)) : undefined;

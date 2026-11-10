@@ -165,6 +165,11 @@ try {
     await worker.scheduled({ scheduledTime: xTick + 5 * 60_000 }, env, {});
     assert.equal(requested.at(-1), 'schedule25', '다음 회차에서 남은 계정을 먼저 받는다');
     assert.equal(requested.length, 25);
+    await db.prepare("UPDATE feeds SET last_error='HTTP 429' WHERE id='schedule25'").run();
+    await worker.scheduled({ scheduledTime: xTick }, env, {});
+    assert.equal(requested.length, 25, '메모리에 최신 피드가 있으면 외부에 다시 요청하지 않는다');
+    assert.equal((await db.prepare("SELECT last_error FROM feeds WHERE id='schedule25'").first()).last_error, null,
+      '예전 코드가 실패 시각을 성공처럼 기록한 피드도 다시 수집한다');
 
     const providers = ['https://nitter.mie.foundation', 'https://nitter.mizuki.st'];
     for (const provider of providers) {
