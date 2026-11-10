@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type RefObject } from 'react';
+import { useLayoutEffect, type RefObject } from 'react';
 
 const rebuilding = 'data-scroll-rebuilding';
 const rebuildingRoots = new WeakMap<HTMLElement, () => void>();
@@ -79,14 +79,10 @@ export function bindMobileScrollRecovery(root: HTMLElement) {
 }
 
 export function useMobileScrollRecovery(ref: RefObject<HTMLElement | null>, visible: boolean, key: string) {
-  const wasCovered = useRef(true);
   useLayoutEffect(() => {
-    if (!visible) { wasCovered.current = true; return; }
+    if (!visible) return;
     const root = ref.current;
     if (!root || !needsMobileScrollRecovery(navigator.userAgent, navigator.maxTouchPoints)) return;
-    const restore = wasCovered.current ? rebuildScrollSurface(root) : () => {};
-    wasCovered.current = false;
-    const unbind = bindMobileScrollRecovery(root);
-    return () => { unbind(); restore(); };
+    return bindMobileScrollRecovery(root);
   }, [ref, visible, key]);
 }

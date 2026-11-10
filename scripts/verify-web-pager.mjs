@@ -94,7 +94,9 @@ try {
     const html = renderToStaticMarkup(React.createElement(ResizableWorkspace, { userId: 'test', isDark: false, ...state, children: React.createElement('button', null, '기사') }));
     const { document } = parseHTML(html), list = document.querySelector('#feed-article-list');
     assert.equal(list.closest('[inert]'), null, '목록의 네이티브 스크롤 영역은 비활성화하지 않는다');
-    assert.equal(list.firstElementChild.hasAttribute('inert'), Boolean(state.mobileReaderOpen || state.inactive), '배경의 글·버튼은 계속 입력과 포커스에서 제외한다');
+    assert.equal(list.firstElementChild.hasAttribute('inert'), Boolean(state.inactive), '본문을 여닫을 때는 목록 글의 터치 영역을 바꾸지 않는다');
+    assert.equal(list.getAttribute('aria-hidden'), state.mobileReaderOpen ? 'true' : null, '본문 뒤의 목록을 접근성 트리에서 숨긴다');
+    assert.equal(list.getAttribute('tabindex'), state.mobileReaderOpen || state.inactive ? '-1' : '0', '목록 컨테이너는 목록 화면에서만 탭으로 포커스할 수 있다');
   }
   console.log('통과: 길게 누른 웹뷰 밀기·종료 확인·취소·다른 프레임 무시·바뀐 프레임과 지워진 덮개의 남은 터치 정리·기록 이동 정리·스크롤 영역과 배경 포커스 분리.');
 } finally { globalThis.ResizeObserver = previousObserver; await vite.close(); }

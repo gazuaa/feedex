@@ -8,12 +8,17 @@ try {
   const library = { scope: 'all', folderId: null, feedId: null, search: '', unread: false, articleId: null, library: true };
   const list = { ...library, scope: 'folder', folderId: 'crypto', library: false };
   const a = { ...list, articleId: 'article-a' }, b = { ...list, articleId: 'article-b' };
-  const entries = [null]; let index = 0, location = library, scroll = 0, navigation;
+  const entries = [null]; let index = 0, location = library, scroll = 0, navigation, deferredBack = null;
   const history = {
     get state() { return entries[index]; },
     replaceState(state) { entries[index] = structuredClone(state); },
     pushState(state) { entries.splice(index + 1); entries.push(structuredClone(state)); index++; },
-    go(delta) { assert.ok(index + delta >= 0 && index + delta < entries.length); index += delta; navigation.pop(this.state); },
+    go(delta) {
+      assert.ok(index + delta >= 0 && index + delta < entries.length);
+      const pop = () => { index += delta; navigation.pop(this.state); };
+      if (deferredBack) deferredBack.push(pop);
+      else pop();
+    },
   };
   const restore = (next, position) => { location = next; scroll = position; };
   navigation = new MobileNavigation(history, 'owner', library, restore);
@@ -31,8 +36,17 @@ try {
   forward(); assert.deepEqual(location, a);
   forward(); assert.deepEqual(location, b);
   // 리더의 닫기 버튼은 글들을 건너뛰고 곧장 목록으로 돌아간다.
-  open(list);
+  deferredBack = [];
+  assert.equal(navigation.closeReader(), true);
+  assert.equal(navigation.closeReader(), true);
+  assert.equal(deferredBack.length, 1);
+  assert.deepEqual(location, b, '기록을 복원하기 전에는 목록을 먼저 그리지 않는다');
+  deferredBack[0]();
+  deferredBack = null;
+  navigation.record(location);
+  assert.deepEqual(location, list);
   assert.equal(index, 1); assert.equal(scroll, 620);
+  assert.equal(navigation.closeReader(), false);
   open(library); assert.equal(index, 0);
   forward();
   open({ ...list, unread: true });

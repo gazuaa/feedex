@@ -80,6 +80,15 @@ export class MobileNavigation {
   /** 목록에서 뒤로 가면 보관함으로 가는지, 목록의 이전 상태로 가는지. */
   backTarget(): 'library' | 'other' { return this.current.library !== null && this.current.library === this.current.index - 1 ? 'library' : 'other'; }
   back() { if (this.canGoBack()) this.history.go(-1); }
+  closeReader() {
+    const { location, list, index } = this.current;
+    if (!location.articleId || list === null || list >= index) return false;
+    if (!this.restoring) {
+      this.restoring = { ...location, articleId: null };
+      this.history.go(list - index);
+    }
+    return true;
+  }
   record(location: MobileLocation, scroll = 0) {
     this.observed = location;
     if (this.restoring) {
@@ -126,4 +135,5 @@ export function useMobileNavigation(account: string | null, location: MobileLoca
     return () => { unbindSwipe(); window.removeEventListener('popstate', pop); controller.current = null; };
   }, [account]);
   useLayoutEffect(() => { controller.current?.record(location, latest.current.getScroll()); });
+  return () => controller.current?.closeReader() ?? false;
 }

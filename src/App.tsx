@@ -216,7 +216,7 @@ export const App: React.FC = () => {
   const chromeHidden = useScrollChrome(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${searchQuery}`);
   const [textSize] = useTextSize();
   useEffect(() => { document.documentElement.style.setProperty('--feedex-text-scale', String(textSize)); }, [textSize]);
-  useMobileNavigation(isMobile && !authChecking ? user?.id ?? null : null, {
+  const closeMobileReader = useMobileNavigation(isMobile && !authChecking ? user?.id ?? null : null, {
     scope: activeScope, folderId: activeFolderId, feedId: activeFeedId,
     search: searchQuery, unread: unreadOnly, saved: savedOnly, articleId: selectedArticleId, library: mobileSidebarOpen,
   }, (location, scroll) => {
@@ -231,6 +231,9 @@ export const App: React.FC = () => {
     setMobileSidebarOpen(location.library);
     setDiscoverOpen(false);
   }, () => articleListRef.current?.scrollTop ?? 0);
+  const closeReader = () => {
+    if (!isMobile || !closeMobileReader()) setSelectedArticleId(null);
+  };
   const [markReadTarget, setMarkReadTarget] = useState<{
     scope: ScopeType;
     folderId: string | null;
@@ -285,7 +288,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('pageshow', shown);
   }, [user?.id]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (pendingScroll.current === null) articleListRef.current?.scrollTo({ top: 0 });
   }, [activeScope, activeFolderId, activeFeedId, unreadOnly, savedOnly, searchQuery, articleSort]);
 
@@ -617,7 +620,7 @@ export const App: React.FC = () => {
     return () => { cancelled = true; clearTimeout(timer); document.removeEventListener('visibilitychange', start); };
   }, [warmLists, loadingBootstrap, loadingArticles, refreshingFeeds]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (pendingScroll.current === null || loadingArticles || mobileSidebarOpen || (selectedArticleId && pendingScroll.current !== 0) || articleQueryRef.current !== buildArticleQuery().toString()) return;
     articleListRef.current?.scrollTo({ top: pendingScroll.current });
     pendingScroll.current = null;
@@ -1627,7 +1630,7 @@ export const App: React.FC = () => {
               article={selectedArticle}
               resources={articleResources}
               accountId={user.id}
-              onClose={() => setSelectedArticleId(null)}
+              onClose={closeReader}
               onOpenXPost={(url, hint) => selectedArticle && handleOpenXPost(selectedArticle, url, hint)}
               onToggleRead={handleToggleRead}
               onToggleSaved={handleToggleSaved}

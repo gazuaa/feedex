@@ -244,7 +244,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
    * iOS 홈 표시기 영역 위에서 앱이 잘릴 수 있다.
    */
   .feedex-workspace { position: fixed; inset: 0; height: auto; }
-  .feedex-workspace[data-inactive], .feedex-feed-list[data-reader-covered] { pointer-events: none; }
+  .feedex-workspace[data-inactive] { pointer-events: none; }
   .feedex-workspace-header { position: absolute; inset: 0 0 auto; z-index: 10; }
   html { --feedex-mobile-surface: #fff; --feedex-mobile-raised: #f1f5f9; --feedex-mobile-glass: #ffffffed; --feedex-mobile-muted: #64748b; --feedex-mobile-line: #e2e8f0; --feedex-mobile-selected: #d1fae5; }
   html.dark { --feedex-mobile-surface: #0f172a; --feedex-mobile-raised: #1e293b; --feedex-mobile-glass: #1e293be8; --feedex-mobile-muted: #94a3b8; --feedex-mobile-line: #29364c; --feedex-mobile-selected: #064e3b; }
