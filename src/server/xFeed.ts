@@ -30,8 +30,8 @@ export async function restProvider(provider: string, retryAfter: string | null, 
 }
 const LIMIT_MESSAGE = 'X 게시물 제공 경로의 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.';
 export class XFeedError extends Error {
-  // retryAfter는 모든 제공 경로가 한도에 걸렸을 때, 다시 시도해도 되는 시점까지 남은 초다.
-  constructor(message: string, readonly retryAfter?: number) { super(message); this.name = 'XFeedError'; }
+  // retryAfter는 한도에 걸린 제공 경로 중 가장 먼저 다시 열리는 시점까지 남은 초다.
+  constructor(message: string, readonly retryAfter?: number, readonly allProvidersLimited = false) { super(message); this.name = 'XFeedError'; }
 }
 
 // 응답 전체를 메모리에 무제한으로 쌓지 않고, 공개 RSS·글 페이지만 읽는다.
@@ -150,11 +150,16 @@ export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLik
     // 한 경로에 요청이 몰리지 않게 시작 경로를 번갈아 고른다.
     const start = turn++ % providers.length;
     let limitedUntil = 0;
+    let limitedProviders = 0;
     for (const provider of [...providers.slice(start), ...providers.slice(0, start)]) {
       if (Date.now() >= deadline) break;
       // 한도에 걸린 경로는 알려 준 시간까지 다시 부르지 않고, 아직 받을 수 있는 다른 경로를 쓴다.
       const until = await restingUntil(provider, db);
-      if (until) { limitedUntil = limitedUntil ? Math.min(limitedUntil, until) : until; continue; }
+      if (until) {
+        limitedProviders++;
+        limitedUntil = limitedUntil ? Math.min(limitedUntil, until) : until;
+        continue;
+      }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.min(5000, Math.max(1, deadline - Date.now())));
       try {
@@ -165,6 +170,7 @@ export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLik
         if (response.status === 429) {
           await response.body?.cancel();
           const resume = await restProvider(provider, response.headers.get('Retry-After'), db);
+          limitedProviders++;
           limitedUntil = limitedUntil ? Math.min(limitedUntil, resume) : resume;
           continue;
         }
@@ -195,7 +201,11 @@ export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLik
       } finally { clearTimeout(timer); }
     }
     // 받을 수 있는 경로가 하나도 없었다면 가장 먼저 풀리는 시점을 알려, 다음 계정을 곧바로 실패시키지 않게 한다.
-    if (limitedUntil) throw new XFeedError(LIMIT_MESSAGE, Math.max(1, Math.ceil((limitedUntil - Date.now()) / 1000)));
+    if (limitedUntil) throw new XFeedError(
+      LIMIT_MESSAGE,
+      Math.max(1, Math.ceil((limitedUntil - Date.now()) / 1000)),
+      limitedProviders === providers.length,
+    );
     throw new XFeedError('X 공개 게시물을 가져오지 못했습니다. 비공개·삭제된 계정이거나 제공 경로가 일시 중단됐을 수 있습니다.');
   })().finally(() => flights.delete(profile.url));
   flights.set(profile.url, work); return work;

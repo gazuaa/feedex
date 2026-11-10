@@ -18,7 +18,7 @@ export async function loadStoredFeed(env: Env, feed: StoredFeed) {
 // 한 실행에서 동시에 연결하는 수를 여섯 개 이하로 유지한다.
 const RSS_AT_ONCE = 4, X_AT_ONCE = 1, BUILDER_AT_ONCE = 1;
 const MINUTE = 60_000;
-export interface RefreshProgress { done: number; inserted: number; skipped?: number; xRateLimited?: boolean }
+export interface RefreshProgress { done: number; inserted: number; skipped?: number; xRateLimited?: boolean; xBlocked?: boolean }
 
 export async function refreshStoredFeeds(env: Env, feeds: StoredFeed[], progress: RefreshProgress = { done: 0, inserted: 0 }): Promise<number> {
   const collect = async (feed: StoredFeed, lease: number, failures: number) => {
@@ -34,6 +34,7 @@ export async function refreshStoredFeeds(env: Env, feeds: StoredFeed[], progress
     } catch (error) {
       const xDelay = error instanceof XFeedError ? (error.retryAfter || 0) * 1000 : 0;
       if (xDelay) progress.xRateLimited = true;
+      if (error instanceof XFeedError && error.allProvidersLimited) progress.xBlocked = true;
       const upstreamDelay = error instanceof FeedRequestError ? error.retryDelayMs : xDelay;
       const delay = Math.max(upstreamDelay, Math.min(60, 5 * 2 ** Math.min(failures, 4)) * MINUTE);
       // 실패해도 마지막 성공 시각을 덮지 않는다.
@@ -77,7 +78,7 @@ export async function refreshStoredFeeds(env: Env, feeds: StoredFeed[], progress
   const builders = feeds.filter((feed) => feed.builder_source_url), others = feeds.filter((feed) => !feed.builder_source_url);
   await Promise.all([
     inTurn(others.filter((feed) => !xProfile(feed.xml_url)), RSS_AT_ONCE),
-    inTurn(others.filter((feed) => xProfile(feed.xml_url)), X_AT_ONCE, () => Boolean(progress.xRateLimited)),
+    inTurn(others.filter((feed) => xProfile(feed.xml_url)), X_AT_ONCE, () => Boolean(progress.xBlocked)),
     inTurn(builders, BUILDER_AT_ONCE),
   ]);
   return progress.inserted;

@@ -172,8 +172,26 @@ try {
       '예전 코드가 실패 시각을 성공처럼 기록한 피드도 다시 수집한다');
 
     const providers = ['https://nitter.mie.foundation', 'https://nitter.mizuki.st'];
+    for (const id of ['schedule26', 'schedule27']) {
+      await db.prepare('INSERT INTO feeds(id,xml_url,title,last_fetched_at,created_at) VALUES(?,?,?,?,?)')
+        .bind(id, `https://x.com/${id}`, id, old, now).run();
+      await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)')
+        .bind(`sub-${id}`, user.id, id, now).run();
+    }
+    const healthyFetch = globalThis.fetch;
+    globalThis.fetch = async input => {
+      const url = new URL(input.url || input);
+      if (url.origin === providers[0]) return new Response('', { status: 429, headers: { 'Retry-After': '7200' } });
+      if (url.pathname === '/schedule26/rss') return new Response('', { status: 404 });
+      return healthyFetch(input);
+    };
+    await worker.scheduled({ scheduledTime: xTick }, env, {});
+    assert.ok((await db.prepare("SELECT last_error FROM feeds WHERE id='schedule26'").first()).last_error);
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM articles WHERE feed_id='schedule27'").first()).n, 1,
+      '한 경로가 제한돼도 다른 경로에서 다음 계정의 새 글을 받는다');
+
     for (const provider of providers) {
-      await db.prepare('INSERT INTO x_provider_cooldowns(provider,retry_at) VALUES(?,?)')
+      await db.prepare('INSERT OR REPLACE INTO x_provider_cooldowns(provider,retry_at) VALUES(?,?)')
         .bind(provider, Date.now() + 7200_000).run();
     }
     globalThis.fetch = async () => { throw new Error('대기 시간 중 외부 요청'); };
