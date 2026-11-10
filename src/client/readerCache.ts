@@ -170,14 +170,15 @@ export class ReaderCache {
     // 로그아웃 전에 받은 쓰기는 끝까지 마쳐야 한다. 닫힌 인스턴스는 새 저장을 거부한다.
     void this.queue(() => this.storage.write(snapshot));
   }
-  updateArticle(before: ArticleItem, after: ArticleItem) {
-    if (this.closed) return;
+  updateArticle(before: ArticleItem, after: ArticleItem, blocked = false) {
+    if (this.closed) return false;
+    const adjustCounts = !blocked || !this.peek<BootstrapResponse>('bootstrap')?.syncCursor?.blockRevision;
     this.overrides.set(after.id, after);
     this.revision++;
     for (const [key, snapshot] of [...this.entries]) {
       if (key === 'bootstrap') {
         const data = snapshot.data as BootstrapResponse;
-        this.put(key, { ...data, counts: updateCounts(data.counts, before, after, this.now()), subscriptions: data.subscriptions.map((sub) => updateSubscription(sub, before, after, this.now())) });
+        if (adjustCounts) this.put(key, { ...data, counts: updateCounts(data.counts, before, after, this.now()), subscriptions: data.subscriptions.map((sub) => updateSubscription(sub, before, after, this.now())) });
       } else {
         const data = snapshot.data as ArticlePage, query = new URLSearchParams(key.slice(9));
         const saved = query.get('scope') === 'saved' || query.get('savedOnly') === 'true';
@@ -187,6 +188,7 @@ export class ReaderCache {
         this.put(key, { ...data, articles, ...(needsRefresh ? { needsRefresh: true } : {}) });
       }
     }
+    return adjustCounts;
   }
   updateFields(articleId: string, fields: Partial<ArticleItem>) { this.updateMany(new Map([[articleId, fields]])); }
   /** 여러 글을 한 번에 고친다. 목록 하나는 한 번만 다시 저장한다. */

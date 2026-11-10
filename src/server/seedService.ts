@@ -1,5 +1,6 @@
 import type { D1DatabaseLike } from './types';
 import type { ParsedFeed } from './rssParser';
+import { normalizeBlockTitle } from '../shared/articleBlocks';
 
 export function generateId(prefix = ''): string {
   const uuid = crypto.randomUUID();
@@ -128,8 +129,8 @@ export async function saveFeedArticles(db: D1DatabaseLike, feedId: string, artic
   const seenGuids = new Set(existing.keys());
   const articleIds = new Map([...existing].map(([guid, row]) => [guid, row.id]));
   const statements = [];
-  for (let offset = 0; offset < toWrite.length; offset += 8) {
-    const chunk = toWrite.slice(offset, offset + 8);
+  for (let offset = 0; offset < toWrite.length; offset += 7) {
+    const chunk = toWrite.slice(offset, offset + 7);
     const originalDateGuids = chunk.filter((article) => article.originalPublishedAt).map((article) => article.guid);
     const values: unknown[] = [];
     for (const article of chunk) {
@@ -142,16 +143,17 @@ export async function saveFeedArticles(db: D1DatabaseLike, feedId: string, artic
       values.push(
         id, feedId, article.guid, article.title, article.url,
         article.author, article.summary, article.contentHtml, article.thumbnailUrl,
-        article.publishedAt, now
+        article.publishedAt, now, normalizeBlockTitle(article.title)
       );
     }
     statements.push(db.prepare(
       `INSERT INTO articles (
-        id, feed_id, guid, title, url, author, summary, content_html, thumbnail_url, published_at, created_at
-      ) VALUES ${chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+        id, feed_id, guid, title, url, author, summary, content_html, thumbnail_url, published_at, created_at, block_title
+      ) VALUES ${chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
       ON CONFLICT(feed_id, guid) DO UPDATE SET
         thumbnail_url = COALESCE(NULLIF(articles.thumbnail_url, ''), excluded.thumbnail_url),
         content_html = COALESCE(articles.content_html, excluded.content_html),
+        block_title = CASE WHEN articles.title=excluded.title THEN excluded.block_title ELSE articles.block_title END,
         published_at = CASE
           ${originalDateGuids.length ? `WHEN articles.guid IN (${originalDateGuids.map(() => '?').join(', ')}) THEN excluded.published_at` : ''}
           WHEN EXISTS(SELECT 1 FROM article_date_checks d WHERE d.article_id=articles.id AND d.source='original') THEN articles.published_at

@@ -160,7 +160,7 @@ async function download(stripHtmlToSummary, decodeHtmlEntities, extractOriginalP
   });
 }
 
-function write(extractSummaryPublishedAt) {
+function write(extractSummaryPublishedAt, normalizeBlockTitle) {
   const now = new Date().toISOString();
   if (existsSync(manifestPath)) {
     const cached = JSON.parse(readFileSync(manifestPath, 'utf8'));
@@ -176,6 +176,7 @@ function write(extractSummaryPublishedAt) {
       return;
     }
   }
+  const hasBlockTitle = query("SELECT 1 FROM pragma_table_info('articles') WHERE name='block_title'").length > 0;
   for (const feed of subscribedFeeds()) {
     const state = readState(feed.xml_url);
     // 기록하는 쪽은 체크포인트를 따로 가진다. 다운로드가 계속되며 자기 상태를 바꿔도
@@ -198,10 +199,11 @@ function write(extractSummaryPublishedAt) {
           `(${[
             `art_${randomUUID()}`, feed.id, entry.guid, entry.title, entry.url, entry.author, entry.summary,
             null, entry.thumbnailUrl, entry.originalPublishedAt || extractSummaryPublishedAt(entry.summary, entry.title, entry.url) || entry.publishedAt, now,
+            ...(hasBlockTitle ? [normalizeBlockTitle(entry.title)] : []),
           ].map(sql).join(', ')})`
         );
         statements.push(
-          `INSERT INTO articles (id, feed_id, guid, title, url, author, summary, content_html, thumbnail_url, published_at, created_at)
+          `INSERT INTO articles (id, feed_id, guid, title, url, author, summary, content_html, thumbnail_url, published_at, created_at${hasBlockTitle ? ', block_title' : ''})
            VALUES ${values.join(', ')} ON CONFLICT(feed_id, guid) DO NOTHING;`
         );
         const metadata = chunk.slice(i, i + ROWS_PER_STATEMENT).map((entry) => {
@@ -228,7 +230,8 @@ try {
       const { stripHtmlToSummary, decodeHtmlEntities } = await vite.ssrLoadModule('/src/server/rssParser.ts');
       await download(stripHtmlToSummary, decodeHtmlEntities, extractOriginalPublishedAt, extractSummaryPublishedAt);
     } else {
-      write(extractSummaryPublishedAt);
+      const { normalizeBlockTitle } = await vite.ssrLoadModule('/src/shared/articleBlocks.ts');
+      write(extractSummaryPublishedAt, normalizeBlockTitle);
     }
   } finally {
     await vite.close();

@@ -94,6 +94,9 @@ function subscribe(listener: () => void) {
 export function useArticleBlocks(account: string) {
   return useSyncExternalStore(subscribe, () => readArticleBlocks(account), () => EMPTY);
 }
+export function useArticleBlockRevision(account: string) {
+  return useSyncExternalStore(subscribe, () => revisions.get(account) ?? 0, () => 0);
+}
 
 /** 표현은 정규식이 아닌 일반 문자열이다. 피드별로 묶어 제목 정규화를 한 번만 한다. */
 export function compileArticleBlocks(rules: readonly ArticleBlockRule[]): (article: BlockArticle) => boolean {

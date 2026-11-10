@@ -2,13 +2,15 @@ import type { D1DatabaseLike } from './types';
 import { pausedAtColumn, pauseSupported, shownToSubscriber } from './feedPause';
 import type { ArticleItem, FolderItem } from '../client/api';
 import type { ReaderSyncCursor, ReaderSyncDelta, SubscriptionCounts, SubscriptionMetadata } from '../shared/readerSync';
+import { articleBlockCountFilter } from './articleBlocks';
+import type { ArticleBlockRule } from '../shared/articleBlocks';
 
 const DAY = 86400_000;
 // 계정의 저장 목록에서 시작해 피드별 개수를 한 번만 센다.
-export const savedCountsJoin = `LEFT JOIN (
+export const savedCountsJoin = (visible: string) => `LEFT JOIN (
   SELECT a.feed_id, COUNT(*) AS saved_count
   FROM article_states st CROSS JOIN articles a ON a.id=st.article_id
-  WHERE st.user_id=? AND st.is_saved=1
+  WHERE st.user_id=? AND st.is_saved=1 AND ${visible}
   GROUP BY a.feed_id
 ) saved ON saved.feed_id=s.feed_id`;
 
@@ -27,22 +29,23 @@ async function nextBoundary(db: D1DatabaseLike, userId: string, now: number) {
   }
   return Math.max(now + 1000, next);
 }
-export async function initialSyncCursor(db: D1DatabaseLike, userId: string): Promise<ReaderSyncCursor> {
+export async function initialSyncCursor(db: D1DatabaseLike, userId: string, blockRevision = 0): Promise<ReaderSyncCursor> {
   const now = Date.now(), head = await syncHead(db);
-  return { sequence: Number(head.sequence), checkedAt: now, nextBoundary: await nextBoundary(db, userId, now), account: userId };
+  return { sequence: Number(head.sequence), checkedAt: now, nextBoundary: await nextBoundary(db, userId, now), account: userId, blockRevision };
 }
 
 type Change = { version: number; kind: string; entity_id: string; feed_id: string | null; operation: string };
 const emptyDelta = (cursor: ReaderSyncCursor): ReaderSyncDelta => ({ cursor, changed: false, articles: [], articleChangedIds: [], removedIds: [], subscriptionCounts: [] });
 
-export async function readerDelta(db: D1DatabaseLike, userId: string, input: unknown): Promise<ReaderSyncDelta> {
+export async function readerDelta(db: D1DatabaseLike, userId: string, input: unknown, blocks: { revision: number; rules: readonly ArticleBlockRule[] } = { revision: 0, rules: [] }): Promise<ReaderSyncDelta> {
   const now = Date.now(), head = await syncHead(db), cursor = input as ReaderSyncCursor | undefined;
-  const fallback: ReaderSyncCursor = { sequence: Number(head.sequence), checkedAt: now, nextBoundary: now + DAY, account: userId };
+  const fallback: ReaderSyncCursor = { sequence: Number(head.sequence), checkedAt: now, nextBoundary: now + DAY, account: userId, blockRevision: blocks.revision };
   if (!cursor || cursor.account !== userId || !Number.isSafeInteger(cursor.sequence) || cursor.sequence < Number(head.floor) || cursor.sequence > Number(head.sequence) || !Number.isFinite(cursor.checkedAt) || cursor.checkedAt < now - DAY || cursor.checkedAt > now + 60_000 || !Number.isFinite(cursor.nextBoundary)) {
     return { ...emptyDelta(fallback), reset: true };
   }
-  const nextCursor = { ...cursor, sequence: Number(head.sequence), checkedAt: now };
-  if (cursor.sequence === Number(head.sequence) && now < cursor.nextBoundary) return emptyDelta(nextCursor);
+  const blocksChanged = (cursor.blockRevision ?? 0) !== blocks.revision;
+  const nextCursor = { ...cursor, sequence: Number(head.sequence), checkedAt: now, blockRevision: blocks.revision };
+  if (!blocksChanged && cursor.sequence === Number(head.sequence) && now < cursor.nextBoundary) return emptyDelta(nextCursor);
 
   const changes = (await db.prepare(`SELECT version,kind,entity_id,feed_id,operation FROM reader_sync_changes
       WHERE owner_id=? AND version>? AND version<=?
@@ -55,6 +58,11 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
   // 변경을 되풀이하지 않고 현재 스냅숏 하나를 쓴다.
   if (changes.length > 200) return { ...emptyDelta(nextCursor), reset: true };
   const affected = new Set<string>(), articleIds = new Set<string>(), removed = new Set<string>();
+  // 규칙 변경은 이미 받아 둔 글 목록을 버리지 않고 모든 구독의 개수만 다시 계산한다.
+  if (blocksChanged) {
+    const { results } = await db.prepare('SELECT feed_id FROM subscriptions WHERE user_id=?').bind(userId).all<{ feed_id: string }>();
+    results.forEach(({ feed_id }) => affected.add(feed_id));
+  }
   const articleChanged = new Set<string>();
   let metadata = false, membership = false;
   for (const change of changes) {
@@ -107,15 +115,17 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
   }
   delta.removedIds = [...removed]; delta.articleChangedIds = [...articleChanged];
   const feeds = [...affected];
+  const blockFilter = feeds.length || membership || blocksChanged ? await articleBlockCountFilter(db, userId, blocks.rules) : null;
   for (let at = 0; at < feeds.length; at += 40) {
     const chunk = feeds.slice(at, at + 40);
-    const counts = await db.prepare(`SELECT s.feed_id,
-      (SELECT COUNT(*) FROM articles a WHERE a.feed_id=s.feed_id AND ${shown}) AS total_count,
-      (SELECT COUNT(*) FROM articles a LEFT JOIN article_states st ON st.article_id=a.id AND st.user_id=s.user_id WHERE a.feed_id=s.feed_id AND a.published_at>=? AND COALESCE(st.is_read,0)=0 AND ${shown}) AS unread_count,
+    const { cte, params, visible } = blockFilter!;
+    const counts = await db.prepare(`${cte} SELECT s.feed_id,
+      (SELECT COUNT(*) FROM articles a WHERE a.feed_id=s.feed_id AND ${shown} AND ${visible}) AS total_count,
+      (SELECT COUNT(*) FROM articles a LEFT JOIN article_states st ON st.article_id=a.id AND st.user_id=s.user_id WHERE a.feed_id=s.feed_id AND a.published_at>=? AND COALESCE(st.is_read,0)=0 AND ${shown} AND ${visible}) AS unread_count,
       COALESCE(saved.saved_count,0) AS saved_count
-      FROM subscriptions s ${savedCountsJoin}
+      FROM subscriptions s ${savedCountsJoin(visible)}
       WHERE s.user_id=? AND s.feed_id IN (${chunk.map(() => '?').join(',')})`)
-      .bind(new Date(now - 30 * DAY).toISOString(), userId, userId, ...chunk).all<SubscriptionCounts>();
+      .bind(...params, new Date(now - 30 * DAY).toISOString(), userId, userId, ...chunk).all<SubscriptionCounts>();
     delta.subscriptionCounts.push(...counts.results.map((row) => ({ ...row, total_count: Number(row.total_count), unread_count: Number(row.unread_count), saved_count: Number(row.saved_count) })));
   }
   if (metadata) {
@@ -125,10 +135,11 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
       FROM subscriptions s JOIN feeds f ON f.id=s.feed_id LEFT JOIN feed_view_modes v ON v.feed_id=s.feed_id AND v.user_id=s.user_id
       WHERE s.user_id=? ORDER BY title`).bind(userId).all<SubscriptionMetadata>()).results;
   }
-  if (affected.size || membership) {
-    const today = await db.prepare(`SELECT COUNT(*) AS total,COALESCE(SUM(CASE WHEN COALESCE(st.is_read,0)=0 THEN 1 ELSE 0 END),0) AS unread
+  if (blockFilter) {
+    const { cte, params, visible } = blockFilter;
+    const today = await db.prepare(`${cte} SELECT COUNT(*) AS total,COALESCE(SUM(CASE WHEN COALESCE(st.is_read,0)=0 THEN 1 ELSE 0 END),0) AS unread
       FROM articles a JOIN subscriptions s ON s.feed_id=a.feed_id LEFT JOIN article_states st ON st.article_id=a.id AND st.user_id=s.user_id
-      WHERE s.user_id=? AND a.published_at>=? AND ${shown}`).bind(userId, new Date(now - DAY).toISOString()).first<{ total: number; unread: number }>();
+      WHERE s.user_id=? AND a.published_at>=? AND ${shown} AND ${visible}`).bind(...params, userId, new Date(now - DAY).toISOString()).first<{ total: number; unread: number }>();
     delta.today = { todayTotal: Number(today?.total || 0), todayCount: Number(today?.unread || 0) };
   }
   if (articleChanged.size || membership || now >= cursor.nextBoundary) nextCursor.nextBoundary = await nextBoundary(db, userId, now);

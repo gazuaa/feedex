@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { accountArticleBlocks, changeArticleBlocks, ArticleBlockError } from './articleBlocks';
+import { accountArticleBlocks, articleBlockCountFilter, changeArticleBlocks, ArticleBlockError } from './articleBlocks';
 import { initialSyncCursor, readerDelta, savedCountsJoin, syncHead } from './readerSync';
 import { pausedAtColumn, pauseSupported, shownToSubscriber } from './feedPause';
 import { DEFAULT_AUTO_REFRESH_MINUTES, validAutoRefresh } from '../shared/preferences';
@@ -433,7 +433,9 @@ app.post('/api/user/logout', async (c) => {
 // 처음 받는 데이터에 전체 개수와 안 읽은 개수를 함께 넣어 필터를 바로 바꿀 수 있게 한다.
 app.get('/api/bootstrap', async (c) => {
   const user = c.get('user');
-  const syncCursor = await initialSyncCursor(c.env.DB, user.id);
+  const blocks = accountArticleBlocks(user.preferences_json);
+  const syncCursor = await initialSyncCursor(c.env.DB, user.id, blocks.revision);
+  const { cte, params, visible } = await articleBlockCountFilter(c.env.DB, user.id, blocks.rules);
   const paused = await pauseSupported(c.env.DB);
 
   const foldersRes = await c.env.DB.prepare(
@@ -443,7 +445,7 @@ app.get('/api/bootstrap', async (c) => {
     .all<FolderRecord>();
 
   const subsRes = await c.env.DB.prepare(
-    `SELECT
+    `${cte} SELECT
        s.id,
        s.feed_id,
        s.folder_id,
@@ -461,18 +463,18 @@ app.get('/api/bootstrap', async (c) => {
          SELECT COUNT(*)
          FROM articles a
          LEFT JOIN article_states st ON st.article_id = a.id AND st.user_id = s.user_id
-         WHERE a.feed_id = f.id AND a.published_at >= ? AND COALESCE(st.is_read, 0) = 0 AND ${shownToSubscriber(paused)}
+         WHERE a.feed_id = f.id AND a.published_at >= ? AND COALESCE(st.is_read, 0) = 0 AND ${shownToSubscriber(paused)} AND ${visible}
        ) as unread_count,
-       (SELECT COUNT(*) FROM articles a WHERE a.feed_id = f.id AND ${shownToSubscriber(paused)}) as total_count,
+       (SELECT COUNT(*) FROM articles a WHERE a.feed_id = f.id AND ${shownToSubscriber(paused)} AND ${visible}) as total_count,
        COALESCE(saved.saved_count,0) as saved_count,
        (SELECT v.view_mode FROM feed_view_modes v WHERE v.user_id = s.user_id AND v.feed_id = s.feed_id) as view_mode
      FROM subscriptions s
      JOIN feeds f ON f.id = s.feed_id
-     ${savedCountsJoin}
+     ${savedCountsJoin(visible)}
      WHERE s.user_id = ?
      ORDER BY title ASC`
   )
-    .bind(unreadCutoff(), user.id, user.id)
+    .bind(...params, unreadCutoff(), user.id, user.id)
     .all<SubscriptionItem>();
 
   const subscriptions = (subsRes.results || []).map((s) => ({
@@ -489,14 +491,14 @@ app.get('/api/bootstrap', async (c) => {
 
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const todayRow = await c.env.DB.prepare(
-    `SELECT COUNT(*) as cnt,
+    `${cte} SELECT COUNT(*) as cnt,
             COALESCE(SUM(CASE WHEN COALESCE(st.is_read, 0) = 0 THEN 1 ELSE 0 END), 0) as unread
      FROM articles a
      JOIN subscriptions s ON s.feed_id = a.feed_id
      LEFT JOIN article_states st ON st.article_id = a.id AND st.user_id = s.user_id
-     WHERE s.user_id = ? AND a.published_at >= ? AND ${shownToSubscriber(paused)}`
+     WHERE s.user_id = ? AND a.published_at >= ? AND ${shownToSubscriber(paused)} AND ${visible}`
   )
-    .bind(user.id, twentyFourHoursAgo)
+    .bind(...params, user.id, twentyFourHoursAgo)
     .first<{ cnt: number; unread: number }>();
 
   return c.json({
@@ -913,7 +915,8 @@ app.post('/api/feeds/refresh', async (c) => {
 
 app.post('/api/sync', async (c) => {
   const body = await c.req.json<{ cursor?: unknown }>();
-  return c.json(await readerDelta(c.env.DB, c.get('user').id, body?.cursor));
+  const user = c.get('user');
+  return c.json(await readerDelta(c.env.DB, user.id, body?.cursor, accountArticleBlocks(user.preferences_json)));
 });
 
 // 목록의 검색 조건. 모두 읽음도 같은 조건을 써서 검색 결과만 읽음 처리한다.

@@ -64,7 +64,7 @@ import { useListAnchor } from './client/listAnchor';
 import { nativeNotificationBridge } from './client/nativeNotifications';
 import { notifyNewArticles, useLocalNotifications } from './client/localNotifications';
 import { shortcutKey } from './client/shortcutKey';
-import { compileArticleBlocks, useArticleBlocks, useArticleBlockAccountSync, syncArticleBlocks, visibleArticleNeighbors } from './client/articleBlocks';
+import { compileArticleBlocks, useArticleBlocks, useArticleBlockAccountSync, useArticleBlockRevision, syncArticleBlocks, visibleArticleNeighbors } from './client/articleBlocks';
 import { RssBuilderEditor } from './components/RssBuilderEditor';
 import { FeedHistoryDialog } from './components/FeedHistoryDialog';
 import { RenameFeedDialog } from './components/RenameFeedDialog';
@@ -83,6 +83,7 @@ export const App: React.FC = () => {
   const [feedExclusionsOpen, setFeedExclusionsOpen] = useState(false);
   const syncStatus = useSyncStatus(user?.id || '');
   const articleBlocks = useArticleBlocks(user?.id || '');
+  const articleBlockRevision = useArticleBlockRevision(user?.id || '');
   useArticleBlockAccountSync(user?.id || '');
   const isBlockedArticle = useMemo(() => compileArticleBlocks(articleBlocks), [articleBlocks]);
   const [authChecking, setAuthChecking] = useState(true);
@@ -447,6 +448,17 @@ export const App: React.FC = () => {
     bootstrapFlight.current = { cache, revision: cache.revision, promise };
     return promise;
   }, [readerCache, readerSync]);
+
+  useEffect(() => {
+    if (!readerCache || !articleBlockRevision) return;
+    const needsCounts = () => readerCache.active
+      && readerCache.peek<BootstrapResponse>('bootstrap')?.syncCursor?.blockRevision !== articleBlockRevision;
+    if (!needsCounts()) return;
+    // 다른 기기에서 규칙을 바꾸거나 이 기기에서 저장했으면 개수도 바로 다시 받는다.
+    void Promise.resolve(bootstrapFlight.current?.promise).then(() => {
+      if (needsCounts()) void fetchBootstrap();
+    });
+  }, [articleBlockRevision, readerCache, fetchBootstrap]);
 
   const scheduleBootstrap = useCallback(() => {
     if (bootstrapTimer.current) return;
@@ -824,9 +836,10 @@ export const App: React.FC = () => {
       const nextArticle = { ...article, is_read: nextRead, is_saved: nextSaved };
       unreadSessions.forEach((session) => session.patch(article.id, { is_read: nextRead, is_saved: nextSaved }));
       if (retainReadRows) unreadSession.update(nextArticle);
-      cache.updateArticle(article, nextArticle);
-      setCounts((prev) => updateCounts(prev, article, nextArticle));
-      setSubscriptions((prev) => prev.map((sub) => updateSubscription(sub, article, nextArticle)));
+      if (cache.updateArticle(article, nextArticle, isBlockedArticle(article))) {
+        setCounts((prev) => updateCounts(prev, article, nextArticle));
+        setSubscriptions((prev) => prev.map((sub) => updateSubscription(sub, article, nextArticle)));
+      }
       articleCache.current.set(article.id, nextArticle);
       setRestoredArticle((prev) => prev?.id === article.id ? nextArticle : prev);
 
@@ -865,9 +878,10 @@ export const App: React.FC = () => {
         const latest = articleCache.current.get(article.id) ?? nextArticle;
         const rollback = { ...latest, is_read: confirmed.is_read, is_saved: confirmed.is_saved };
         unreadSessions.forEach((session) => session.patch(article.id, rollback));
-        cache.updateArticle(latest, rollback);
-        setCounts((prev) => updateCounts(prev, latest, rollback));
-        setSubscriptions((prev) => prev.map((sub) => updateSubscription(sub, latest, rollback)));
+        if (cache.updateArticle(latest, rollback, isBlockedArticle(latest))) {
+          setCounts((prev) => updateCounts(prev, latest, rollback));
+          setSubscriptions((prev) => prev.map((sub) => updateSubscription(sub, latest, rollback)));
+        }
         articleCache.current.set(article.id, rollback);
         setRestoredArticle((prev) => prev?.id === article.id ? rollback : prev);
         void fetchArticles();
@@ -876,7 +890,7 @@ export const App: React.FC = () => {
         if (stateWrites.current.get(article.id) === operation) { stateWrites.current.delete(article.id); confirmedStates.current.delete(article.id); }
       }
     },
-    [readerCache, scheduleBootstrap, fetchArticles, retainReadRows, unreadSession, unreadSessions, savedOnly, activeScope, unreadOnly]
+    [readerCache, scheduleBootstrap, fetchArticles, retainReadRows, unreadSession, unreadSessions, savedOnly, activeScope, unreadOnly, isBlockedArticle]
   );
 
   const handleScrollRead = (ids: string[]) => {

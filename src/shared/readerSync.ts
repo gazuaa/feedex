@@ -5,6 +5,7 @@ export interface ReaderSyncCursor {
   checkedAt: number;
   nextBoundary: number;
   account: string;
+  blockRevision?: number;
 }
 export type SubscriptionMetadata = Omit<SubscriptionItem, 'total_count' | 'unread_count' | 'saved_count'>;
 export type SubscriptionCounts = Pick<SubscriptionItem, 'feed_id' | 'total_count' | 'unread_count' | 'saved_count'>;

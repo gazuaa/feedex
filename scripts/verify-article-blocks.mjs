@@ -102,6 +102,51 @@ try {
   const otherLogin = await (await app.request('/api/auth/google/quick', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'block-other@example.test' }) }, env)).json();
   assert.deepEqual((await (await app.request('/api/user/article-blocks', { headers: { Authorization: `Bearer ${otherLogin.token}` } }, env)).json()).rules, []);
 
+  {
+    const now = new Date().toISOString(), old = new Date(Date.now() - 35 * 86400_000).toISOString();
+    for (const feedId of ['digital-asset', 'other-feed']) {
+      await db.prepare('INSERT INTO feeds(id,xml_url,title,created_at) VALUES(?,?,?,?)').bind(feedId, `https://feeds.test/${feedId}`, feedId, now).run();
+      for (const account of [owner, otherLogin.user.id]) {
+        await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind(`${account}-${feedId}`, account, feedId, now).run();
+      }
+    }
+    const add = (id, feedId, title, publishedAt = now) => db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,published_at,created_at) VALUES(?,?,?,?,?,?,?)')
+      .bind(id, feedId, id, title, `https://feeds.test/article/${id}`, publishedAt, now).run();
+    const matchingTitle = '미국 현물 ＥＴＦ, 하루 새 순유출';
+    await add('blocked-new', 'digital-asset', matchingTitle);
+    await add('blocked-old', 'digital-asset', matchingTitle, old);
+    await add('shown-new', 'digital-asset', '새로운 일반 기사');
+    await add('other-new', 'other-feed', matchingTitle);
+    for (const id of ['blocked-new', 'blocked-old', 'shown-new']) {
+      await db.prepare('INSERT INTO article_states(user_id,article_id,is_read,is_saved) VALUES(?,?,0,1)').bind(owner, id).run();
+    }
+    const request = async (path, body, headers = auth) => {
+      const response = await app.request(path, body ? { method: 'POST', headers, body: JSON.stringify(body) } : { headers }, env);
+      assert.equal(response.status, 200);
+      return response.json();
+    };
+    const bootstrap = await request('/api/bootstrap');
+    const countsFor = (sub) => [sub.total_count, sub.unread_count, sub.saved_count];
+    assert.deepEqual(countsFor(bootstrap.subscriptions.find(sub => sub.feed_id === 'digital-asset')), [1, 1, 1]);
+    assert.deepEqual(countsFor(bootstrap.subscriptions.find(sub => sub.feed_id === 'other-feed')), [1, 1, 0]);
+    assert.deepEqual(bootstrap.counts, { totalUnread: 2, totalArticles: 2, savedCount: 1, todayCount: 2, todayTotal: 2 });
+    assert.equal((await request('/api/bootstrap', null, { Authorization: `Bearer ${otherLogin.token}` })).counts.totalArticles, 4);
+    assert.ok((await request('/api/articles?scope=feed&feedId=digital-asset')).articles.some(article => article.id === 'blocked-new'), '숨긴 글 보기는 여전히 글을 받을 수 있다');
+
+    await add('blocked-delta', 'digital-asset', matchingTitle);
+    await add('shown-delta', 'digital-asset', '일반 새 글');
+    await request('/api/articles/blocked-new/state', { isRead: true, isSaved: false });
+    const delta = await request('/api/sync', { cursor: bootstrap.syncCursor });
+    assert.deepEqual(countsFor(delta.subscriptionCounts.find(sub => sub.feed_id === 'digital-asset')), [2, 2, 1]);
+    assert.ok(delta.articles.some(article => article.id === 'blocked-delta'));
+    await saveArticleBlock(owner, { ...rule, enabled: false });
+    const changed = await request('/api/sync', { cursor: delta.cursor });
+    assert.deepEqual(countsFor(changed.subscriptionCounts.find(sub => sub.feed_id === 'digital-asset')), [5, 3, 2],
+      '규칙을 바꾸면 글 목록을 버리지 않고 개수를 다시 계산한다');
+    assert.equal((await request('/api/bootstrap')).counts.totalArticles, 6);
+    await saveArticleBlock(owner, rule);
+  }
+
   Object.defineProperty(globalThis, 'Notification', { configurable: true, value: { permission: 'granted' } });
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: 'Test browser', maxTouchPoints: 0 } });
   const { setLocalNotifications, notifyNewArticles } = await vite.ssrLoadModule('/src/client/localNotifications.ts');
