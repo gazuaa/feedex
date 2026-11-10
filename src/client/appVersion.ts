@@ -167,5 +167,5 @@ export function takeResumePoint(account: string, now = Date.now(), storage = ses
   const scroll = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
   const folderId = id(point.folderId), feedId = id(point.feedId), articleId = id(point.articleId);
   if (!['all', 'today', 'saved', 'folder', 'feed'].includes(point.scope as string) || typeof point.search !== 'string' || folderId === undefined || feedId === undefined || articleId === undefined) return null;
-  return { account, at: point.at, scope: point.scope as ScopeType, folderId, feedId, search: point.search.slice(0, 500), saved: point.saved === true, unread: typeof point.unread === 'boolean' ? point.unread : undefined, articleId, listScroll: scroll(point.listScroll), readerScroll: scroll(point.readerScroll), ...(point.original === true ? { original: true } : {}) };
+  return { account, at: point.at, scope: point.scope as ScopeType, folderId, feedId, search: point.search.slice(0, 500), saved: point.saved === true, ...(typeof point.unread === 'boolean' ? { unread: point.unread } : {}), articleId, listScroll: scroll(point.listScroll), readerScroll: scroll(point.readerScroll), ...(point.original === true ? { original: true } : {}) };
 }

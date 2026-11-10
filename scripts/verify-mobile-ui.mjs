@@ -78,5 +78,12 @@ try {
   assert.match(viewer, /height:100dvh/); assert.match(viewer, /padding:8px 16px calc\(24px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(viewer, /else if \(dy > 90 && dy > Math\.abs\(dx\) \* 1\.5\) close\(\);/, 'a downward swipe closes the photo viewer');
   assert.match(drawer, /\{translation!\.provider === 'deepl' \? 'DeepL' : 'Workers AI'\} 번역<\/span>/, 'the translation bar fits one line on phones');
+  // 휴대폰 시작: 로그인한 앱은 구글 로그인 스크립트를 받지 않고, 로그인 화면은 버튼이 첫 화면에 오게 긴 소개를 접는다.
+  assert.doesNotMatch(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /<script[^>]*accounts\.google\.com\/gsi\/client/, 'the app shell no longer loads Google sign-in for signed-in people');
+  const loginView = readFileSync(new URL('../src/components/LoginView.tsx', import.meta.url), 'utf8');
+  assert.match(loginView, /script\.src = 'https:\/\/accounts\.google\.com\/gsi\/client';[\s\S]*?loadGsi\(\);\s*tryInitGsi\(\);/, 'the login screen loads Google sign-in itself');
+  assert.match(loginView, /<p className="hidden lg:block /, 'phones skip the long intro'); assert.match(loginView, /<div className="hidden lg:grid /, 'phones skip the feature cards');
+  const installCard = readFileSync(new URL('../src/components/PwaInstall.tsx', import.meta.url), 'utf8');
+  assert.match(installCard, /aria-label="설치 안내 하루 동안 숨기기"[^>]*className="[^"]*h-10 w-10/, 'the install card close button is finger sized');
   console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer and a one-line translation bar.');
 } finally { await vite.close(); }

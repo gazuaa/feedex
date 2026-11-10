@@ -110,6 +110,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
   useEffect(() => {
     if (native) return;
     let attempts = 0;
+    // 구글 로그인 스크립트는 이 화면에서만 받는다. 로그인한 사람이 앱을 열 때마다 받지 않게 한다.
+    const loadGsi = () => {
+      if (window.google?.accounts?.id) return;
+      let script = document.querySelector<HTMLScriptElement>('script[data-feedex-gsi]');
+      if (!script) {
+        script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.dataset.feedexGsi = '';
+        document.head.append(script);
+      }
+      // 느린 연결에서 아래의 재시도가 끝난 뒤에 도착해도 버튼을 그린다.
+      script.addEventListener('load', () => { attempts = 0; tryInitGsi(); }, { once: true });
+    };
     const tryInitGsi = () => {
       if (window.google?.accounts?.id && gsiBtnRef.current) {
         try {
@@ -160,6 +174,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
       }
     };
 
+    loadGsi();
     tryInitGsi();
   }, [googleClientId, onLoginSuccess, native]);
 
@@ -200,10 +215,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
   return (
     <div className="feedex-login min-h-screen bg-slate-950 text-slate-100 flex flex-col lg:flex-row">
       {/* 왼쪽 소개 영역 */}
-      <div className="lg:w-7/12 p-8 lg:p-16 flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/30">
+      {/* 휴대폰에서는 로고와 한 줄 소개만 남겨 로그인 버튼이 첫 화면에 보이게 한다. 긴 소개와 기능 카드는 넓은 화면에서만 보인다. */}
+      <div className="lg:w-7/12 px-6 pt-6 pb-5 lg:p-16 flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/30">
         <div className="relative z-10">
           {onChangeTheme && <div className="flex justify-end mb-4"><ThemeSwitch theme={theme} onChange={onChangeTheme} /></div>}
-          <div className="inline-flex items-center gap-3 mb-10">
+          <div className="inline-flex items-center gap-3 mb-5 lg:mb-10">
             <div className="w-11 h-11 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
               <Rss className="w-6 h-6 text-slate-950 stroke-[2.5]" />
             </div>
@@ -211,13 +227,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
               <span className="text-2xl font-bold tracking-tight text-white">
                 FeedEx
               </span>
-              <span className="ml-2 text-xs font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              <span className="hidden sm:inline ml-2 whitespace-nowrap text-xs font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                 Cloudflare Edge RSS
               </span>
             </div>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight mb-6">
+          <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight lg:mb-6">
             쏟아지는 기술과 뉴스를
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
@@ -225,13 +241,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
             </span>{' '}
             읽다
           </h1>
-          <p className="text-slate-400 text-base sm:text-lg max-w-xl leading-relaxed mb-10">
+          <p className="hidden lg:block text-slate-400 text-base sm:text-lg max-w-xl leading-relaxed mb-10">
             Feedly 스타일의 직관적인 3가지 레이아웃, 광고 없는 원문 스크래핑(Reader
             View), 그리고 Cloudflare Workers AI 기반 한국어 3줄 핵심 요약까지 결합된
             멀티유저 RSS 큐레이션 플랫폼입니다.
           </p>
 
-          <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
+          <div className="hidden lg:grid sm:grid-cols-2 gap-4 max-w-2xl">
             <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800/90 flex items-start gap-3.5">
               <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
                 <Sparkles className="w-5 h-5" />
@@ -294,7 +310,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
           </div>
         </div>
 
-        <div className="relative z-10 mt-10 pt-6 border-t border-slate-800/70 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500">
+        <div className="relative z-10 mt-5 pt-4 lg:mt-10 lg:pt-6 border-t border-slate-800/70 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>Powered by React 19 · Hono · Cloudflare D1 · Workers AI</span>
@@ -308,7 +324,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
       </div>
 
       {/* 오른쪽 로그인 영역 */}
-      <div className="lg:w-5/12 p-8 lg:p-14 flex items-center justify-center bg-slate-950">
+      <div className="lg:w-5/12 px-6 py-7 lg:p-14 flex items-center justify-center bg-slate-950">
         <div className="w-full max-w-md space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-white mb-2">

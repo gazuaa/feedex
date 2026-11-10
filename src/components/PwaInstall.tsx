@@ -32,8 +32,8 @@ function InstallPromptContent({ prompt }: { prompt: ReturnType<typeof useInstall
   return <>
     <img src="/icons/icon-192.png" alt="" width="40" height="40" />
     <div className="min-w-0 flex-1"><strong className="block text-sm">{prompt.title}</strong><p className="text-xs text-slate-400 mt-1">{prompt.text}</p></div>
-    <button type="button" onClick={() => { void prompt.act(); }} className="shrink-0 bg-emerald-500 text-slate-950 rounded-xl px-3 py-2 text-xs font-bold cursor-pointer">{prompt.action}</button>
-    <button type="button" aria-label="설치 안내 하루 동안 숨기기" onClick={prompt.dismiss} className="text-slate-400 p-1 cursor-pointer"><X size={16} /></button>
+    <button type="button" onClick={() => { void prompt.act(); }} className="shrink-0 min-h-[40px] bg-emerald-500 text-slate-950 rounded-xl px-3 py-2 text-xs font-bold cursor-pointer">{prompt.action}</button>
+    <button type="button" aria-label="설치 안내 하루 동안 숨기기" onClick={prompt.dismiss} className="shrink-0 -mr-2 flex h-10 w-10 items-center justify-center text-slate-400 cursor-pointer"><X size={16} /></button>
   </>;
 }
 
