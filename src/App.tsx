@@ -151,6 +151,7 @@ export const App: React.FC = () => {
   // 글 목록과 리더 상태
   const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+  const articleCache = useRef(new Map<string, ArticleItem>());
   const [showBlockedArticles, setShowBlockedArticles] = useState(false);
   const [xPostTarget, setXPostTarget] = useState<XPostTarget | null>(null);
   const [renameFeed, setRenameFeed] = useState<{ accountId: string; feed: SubscriptionItem } | null>(null);
@@ -192,7 +193,6 @@ export const App: React.FC = () => {
   const articleRequestRef = useRef(0);
   const articleListRef = useRef<HTMLElement>(null);
   const pendingScroll = useRef<number | null>(null);
-  const articleCache = useRef(new Map<string, ArticleItem>());
   const blockPreviewArticles = useMemo(() => blockDialog ? [...new Map([...articleCache.current.values(), ...articles].map((article) => [article.id, article])).values()] : [], [articles, blockDialog]);
   const [restoredArticle, setRestoredArticle] = useState<ArticleItem | null>(null);
   const [refreshingFeeds, setRefreshingFeeds] = useState(false);
