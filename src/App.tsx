@@ -1517,7 +1517,7 @@ export const App: React.FC = () => {
     else selectMobileTab(tab);
   };
   const onManageArticleBlocks = () => setBlockDialog({ accountId: user.id, article: null });
-  const mobileSettings = { syncStatus, syncBusy: refreshingFeeds || backgroundSyncs > 0, theme, onChangeTheme: handleChangeTheme, layout, onChangeLayout: handleChangeLayout, onOpenOpml: () => openMobileDiscover('opml'), sort: articleSort, onChangeSort: setArticleSort, markReadOnScroll, onChangeMarkReadOnScroll: handleChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes: handleChangeAutoRefreshMinutes, accountId: user.id, onManageArticleBlocks };
+  const mobileSettings = { syncStatus, theme, onChangeTheme: handleChangeTheme, layout, onChangeLayout: handleChangeLayout, onOpenOpml: () => openMobileDiscover('opml'), sort: articleSort, onChangeSort: setArticleSort, markReadOnScroll, onChangeMarkReadOnScroll: handleChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes: handleChangeAutoRefreshMinutes, accountId: user.id, onManageArticleBlocks };
 
   const contextActions = (target: AppContextTarget): AppContextAction[] => {
     const items: AppContextAction[] = [];

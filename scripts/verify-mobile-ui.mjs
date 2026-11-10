@@ -44,6 +44,11 @@ try {
   assert.match(list, /매거진 뷰/);
   assert.ok(!renderToStaticMarkup(React.createElement(MobileSettings, { ...settings, sort: 'oldest', onChangeSort() {} })).includes('오래된순'), 'the article order is not hidden in the settings menu');
   const header = (fields) => renderToStaticMarkup(React.createElement(MobileHeader, { ...settings, title: 'X', search: '', onSearch() {}, onAdd() {}, onChangeSort() {}, ...fields }));
+  for (const library of [false, true]) {
+    assert.doesNotMatch(header({ library, syncStatus: { online: true, failed: false } }), /feedex-mobile-sync-status/);
+    assert.match(header({ library, syncStatus: { online: true, failed: true } }), /새로고침 실패/);
+    assert.match(header({ library, syncStatus: { online: false, failed: false } }), /오프라인/);
+  }
   assert.match(header({ sort: 'oldest' }), /class="feedex-mobile-sort"[^>]*aria-label="정렬: 오래된순, 최신순으로 전환"[\s\S]*?<span>오래된순<\/span><\/button><div[^>]*feedex-mobile-settings/, 'a list shows its current order as a button just left of the settings');
   assert.match(header({ sort: 'newest' }), /<span>최신순<\/span>/);
   assert.ok(!header({ sort: 'newest', library: true }).includes('feedex-mobile-sort'), 'the library has no article order button');

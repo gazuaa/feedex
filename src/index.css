@@ -237,7 +237,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
 .feedex-install-address button { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 8px; color: #10b981; font-size: 12px; }
 .feedex-install-address > p { margin-top: 8px; font-size: 12px; line-height: 1.6; }
 @media (max-width: 1023px) {
-  :root { --feedex-mobile-header-height: calc(107px + env(safe-area-inset-top)); }
+  :root { --feedex-mobile-header-height: calc(87px + env(safe-area-inset-top)); }
+  :root:has(.feedex-mobile-sync-status) { --feedex-mobile-header-height: calc(107px + env(safe-area-inset-top)); }
   .feedex-workspace-main { position: relative; }
   /*
    * 실제 고정 뷰포트를 채운다. inset: 0과 따로 준 100dvh 높이를 함께 쓰면
@@ -278,12 +279,10 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-settings-panel :is(button, select):not([role="switch"]) { min-height: 44px; }
   .feedex-mobile-settings-panel .feedex-text-size-control > button { min-width: 44px; min-height: 44px; }
   .feedex-mobile-settings-panel .feedex-segmented button { min-width: 44px; min-height: 44px; }
-  .feedex-mobile-sync-status { display: flex; align-items: center; gap: 5px; min-height: 18px; margin-top: 2px; font-size: 11px; line-height: 1.4; color: var(--feedex-mobile-muted); }
+  .feedex-mobile-sync-status { display: flex; align-items: center; gap: 5px; min-height: 18px; margin-top: 2px; font-size: 11px; line-height: 1.4; color: #b45309; }
   .feedex-mobile-sync-status > svg { flex-shrink: 0; }
   .feedex-mobile-sync-status > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .feedex-mobile-sync-status > small { margin-left: auto; flex-shrink: 0; font-size: 10px; color: var(--feedex-mobile-muted); }
-  .feedex-mobile-sync-status[data-warning] { color: #b45309; }
-  html.dark .feedex-mobile-sync-status[data-warning] { color: #fbbf24; }
+  html.dark .feedex-mobile-sync-status { color: #fbbf24; }
   /* 휴대폰 패널은 공용 설정 스타일에 휴대폰 색 구성을 쓴다. */
   .feedex-mobile-settings-panel { --feedex-border: var(--feedex-mobile-line); --feedex-muted: var(--feedex-mobile-muted); --feedex-background: var(--feedex-mobile-raised); --feedex-panel: var(--feedex-mobile-surface); }
   .feedex-mobile-settings-panel :is(.feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting) { min-height: 44px; font-size: 14px; }
