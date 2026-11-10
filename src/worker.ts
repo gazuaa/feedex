@@ -62,6 +62,8 @@ export default {
       catch (error) { console.error(`예약 실행 ${name} 실패:`, error instanceof Error ? error.message : error); }
     };
     const now = Date.now();
+    // 수집을 시작하고 응답을 받기까지 걸린 시간 때문에 다음 회차를 통째로 건너뛰지 않게 한다.
+    const xFreshCutoff = new Date(now - 14 * 60_000).toISOString();
     const regular = event.scheduledTime === undefined || new Date(event.scheduledTime).getUTCMinutes() % 15 === 0;
     if (regular) await step('쿼리 통계', () => refreshQueryStats(env.DB, event.scheduledTime));
     const paused = await step('구독 상태 조회', () => pauseSupported(env.DB));
@@ -73,7 +75,7 @@ export default {
          AND f.xml_url ${x ? 'LIKE' : 'NOT LIKE'} 'https://x.com/%'
          ${x ? 'AND (f.last_fetched_at IS NULL OR f.last_fetched_at<=?)' : ''}
        ORDER BY COALESCE(r.attempted_at,f.last_fetched_at) ASC, f.id LIMIT ${x ? 24 : 100}`
-    ).bind(now, now, ...(x ? [new Date(now - 15 * 60_000).toISOString()] : [])).all<StoredFeed>();
+    ).bind(now, now, ...(x ? [xFreshCutoff] : [])).all<StoredFeed>();
     const rss = regular ? await step('RSS 피드 조회', () => select(false)) : undefined;
     const x = await step('X 피드 조회', () => select(true));
     const feeds = [...(rss?.results || []), ...(x?.results || [])];

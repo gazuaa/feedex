@@ -141,10 +141,11 @@ try {
   }
   {
     const old = new Date(Date.now() - 60 * 60_000).toISOString();
+    const finishedAfterTick = new Date(Date.now() - 14 * 60_000 - 15_000).toISOString();
     for (let i = 0; i < 26; i++) {
       const id = `schedule${String(i).padStart(2, '0')}`;
       await db.prepare('INSERT INTO feeds(id,xml_url,title,last_fetched_at,created_at) VALUES(?,?,?,?,?)')
-        .bind(id, `https://x.com/${id}`, id, old, now).run();
+        .bind(id, `https://x.com/${id}`, id, i === 25 ? finishedAfterTick : old, now).run();
       await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at,paused_at) VALUES(?,?,?,?,?)')
         .bind(`sub-${id}`, user.id, id, now, i === 0 ? now : null).run();
     }
