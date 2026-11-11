@@ -26,7 +26,7 @@ import { isXProfileFeed } from '../shared/xFeed';
 import { importOpmlFeed, OpmlSourceError } from './opmlImporter';
 import { clearOpmlFailure, listOpmlFailures, recordOpmlFailure } from './opmlFailures';
 import { fetchAndParseFeed, parseOpml, generateOpml, type ParsedFeed } from './rssParser';
-import { READER_FALLBACK_MARK, realFullContent, scrapeFullArticle } from './readerScraper';
+import { READER_FALLBACK_MARK, readerBodyNeedsRefresh, realFullContent, scrapeFullArticle } from './readerScraper';
 import { checkEmbeddable } from './framing';
 import { fetchWebView } from './webView';
 import { fetchPreviewImage } from './previewImage';
@@ -1423,20 +1423,22 @@ app.post('/api/articles/:id/reader-view', async (c) => {
   });
 });
 
-// 글 번역. 같은 원문이면 저장해 둔 번역을 쓴다. 리더 본문이 있으면 그것을, 없으면 피드 본문을 번역한다.
+// 글 번역. 웹·리더 보기에서는 기사 본문을, 피드 보기에서는 피드 본문을 번역한다.
 app.post('/api/articles/:id/translate', async (c) => {
-  const body = await c.req.json<{ source?: unknown; force?: unknown }>().catch(() => ({} as { source?: unknown; force?: unknown }));
+  const body = await c.req.json<{ source?: unknown; force?: unknown; phone?: unknown }>().catch(() => ({} as { source?: unknown; force?: unknown; phone?: unknown }));
   const source = body.source === 'feed' ? 'feed' : 'full';
   const article = await c.env.DB.prepare(
     `SELECT id, title, url, summary, content_html, full_content_html
      FROM articles WHERE id = ? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
   ).bind(c.req.param('id'), c.get('user').id).first<{ id: string; title: string; url: string; summary: string | null; content_html: string | null; full_content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
-  let full = source === 'full' ? realFullContent(article.full_content_html) : null;
-  if (source === 'full' && !full) {
-    const scraped = await scrapeFullArticle(article.url, article.content_html, article.title, c.env);
+  const needsWebBody = source === 'full' && !xStatusUrl(article.url);
+  let full = needsWebBody ? realFullContent(article.full_content_html) : null;
+  if (needsWebBody && (!full || readerBodyNeedsRefresh(full))) {
+    const scraped = await scrapeFullArticle(article.url, article.content_html, article.title, c.env, body.phone === true);
     full = scraped.fullContentHtml;
-    if (full) await c.env.DB.prepare('UPDATE articles SET full_content_html=? WHERE id=? AND full_content_html IS ?')
+    if (!full) return c.json({ error: '기사 전체 본문을 가져오지 못했어요. 다시 시도하거나 원문에서 읽어 주세요.' }, 422);
+    await c.env.DB.prepare('UPDATE articles SET full_content_html=? WHERE id=? AND full_content_html IS ?')
       .bind(full, article.id, article.full_content_html).run();
   }
   const bodySource = full ? 'full' : 'feed';

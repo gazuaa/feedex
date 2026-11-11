@@ -15,7 +15,6 @@ import {
   Loader2,
   RefreshCw,
   Rss,
-  Type,
   ChevronDown,
   MoreHorizontal,
   ChevronUp,
@@ -303,7 +302,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     observer.observe(pane);
     return () => observer.disconnect();
   }, []);
-  const [sizeToolsOpen, setSizeToolsOpen] = useState(false);
   // 프레임을 거부하는 사이트는 서버가 받아 온 스크립트 없는 사본으로 보여 준다.
   // textOnly: 원문 사이트가 원래 배치를 잠시 막아 받은 본문만 보여 주는 사본.
   // retrying: 보안 확인으로 막혀 잠시 뒤 자동으로 다시 받는 중.
@@ -335,7 +333,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     }
   }, [xWaiting, holdingPreview]);
   const [shareNotice, setShareNotice] = useState('');
-  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState<'tools' | 'assist' | null>(null);
+  const closeMobileMenu = () => setMobileMenu(null);
   const isMobile = useMobileViewport();
   const topRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), copyRef = useRef<HTMLIFrameElement>(null);
   useCopyTheme(copyRef, isDark);
@@ -343,7 +342,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const { activeYouTube, ytOverlayRef, closeYouTube } = useYouTubeCopyFrame(copyRef, webZoom, `${article?.id}:${mode}:${Boolean(copyHtml)}`);
   // 프레임 안 사이트의 스크롤은 손이 닿지 않으므로, 피드·리더·웹 사본만 막대를 숨긴다.
   const showingCopy = siteShown && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
-  const chromeHidden = useScrollChrome(bodyRef, isMobile && Boolean(article) && !mobileToolsOpen && !sizeToolsOpen, `${article?.id}:${mode}:${showingCopy}:${showTranslation}`, copyRef);
+  const chromeHidden = useScrollChrome(bodyRef, isMobile && Boolean(article) && !mobileMenu, `${article?.id}:${mode}:${showingCopy}:${showTranslation}`, copyRef);
   // 맥 앱에서는 웹 보기 자리에 앱이 원문 화면을 겹쳐 띄운다. 사이트를 직접 연 화면이라 로그인이 유지되고
   // 프레임을 막는 사이트도 그대로 보인다. X 글은 공개 미러 사본으로 보여 준다.
   const nativeWeb = siteShown && Boolean(article) && !xPost && inNativeApp();
@@ -358,12 +357,20 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 화면에 그리기 전에 정해야 막대가 한 번 접혔다가 다시 나타나는 깜빡임이 없다.
   useLayoutEffect(() => { if (framed) setPeek((value) => value + 1); }, [framed]);
   useEffect(() => {
-    if (!peek || mobileToolsOpen || sizeToolsOpen) return;
+    if (!peek || mobileMenu) return;
     const timer = setTimeout(() => setPeek(0), PEEK_MS);
     return () => clearTimeout(timer);
-  }, [peek, mobileToolsOpen, sizeToolsOpen]);
+  }, [peek, mobileMenu]);
   const keepPeeking = () => { if (peek) setPeek((value) => value + 1); };
-  const barsHidden = chromeHidden || (framed && !peek && !mobileToolsOpen && !sizeToolsOpen);
+  const barsHidden = !mobileMenu && (chromeHidden || (framed && !peek));
+  useEffect(() => {
+    if (!mobileMenu || !isMobile) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.stopPropagation(); setMobileMenu(null); }
+    };
+    window.addEventListener('keydown', escape, true);
+    return () => window.removeEventListener('keydown', escape, true);
+  }, [mobileMenu, isMobile]);
   // 웹 보기에 지금 사본과 사이트 프레임 중 무엇이 보이는지. 상단 막대와 본문이 같은 값을 쓴다.
   const webCopyShown = xWaiting || (copyReady && frame?.articleId === article?.id && !frame?.embeddable);
   const webFrameShown = !webCopyShown && frame?.articleId === article?.id && frame?.embeddable === true;
@@ -598,7 +605,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     setTranslating(true); setTranslationError('');
     try {
       const res = await apiRequest<{ title: string; html: string; provider: string; bodySource?: 'full' | 'feed'; notice?: string; alreadyKorean?: boolean }>(`/api/articles/${article.id}/translate`, {
-        method: 'POST', body: JSON.stringify({ source }), signal: controller.signal,
+        method: 'POST', body: JSON.stringify({ source, phone: isMobile }), signal: controller.signal,
       });
       if (!current()) return;
       if (res.alreadyKorean) { setTranslated(false); onNotice('이미 한국어로 된 글이에요.'); return; }
@@ -725,16 +732,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         <div ref={topRef} className="feedex-mobile-reader-top lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
           <button className="feedex-mobile-icon" onClick={onClose} aria-label="목록으로 돌아가기"><ChevronDown size={22} /></button>
           <div role="radiogroup" aria-label="본문 보기 방식" className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}<span>{label}</span></button>)}</div>
-          <button className="feedex-mobile-icon" aria-label="본문 도구" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((value) => !value)}><MoreHorizontal size={20} /></button>
-          {mobileToolsOpen && <div className="feedex-mobile-reader-menu">
-            <button aria-pressed={aiOpen} onClick={() => { setMobileToolsOpen(false); toggleAiSummary(); }}><Sparkles size={18} />{aiAction}</button>
-            <button aria-pressed={showTranslation} onClick={() => { setMobileToolsOpen(false); toggleTranslation(); }}>{translating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}{translateAction}</button>
-            <button onClick={() => { setMobileToolsOpen(false); openArticleInDeepL(); }}><ExternalLink size={18} />DeepL에서 번역</button>
-            <button disabled={refreshing} onClick={() => { setMobileToolsOpen(false); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />기사 새로고침</button>
-            <p className="feedex-mobile-menu-label">{siteShown ? '사이트 확대·축소' : '글자 크기'}</p>
-            {sizeControl('feedex-mobile-zoom')}
-            <a href={article.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={18} />원문 사이트 열기</a>
-          </div>}
+          <button className="feedex-mobile-icon" aria-label="본문 도구" aria-expanded={mobileMenu === 'tools'} onClick={() => setMobileMenu('tools')}><MoreHorizontal size={20} /></button>
         </div>
         {/* 상단 동작 막대 */}
         <div
@@ -1350,9 +1348,21 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>
           <button aria-label="다음 아티클" disabled={!hasNext} onClick={() => onNavigateRelative('next')}><ChevronRight size={21} /></button>
           <button aria-label="글 공유" onClick={() => void shareArticle()}><Share2 size={18} /></button>
-          <button aria-label={mode === 'web' ? '사이트 확대·축소' : '글자 크기'} aria-expanded={sizeToolsOpen} onClick={() => setSizeToolsOpen((open) => !open)}><Type size={19} /></button>
+          <button aria-label="번역 및 AI 요약" aria-expanded={mobileMenu === 'assist'} onClick={() => setMobileMenu('assist')}>{translating || summarizing ? <Loader2 size={19} className="animate-spin" /> : <Sparkles size={19} />}</button>
         </nav>
-        {sizeToolsOpen && sizeControl('feedex-mobile-size-popover lg:hidden')}
+        {isMobile && mobileMenu && <>
+          <button type="button" className="feedex-reader-menu-backdrop" aria-label="메뉴 닫기" onClick={closeMobileMenu} />
+          {mobileMenu === 'tools' ? <div className="feedex-mobile-reader-menu" aria-label="본문 도구">
+            <button onClick={() => { closeMobileMenu(); openArticleInDeepL(); }}><ExternalLink size={18} />DeepL에서 번역</button>
+            <button disabled={refreshing} onClick={() => { closeMobileMenu(); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />기사 새로고침</button>
+            <p className="feedex-mobile-menu-label">{siteShown ? '사이트 확대·축소' : '글자 크기'}</p>
+            {sizeControl('feedex-mobile-zoom')}
+            <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}><ExternalLink size={18} />원문 사이트 열기</a>
+          </div> : <div className="feedex-mobile-reader-menu feedex-mobile-assist-menu" aria-label="번역 및 AI 요약">
+            <button aria-pressed={showTranslation} onClick={() => { closeMobileMenu(); toggleTranslation(); }}>{translating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}{translateAction}</button>
+            <button aria-pressed={aiOpen} onClick={() => { closeMobileMenu(); toggleAiSummary(); }}><Sparkles size={18} />{aiAction}</button>
+          </div>}
+        </>}
       </div>
     </div>
   );

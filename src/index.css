@@ -383,7 +383,9 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-body-modes { display: flex; padding: 3px; border-radius: 20px; background: var(--feedex-mobile-raised); }
   .feedex-mobile-body-modes button { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 50px; height: 32px; padding: 0 8px; border-radius: 17px; color: var(--feedex-mobile-muted); font-size: 10.5px; }
   .feedex-mobile-body-modes button[aria-checked=true] { color: #059669; background: var(--feedex-mobile-surface); box-shadow: 0 1px 5px #0001; }
-  .feedex-mobile-reader-menu { position: absolute; right: 10px; top: calc(50px + env(safe-area-inset-top)); width: 220px; border: 1px solid var(--feedex-mobile-line); border-radius: 20px; padding: 8px; background: var(--feedex-mobile-surface); box-shadow: 0 8px 30px #0003; }
+  .feedex-reader-menu-backdrop { position: absolute; inset: 0; z-index: 62; }
+  .feedex-mobile-reader-menu { position: absolute; z-index: 63; right: 10px; top: var(--feedex-reader-top-height, calc(50px + env(safe-area-inset-top))); width: 220px; border: 1px solid var(--feedex-mobile-line); border-radius: 20px; padding: 8px; background: var(--feedex-mobile-surface); box-shadow: 0 8px 30px #0003; }
+  .feedex-mobile-assist-menu { top: auto; right: 20px; bottom: calc(78px + env(safe-area-inset-bottom)); }
   .feedex-mobile-reader-menu > button, .feedex-mobile-reader-menu > a { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 8px 12px; font-size: 13px; }
   .feedex-mobile-zoom { display: flex; justify-content: space-evenly; }
   .feedex-mobile-zoom button { min-width: 48px; min-height: 44px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
@@ -392,10 +394,6 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   :root { --feedex-article-font: 17px; }
   .feedex-article-content { line-height: 1.85; word-break: normal; overflow-wrap: anywhere; }
   .feedex-mobile-menu-label { padding: 6px 12px 0; color: var(--feedex-mobile-muted); font-size: 11px; }
-  /* 글자 크기(또는 사이트 배율) 조절기를 리더 하단 막대 위로 올린다. */
-  .feedex-mobile-size-popover { position: fixed; z-index: 61; left: 50%; transform: translateX(-50%); bottom: calc(70px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 4px; padding: 6px; border: 1px solid var(--feedex-mobile-line); border-radius: 24px; background: var(--feedex-mobile-glass); box-shadow: 0 6px 28px #0002; backdrop-filter: blur(24px) saturate(1.5); }
-  .feedex-mobile-size-popover button { min-width: 52px; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 18px; font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; }
-  .feedex-mobile-size-popover button:disabled { opacity: .3; cursor: default; }
   .feedex-mobile-reader-dock { z-index: 60; gap: 0; }
   .feedex-mobile-reader-dock > button { flex: 1; }
   .feedex-mobile-share-notice { position: fixed; z-index: 61; bottom: calc(76px + env(safe-area-inset-bottom)); left: 20px; right: 20px; padding: 12px; border-radius: 14px; background: var(--feedex-mobile-raised); text-align: center; font-size: 12px; }

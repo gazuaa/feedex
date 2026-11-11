@@ -96,7 +96,8 @@ try {
   const stamp = new Date().toISOString();
   await db.prepare('INSERT INTO feeds(id,xml_url,title,created_at) VALUES(?,?,?,?)').bind('feed', 'https://example.test/feed', 'Feed', stamp).run();
   await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('sub', owner.user.id, 'feed', stamp).run();
-  await db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,content_html,full_content_html,published_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind('art', 'feed', 'art', 'Hello title', 'https://example.test/a', '<p>Feed text</p>', '<p>Full text</p>', stamp, stamp).run();
+  const fullBody = '<p>Full text</p><p>Another paragraph</p>';
+  await db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,content_html,full_content_html,published_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind('art', 'feed', 'art', 'Hello title', 'https://example.test/a', '<p>Feed text</p>', fullBody, stamp, stamp).run();
 
   assert.deepEqual(await (await call('/api/translation/config', { token: other.token })).json(), { canManage: false }, 'only the operator sees translation settings');
   assert.equal((await call('/api/translation/deepl', { token: other.token, method: 'PUT', body: { key: freeKey } })).status, 403);
@@ -117,7 +118,7 @@ try {
   calls.length = 0;
   assert.equal((await call('/api/articles/art/translate', { token: other.token, method: 'POST', body: { source: 'full' } })).status, 404, 'only subscribed articles are translated');
   const first = await (await call('/api/articles/art/translate', { token: owner.token, method: 'POST', body: { source: 'full' } })).json();
-  assert.equal(first.provider, 'deepl'); assert.equal(first.html, '번역:<p>Full text</p>', 'the reader body is translated'); assert.equal(first.title, '번역:Hello title'); assert.equal(first.cached, false);
+  assert.equal(first.provider, 'deepl'); assert.equal(first.html, `번역:${fullBody}`, 'the reader body is translated'); assert.equal(first.title, '번역:Hello title'); assert.equal(first.cached, false);
   assert.equal(calls.filter((entry) => entry.url.endsWith('/v2/translate')).length, 1);
   assert.equal(calls.find((entry) => entry.url.endsWith('/v2/translate')).init.headers.Authorization, `DeepL-Auth-Key ${freeKey}`, 'the saved key is used');
   const again = await (await call('/api/articles/art/translate', { token: owner.token, method: 'POST', body: { source: 'full' } })).json();
@@ -125,20 +126,27 @@ try {
   assert.equal(calls.filter((entry) => entry.url.endsWith('/v2/translate')).length, 1, 'a saved translation costs no DeepL characters');
   const feed = await (await call('/api/articles/art/translate', { token: owner.token, method: 'POST', body: { source: 'feed' } })).json();
   assert.equal(feed.html, '번역:<p>Feed text</p>', 'the feed view translates the feed body');
-  await db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,content_html,published_at,created_at) VALUES(?,?,?,?,?,?,?,?)').bind('web', 'feed', 'web', 'Web headline', 'https://reader.example.test/public', '<p>Feed excerpt</p>', stamp, stamp).run();
+  await db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,content_html,full_content_html,published_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind('web', 'feed', 'web', 'Web headline', 'https://reader.example.test/public', '<p>Feed excerpt</p>', '<p>Previously cached preview</p>', stamp, stamp).run();
   globalThis.fetch = (url, init) => String(url) === 'https://reader.example.test/public'
-    ? Promise.resolve(new Response('<article><p>' + 'A longer public article paragraph. '.repeat(8) + '</p></article>')) : deeplFetch()(url, init);
-  const web = await (await call('/api/articles/web/translate', { token: owner.token, method: 'POST', body: { source: 'full' } })).json();
-  assert.equal(web.bodySource, 'full'); assert.match(web.html, /번역:.*A longer public article paragraph/);
+    ? Promise.resolve(new Response(`<main><article><p>${'Unrelated recommendation card. '.repeat(18)}</p></article><div class="post-content"><p>${'A public article paragraph. '.repeat(8)}</p><p>Article final paragraph.</p></div></main>`)) : deeplFetch()(url, init);
+  const web = await (await call('/api/articles/web/translate', { token: owner.token, method: 'POST', body: { source: 'full', phone: true } })).json();
+  assert.equal(web.bodySource, 'full'); assert.match(web.html, /Article final paragraph/);
+  assert.doesNotMatch(web.html, /Unrelated recommendation|Previously cached preview|Feed excerpt/);
+  const cachedWeb = await (await call('/api/articles/web/translate', { token: owner.token, method: 'POST', body: { source: 'full' } })).json();
+  assert.equal(cachedWeb.cached, true);
   await db.prepare("UPDATE articles SET full_content_html=NULL WHERE id='web'").run();
   globalThis.fetch = (url, init) => String(url) === 'https://reader.example.test/public'
     ? Promise.resolve(new Response('', { status: 403 })) : deeplFetch()(url, init);
-  const excerpt = await (await call('/api/articles/web/translate', { token: owner.token, method: 'POST', body: { source: 'full' } })).json();
+  const unavailable = await call('/api/articles/web/translate', { token: owner.token, method: 'POST', body: { source: 'full' } });
+  assert.equal(unavailable.status, 422);
+  assert.match((await unavailable.json()).error, /전체 본문/);
+  const excerpt = await (await call('/api/articles/web/translate', { token: owner.token, method: 'POST', body: { source: 'feed' } })).json();
   assert.equal(excerpt.bodySource, 'feed'); assert.equal(excerpt.html, '번역:<p>Feed excerpt</p>');
   globalThis.fetch = deeplFetch();
-  await db.prepare("UPDATE articles SET full_content_html='<p>Changed text</p>' WHERE id='art'").run();
+  const changedBody = fullBody.replace('Full text', 'Changed text');
+  await db.prepare("UPDATE articles SET full_content_html=? WHERE id='art'").bind(changedBody).run();
   const changed = await (await call('/api/articles/art/translate', { token: owner.token, method: 'POST', body: { source: 'full' } })).json();
-  assert.equal(changed.cached, false); assert.equal(changed.html, '번역:<p>Changed text</p>', 'a changed article is translated again');
+  assert.equal(changed.cached, false); assert.equal(changed.html, `번역:${changedBody}`, 'a changed article is translated again');
   const forced = await (await call('/api/articles/art/translate', { token: owner.token, method: 'POST', body: { source: 'full', force: true } })).json();
   assert.equal(forced.cached, false);
   const cleared = await (await call('/api/translation/deepl', { token: owner.token, method: 'DELETE' })).json();

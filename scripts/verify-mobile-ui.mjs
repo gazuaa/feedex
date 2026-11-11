@@ -67,7 +67,7 @@ try {
   const drawer = readFileSync(new URL('../src/components/ArticleDrawer.tsx', import.meta.url), 'utf8');
   assert.match(drawer, /useLayoutEffect\(\(\) => \{ if \(framed\) setPeek\(\(value\) => value \+ 1\); \}, \[framed\]\);/, 'a loaded site keeps its bars for a moment before folding');
   assert.match(drawer, /setTimeout\(\(\) => setPeek\(0\), PEEK_MS\)/, 'the bars fold again once the peek ends');
-  assert.match(drawer, /const barsHidden = chromeHidden \|\| \(framed && !peek && /, 'only an ended peek folds the bars over a framed site');
+  assert.match(drawer, /const barsHidden = !mobileMenu && \(chromeHidden \|\| \(framed && !peek\)\)/, 'an open menu keeps the bars visible over a framed site');
   // 휴대폰 다듬기: 한국어 줄바꿈, 피드 제외 창의 키보드, 사진 보기의 안전 영역과 아래로 밀어 닫기, 번역 띠 한 줄.
   const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   assert.match(styles, /body \{ word-break: keep-all; overflow-wrap: break-word; \}/, 'Korean lines break between words');
