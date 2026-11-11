@@ -36,7 +36,8 @@ import { resolveXAvatars } from './xAvatars';
 import { refreshStoredFeeds, storedFeedColumns, type RefreshProgress, type StoredFeed } from './feedLoader';
 import { extractOriginalPublishedAt } from './publicationDate';
 import { resolveArticlePublication, type PublicationArticle } from './articlePublication';
-import { summarizeArticleWithAI } from './aiSummarizer';
+import { DEFAULT_SUMMARY_MODEL, summarizeArticleWithAI, summaryText } from './aiSummarizer';
+import { isCurrentSummary } from '../shared/aiSummary';
 import { clearDeepLKey, DeepLError, deeplProblem, deeplUsage, ensureTranslationTable, readDeepLKey, saveDeepLKey, sourceHash, translateArticle, TranslationError, validDeepLKey } from './translator';
 import { canManageX } from './xSettings';
 import {
@@ -183,7 +184,7 @@ app.get('/api/auth/config', (c) => {
   return c.json({
     googleClientId: clientId,
     workersAiAvailable: Boolean(c.env.AI),
-    aiModel: c.env.AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
+    aiModel: c.env.AI_MODEL || DEFAULT_SUMMARY_MODEL,
     quickLoginEnabled: isQuickLoginEnabled(c.env),
   });
 });
@@ -1423,6 +1424,17 @@ app.post('/api/articles/:id/reader-view', async (c) => {
   });
 });
 
+// 번역과 요약은 같은 리더 본문을 쓴다. 예전 미리보기는 원문에서 한 번 다시 받는다.
+async function readerBodyForArticleTools(env: Env, article: { id: string; url: string; title: string; content_html: string | null; full_content_html: string | null }, phone: boolean) {
+  if (xStatusUrl(article.url)) return null;
+  const cached = realFullContent(article.full_content_html);
+  if (cached && !readerBodyNeedsRefresh(cached)) return cached;
+  const { fullContentHtml } = await scrapeFullArticle(article.url, article.content_html, article.title, env, phone);
+  if (fullContentHtml) await env.DB.prepare('UPDATE articles SET full_content_html=? WHERE id=? AND full_content_html IS ?')
+    .bind(fullContentHtml, article.id, article.full_content_html).run();
+  return fullContentHtml;
+}
+
 // 글 번역. 웹·리더 보기에서는 기사 본문을, 피드 보기에서는 피드 본문을 번역한다.
 app.post('/api/articles/:id/translate', async (c) => {
   const body = await c.req.json<{ source?: unknown; force?: unknown; phone?: unknown }>().catch(() => ({} as { source?: unknown; force?: unknown; phone?: unknown }));
@@ -1433,14 +1445,8 @@ app.post('/api/articles/:id/translate', async (c) => {
   ).bind(c.req.param('id'), c.get('user').id).first<{ id: string; title: string; url: string; summary: string | null; content_html: string | null; full_content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
   const needsWebBody = source === 'full' && !xStatusUrl(article.url);
-  let full = needsWebBody ? realFullContent(article.full_content_html) : null;
-  if (needsWebBody && (!full || readerBodyNeedsRefresh(full))) {
-    const scraped = await scrapeFullArticle(article.url, article.content_html, article.title, c.env, body.phone === true);
-    full = scraped.fullContentHtml;
-    if (!full) return c.json({ error: '기사 전체 본문을 가져오지 못했어요. 다시 시도하거나 원문에서 읽어 주세요.' }, 422);
-    await c.env.DB.prepare('UPDATE articles SET full_content_html=? WHERE id=? AND full_content_html IS ?')
-      .bind(full, article.id, article.full_content_html).run();
-  }
+  const full = needsWebBody ? await readerBodyForArticleTools(c.env, article, body.phone === true) : null;
+  if (needsWebBody && !full) return c.json({ error: '기사 전체 본문을 가져오지 못했어요. 다시 시도하거나 원문에서 읽어 주세요.' }, 422);
   const bodySource = full ? 'full' : 'feed';
   const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const html = full || article.content_html || (article.summary ? `<p>${escaped(article.summary)}</p>` : '');
@@ -1498,61 +1504,31 @@ app.delete('/api/translation/deepl', async (c) => {
   return c.json(await translationConfig(c.env, c.get('user')));
 });
 
-// Cloudflare Workers AI 요약 엔드포인트
+// 기사 요약은 번역과 마찬가지로 구독한 원문부터 확인한다.
 app.post('/api/articles/:id/summarize', async (c) => {
-  const articleId = c.req.param('id');
-  const body = await c.req
-    .json<{ force?: boolean }>()
-    .catch(() => ({ force: false }));
-
+  const body = await c.req.json<{ force?: boolean; phone?: boolean }>().catch(() => ({} as { force?: boolean; phone?: boolean }));
   const article = await c.env.DB.prepare(
-    `SELECT a.id, a.title, a.summary, a.content_html, a.full_content_html, a.ai_summary, f.title as feed_title
-     FROM articles a
-     JOIN feeds f ON f.id = a.feed_id
-     WHERE a.id = ?`
-  )
-    .bind(articleId)
-    .first<{
-      id: string;
-      title: string;
-      summary: string | null;
-      content_html: string | null;
-      full_content_html: string | null;
-      ai_summary: string | null;
-      feed_title: string;
-    }>();
-
-  if (!article) {
-    return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+    `SELECT id, title, url, summary, content_html, full_content_html, ai_summary
+     FROM articles WHERE id=? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
+  ).bind(c.req.param('id'), c.get('user').id).first<{
+    id: string; title: string; url: string; summary: string | null; content_html: string | null;
+    full_content_html: string | null; ai_summary: string | null;
+  }>();
+  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  const full = await readerBodyForArticleTools(c.env, article, body.phone === true);
+  const fullText = summaryText(full || '');
+  const source = fullText ? 'full' : 'feed';
+  const text = fullText || summaryText(article.content_html || '') || summaryText(article.summary || '');
+  if (text.length < (xStatusUrl(article.url) ? 20 : 65)) {
+    return c.json({ error: '요약할 기사 본문을 충분히 가져오지 못했어요. 원문을 확인해 주세요.' }, 422);
   }
-
-  if (article.ai_summary && !body.force) {
-    return c.json({
-      aiSummary: article.ai_summary,
-      provider: c.env.AI ? 'cloudflare-workers-ai' : 'cached',
-      model: c.env.AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
-      cached: true,
-    });
+  if (!body.force && isCurrentSummary(article.ai_summary, source)) {
+    return c.json({ aiSummary: article.ai_summary, cached: true });
   }
-
-  const result = await summarizeArticleWithAI(c.env, {
-    title: article.title,
-    feedTitle: article.feed_title,
-    summary: article.summary,
-    contentHtml: article.content_html,
-    fullContentHtml: realFullContent(article.full_content_html),
-  });
-
-  await c.env.DB.prepare('UPDATE articles SET ai_summary = ? WHERE id = ?')
-    .bind(result.summary, article.id)
-    .run();
-
-  return c.json({
-    aiSummary: result.summary,
-    provider: result.provider,
-    model: result.model,
-    cached: false,
-  });
+  const result = await summarizeArticleWithAI(c.env, { title: article.title, text, source });
+  if (!result) return c.json({ error: '기사 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.' }, 502);
+  await c.env.DB.prepare('UPDATE articles SET ai_summary=? WHERE id=?').bind(result.summary, article.id).run();
+  return c.json({ aiSummary: result.summary, cached: false });
 });
 
 // 무엇이든 쓰기 전에 OPML 전체를 읽는다. 클라이언트는 항목을 하나씩 가져온다.

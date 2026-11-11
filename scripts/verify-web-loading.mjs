@@ -72,15 +72,44 @@ try {
   assert.equal(initialDocument.querySelectorAll('[data-web-loading]').length,1,'the web view shows a loading cover until the site is ready');
   // 웹 보기에도 AI 요약이 있다. 저장된 요약이 있어도 사이트를 가리지 않게 누를 때만 위쪽 칸을 연다.
   assert.equal(initialDocument.querySelectorAll('button[aria-label="AI 핵심 요약"]').length,1,'the web view offers the AI summary');
-  const withSummary={...articles[0],ai_summary:'📌 **한줄 핵심 요약**\n웹 보기 요약 한 줄'};
+  const withSummary={...articles[0],ai_summary:'**핵심 요약**\n웹 보기 요약 한 줄'};
   const summarized=new DOMParser().parseFromString(renderToStaticMarkup(React.createElement(ArticleDrawer,{...props,article:withSummary})),'text/html');
   assert.equal(summarized.querySelector('.feedex-web-summary'),null,'a saved summary does not cover the site on its own');
   const readerSummary=new DOMParser().parseFromString(renderToStaticMarkup(React.createElement(ArticleDrawer,{...props,viewMode:'reader',article:withSummary})),'text/html');
   assert.match(readerSummary.querySelector('.feedex-reader-content').textContent,/웹 보기 요약 한 줄/,'the reader view still shows a saved summary above the body');
-  assert.equal(readerSummary.querySelector('.feedex-reader-content strong')?.textContent,'한줄 핵심 요약','bold marks in the summary are shown as bold');
+  assert.equal(readerSummary.querySelector('.feedex-reader-content strong')?.textContent,'핵심 요약','bold marks in the summary are shown as bold');
   const drawerCode=readFileSync('src/components/ArticleDrawer.tsx','utf8');
   assert.match(drawerCode,/className="feedex-web-summary">\s*<AiSummaryCard[^\n]*?onClose=\{toggleAiSummary\}/,'the summary over the site can be closed');
-  assert.match(readFileSync('src/components/ArticleDrawer.tsx','utf8'),/const fetchFullText = [\s\S]*?reader-view[\s\S]*?if \(mode === 'web' && !article\.full_content_html\) \{\s*await fetchFullText\(controller\.signal\);[\s\S]*?\/summarize/,'the web view fetches the article body before summarizing');
+  const { app } = await vite.ssrLoadModule('/src/server/app.ts');
+  const { LocalD1Database } = await vite.ssrLoadModule('/src/server/localD1.ts');
+  const db = new LocalD1Database(':memory:', 'migrations/0001_schema.sql');
+  const date = new Date().toISOString(), url = 'https://reader.example.test/story';
+  let modelCalls = 0;
+  const env = { DB: db, ALLOW_QUICK_LOGIN: 'true', AI: { async run(_model, input) {
+    modelCalls++;
+    const { article } = JSON.parse(input.messages[1].content);
+    assert.match(article, /The final condition applies only until November 30/);
+    assert.match(article, /38\.8억 달러/);
+    if (modelCalls === 1) return { response: { overview: '새 제도의 규모는 3.88억 달러로 책정됐습니다.', points: [] } };
+    return { choices: [{ message: { content: JSON.stringify({ overview: '새 제도는 11월 30일까지 적용되는 한시적 조치입니다.', points: ['이 조치는 다음 달에 다시 검토됩니다.'] }) } }] };
+  } } };
+  const login = await (await app.request('/api/auth/google/quick', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'summary@example.test' }) }, env)).json();
+  await db.prepare('INSERT INTO feeds(id,xml_url,title,created_at) VALUES(?,?,?,?)').bind('summary-feed', 'https://reader.example.test/rss', 'Reader', date).run();
+  await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('summary-sub', login.user.id, 'summary-feed', date).run();
+  await db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,content_html,ai_summary,published_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)')
+    .bind('summary-story', 'summary-feed', 'story', 'News headline', url, '<p>Feed excerpt.</p>', '📌 **한줄 핵심 요약**\n오래된 요약', date, date).run();
+  globalThis.fetch = async (target) => {
+    assert.equal(target, url);
+    return new Response('<article><p>The funds reached $3.88 billion.</p><p>' + 'Opening paragraphs with source details. '.repeat(500) + '</p><p>The final condition applies only until November 30.</p></article>');
+  };
+  const requestSummary = (force = false) => app.request('/api/articles/summary-story/summarize', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${login.token}` }, body: JSON.stringify({ force, phone: true }) }, env);
+  const generated = await (await requestSummary()).json();
+  assert.equal(generated.cached, false); assert.match(generated.aiSummary, /11월 30일/);
+  assert.equal((await (await requestSummary()).json()).cached, true); assert.equal(modelCalls, 2);
+  env.AI.run = async () => ({ response: 'unusable' });
+  const failed = await requestSummary(true);
+  assert.equal(failed.status, 502); assert.match((await failed.json()).error, /다시 시도/);
+  assert.equal((await db.prepare('SELECT ai_summary FROM articles WHERE id=?').bind('summary-story').first()).ai_summary, generated.aiSummary);
   const cover=renderToStaticMarkup(React.createElement(WebLoading,{overlay:true}));
   assert.match(cover,/absolute inset-0/,'the cover hides a frame that is still loading');
   assert.doesNotMatch(cover,/role="status"/,'the cover does not add its own notice row');

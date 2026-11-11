@@ -29,7 +29,7 @@ crons = ["*/5 * * * *"]
 OWNER_EMAIL = "jonyq659@gmail.com"
 GH_REPO = "gazuaa/feedex"
 GOOGLE_CLIENT_ID = "649668487161-f4hutlff1sc7klvplnrm3dki5u3oh3ht.apps.googleusercontent.com"
-AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
+AI_MODEL = "@cf/google/gemma-4-26b-a4b-it"
 
 # React SPA 빌드 결과를 Cloudflare Workers Static Assets로 서빙한다
 [assets]

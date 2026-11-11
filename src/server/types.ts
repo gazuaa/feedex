@@ -27,8 +27,10 @@ export interface WorkersAILike {
       prompt?: string;
       max_tokens?: number;
       temperature?: number;
+      response_format?: { type: string; json_schema: Record<string, unknown> };
+      chat_template_kwargs?: { enable_thinking: boolean };
     }
-  ): Promise<{ response?: string; result?: { response?: string } }>;
+  ): Promise<{ response?: unknown; result?: { response?: unknown }; choices?: { message?: { content?: unknown } }[] }>;
 }
 
 export interface Env {

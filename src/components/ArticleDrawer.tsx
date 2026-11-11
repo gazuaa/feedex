@@ -34,6 +34,7 @@ import { useCopyTheme } from '../client/copyTheme';
 import { useTextSize } from '../client/textSize';
 import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile';
 import { dropSiteClasses } from '../shared/siteClasses';
+import { isCurrentSummary } from '../shared/aiSummary';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
 import type { ArticleResources } from '../client/articleResources';
@@ -207,27 +208,27 @@ function SummaryText({ text }: { text: string }) {
   return <>{text.split(/\*\*(.+?)\*\*/g).map((part, index) => index % 2 ? <strong key={index}>{part}</strong> : part)}</>;
 }
 
-function AiSummaryCard({ isDark, summarizing, summary, model, onRegenerate, onClose }: { isDark: boolean; summarizing: boolean; summary?: string | null; model?: string; onRegenerate: () => void; onClose?: () => void }) {
+function AiSummaryCard({ isDark, summarizing, summary, error, onRegenerate, onClose }: { isDark: boolean; summarizing: boolean; summary?: string | null; error: string; onRegenerate: () => void; onClose?: () => void }) {
   // 웹 보기의 칸(onClose가 있는 경우)은 사이트를 덜 가리게 여백과 제목을 줄인다.
   return <div className={`${onClose ? 'p-3.5' : 'p-5'} rounded-2xl border relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
     <div className="flex items-center justify-between gap-2 mb-3">
       <div className="flex min-w-0 items-center gap-2">
         <div className="shrink-0 p-1.5 rounded-lg bg-emerald-500 text-slate-950"><Sparkles className="w-4 h-4" /></div>
         <div className="min-w-0">
-          <h3 className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-900'}`}>{onClose ? 'AI 핵심 요약' : 'Cloudflare Workers AI 핵심 요약'}</h3>
-          <p className="text-[11px] text-slate-400">{model || '@cf/meta/llama-3.1-8b-instruct'}</p>
+          <h3 className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-900'}`}>AI 핵심 요약</h3>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        {!summarizing && <button type="button" onClick={onRegenerate} title="다시 요약하기" className="whitespace-nowrap text-xs text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"><RefreshCw className="w-3 h-3" /><span>재생성</span></button>}
+        {!summarizing && <button type="button" onClick={onRegenerate} title="다시 요약하기" className="whitespace-nowrap text-xs text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"><RefreshCw className="w-3 h-3" /><span>{error ? '다시 시도' : '재생성'}</span></button>}
         {onClose && <button type="button" onClick={onClose} aria-label="AI 요약 닫기" title="AI 요약 닫기" className="text-slate-400 hover:text-emerald-400 cursor-pointer"><X className="w-4 h-4" /></button>}
       </div>
     </div>
     {summarizing ? (
-      <div className="py-4 flex items-center gap-2.5 text-xs text-emerald-400"><Loader2 className="w-4 h-4 animate-spin" /><span>Cloudflare Workers AI가 아티클의 핵심 내용을 분석하고 있습니다...</span></div>
-    ) : (
-      <div className={`text-sm whitespace-pre-line leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}><SummaryText text={summary || ''} /></div>
-    )}
+      <div role="status" className="py-4 flex items-center gap-2.5 text-sm"><Loader2 className="w-4 h-4 animate-spin" /><span>기사 본문을 요약하는 중…</span></div>
+    ) : <>
+      {error && <p role="alert" className={isDark ? 'text-sm text-rose-300' : 'text-sm text-rose-700'}>{error}</p>}
+      {summary && <div className={`text-sm whitespace-pre-line leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}><SummaryText text={summary} /></div>}
+    </>}
   </div>;
 }
 
@@ -266,15 +267,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [scrapingReader, setScrapingReader] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
   // 저장된 요약은 본문 위에 펼쳐 둔다. 웹 보기에서는 사이트를 가리므로 누를 때만 연다.
-  const [aiOpen, setAiOpen] = useState(Boolean(article?.ai_summary) && viewMode !== 'web');
+  const currentAiSummary = isCurrentSummary(article?.ai_summary) ? article?.ai_summary : null;
+  const [aiOpen, setAiOpen] = useState(Boolean(currentAiSummary) && viewMode !== 'web');
   const summaryRequest = useRef<AbortController | null>(null);
   const summaryScope = `${accountId}:${article?.id || ''}`;
   const currentSummaryScope = useRef(summaryScope); currentSummaryScope.current = summaryScope;
-  const [aiMeta, setAiMeta] = useState<{ provider?: string; model?: string } | null>(
-    null
-  );
+  const [summaryError, setSummaryError] = useState('');
   useEffect(() => {
-    setAiOpen(Boolean(article?.ai_summary) && mode !== 'web'); setSummarizing(false); setAiMeta(null);
+    setAiOpen(Boolean(currentAiSummary) && mode !== 'web'); setSummarizing(false); setSummaryError('');
     return () => { summaryRequest.current?.abort(); summaryRequest.current = null; };
   }, [summaryScope]);
   // 번역. 피드 보기는 피드 본문을, 리더·웹 보기는 원문 본문을 번역해 같은 자리에 보여 준다.
@@ -585,17 +585,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 사이트맵으로 만든 피드나 제목만 있는 피드에는 본문이 아예 없다.
   const bodyless = !showingReader && !article.content_html && !article.summary;
 
-  /** 요약에 쓸 원문 본문이 아직 없으면 받아 둔다. */
-  const fetchFullText = async (signal: AbortSignal) => {
-    if (article.full_content_html) return;
-    try {
-      const reader = resources
-        ? await resources.reader(article).then((body) => ({ fullContentHtml: body.full_content_html!, publishedAt: body.published_at }))
-        : await apiRequest<{ fullContentHtml: string; publishedAt?: string }>(`/api/articles/${article.id}/reader-view`, { method: 'POST', body: '{}', signal });
-      if (!signal.aborted && reader.fullContentHtml) onUpdateArticleFields(article.id, { full_content_html: reader.fullContentHtml, ...(reader.publishedAt ? { published_at: reader.publishedAt } : {}) });
-    } catch { /* 피드 내용으로 대신한다 */ }
-  };
-
   const handleTranslate = async () => {
     translateRequest.current?.abort();
     const controller = new AbortController();
@@ -646,21 +635,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const controller = new AbortController();
     summaryRequest.current = controller;
     const current = () => !controller.signal.aborted && summaryRequest.current === controller && currentSummaryScope.current === summaryScope;
-    setAiOpen(true); setSummarizing(true);
+    setAiOpen(true); setSummarizing(true); setSummaryError('');
     try {
-      // 웹 보기는 사이트를 그대로 보여 줄 뿐 본문을 뽑아 두지 않는다. 피드에 딸려 온 몇 줄만 요약하지 않게
-      // 원문 본문을 먼저 받아 둔다. 받지 못하면 피드 내용으로 요약한다.
-      if (mode === 'web' && !article.full_content_html) {
-        await fetchFullText(controller.signal);
-        if (!current()) return;
-      }
-      const res = await apiRequest<{
-        aiSummary: string;
-        provider: string;
-        model: string;
-      }>(`/api/articles/${article.id}/summarize`, {
+      const res = await apiRequest<{ aiSummary: string }>(`/api/articles/${article.id}/summarize`, {
         method: 'POST',
-        body: JSON.stringify({ force }),
+        body: JSON.stringify({ force, phone: isMobile }),
         signal: controller.signal,
       });
       // 닫거나 다른 글로 이동한 뒤 도착한 응답은 화면과 새 요청 상태를 바꾸지 않는다.
@@ -668,12 +647,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       onUpdateArticleFields(article.id, {
         ai_summary: res.aiSummary,
       });
-      setAiMeta({ provider: res.provider, model: res.model });
-    } catch {
-      if (current()) {
-        if (!article.ai_summary) setAiOpen(false);
-        onNotice('AI 요약을 불러오지 못했어요. 다시 시도해 주세요.');
-      }
+    } catch (error) {
+      if (current()) setSummaryError(error instanceof Error && error.message ? error.message : '기사 요약을 만들지 못했어요. 다시 시도해 주세요.');
     } finally {
       if (summaryRequest.current === controller) { summaryRequest.current = null; setSummarizing(false); }
     }
@@ -684,7 +659,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       setAiOpen(false); setSummarizing(false);
     } else {
       setAiOpen(true);
-      if (!article.ai_summary) void handleSummarizeAI();
+      if (!currentAiSummary || (mode !== 'feed' && !isCurrentSummary(currentAiSummary, 'full'))) void handleSummarizeAI();
     }
   };
   const aiAction = summarizing ? 'AI 요약 취소' : aiOpen ? 'AI 요약 닫기' : 'AI 핵심 요약';
@@ -999,8 +974,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         {siteShown ? (
           <div ref={webViewRef} className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
             {/* 웹 보기에서는 사이트 위에 요약을 접을 수 있는 칸으로 둔다. 길면 이 칸 안에서 스크롤한다. */}
-            {aiOpen && (article.ai_summary || summarizing) && <div className="feedex-web-summary">
-              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={article.ai_summary} model={aiMeta?.model} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} />
+            {aiOpen && (currentAiSummary || summarizing || summaryError) && <div className="feedex-web-summary">
+              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} />
             </div>}
             {translationFeedback}
             {nativeWeb ? (<>
@@ -1236,7 +1211,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>}
 
           {/* Cloudflare Workers AI 요약 카드 */}
-          {aiOpen && (article.ai_summary || summarizing) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={article.ai_summary} model={aiMeta?.model} onRegenerate={() => handleSummarizeAI(true)} />}
+          {aiOpen && (currentAiSummary || summarizing || summaryError) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} />}
 
           {/* 대표 썸네일 이미지 (contentHtml에 이미 들어 있지 않을 때) */}
           {article.thumbnail_url &&
