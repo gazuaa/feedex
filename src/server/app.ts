@@ -1424,19 +1424,27 @@ app.post('/api/articles/:id/translate', async (c) => {
   const body = await c.req.json<{ source?: unknown; force?: unknown }>().catch(() => ({} as { source?: unknown; force?: unknown }));
   const source = body.source === 'feed' ? 'feed' : 'full';
   const article = await c.env.DB.prepare(
-    `SELECT id, title, summary, content_html, full_content_html
+    `SELECT id, title, url, summary, content_html, full_content_html
      FROM articles WHERE id = ? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
-  ).bind(c.req.param('id'), c.get('user').id).first<{ id: string; title: string; summary: string | null; content_html: string | null; full_content_html: string | null }>();
+  ).bind(c.req.param('id'), c.get('user').id).first<{ id: string; title: string; url: string; summary: string | null; content_html: string | null; full_content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  let full = source === 'full' ? realFullContent(article.full_content_html) : null;
+  if (source === 'full' && !full) {
+    const scraped = await scrapeFullArticle(article.url, article.content_html, article.title, c.env);
+    full = scraped.fullContentHtml;
+    if (full) await c.env.DB.prepare('UPDATE articles SET full_content_html=? WHERE id=? AND full_content_html IS ?')
+      .bind(full, article.id, article.full_content_html).run();
+  }
+  const bodySource = full ? 'full' : 'feed';
   const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const html = (source === 'full' ? realFullContent(article.full_content_html) : null) || article.content_html || (article.summary ? `<p>${escaped(article.summary)}</p>` : '');
+  const html = full || article.content_html || (article.summary ? `<p>${escaped(article.summary)}</p>` : '');
   if (!html.trim() && !article.title.trim()) return c.json({ error: '번역할 본문이 없어요.' }, 422);
   await ensureTranslationTable(c.env);
   const hash = await sourceHash(article.title, html);
   if (body.force !== true) {
     const saved = await c.env.DB.prepare('SELECT title, content_html, provider, model FROM article_translations WHERE article_id=? AND target_lang=? AND source_kind=? AND source_hash=?')
-      .bind(article.id, 'KO', source, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
-    if (saved) return c.json({ title: saved.title, html: saved.content_html, provider: saved.provider, model: saved.model, cached: true });
+      .bind(article.id, 'KO', bodySource, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
+    if (saved) return c.json({ title: saved.title, html: saved.content_html, provider: saved.provider, model: saved.model, bodySource, cached: true });
   }
   let result;
   try { result = await translateArticle(c.env, { title: article.title, html }); }
@@ -1444,9 +1452,9 @@ app.post('/api/articles/:id/translate', async (c) => {
   if (!result.alreadyKorean) {
     await c.env.DB.prepare(`INSERT INTO article_translations(article_id,target_lang,source_kind,source_hash,title,content_html,provider,model,created_at) VALUES(?,?,?,?,?,?,?,?,?)
       ON CONFLICT(article_id,target_lang,source_kind) DO UPDATE SET source_hash=excluded.source_hash,title=excluded.title,content_html=excluded.content_html,provider=excluded.provider,model=excluded.model,created_at=excluded.created_at`)
-      .bind(article.id, 'KO', source, hash, result.title, result.html, result.provider, result.model, new Date().toISOString()).run();
+      .bind(article.id, 'KO', bodySource, hash, result.title, result.html, result.provider, result.model, new Date().toISOString()).run();
   }
-  return c.json({ title: result.title, html: result.html, provider: result.provider, model: result.model, notice: result.notice, alreadyKorean: Boolean(result.alreadyKorean), cached: false });
+  return c.json({ title: result.title, html: result.html, provider: result.provider, model: result.model, bodySource, notice: result.notice, alreadyKorean: Boolean(result.alreadyKorean), cached: false });
 });
 
 // 번역 설정. DeepL API 키는 운영자만 넣고 지운다. 키는 응답에 돌려주지 않는다.

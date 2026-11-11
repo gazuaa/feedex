@@ -169,6 +169,10 @@ html.dark .feedex-setting-link { color: #34d399; }
 /* 번역해서 보여 주는 중이라는 띠. */
 .feedex-translation-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid; border-radius: 12px; background: #10b9810f; font-size: 13px; line-height: 1.5; }
 .feedex-translation-bar button { min-height: 32px; }
+.feedex-translation-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; flex-shrink: 0; padding: 6px 14px; border: 1px solid var(--feedex-border); border-radius: 10px; background: var(--feedex-panel); color: var(--feedex-text); font-size: 13px; }
+.feedex-translation-feedback > button { min-height: 32px; color: inherit; font-weight: 600; cursor: pointer; }
+.feedex-translation-feedback > button:hover { text-decoration: underline; }
+.feedex-web-view > .feedex-translation-feedback { margin: 6px 12px; }
 /* 웹 보기의 AI 요약 칸. 사이트를 너무 가리지 않게 높이를 줄이고, 긴 요약은 칸 안에서 스크롤한다. */
 .feedex-web-summary { flex-shrink: 0; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; border-bottom: 1px solid var(--feedex-border); background: var(--feedex-background); }
 .feedex-reader { container-type: inline-size; }
@@ -406,6 +410,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-status > div > div > * { padding-block: 4px; }
   .feedex-web-status[data-scroll-hidden] { transform: translateY(calc(-100% - var(--feedex-reader-top-height, 58px))); }
   .feedex-web-view > .feedex-web-summary { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
+  .feedex-web-view > .feedex-translation-feedback:first-child { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top) + 6px); }
   .feedex-web-view > :is([data-web-loading], .feedex-web-fill) { padding-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
   .feedex-web-peek { position: absolute; z-index: 61; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--feedex-mobile-line); border-radius: 50%; background: var(--feedex-mobile-glass); color: var(--feedex-text); box-shadow: 0 4px 16px #0002; backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5); cursor: pointer; }
   .feedex-web-pager { display: flex; flex: 1; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }

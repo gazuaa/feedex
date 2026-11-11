@@ -280,14 +280,15 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   }, [summaryScope]);
   // 번역. 피드 보기는 피드 본문을, 리더·웹 보기는 원문 본문을 번역해 같은 자리에 보여 준다.
   // 웹 보기에서 번역을 켜면 사이트 대신 번역한 글을 보여 준다.
-  const [translation, setTranslation] = useState<{ articleId: string; source: 'full' | 'feed'; title: string; html: string; provider: string } | null>(null);
+  const [translation, setTranslation] = useState<{ articleId: string; source: 'full' | 'feed'; bodySource?: 'full' | 'feed'; title: string; html: string; provider: string } | null>(null);
   const [translating, setTranslating] = useState(false);
   const [translated, setTranslated] = useState(false);
+  const [translationError, setTranslationError] = useState('');
   const translateRequest = useRef<AbortController | null>(null);
   const translationSource: 'full' | 'feed' = mode === 'feed' ? 'feed' : 'full';
   const showTranslation = translated && Boolean(article) && translation?.articleId === article?.id && translation?.source === translationSource;
   useEffect(() => {
-    setTranslated(false); setTranslating(false);
+    setTranslated(false); setTranslating(false); setTranslationError('');
     return () => { translateRequest.current?.abort(); translateRequest.current = null; };
   }, [summaryScope, translationSource]);
   // 웹 보기에서 번역을 보여 주는 동안은 사이트 대신 글을 그린다.
@@ -577,7 +578,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 사이트맵으로 만든 피드나 제목만 있는 피드에는 본문이 아예 없다.
   const bodyless = !showingReader && !article.content_html && !article.summary;
 
-  /** 원문 본문(리더 본문)이 아직 없으면 받아 둔다. 받지 못하면 그대로 둔다. */
+  /** 요약에 쓸 원문 본문이 아직 없으면 받아 둔다. */
   const fetchFullText = async (signal: AbortSignal) => {
     if (article.full_content_html) return;
     try {
@@ -588,25 +589,24 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     } catch { /* 피드 내용으로 대신한다 */ }
   };
 
-  const handleTranslate = async (force = false) => {
+  const handleTranslate = async () => {
     translateRequest.current?.abort();
     const controller = new AbortController();
     translateRequest.current = controller;
     const current = () => !controller.signal.aborted && translateRequest.current === controller && currentSummaryScope.current === summaryScope;
     const source = translationSource;
-    setTranslating(true);
+    setTranslating(true); setTranslationError('');
     try {
-      if (source === 'full') { await fetchFullText(controller.signal); if (!current()) return; }
-      const res = await apiRequest<{ title: string; html: string; provider: string; notice?: string; alreadyKorean?: boolean }>(`/api/articles/${article.id}/translate`, {
-        method: 'POST', body: JSON.stringify({ source, force }), signal: controller.signal,
+      const res = await apiRequest<{ title: string; html: string; provider: string; bodySource?: 'full' | 'feed'; notice?: string; alreadyKorean?: boolean }>(`/api/articles/${article.id}/translate`, {
+        method: 'POST', body: JSON.stringify({ source }), signal: controller.signal,
       });
       if (!current()) return;
       if (res.alreadyKorean) { setTranslated(false); onNotice('이미 한국어로 된 글이에요.'); return; }
-      setTranslation({ articleId: article.id, source, title: res.title, html: res.html, provider: res.provider });
+      setTranslation({ articleId: article.id, source, bodySource: res.bodySource, title: res.title, html: res.html, provider: res.provider });
       setTranslated(true);
       if (res.notice) onNotice(res.notice);
     } catch (error) {
-      if (current()) { setTranslated(false); onNotice(error instanceof Error && error.message ? error.message : '번역하지 못했어요. 다시 시도해 주세요.'); }
+      if (current()) { setTranslated(false); setTranslationError(error instanceof Error && error.message ? error.message : '번역하지 못했어요. 다시 시도해 주세요.'); }
     } finally {
       if (translateRequest.current === controller) { translateRequest.current = null; setTranslating(false); }
     }
@@ -624,6 +624,15 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const body = htmlToText(article.full_content_html || article.content_html || `<p>${article.summary || ''}</p>`);
     openInDeepL(`${article.title}\n\n${body}`);
   };
+  const translationFeedback = (translating || translationError) && <div className="feedex-translation-feedback" role={translating ? 'status' : 'alert'}>
+    {translating && <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />}
+    <span className="flex-1">{translating ? '한국어로 번역하는 중…' : translationError}</span>
+    {translating ? <button type="button" onClick={toggleTranslation}>취소</button> : <>
+      <button type="button" onClick={() => void handleTranslate()}>다시 시도</button>
+      <button type="button" onClick={openArticleInDeepL}>DeepL에서 번역</button>
+      <button type="button" aria-label="번역 오류 닫기" onClick={() => setTranslationError('')}><X size={16} /></button>
+    </>}
+  </div>;
 
   const handleSummarizeAI = async (force = false) => {
     summaryRequest.current?.abort();
@@ -911,6 +920,48 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <ExternalLink className="w-4 h-4" />
             </a>
 
+          </div>
+
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
+            <div
+              role="radiogroup"
+              aria-label="본문 보기 방식"
+              className={`feedex-reader-view flex shrink-0 items-center rounded-xl border p-0.5 ${
+                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+              }`}
+            >
+              {VIEW_MODES.map(({ id, label, title, Icon }) => {
+                const selected = mode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-label={label}
+                    aria-checked={selected}
+                    title={title}
+                    onClick={() => chooseViewMode(id)}
+                    className={`h-7 px-2 rounded-lg text-xs font-medium inline-flex items-center justify-center gap-1 transition cursor-pointer ${
+                      selected
+                        ? isDark
+                          ? 'bg-slate-700 text-white'
+                          : 'bg-slate-900 text-white'
+                        : isDark
+                        ? 'text-slate-400 hover:text-white'
+                        : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    {id === 'reader' && scrapingReader ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Icon className="w-3.5 h-3.5" />
+                    )}
+                    <span className="feedex-reader-control-label">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
             {/* AI 요약 버튼 */}
             <button
               type="button"
@@ -947,46 +998,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </button>
           </div>
 
-          {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
-          <div
-            role="radiogroup"
-            aria-label="본문 보기 방식"
-            className={`feedex-reader-view ml-auto flex shrink-0 items-center rounded-xl border p-0.5 ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-            }`}
-          >
-            {VIEW_MODES.map(({ id, label, title, Icon }) => {
-              const selected = mode === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="radio"
-                  aria-label={label}
-                  aria-checked={selected}
-                  title={title}
-                  onClick={() => chooseViewMode(id)}
-                  className={`h-7 px-2 rounded-lg text-xs font-medium inline-flex items-center justify-center gap-1 transition cursor-pointer ${
-                    selected
-                      ? isDark
-                        ? 'bg-slate-700 text-white'
-                        : 'bg-slate-900 text-white'
-                      : isDark
-                      ? 'text-slate-400 hover:text-white'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  {id === 'reader' && scrapingReader ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Icon className="w-3.5 h-3.5" />
-                  )}
-                  <span className="feedex-reader-control-label">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-
         </div>
 
         {siteShown ? (
@@ -995,6 +1006,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             {aiOpen && (article.ai_summary || summarizing) && <div className="feedex-web-summary">
               <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={article.ai_summary} model={aiMeta?.model} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} />
             </div>}
+            {translationFeedback}
             {nativeWeb ? (<>
               <WebStatusBar key={article.id} url={article.url} isDark={isDark} hidden={false} canLogin={false} notice={article.url} shortNotice={siteHost(article.url)}>
                 <button type="button" onClick={() => nativeBridge()?.postMessage({ type: 'openExternal', url: article.url })} className="inline-flex items-center gap-1 hover:underline">
@@ -1168,6 +1180,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>
         ) : (
         <div ref={bodyRef} tabIndex={0} aria-label="본문 내용" className="feedex-reader-content flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-6">
+          {translationFeedback}
           {article.body_deferred && <div role="status" className="flex items-center gap-2 text-sm text-slate-400">{article.body_load_error ? <><span>본문을 가져오지 못했습니다.</span><button className="text-emerald-500" onClick={() => onUpdateArticleFields(article.id, { body_load_error: false })}>다시 시도</button></> : <><Loader2 size={16} className="animate-spin" /><span>본문 불러오는 중…</span></>}</div>}
           {/* 글 정보 머리글 */}
           <div className="space-y-3 border-b pb-6 border-slate-800/60">
@@ -1221,7 +1234,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           {/* 번역해서 보여 주는 중이라는 표시. 누르면 원문으로 돌아간다. */}
           {showTranslation && <div role="status" className={`feedex-translation-bar ${isDark ? 'border-emerald-500/30 text-emerald-300' : 'border-emerald-200 text-emerald-800'}`}>
             <Languages className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate">{translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역</span>
+            <span className="min-w-0 flex-1 truncate">{translation!.source === 'full' && translation!.bodySource === 'feed' ? '피드 본문만 번역' : `${translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`}</span>
             {translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL} className="shrink-0 whitespace-nowrap font-semibold hover:underline cursor-pointer">DeepL에서 보기</button>}
             <button type="button" onClick={() => setTranslated(false)} className="shrink-0 whitespace-nowrap font-semibold hover:underline cursor-pointer">원문 보기</button>
           </div>}

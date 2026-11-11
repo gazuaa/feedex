@@ -70,6 +70,12 @@ try {
   assert.equal(document.querySelector('li p').textContent, '[KO] Nested', 'only the innermost block is translated');
   assert.equal(document.querySelector('pre').textContent, 'code()', 'code is left alone');
   assert.match(ai.html, /이미 한국어 문단입니다/, 'Korean paragraphs are left alone');
+  const structured = await translateArticle({ AI: { async run(_model, input) {
+    const texts = JSON.parse(input.messages[1].content);
+    return { response: { translations: texts.length > 1 ? ['누락된 결과'] : texts.map((text) => `번역 ${text}`) } };
+  } } }, { title: 'Headline', html: '<p>First paragraph</p><p>Second paragraph</p>' });
+  assert.equal(structured.title, '번역 Headline');
+  assert.equal(structured.html, '<p>번역 First paragraph</p><p>번역 Second paragraph</p>', 'a malformed batch is retried in smaller groups without dropping paragraphs');
 
   // DeepL이 막히면 Workers AI로 번역하고 이유를 알린다. 둘 다 없으면 번역할 수 없다고 알린다.
   const quota = await translateArticle({ ...keyEnv, AI: fakeAI() }, { title: 'Title', html: '<p>Hello</p>' }, deeplFetch(456));
@@ -119,6 +125,17 @@ try {
   assert.equal(calls.filter((entry) => entry.url.endsWith('/v2/translate')).length, 1, 'a saved translation costs no DeepL characters');
   const feed = await (await call('/api/articles/art/translate', { token: owner.token, method: 'POST', body: { source: 'feed' } })).json();
   assert.equal(feed.html, '번역:<p>Feed text</p>', 'the feed view translates the feed body');
+  await db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,content_html,published_at,created_at) VALUES(?,?,?,?,?,?,?,?)').bind('web', 'feed', 'web', 'Web headline', 'https://reader.example.test/public', '<p>Feed excerpt</p>', stamp, stamp).run();
+  globalThis.fetch = (url, init) => String(url) === 'https://reader.example.test/public'
+    ? Promise.resolve(new Response('<article><p>' + 'A longer public article paragraph. '.repeat(8) + '</p></article>')) : deeplFetch()(url, init);
+  const web = await (await call('/api/articles/web/translate', { token: owner.token, method: 'POST', body: { source: 'full' } })).json();
+  assert.equal(web.bodySource, 'full'); assert.match(web.html, /번역:.*A longer public article paragraph/);
+  await db.prepare("UPDATE articles SET full_content_html=NULL WHERE id='web'").run();
+  globalThis.fetch = (url, init) => String(url) === 'https://reader.example.test/public'
+    ? Promise.resolve(new Response('', { status: 403 })) : deeplFetch()(url, init);
+  const excerpt = await (await call('/api/articles/web/translate', { token: owner.token, method: 'POST', body: { source: 'full' } })).json();
+  assert.equal(excerpt.bodySource, 'feed'); assert.equal(excerpt.html, '번역:<p>Feed excerpt</p>');
+  globalThis.fetch = deeplFetch();
   await db.prepare("UPDATE articles SET full_content_html='<p>Changed text</p>' WHERE id='art'").run();
   const changed = await (await call('/api/articles/art/translate', { token: owner.token, method: 'POST', body: { source: 'full' } })).json();
   assert.equal(changed.cached, false); assert.equal(changed.html, '번역:<p>Changed text</p>', 'a changed article is translated again');
