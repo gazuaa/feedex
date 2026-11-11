@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { accountArticleBlocks, articleBlockCountFilter, changeArticleBlocks, ArticleBlockError } from './articleBlocks';
 import { initialSyncCursor, readerDelta, savedCountsJoin, syncHead } from './readerSync';
+import { countedTotal, feedCountsReady, storedTotalCount } from './feedCounts';
 import { pausedAtColumn, pauseSupported, shownToSubscriber } from './feedPause';
 import { DEFAULT_AUTO_REFRESH_MINUTES, validAutoRefresh } from '../shared/preferences';
 import { cors } from 'hono/cors';
@@ -435,8 +436,11 @@ app.get('/api/bootstrap', async (c) => {
   const user = c.get('user');
   const blocks = accountArticleBlocks(user.preferences_json);
   const syncCursor = await initialSyncCursor(c.env.DB, user.id, blocks.revision);
-  const { cte, params, visible } = await articleBlockCountFilter(c.env.DB, user.id, blocks.rules);
+  const { cte, params, visible, affected } = await articleBlockCountFilter(c.env.DB, user.id, blocks.rules);
   const paused = await pauseSupported(c.env.DB);
+  // 피드별 글 수를 저장해 둔 값으로 전체 개수를 낸다. 준비되지 않았으면 예전처럼 직접 센다.
+  const totalShape = { shown: shownToSubscriber(paused), visible, affected, pausedAt: pausedAtColumn(paused) };
+  const totalCount = await feedCountsReady(c.env.DB) ? storedTotalCount(totalShape) : countedTotal(totalShape);
 
   const foldersRes = await c.env.DB.prepare(
     `SELECT * FROM folders WHERE user_id = ? ORDER BY sort_order ASC, name ASC`
@@ -465,7 +469,7 @@ app.get('/api/bootstrap', async (c) => {
          LEFT JOIN article_states st ON st.article_id = a.id AND st.user_id = s.user_id
          WHERE a.feed_id = f.id AND a.published_at >= ? AND COALESCE(st.is_read, 0) = 0 AND ${shownToSubscriber(paused)} AND ${visible}
        ) as unread_count,
-       (SELECT COUNT(*) FROM articles a WHERE a.feed_id = f.id AND ${shownToSubscriber(paused)} AND ${visible}) as total_count,
+       ${totalCount} as total_count,
        COALESCE(saved.saved_count,0) as saved_count,
        (SELECT v.view_mode FROM feed_view_modes v WHERE v.user_id = s.user_id AND v.feed_id = s.feed_id) as view_mode
      FROM subscriptions s

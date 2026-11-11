@@ -1,3 +1,4 @@
+import { reconcileFeedCounts } from './server/feedCounts';
 import { app } from './server/app';
 import { pruneReaderChanges } from './server/readerSync';
 import type { Env } from './server/types';
@@ -86,6 +87,8 @@ export default {
     if (regular) {
       await step('발행일 확인', () => checkFeedPublicationDates(env.DB, feeds.map((feed) => feed.id)));
       await step('동기화 기록 정리', () => pruneReaderChanges(env.DB));
+      // 피드별 글 수는 트리거가 맞추지만, 만일을 위해 한 시간에 피드 하나씩 다시 센다.
+      if (event.scheduledTime === undefined || new Date(event.scheduledTime).getUTCMinutes() === 0) await step('피드별 글 수 확인', () => reconcileFeedCounts(env.DB, 1));
     }
   },
 };

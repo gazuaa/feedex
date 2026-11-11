@@ -3,6 +3,7 @@ import { pausedAtColumn, pauseSupported, shownToSubscriber } from './feedPause';
 import type { ArticleItem, FolderItem } from '../client/api';
 import type { ReaderSyncCursor, ReaderSyncDelta, SubscriptionCounts, SubscriptionMetadata } from '../shared/readerSync';
 import { articleBlockCountFilter } from './articleBlocks';
+import { countedTotal, feedCountsReady, storedTotalCount } from './feedCounts';
 import type { ArticleBlockRule } from '../shared/articleBlocks';
 
 const DAY = 86400_000;
@@ -116,11 +117,15 @@ export async function readerDelta(db: D1DatabaseLike, userId: string, input: unk
   delta.removedIds = [...removed]; delta.articleChangedIds = [...articleChanged];
   const feeds = [...affected];
   const blockFilter = feeds.length || membership || blocksChanged ? await articleBlockCountFilter(db, userId, blocks.rules) : null;
+  const stored = feeds.length ? await feedCountsReady(db) : false;
   for (let at = 0; at < feeds.length; at += 40) {
     const chunk = feeds.slice(at, at + 40);
-    const { cte, params, visible } = blockFilter!;
+    const { cte, params, visible, affected } = blockFilter!;
+    // 전체 개수는 저장한 피드별 글 수로 낸다. 준비되지 않았으면 예전처럼 직접 센다.
+    const totalShape = { shown, visible, affected, pausedAt: pausedAtColumn(paused) };
+    const totalCount = stored ? storedTotalCount(totalShape) : countedTotal(totalShape);
     const counts = await db.prepare(`${cte} SELECT s.feed_id,
-      (SELECT COUNT(*) FROM articles a WHERE a.feed_id=s.feed_id AND ${shown} AND ${visible}) AS total_count,
+      ${totalCount} AS total_count,
       (SELECT COUNT(*) FROM articles a LEFT JOIN article_states st ON st.article_id=a.id AND st.user_id=s.user_id WHERE a.feed_id=s.feed_id AND a.published_at>=? AND COALESCE(st.is_read,0)=0 AND ${shown} AND ${visible}) AS unread_count,
       COALESCE(saved.saved_count,0) AS saved_count
       FROM subscriptions s ${savedCountsJoin(visible)}

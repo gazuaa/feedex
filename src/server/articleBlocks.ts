@@ -16,7 +16,8 @@ export async function articleBlockCountFilter(db: D1DatabaseLike, userId: string
     all: rule.all.map(normalizeBlockTitle),
     any: rule.any.map(normalizeBlockTitle),
   }));
-  if (!enabled.length) return { cte: '', params: [], visible: '1=1' };
+  // affected: 이 구독(s)의 피드에 규칙이 걸려 있어 차단한 글을 빼고 세야 하는지. 저장한 피드 글 수를 쓸 때 쓴다.
+  if (!enabled.length) return { cte: '', params: [], visible: '1=1', affected: '0' };
 
   // 기존 글이나 외부 가져오기가 남긴 제목도 목록과 동일한 방식으로 정규화한다.
   const feedIds = enabled.some((rule) => rule.feedId === null) ? null : JSON.stringify([...new Set(enabled.map((rule) => rule.feedId))]);
@@ -42,6 +43,7 @@ export async function articleBlockCountFilter(db: D1DatabaseLike, userId: string
       FROM json_each(?)
     )`,
     params: [JSON.stringify(enabled)],
+    affected: `(s.feed_id IN (SELECT feed_id FROM block_rules WHERE feed_id IS NOT NULL) OR EXISTS(SELECT 1 FROM block_rules WHERE feed_id IS NULL))`,
     visible: `CASE WHEN a.feed_id IN (SELECT feed_id FROM block_rules WHERE feed_id IS NOT NULL)
         OR EXISTS(SELECT 1 FROM block_rules WHERE feed_id IS NULL)
       THEN a.block_title IS NULL OR NOT EXISTS(

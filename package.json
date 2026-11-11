@@ -48,6 +48,7 @@
     "test:native-notifications": "node scripts/verify-native-notifications.mjs",
     "test:windows-app": "node scripts/verify-windows-app.mjs",
     "test:translation": "node scripts/verify-translation.mjs",
+    "test:feed-counts": "node scripts/verify-feed-counts.mjs",
     "test:sort-toggle": "node scripts/verify-sort-toggle.mjs"
   },
   "dependencies": {
