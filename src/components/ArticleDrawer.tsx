@@ -215,12 +215,12 @@ function AiSummaryCard({ isDark, summarizing, summary, error, onRegenerate, onCl
       <div className="flex min-w-0 items-center gap-2">
         <div className="shrink-0 p-1.5 rounded-lg bg-emerald-500 text-slate-950"><Sparkles className="w-4 h-4" /></div>
         <div className="min-w-0">
-          <h3 className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-900'}`}>AI 핵심 요약</h3>
+          <h3 className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-900'}`}>요약</h3>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         {!summarizing && <button type="button" onClick={onRegenerate} title="다시 요약하기" className="whitespace-nowrap text-xs text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"><RefreshCw className="w-3 h-3" /><span>{error ? '다시 시도' : '재생성'}</span></button>}
-        {onClose && <button type="button" onClick={onClose} aria-label="AI 요약 닫기" title="AI 요약 닫기" className="text-slate-400 hover:text-emerald-400 cursor-pointer"><X className="w-4 h-4" /></button>}
+        {onClose && <button type="button" onClick={onClose} aria-label="요약 닫기" title="요약 닫기" className="text-slate-400 hover:text-emerald-400 cursor-pointer"><X className="w-4 h-4" /></button>}
       </div>
     </div>
     {summarizing ? (
@@ -662,7 +662,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       if (!currentAiSummary || (mode !== 'feed' && !isCurrentSummary(currentAiSummary, 'full'))) void handleSummarizeAI();
     }
   };
-  const aiAction = summarizing ? 'AI 요약 취소' : aiOpen ? 'AI 요약 닫기' : 'AI 핵심 요약';
+  const aiAction = summarizing ? '요약 취소' : aiOpen ? '요약 닫기' : '요약';
 
   // 두 가지를 하나의 조절기로 다룬다: 피드·리더 보기에서는 글자 크기,
   // 웹 보기에서는 사이트 배율.
@@ -925,7 +925,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               ) : (
                 <Sparkles className="w-3.5 h-3.5" />
               )}
-              <span className="feedex-reader-control-label">AI 핵심 요약</span>
+              <span className="feedex-reader-control-label">요약</span>
             </button>
           </div>
 
@@ -1328,6 +1328,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         {isMobile && mobileMenu && <>
           <button type="button" className="feedex-reader-menu-backdrop" aria-label="메뉴 닫기" onClick={closeMobileMenu} />
           {mobileMenu === 'tools' ? <div className="feedex-mobile-reader-menu" aria-label="본문 도구">
+            {/* 위쪽 ... 메뉴에서도 요약을 바로 열 수 있게 맨 위에 둔다. 아래 막대의 번역·요약 메뉴와 같은 동작이다. */}
+            <button aria-pressed={aiOpen} onClick={() => { closeMobileMenu(); toggleAiSummary(); }}>{summarizing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}{aiAction}</button>
             <button onClick={() => { closeMobileMenu(); openArticleInDeepL(); }}><ExternalLink size={18} />DeepL에서 번역</button>
             <button disabled={refreshing} onClick={() => { closeMobileMenu(); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />기사 새로고침</button>
             <p className="feedex-mobile-menu-label">{siteShown ? '사이트 확대·축소' : '글자 크기'}</p>

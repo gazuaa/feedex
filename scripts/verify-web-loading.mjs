@@ -71,7 +71,7 @@ try {
   assert.doesNotMatch(initial,/Prepared reader body/,'the web view does not show the feed text before the site is ready');
   assert.equal(initialDocument.querySelectorAll('[data-web-loading]').length,1,'the web view shows a loading cover until the site is ready');
   // 웹 보기에도 AI 요약이 있다. 저장된 요약이 있어도 사이트를 가리지 않게 누를 때만 위쪽 칸을 연다.
-  assert.equal(initialDocument.querySelectorAll('button[aria-label="AI 핵심 요약"]').length,1,'the web view offers the AI summary');
+  assert.equal(initialDocument.querySelectorAll('button[aria-label="요약"]').length,1,'the web view offers the AI summary');
   const withSummary={...articles[0],ai_summary:'**핵심 요약**\n웹 보기 요약 한 줄'};
   const summarized=new DOMParser().parseFromString(renderToStaticMarkup(React.createElement(ArticleDrawer,{...props,article:withSummary})),'text/html');
   assert.equal(summarized.querySelector('.feedex-web-summary'),null,'a saved summary does not cover the site on its own');
