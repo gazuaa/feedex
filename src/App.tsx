@@ -198,6 +198,7 @@ export const App: React.FC = () => {
   const [restoredArticle, setRestoredArticle] = useState<ArticleItem | null>(null);
   const [refreshingFeeds, setRefreshingFeeds] = useState(false);
   const refreshingFeedsRef = useRef(false);
+  const [refreshScroll, setRefreshScroll] = useState<{ cache: ReaderCache; query: string; previousIds?: string[] } | null>(null);
   // 앱을 켤 때, 앱으로 돌아올 때, 새로고침 주기마다 하는 동기화는 새로고침 버튼을 돌려서
   // 목록이 저절로 바뀌는 이유를 보여 준다.
   const [backgroundSyncs, setBackgroundSyncs] = useState(0);
@@ -636,6 +637,18 @@ export const App: React.FC = () => {
     pendingScroll.current = null;
   }, [articles, loadingArticles, mobileSidebarOpen, selectedArticleId, buildArticleQuery]);
 
+  useLayoutEffect(() => {
+    if (!refreshScroll || loadingArticles) return;
+    setRefreshScroll(null);
+    if (!isMobile || mobileSidebarOpen || selectedArticleId || readerCache !== refreshScroll.cache || !readerCache.active
+      || refreshScroll.query !== displayedArticleQuery.current || refreshScroll.query !== buildArticleQuery().toString()) return;
+    // 자동 확인에서 같은 글만 받았거나 목록 끝에 다음 페이지를 붙인 경우에는 읽던 위치를 유지한다.
+    if (refreshScroll.previousIds?.every((id, index) => id === visibleArticles[index]?.id)) return;
+    pendingScroll.current = null;
+    forgetListAnchor();
+    articleListRef.current?.scrollTo({ top: 0 });
+  }, [refreshScroll, loadingArticles, isMobile, mobileSidebarOpen, selectedArticleId, readerCache, buildArticleQuery, visibleArticles, forgetListAnchor]);
+
   const selectedBody = selectedArticleId ? articleCache.current.get(selectedArticleId) : undefined;
   useEffect(() => {
     const known = selectedArticleId ? articleCache.current.get(selectedArticleId) : undefined;
@@ -775,7 +788,11 @@ export const App: React.FC = () => {
   };
   useAutoRefresh(Boolean(user), autoRefreshMinutes, async () => {
     if (refreshingFeedsRef.current || !readerCache?.active) return;
+    const scroll = isMobile && !mobileSidebarOpen && !selectedArticleId && articleSort === 'newest'
+      ? { cache: readerCache, query: buildArticleQuery().toString(), previousIds: visibleArticles.map(({ id }) => id) }
+      : null;
     await syncInBackground();
+    if (scroll) setRefreshScroll(scroll);
   }, localNotifications);
 
   const handleSelectScope = (
@@ -1032,6 +1049,9 @@ export const App: React.FC = () => {
   const refreshFeeds = useCallback(async (quiet = false) => {
     if (refreshingFeedsRef.current || !readerCache?.active) return;
     refreshingFeedsRef.current = true;
+    const scroll = isMobile && !quiet && !mobileSidebarOpen && !selectedArticleId
+      ? { cache: readerCache, query: buildArticleQuery().toString() }
+      : null;
     clearTimeout(refreshFollowUp.current);
     releaseReadRows();
     pendingScroll.current = 0; forgetListAnchor();
@@ -1054,6 +1074,7 @@ export const App: React.FC = () => {
       // 목록은 금방 오지만 피드별 개수는 더 걸린다. 목록이 바뀌면 안내를 내리고 개수는 뒤에서 받는다.
       counts = fetchBootstrap().catch(() => {});
       await fetchArticles();
+      if (scroll) setRefreshScroll(scroll);
       // 남은 피드는 서버가 뒤에서 받는다. 그 시간이 지나면 받은 글을 한 번 더 맞춘다.
       if (pendingFeeds) refreshFollowUp.current = setTimeout(() => { if (readerCache.active && document.visibilityState === 'visible') void syncInBackground(); }, REFRESH_FOLLOW_UP_MS);
     } catch {
@@ -1064,7 +1085,7 @@ export const App: React.FC = () => {
     }
     // 다른 폴더의 첫 화면을 받는 동안에는 아이콘만 돈다. 아이콘이 멈추면 다 받은 것이다.
     void showSync(counts.then(() => warmListsRef.current())).catch(() => {});
-  }, [readerCache, activeScope, activeFeedId, activeFolderId, fetchBootstrap, fetchArticles, releaseReadRows, forgetListAnchor, showSync, syncInBackground]);
+  }, [readerCache, isMobile, mobileSidebarOpen, selectedArticleId, buildArticleQuery, activeScope, activeFeedId, activeFolderId, fetchBootstrap, fetchArticles, releaseReadRows, forgetListAnchor, showSync, syncInBackground]);
   const handleRefreshFeeds = useCallback(() => refreshFeeds(), [refreshFeeds]);
 
   const pullDistance = usePullRefresh(isMobile && Boolean(user) && !selectedArticleId && !discoverOpen && !markReadTarget && !historyFeed && !renameFeed, refreshingFeeds, handleRefreshFeeds);
