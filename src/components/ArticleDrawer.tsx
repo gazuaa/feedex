@@ -920,48 +920,20 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <ExternalLink className="w-4 h-4" />
             </a>
 
-          </div>
-
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
-            <div
-              role="radiogroup"
-              aria-label="본문 보기 방식"
-              className={`feedex-reader-view flex shrink-0 items-center rounded-xl border p-0.5 ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-              }`}
+            {/* 번역 버튼 */}
+            <button
+              type="button"
+              onClick={toggleTranslation}
+              aria-label={translateAction}
+              aria-pressed={showTranslation}
+              title={translateAction}
+              className={`feedex-reader-icon ${showTranslation
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
             >
-              {VIEW_MODES.map(({ id, label, title, Icon }) => {
-                const selected = mode === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    role="radio"
-                    aria-label={label}
-                    aria-checked={selected}
-                    title={title}
-                    onClick={() => chooseViewMode(id)}
-                    className={`h-7 px-2 rounded-lg text-xs font-medium inline-flex items-center justify-center gap-1 transition cursor-pointer ${
-                      selected
-                        ? isDark
-                          ? 'bg-slate-700 text-white'
-                          : 'bg-slate-900 text-white'
-                        : isDark
-                        ? 'text-slate-400 hover:text-white'
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    {id === 'reader' && scrapingReader ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Icon className="w-3.5 h-3.5" />
-                    )}
-                    <span className="feedex-reader-control-label">{label}</span>
-                  </button>
-                );
-              })}
-            </div>
+              {translating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Languages className="w-4 h-4" />}
+            </button>
+
             {/* AI 요약 버튼 */}
             <button
               type="button"
@@ -982,20 +954,46 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               )}
               <span className="feedex-reader-control-label">AI 핵심 요약</span>
             </button>
+          </div>
 
-            {/* 번역 버튼 */}
-            <button
-              type="button"
-              onClick={toggleTranslation}
-              aria-label={translateAction}
-              aria-pressed={showTranslation}
-              title={translateAction}
-              className={`feedex-reader-icon ${showTranslation
-                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
-            >
-              {translating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Languages className="w-4 h-4" />}
-            </button>
+          {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
+          <div
+            role="radiogroup"
+            aria-label="본문 보기 방식"
+            className={`feedex-reader-view ml-auto flex shrink-0 items-center rounded-xl border p-0.5 ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+            }`}
+          >
+            {VIEW_MODES.map(({ id, label, title, Icon }) => {
+              const selected = mode === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-label={label}
+                  aria-checked={selected}
+                  title={title}
+                  onClick={() => chooseViewMode(id)}
+                  className={`h-7 px-2 rounded-lg text-xs font-medium inline-flex items-center justify-center gap-1 transition cursor-pointer ${
+                    selected
+                      ? isDark
+                        ? 'bg-slate-700 text-white'
+                        : 'bg-slate-900 text-white'
+                      : isDark
+                      ? 'text-slate-400 hover:text-white'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  {id === 'reader' && scrapingReader ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Icon className="w-3.5 h-3.5" />
+                  )}
+                  <span className="feedex-reader-control-label">{label}</span>
+                </button>
+              );
+            })}
           </div>
 
         </div>
