@@ -8,12 +8,15 @@ try {
   const library = { scope: 'all', folderId: null, feedId: null, search: '', unread: false, articleId: null, library: true };
   const list = { ...library, scope: 'folder', folderId: 'crypto', library: false };
   const a = { ...list, articleId: 'article-a' }, b = { ...list, articleId: 'article-b' };
-  const entries = [null]; let index = 0, location = library, scroll = 0, navigation, deferredBack = null;
+  const entries = [null]; let index = 0, location = library, scroll = 0, navigation, deferredBack = null, childHistory = 0;
   const history = {
+    get length() { return entries.length; },
     get state() { return entries[index]; },
     replaceState(state) { entries[index] = structuredClone(state); },
     pushState(state) { entries.splice(index + 1); entries.push(structuredClone(state)); index++; },
     go(delta) {
+      // 원문 프레임의 기록을 지나면 바깥 페이지에는 popstate가 오지 않는다.
+      if (delta === -1 && childHistory > 0) { childHistory--; return; }
       assert.ok(index + delta >= 0 && index + delta < entries.length);
       const pop = () => { index += delta; navigation.pop(this.state); };
       if (deferredBack) deferredBack.push(pop);
@@ -35,18 +38,29 @@ try {
   forward(); assert.deepEqual(location, list);
   forward(); assert.deepEqual(location, a);
   forward(); assert.deepEqual(location, b);
-  // 리더의 닫기 버튼은 글들을 건너뛰고 곧장 목록으로 돌아간다.
+  // 닫기는 원문 프레임을 먼저 지운 뒤, 열었던 글들을 건너뛰고 목록 기록으로 돌아간다.
   deferredBack = [];
-  assert.equal(navigation.closeReader(), true);
-  assert.equal(navigation.closeReader(), true);
+  open(list);
+  navigation.record(location);
   assert.equal(deferredBack.length, 1);
-  assert.deepEqual(location, b, '기록을 복원하기 전에는 목록을 먼저 그리지 않는다');
+  assert.deepEqual(location, list, '기록 이동을 기다리는 동안에도 목록이 보여야 한다');
   deferredBack[0]();
   deferredBack = null;
   navigation.record(location);
   assert.deepEqual(location, list);
   assert.equal(index, 1); assert.equal(scroll, 620);
-  assert.equal(navigation.closeReader(), false);
+  open(a, 620);
+  childHistory = 1;
+  open(list);
+  assert.equal(index, 2);
+  const resumed = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('목록 기록으로 돌아오지 않았다')), 1000);
+    deferredBack = { push: (pop) => { clearTimeout(timeout); pop(); resolve(); } };
+  });
+  await resumed;
+  deferredBack = null;
+  assert.equal(index, 1, '원문 기록이 바깥 페이지의 popstate를 소비해도 목록으로 돌아간다');
+  assert.equal(scroll, 620);
   open(library); assert.equal(index, 0);
   forward();
   open({ ...list, unread: true });

@@ -23,6 +23,12 @@ interface Entry {
   library: number | null;
   scroll: number;
 }
+interface ReaderReturn {
+  fallback: Entry;
+  listIndex: number;
+  attempts: number;
+  timer?: ReturnType<typeof setTimeout>;
+}
 const key = 'sfeedNavigation';
 const normal = (location: MobileLocation): MobileLocation => ({ ...location, saved: location.saved === true });
 const equal = (a: MobileLocation, b: MobileLocation) => JSON.stringify(normal(a)) === JSON.stringify(normal(b));
@@ -35,7 +41,9 @@ export class MobileNavigation {
   private current: Entry;
   private restoring: MobileLocation | null = null;
   private observed: MobileLocation;
-  constructor(private history: Pick<History, 'state' | 'pushState' | 'replaceState' | 'go'>, private account: string, initial: MobileLocation, private restore: (location: MobileLocation, scroll: number) => void) {
+  private observedScroll = 0;
+  private readerReturn: ReaderReturn | null = null;
+  constructor(private history: Pick<History, 'length' | 'state' | 'pushState' | 'replaceState' | 'go'>, private account: string, initial: MobileLocation, private restore: (location: MobileLocation, scroll: number) => void) {
     this.observed = initial;
     this.current = this.read(history.state) ?? { version: 1, account, index: 0, location: root(initial), list: null, library: null, scroll: 0 };
     this.write(this.current, false);
@@ -62,6 +70,18 @@ export class MobileNavigation {
   }
   pop(state: unknown) {
     let entry = this.read(state);
+    if (this.readerReturn) {
+      const pending = this.readerReturn;
+      if (entry && entry.index > pending.listIndex) {
+        this.continueReaderReturn(pending.listIndex - entry.index);
+        return;
+      }
+      this.cancelReaderReturn();
+      if (entry?.index === pending.listIndex) {
+        this.completeReaderReturn(entry);
+        return;
+      }
+    }
     // 보관함에는 글 목록이 없으므로, 목록에서 입력한 검색어는 보관함을 거쳐
     // 다음에 고르는 목록으로 이어진다.
     if (entry?.location.library && entry.location.search !== this.observed.search) {
@@ -76,21 +96,37 @@ export class MobileNavigation {
       this.apply(safe);
     }
   }
-  canGoBack() { return this.current.index > 0 && !this.restoring; }
+  canGoBack() { return this.current.index > 0 && !this.restoring && !this.readerReturn; }
   /** 목록에서 뒤로 가면 보관함으로 가는지, 목록의 이전 상태로 가는지. */
   backTarget(): 'library' | 'other' { return this.current.library !== null && this.current.library === this.current.index - 1 ? 'library' : 'other'; }
   back() { if (this.canGoBack()) this.history.go(-1); }
-  closeReader() {
-    const { location, list, index } = this.current;
-    if (!location.articleId || list === null || list >= index) return false;
-    if (!this.restoring) {
-      this.restoring = { ...location, articleId: null };
-      this.history.go(list - index);
+  cancelReaderReturn() {
+    clearTimeout(this.readerReturn?.timer);
+    this.readerReturn = null;
+  }
+  private completeReaderReturn(entry: Entry) {
+    this.write(entry, false);
+    // 보이는 목록과 스크롤은 그대로 둔다. 기다리는 동안 새 화면을 열었다면 그 선택을 기록한다.
+    if (!equal(this.observed, entry.location)) this.record(this.observed, this.observedScroll);
+  }
+  private continueReaderReturn(delta: number) {
+    const pending = this.readerReturn;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    if (pending.attempts++ >= this.history.length) {
+      this.cancelReaderReturn();
+      this.completeReaderReturn(pending.fallback);
+      return;
     }
-    return true;
+    // WebKit은 프레임을 지운 뒤에도 그 방문 기록을 남길 수 있다. 그 단계에서는
+    // 바깥 페이지에 popstate가 오지 않으므로 목록 기록에 도착할 때까지 한 칸씩 간다.
+    pending.timer = setTimeout(() => this.continueReaderReturn(-1), 120);
+    this.history.go(delta);
   }
   record(location: MobileLocation, scroll = 0) {
     this.observed = location;
+    this.observedScroll = scroll;
+    if (this.readerReturn) return;
     if (this.restoring) {
       if (equal(location, this.restoring)) this.restoring = null;
       return;
@@ -101,8 +137,9 @@ export class MobileNavigation {
     // 다시 불러오거나 범위를 바꾼 뒤에도 이 값으로 위치를 되살린다.
     if (!previous.location.articleId && !previous.location.library) this.write({ ...previous, scroll }, false);
     if (previous.location.articleId && !location.articleId && !location.library && sameList(previous.location, location) && previous.list !== null) {
-      this.restoring = location;
-      this.history.go(previous.list - previous.index);
+      // 리더가 닫힌 뒤에만 이동한다. 원문 프레임이 살아 있으면 앱 대신 프레임의 방문 기록만 되돌아갈 수 있다.
+      this.readerReturn = { fallback: { ...previous, location, list: previous.index }, listIndex: previous.list, attempts: 0 };
+      this.continueReaderReturn(previous.list - previous.index);
       return;
     }
     if (!previous.location.library && location.library && previous.library !== null) {
@@ -132,8 +169,7 @@ export function useMobileNavigation(account: string | null, location: MobileLoca
     const pop = (event: PopStateEvent) => navigation.pop(event.state);
     window.addEventListener('popstate', pop);
     const unbindSwipe = bindSwipeBack(document, navigation);
-    return () => { unbindSwipe(); window.removeEventListener('popstate', pop); controller.current = null; };
+    return () => { navigation.cancelReaderReturn(); unbindSwipe(); window.removeEventListener('popstate', pop); controller.current = null; };
   }, [account]);
   useLayoutEffect(() => { controller.current?.record(location, latest.current.getScroll()); });
-  return () => controller.current?.closeReader() ?? false;
 }

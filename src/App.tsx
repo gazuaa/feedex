@@ -217,7 +217,7 @@ export const App: React.FC = () => {
   const chromeHidden = useScrollChrome(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${searchQuery}`);
   const [textSize] = useTextSize();
   useEffect(() => { document.documentElement.style.setProperty('--feedex-text-scale', String(textSize)); }, [textSize]);
-  const closeMobileReader = useMobileNavigation(isMobile && !authChecking ? user?.id ?? null : null, {
+  useMobileNavigation(isMobile && !authChecking ? user?.id ?? null : null, {
     scope: activeScope, folderId: activeFolderId, feedId: activeFeedId,
     search: searchQuery, unread: unreadOnly, saved: savedOnly, articleId: selectedArticleId, library: mobileSidebarOpen,
   }, (location, scroll) => {
@@ -232,9 +232,7 @@ export const App: React.FC = () => {
     setMobileSidebarOpen(location.library);
     setDiscoverOpen(false);
   }, () => articleListRef.current?.scrollTop ?? 0);
-  const closeReader = () => {
-    if (!isMobile || !closeMobileReader()) setSelectedArticleId(null);
-  };
+  const closeReader = () => setSelectedArticleId(null);
   const [markReadTarget, setMarkReadTarget] = useState<{
     scope: ScopeType;
     folderId: string | null;
