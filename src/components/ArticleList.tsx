@@ -21,6 +21,7 @@ import { XPostRow, XTimeline, type XRowVariant } from './XTimeline';
 import { parseXPost } from '../client/xTimeline';
 import { useXAvatars } from '../client/xAvatars';
 import { isXStatusUrl } from '../shared/xFeed';
+import { isCurrentSummary } from '../shared/aiSummary';
 // 가까운 글의 이미지를 찾는 동안에는 사이트 로고를 보여 준다.
 export function FeedLogo({ article }: { article: ArticleItem }) {
   const [failed, setFailed] = useState(0);
@@ -247,7 +248,8 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                     >
                       {article.title}
                     </span>
-                    {article.ai_summary && (
+                    {/* 예전 형식 요약은 글을 열 때 다시 만들므로 요약됨으로 표시하지 않는다. */}
+                    {isCurrentSummary(article.ai_summary) && (
                       <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-400">
                         <Sparkles className="w-2.5 h-2.5" /> AI 요약됨
                       </span>
@@ -333,7 +335,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                     </span>
                   )}
 
-                  {article.ai_summary && (
+                  {isCurrentSummary(article.ai_summary) && (
                     <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-950/85 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 backdrop-blur-xs">
                       <Sparkles className="w-3 h-3" /> AI 요약
                     </span>
