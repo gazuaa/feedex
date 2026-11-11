@@ -307,7 +307,11 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-library-group > button + button, .feedex-mobile-library-group > div + div { border-top: 1px solid var(--feedex-mobile-line); }
   .feedex-mobile-count { margin-left: auto; border-radius: 20px; padding: 2px 8px; color: var(--feedex-mobile-muted); background: var(--feedex-mobile-raised); font-size: calc(12px * var(--feedex-text-scale)); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   .feedex-mobile-folder-row { display: flex; align-items: center; }
-  .feedex-mobile-folder-row > .feedex-mobile-library-row { min-width: 0; flex: 1; padding-right: 0; }
+  .feedex-mobile-folder-row:has(> :is(.feedex-mobile-library-row, .feedex-mobile-expand):is(:hover, :focus-visible, :active)) {
+    background: var(--feedex-mobile-raised);
+    & .feedex-mobile-count { background: var(--feedex-mobile-line); }
+  }
+  .feedex-mobile-folder-row > .feedex-mobile-library-row { min-width: 0; flex: 1; padding-right: 0; background: transparent; }
   .feedex-mobile-expand { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 44px; min-height: 48px; color: var(--feedex-mobile-muted); }
   .feedex-mobile-folder-feeds { padding: 0 6px 4px 26px; }
   .feedex-mobile-folder-feeds .feedex-mobile-library-row { min-height: 44px; border-radius: 10px; padding: 4px 8px; font-size: calc(14px * var(--feedex-text-scale)); }
