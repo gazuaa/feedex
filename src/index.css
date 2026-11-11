@@ -7,6 +7,9 @@ html.dark { --feedex-background: #020617; --feedex-panel: #0f172a; --feedex-text
 body { margin: 0; min-height: 100dvh; background: var(--feedex-background); color: var(--feedex-text); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 /* 한국어는 낱말 가운데서 줄을 바꾸지 않는다. 띄어쓰기 없이 긴 글자(주소 등)는 넘칠 때만 끊는다. */
 body { word-break: keep-all; overflow-wrap: break-word; }
+/* 선택한 글자. 밝은 화면에서는 연한 초록 바탕에 진한 글자, 어두운 화면에서는 반투명 초록 바탕에 밝은 글자로 늘 읽히게 한다. */
+::selection { background: #a7f3d0; color: #064e3b; }
+html.dark ::selection { background: #10b9814d; color: #d1fae5; }
 .min-h-screen { min-height: 100dvh; }
 .feedex-glass-sample { display: none; position: fixed; top: 0; left: 0; right: 0; height: 6px; background: var(--feedex-panel); z-index: 1000; pointer-events: none; }
 @media (max-width: 1023px), (display-mode: standalone) {

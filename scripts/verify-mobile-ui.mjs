@@ -73,6 +73,10 @@ try {
   // 휴대폰 다듬기: 한국어 줄바꿈, 피드 제외 창의 키보드, 사진 보기의 안전 영역과 아래로 밀어 닫기, 번역 띠 한 줄.
   const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   assert.match(styles, /body \{ word-break: keep-all; overflow-wrap: break-word; \}/, 'Korean lines break between words');
+  // 선택한 글자는 밝은 화면에서도 보인다. 예전처럼 연한 초록 글자를 모든 화면에 고정하지 않는다.
+  assert.match(styles, /::selection \{ background: #a7f3d0; color: #064e3b; \}/, 'selected text stays dark on the light theme');
+  assert.match(styles, /html\.dark ::selection \{ background: #10b9814d; color: #d1fae5; \}/, 'selected text stays light on the dark theme');
+  assert.doesNotMatch(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /selection:text-/, 'no fixed selection text colour for every theme');
   const exclusions = readFileSync(new URL('../src/components/FeedExclusionsDialog.tsx', import.meta.url), 'utf8');
   assert.match(exclusions, /matchMedia\?\.\('\(pointer: coarse\)'\)\.matches\) ref\.current\?\.focus\(\{ preventScroll: true \}\);\s*else ref\.current\?\.querySelector\('input'\)\?\.focus\(\);/, 'phones do not pop the keyboard when the exclusion dialog opens');
   const viewer = readFileSync(new URL('../src/client/xPostFrame.ts', import.meta.url), 'utf8');
@@ -87,5 +91,5 @@ try {
   assert.match(loginView, /<p className="hidden lg:block /, 'phones skip the long intro'); assert.match(loginView, /<div className="hidden lg:grid /, 'phones skip the feature cards');
   const installCard = readFileSync(new URL('../src/components/PwaInstall.tsx', import.meta.url), 'utf8');
   assert.match(installCard, /aria-label="설치 안내 하루 동안 숨기기"[^>]*className="[^"]*h-10 w-10/, 'the install card close button is finger sized');
-  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar and the AI summary in the top more menu.');
+  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes and the AI summary in the top more menu.');
 } finally { await vite.close(); }

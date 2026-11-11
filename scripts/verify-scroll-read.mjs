@@ -93,6 +93,7 @@ try {
   assert.match(afterAwaySource, /articles\.some\(\(article\) => article\.is_read\)\) return;\s*forgetListAnchor\(\);/, 'a list with no read rows stays where it was');
   const autoRefreshSource = appSource.slice(appSource.indexOf('useAutoRefresh('), appSource.indexOf('const handleSelectScope = ('));
   assert.doesNotMatch(autoRefreshSource, /scrollTo\(\{ top: 0 \}\)/, 'background/focus auto-refresh must not reset the list scroll to top');
+  assert.doesNotMatch(autoRefreshSource, /setRefreshScroll|pendingScroll\.current = 0|forgetListAnchor/, 'auto-refresh must not schedule a jump to the top either, even when rows read on another device drop out');
   const selectionSource = readFileSync('src/client/articleSelection.ts', 'utf8');
   assert.match(selectionSource, /followedId\.current !== selectedId/, 'list updates do not re-scroll to an already-selected article');
   assert.match(selectionSource, /blurOffscreenArticleFocus/, 'offscreen focused article rows are blurred so window reactivation does not jump to top');
