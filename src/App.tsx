@@ -44,7 +44,7 @@ import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type Art
 import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './client/readerPreload';
 import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
-import { keepResumePoint, takeResumePoint, watchAppVersion } from './client/appVersion';
+import { keepResumePoint, startedAfterUpdate, takeResumePoint, watchAppVersion } from './client/appVersion';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { readRowsExpired, UnreadSession } from './client/unreadSession';
@@ -232,7 +232,7 @@ export const App: React.FC = () => {
     setSelectedArticleId(location.articleId);
     setMobileSidebarOpen(location.library);
     setDiscoverOpen(false);
-  }, () => articleListRef.current?.scrollTop ?? 0);
+  }, () => articleListRef.current?.scrollTop ?? 0, startedAfterUpdate());
   const closeReader = () => setSelectedArticleId(null);
   const [markReadTarget, setMarkReadTarget] = useState<{
     scope: ScopeType;
@@ -349,7 +349,8 @@ export const App: React.FC = () => {
       setSelectedArticleId(point.articleId);
       setMobileSidebarOpen(false);
     }
-    setResumePlace({ articleId: point.articleId, list: isMobile ? 0 : point.listScroll, reader: point.articleId ? point.readerScroll : 0 });
+    // 새 버전으로 바꾸느라 새로 고쳤으면 글 목록은 맨 위에서 시작한다.
+    setResumePlace({ articleId: point.articleId, list: isMobile || startedAfterUpdate() ? 0 : point.listScroll, reader: point.articleId ? point.readerScroll : 0 });
   }, [user?.id, authChecking]);
   // 목록과 본문은 따로 받아 차례로 그려진다. 그 위치까지 내려갈 수 있을 만큼 길어지면 맞추고,
   // 5초가 지나면 그만둔다.

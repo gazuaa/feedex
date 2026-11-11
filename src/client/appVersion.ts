@@ -45,6 +45,8 @@ const CHECK_GAP = 60_000;
 // 같은 번들로 바꾸려고 이미 새로 고쳤는데 아직 옛 번들이면(배포가 퍼지는 중 등) 그동안 다시 고치지 않는다.
 const RETRY_GAP = 10 * 60_000;
 const SWAP_KEY = 'sfeed:app-swap';
+// 새 버전으로 바꾸느라 새로 고친 시각. 새 페이지가 한 번 읽고 지운다.
+const UPDATED_KEY = 'sfeed:app-updated';
 
 export interface AppVersionOptions {
   current: string;
@@ -85,7 +87,7 @@ export class AppVersionWatch {
     if (this.triedRecently(next, now)) { this.waiting = null; return; }
     if (!this.options.canSwap()) { this.waiting = next; return; }
     this.waiting = null;
-    try { this.options.storage?.setItem(SWAP_KEY, JSON.stringify({ to: next, at: now })); } catch {}
+    try { this.options.storage?.setItem(SWAP_KEY, JSON.stringify({ to: next, at: now })); this.options.storage?.setItem(UPDATED_KEY, String(now)); } catch {}
     this.options.beforeSwap();
     this.options.reload();
   }
@@ -154,6 +156,18 @@ const RESUME_KEY = 'sfeed:resume';
 // 새로 고침 뒤 앱이 다시 뜨기까지 걸리는 시간보다 넉넉하게. 오래된 자리는 쓰지 않는다.
 const RESUME_AGE = 2 * 60_000;
 const ORIGINAL_RESUME_AGE = 60 * 60_000;
+/** 새 버전으로 바꾸느라 방금 새로 고쳤는지. 한 번만 참을 돌려준다. */
+export function takeAppUpdated(now = Date.now(), storage = session()): boolean {
+  try {
+    const at = Number(storage?.getItem(UPDATED_KEY)); storage?.removeItem(UPDATED_KEY);
+    return Number.isFinite(at) && at > 0 && now - at >= 0 && now - at <= RESUME_AGE;
+  } catch { return false; }
+}
+let updatedOnLoad: boolean | undefined;
+/** 이 페이지가 새 버전으로 바꾸느라 새로 고쳐 뜬 것인지. 페이지마다 처음 물을 때 한 번 읽는다. */
+export function startedAfterUpdate(): boolean {
+  return updatedOnLoad ??= takeAppUpdated();
+}
 // 탭 안에만 남는 저장소에 글과 목록 식별자, 스크롤 위치만 둔다. 본문이나 토큰은 넣지 않는다.
 export function keepResumePoint(point: ResumePoint, storage = session()) {
   try { storage?.setItem(RESUME_KEY, JSON.stringify(point)); } catch {}

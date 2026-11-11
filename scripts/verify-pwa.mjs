@@ -181,7 +181,7 @@ try {
     assert.ok(!braveHelp.includes('Chrome·Edge의 주소창'), 'iOS Brave must not get desktop install instructions');
   } finally { if (previousAgent) Object.defineProperty(navigator, 'userAgent', previousAgent); else delete navigator.userAgent; }
   // 열어 둔 탭·홈 화면 앱은 다시 나타날 때 새 배포를 확인하고, 읽던 자리를 남긴 뒤 새로 고친다.
-  const { shellBundle, runningBundle, shellVersion, runningVersion, watchAppVersion, AppVersionWatch, keepResumePoint, takeResumePoint } = await vite.ssrLoadModule('/src/client/appVersion.ts');
+  const { shellBundle, runningBundle, shellVersion, runningVersion, watchAppVersion, AppVersionWatch, keepResumePoint, takeResumePoint, takeAppUpdated } = await vite.ssrLoadModule('/src/client/appVersion.ts');
   const built = readFileSync('dist/index.html', 'utf8'), builtBundle = shellBundle(built);
   assert.match(builtBundle, /^\/assets\/index-[\w-]+\.js$/, 'the built shell names its entry bundle');
   assert.equal(shellBundle('<script type="module" src="/src/main.tsx"></script>'), null, 'the dev server has no bundle to compare');
@@ -207,6 +207,12 @@ try {
   assert.deepEqual(fresh.log, { shells: 1, swaps: 0, kept: 0 }, 'typing, a dialog or a pending save postpones the swap');
   fresh.setSwappable(true); await fresh.watch.check();
   assert.deepEqual(fresh.log, { shells: 1, swaps: 1, kept: 1 }, 'the postponed swap happens on the next appearance without asking again, after keeping the place');
+  // 새 버전으로 바꾸느라 새로 고쳤다는 표시는 새 페이지가 한 번만 읽는다. 그 페이지는 글 목록을 맨 위에서 시작한다.
+  assert.equal(takeAppUpdated(1_000_000 + 2000, fresh.storage), true, 'the next page knows it was reloaded for an update');
+  assert.equal(takeAppUpdated(1_000_000 + 2000, fresh.storage), false, 'the update mark is used once');
+  assert.equal(takeAppUpdated(1_000_000, memory()), false, 'an ordinary reload is not an update');
+  const staleMark = memory(); staleMark.setItem('sfeed:app-updated', '1000');
+  assert.equal(takeAppUpdated(1000 + 3 * 60_000, staleMark), false, 'an old update mark is ignored');
   const repeat = versionCase('<script type="module" src="/assets/index-NEW.js"></script>', { storage: fresh.storage });
   await repeat.watch.check();
   assert.equal(repeat.log.swaps, 0, 'if the reload still came back old (deploy spreading), it does not loop');
@@ -273,5 +279,5 @@ try {
   keepResumePoint({ ...point, scope: 'admin', articleId: { id: 1 } }, place); assert.equal(takeResumePoint('reader', now + 1000, place), null, 'malformed places are ignored');
   keepResumePoint({ ...point, listScroll: -5, readerScroll: 'x' }, place);
   assert.deepEqual(takeResumePoint('reader', now + 1000, place), { ...point, listScroll: 0, readerScroll: 0 });
-  console.log('PASS: install manifest, iPhone/iPad browser detection, Safari handoff before losing the tap, copy/navigation failures and fallback, native prompt lifecycle, visible Mac/web apps polling for code/style releases, safe deferred reload and scheduler cleanup while keeping the reading place, safe public-only offline caching and deployment headers.');
+  console.log('PASS: install manifest, iPhone/iPad browser detection, Safari handoff before losing the tap, copy/navigation failures and fallback, native prompt lifecycle, visible Mac/web apps polling for code/style releases, safe deferred reload and scheduler cleanup while keeping the reading place, a one-time update mark so the list starts at the top, safe public-only offline caching and deployment headers.');
 } finally { delete globalThis.window; await vite.close(); }

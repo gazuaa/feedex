@@ -43,9 +43,11 @@ export class MobileNavigation {
   private observed: MobileLocation;
   private observedScroll = 0;
   private readerReturn: ReaderReturn | null = null;
-  constructor(private history: Pick<History, 'length' | 'state' | 'pushState' | 'replaceState' | 'go'>, private account: string, initial: MobileLocation, private restore: (location: MobileLocation, scroll: number) => void) {
+  constructor(private history: Pick<History, 'length' | 'state' | 'pushState' | 'replaceState' | 'go'>, private account: string, initial: MobileLocation, private restore: (location: MobileLocation, scroll: number) => void, startAtTop = false) {
     this.observed = initial;
-    this.current = this.read(history.state) ?? { version: 1, account, index: 0, location: root(initial), list: null, library: null, scroll: 0 };
+    const saved = this.read(history.state);
+    // 새 버전으로 바꾸느라 새로 고쳤으면 보던 목록과 글은 되살리되 목록은 맨 위에서 보여 준다.
+    this.current = saved ? (startAtTop ? { ...saved, scroll: 0 } : saved) : { version: 1, account, index: 0, location: root(initial), list: null, library: null, scroll: 0 };
     this.write(this.current, false);
     if (!equal(this.current.location, initial)) this.apply(this.current);
   }
@@ -158,13 +160,13 @@ export class MobileNavigation {
   }
 }
 
-export function useMobileNavigation(account: string | null, location: MobileLocation, restore: (location: MobileLocation, scroll: number) => void, getScroll: () => number) {
-  const latest = useRef({ location, restore, getScroll });
-  latest.current = { location, restore, getScroll };
+export function useMobileNavigation(account: string | null, location: MobileLocation, restore: (location: MobileLocation, scroll: number) => void, getScroll: () => number, startAtTop = false) {
+  const latest = useRef({ location, restore, getScroll, startAtTop });
+  latest.current = { location, restore, getScroll, startAtTop };
   const controller = useRef<MobileNavigation | null>(null);
   useLayoutEffect(() => {
     if (!account) return;
-    const navigation = new MobileNavigation(window.history, account, latest.current.location, (loc, scroll) => latest.current.restore(loc, scroll));
+    const navigation = new MobileNavigation(window.history, account, latest.current.location, (loc, scroll) => latest.current.restore(loc, scroll), latest.current.startAtTop);
     controller.current = navigation;
     const pop = (event: PopStateEvent) => navigation.pop(event.state);
     window.addEventListener('popstate', pop);

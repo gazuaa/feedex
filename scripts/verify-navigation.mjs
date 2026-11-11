@@ -74,7 +74,12 @@ try {
   forward(); forward();
   // 다시 불러와도 본문을 저장하지 않고 ID만으로 지금 보던 리더를 되살릴 수 있다.
   navigation = new MobileNavigation(history, 'owner', library, restore);
-  assert.equal(location.articleId, 'read-article'); navigation.record(location);
+  assert.equal(location.articleId, 'read-article'); assert.equal(scroll, 300, 'an ordinary reload keeps the list place behind the article');
+  // 새 버전으로 바꾸느라 새로 고쳤으면 글은 되살리되 뒤의 글 목록은 맨 위에서 보여 준다.
+  navigation = new MobileNavigation(history, 'owner', library, restore, true);
+  assert.equal(location.articleId, 'read-article'); assert.equal(scroll, 0, 'after an update reload the list starts at the top');
+  assert.equal(history.state.sfeedNavigation.scroll, 0);
+  navigation.record(location);
   assert.ok(!JSON.stringify(history.state).includes('content_html'));
   // 다른 계정으로 로그인하면 이전 계정의 리더를 되살리지 않는다.
   navigation = new MobileNavigation(history, 'another-account', library, restore);
@@ -147,5 +152,5 @@ try {
   assert.equal((await get(other.token)).articles.length, 0, 'a single-article lookup still requires a subscription');
   assert.equal((await get(owner.token, '/api/articles?unreadOnly=true')).articles.length, 0, 'history restoration must not mark read articles unread');
   assert.equal((await app.request(query, {}, env)).status, 401);
-  console.log('PASS: ordinary right-swipe Back; native gesture, vertical scroll, horizontal content, controls and pinch preservation; mobile history, scroll/filter restoration, searches carried through the library, reload and account isolation.');
+  console.log('PASS: ordinary right-swipe Back; native gesture, vertical scroll, horizontal content, controls and pinch preservation; mobile history, scroll/filter restoration, searches carried through the library, reload (list at the top after an update reload) and account isolation.');
 } finally { await vite.close(); }
