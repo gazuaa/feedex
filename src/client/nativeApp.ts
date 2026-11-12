@@ -73,14 +73,17 @@ export function articlePlacement(slot: Pick<Element, 'getBoundingClientRect'>, d
   return { type: 'article', url, zoom, hidden, rect: { x: Math.round(box.left), y: Math.round(box.top), width: Math.round(box.width), height: Math.round(box.height) } };
 }
 
-/**
- * 알림을 띄울 수 있는 원문 화면 왼쪽 끝. 왼쪽에 알림이 들어갈 만큼 자리가 있을 때만 정하고, 좁은 창에서는 비워
- * 평소처럼 가운데 아래에 띄운다.
- */
+/** 원문 화면 왼쪽에 알림을 띄울 공간이 있는 경우의 너비. */
 export const nativeNoticeLeft = (left: number) => left >= 320 ? `${Math.round(left)}px` : '';
-const setNoticeLeft = (value: string) => {
-  if (value) document.documentElement.style.setProperty('--feedex-native-left', value);
-  else document.documentElement.style.removeProperty('--feedex-native-left');
+const setNoticePlacement = (rect?: NativeRect) => {
+  const root = document.documentElement;
+  const slot = rect && rect.width > 0 && rect.height > 0 ? rect : undefined;
+  const left = slot ? nativeNoticeLeft(slot.x) : '';
+  if (left !== root.style.getPropertyValue('--feedex-native-left')) {
+    if (left) root.style.setProperty('--feedex-native-left', left);
+    else root.style.removeProperty('--feedex-native-left');
+  }
+  root.toggleAttribute('data-feedex-native-notice-above', Boolean(slot && !left));
 };
 
 /** 웹 보기 자리를 앱에 계속 알린다. 자리가 사라지면 원문 화면을 거두게 한다. */
@@ -93,7 +96,7 @@ export function useNativeArticle(slot: RefObject<HTMLElement | null>, url: strin
     const send = () => {
       frame = 0;
       const message = articlePlacement(element, document, url, zoom), key = JSON.stringify(message);
-      setNoticeLeft(message.rect ? nativeNoticeLeft(message.rect.x) : '');
+      setNoticePlacement(message.rect);
       if (key !== last) { last = key; bridge.postMessage(message); }
     };
     // 화면 갱신(requestAnimationFrame)에 맞추면 창이 가려진 동안 멈추므로 짧은 타이머로 모아 보낸다.
@@ -108,7 +111,7 @@ export function useNativeArticle(slot: RefObject<HTMLElement | null>, url: strin
     return () => {
       window.clearTimeout(frame); resize.disconnect(); changes.disconnect();
       window.removeEventListener('resize', schedule);
-      setNoticeLeft('');
+      setNoticePlacement();
       bridge.postMessage({ type: 'article', url: null });
     };
   }, [slot, url, zoom]);

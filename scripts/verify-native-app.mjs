@@ -71,12 +71,12 @@ try {
     const drawer = readFileSync('src/components/ArticleDrawer.tsx', 'utf8');
     assert.match(drawer, /shareMenuPosition && createPortal\(<div ref=\{shareMenuRef\}[^>]*className=\{`feedex-desktop-share-menu fixed z-\[190\]/, 'the desktop share menu sits above the article frame instead of inside the toolbar');
     assert.match(readFileSync('src/App.tsx', 'utf8'), /className="feedex-notice" data-native=\{inNativeApp\(\) \|\| undefined\}/, 'the desktop app marks its notices');
-    // 알림은 아래에 둔다. 원문 화면이 떠 있으면 그 왼쪽(목록 쪽) 가운데로 옮겨 가려지지 않게 한다.
+    // 원문이 뜨면 알림을 목록 아래로 옮기고, 목록 쪽 공간이 부족하면 원문 위에 띄운다.
     const styles = readFileSync('src/index.css', 'utf8');
     assert.match(styles, /\.feedex-notice\[data-native\] \{ left: calc\(var\(--feedex-native-left, 100vw\) \/ 2\); max-width: min\(420px, calc\(var\(--feedex-native-left, 100vw\) - 32px\)\); \}/, 'desktop app notices sit beside the original view');
-    assert.doesNotMatch(styles, /\.feedex-notice\[data-native\][^}]*top:/, 'desktop app notices stay at the bottom');
+    assert.match(styles, /html\[data-feedex-native-notice-above\] \.feedex-notice\[data-native\][^}]*top:[^}]*bottom: auto/, 'the notice goes above the original view when there is no room beside it');
     assert.equal(nativeNoticeLeft(612.4), '612px', 'the notice is centred left of the original view');
-    assert.equal(nativeNoticeLeft(0), '', 'a narrow window with no room on the left keeps the notice in the middle');
+    assert.equal(nativeNoticeLeft(0), '', 'a narrow window with no room on the left uses the top notice');
     assert.equal(nativeNoticeLeft(319), '');
   }
 

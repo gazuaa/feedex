@@ -773,6 +773,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       if (shownArticleId.current === article.id) onCopyLink(article);
     });
   };
+  const openShareLink = (event: React.MouseEvent<HTMLAnchorElement>, close: () => void) => {
+    const bridge = nativeBridge();
+    if (bridge && event.currentTarget.protocol === 'https:') {
+      event.preventDefault();
+      bridge.postMessage({ type: 'openExternal', url: event.currentTarget.href });
+      close();
+      return;
+    }
+    // 브라우저가 링크를 연 뒤 메뉴를 닫는다.
+    window.setTimeout(close, 0);
+  };
   /**
    * 공유 방법: 링크 복사 → 공유 사이트 → 이메일. 휴대폰(터치 화면)에서는 카카오톡 등이 나오는 시스템 공유를 맨 위에 둔다.
    * 컴퓨터의 시스템 공유는 이메일 정도만 떠서 쓸모가 없으므로 데스크톱과 데스크톱 앱에서는 보이지 않는다.
@@ -786,10 +797,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     return <>
       {phoneShare && <button type="button" className={option} onClick={() => shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />다른 앱으로 공유</button>}
       <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />링크 복사</button>
-      <a className={option} href={links.x} target="_blank" rel="noopener noreferrer" onClick={close}><ExternalLink size={16} aria-hidden="true" />X에 공유</a>
-      <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={close}><AtSign size={16} aria-hidden="true" />Threads에 공유</a>
-      <a className={option} href={links.telegram} target="_blank" rel="noopener noreferrer" onClick={close}><Send size={16} aria-hidden="true" />텔레그램으로 공유</a>
-      {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={close}><Mail size={16} aria-hidden="true" />이메일로 공유</a>}
+      <a className={option} href={links.x} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><ExternalLink size={16} aria-hidden="true" />X에 공유</a>
+      <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><AtSign size={16} aria-hidden="true" />Threads에 공유</a>
+      <a className={option} href={links.telegram} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><Send size={16} aria-hidden="true" />텔레그램으로 공유</a>
+      {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(event, close)}><Mail size={16} aria-hidden="true" />이메일로 공유</a>}
     </>;
   };
 
@@ -993,8 +1004,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               className={`feedex-reader-icon ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
               <Share2 className="w-4 h-4" />
             </button>
-            {shareMenuPosition && createPortal(<div ref={shareMenuRef} role="group" aria-label="공유 방법" style={shareMenuPosition}
-              className={`feedex-desktop-share-menu fixed z-[190] w-52 max-w-[calc(100vw-16px)] rounded-xl border p-1.5 text-sm shadow-lg ${isDark ? 'border-slate-700 bg-slate-900 text-slate-100' : 'border-slate-200 bg-white text-slate-900'}`}>
+            {shareMenuPosition && createPortal(<div ref={shareMenuRef} role="group" aria-label="공유 방법" style={{ ...shareMenuPosition, maxHeight: `calc(100dvh - ${shareMenuPosition.top + 8}px)` }}
+              className={`feedex-desktop-share-menu fixed z-[190] w-52 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border p-1.5 text-sm shadow-lg ${isDark ? 'border-slate-700 bg-slate-900 text-slate-100' : 'border-slate-200 bg-white text-slate-900'}`}>
               {shareOptions(() => { setShareMenuPosition(null); shareButtonRef.current?.focus(); })}
             </div>, document.body)}
 

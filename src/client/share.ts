@@ -6,7 +6,7 @@ export function shareLinks({ title, url }: SharedArticle) {
   return {
     x: `https://x.com/intent/tweet?${new URLSearchParams({ url, text: title })}`,
     telegram: `https://t.me/share/url?${new URLSearchParams({ url, text: title })}`,
-    threads: `https://www.threads.net/intent/post?${new URLSearchParams({ text: `${title}\n${url}` })}`,
+    threads: `https://www.threads.com/intent/post?${new URLSearchParams({ text: `${title}\n${url}` })}`,
     email: `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${title}\n${url}`)}`,
   };
 }

@@ -27,6 +27,7 @@ try {
     const links = shareLinks(shared);
     assert.equal(new URL(links.x).searchParams.get('url'), shared.url); assert.equal(new URL(links.x).searchParams.get('text'), shared.title);
     assert.equal(new URL(links.telegram).origin, 'https://t.me'); assert.equal(new URL(links.telegram).searchParams.get('url'), shared.url);
+    assert.equal(new URL(links.threads).origin, 'https://www.threads.com');
     assert.equal(new URL(links.threads).searchParams.get('text'), `${shared.title}\n${shared.url}`, 'Threads gets the title and the address');
     assert.ok(links.email.startsWith('mailto:?subject=')); assert.equal(decodeURIComponent(links.email.split('&body=')[1]), `${shared.title}\n${shared.url}`, 'the e-mail body carries the title too');
     const saved = { navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), document: Object.getOwnPropertyDescriptor(globalThis, 'document') };

@@ -1370,8 +1370,8 @@ export const App: React.FC = () => {
     [articleNeighbors, handleSelectArticle]
   );
 
-  const handleCopyLink = useCallback(async (article: ArticleItem) => {
-    setNotice(await copyText(article.url) ? '링크를 복사했어요.' : '링크를 복사하지 못했어요. 원문을 열어 주소를 복사해 주세요.');
+  const handleCopyLink = useCallback(async (url: string) => {
+    setNotice(await copyText(url) ? '링크를 복사했어요.' : '링크를 복사하지 못했어요. 원문을 열어 주소를 복사해 주세요.');
   }, []);
 
   // 전체 키보드 단축키 (↑/↓/M/S/R/A/Q/W/C/O/ESC)
@@ -1440,7 +1440,7 @@ export const App: React.FC = () => {
         markReadShortcut.current(key === 'q' ? 'above' : 'below');
       } else if (key === 'c' && selectedArticle) {
         e.preventDefault();
-        void handleCopyLink(selectedArticle);
+        void handleCopyLink(selectedArticle.url);
       } else if (key === 'o' && selectedArticle) {
         e.preventDefault();
         window.open(selectedArticle.url, '_blank', 'noopener,noreferrer');
@@ -1578,7 +1578,7 @@ export const App: React.FC = () => {
     }
     const url = target.link || article?.url || feed?.html_url;
     if (url) items.push({ id: 'open-original', label: '원문 새 탭에서 열기', separator: true, run: () => { window.open(url, '_blank', 'noopener,noreferrer'); } },
-      { id: 'copy-link', label: '링크 복사', run: () => navigator.clipboard.writeText(url) });
+      { id: 'copy-link', label: '링크 복사', run: () => handleCopyLink(url) });
     if (!article && !feed && !folder) items.push({ id: 'all', label: '전체 글 보기', run: () => openScope('all') },
       { id: 'refresh', label: '피드 새로고침', run: handleRefreshFeeds }, { id: 'add', label: '피드 추가', run: () => openMobileDiscover() });
     return items;
@@ -1663,7 +1663,7 @@ export const App: React.FC = () => {
               viewMode={selectedViewMode}
               onChangeViewMode={(mode) => selectedArticle && handleChangeViewMode(selectedArticle.feed_id, mode)}
               onNavigateRelative={handleNavigateRelative}
-              onCopyLink={handleCopyLink}
+              onCopyLink={(article) => handleCopyLink(article.url)}
               onNotice={setNotice}
               onLeaveForOriginal={() => saveResumePoint(true)}
               hasPrev={Boolean(articleNeighbors.prev)}
