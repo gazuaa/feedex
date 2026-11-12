@@ -67,11 +67,21 @@ export const NATIVE_COVERS = 'dialog[open], [aria-modal="true"], .feedex-desktop
  * 웹 보기 자리의 위치와 덮인 상태. 앱은 이 자리에 로그인이 유지되는 원문 화면을 겹쳐 띄운다.
  * 창이 가려져도 숨기지 않는다. 원문 화면도 함께 가려지고, 숨겼다 다시 띄우면 깜빡이기만 한다.
  */
-export function articlePlacement(slot: Pick<Element, 'getBoundingClientRect'>, doc: Pick<Document, 'querySelector'>, url: string, zoom: number): NativeMessage {
+export function articlePlacement(slot: Pick<Element, 'getBoundingClientRect'>, doc: Pick<Document, 'querySelector'>, url: string, zoom: number): Extract<NativeMessage, { type: 'article' }> {
   const box = slot.getBoundingClientRect();
   const hidden = box.width < 1 || box.height < 1 || Boolean(doc.querySelector(NATIVE_COVERS));
   return { type: 'article', url, zoom, hidden, rect: { x: Math.round(box.left), y: Math.round(box.top), width: Math.round(box.width), height: Math.round(box.height) } };
 }
+
+/**
+ * 알림을 띄울 수 있는 원문 화면 왼쪽 끝. 왼쪽에 알림이 들어갈 만큼 자리가 있을 때만 정하고, 좁은 창에서는 비워
+ * 평소처럼 가운데 아래에 띄운다.
+ */
+export const nativeNoticeLeft = (left: number) => left >= 320 ? `${Math.round(left)}px` : '';
+const setNoticeLeft = (value: string) => {
+  if (value) document.documentElement.style.setProperty('--feedex-native-left', value);
+  else document.documentElement.style.removeProperty('--feedex-native-left');
+};
 
 /** 웹 보기 자리를 앱에 계속 알린다. 자리가 사라지면 원문 화면을 거두게 한다. */
 export function useNativeArticle(slot: RefObject<HTMLElement | null>, url: string | null, zoom: number) {
@@ -83,6 +93,7 @@ export function useNativeArticle(slot: RefObject<HTMLElement | null>, url: strin
     const send = () => {
       frame = 0;
       const message = articlePlacement(element, document, url, zoom), key = JSON.stringify(message);
+      setNoticeLeft(message.rect ? nativeNoticeLeft(message.rect.x) : '');
       if (key !== last) { last = key; bridge.postMessage(message); }
     };
     // 화면 갱신(requestAnimationFrame)에 맞추면 창이 가려진 동안 멈추므로 짧은 타이머로 모아 보낸다.
@@ -97,6 +108,7 @@ export function useNativeArticle(slot: RefObject<HTMLElement | null>, url: strin
     return () => {
       window.clearTimeout(frame); resize.disconnect(); changes.disconnect();
       window.removeEventListener('resize', schedule);
+      setNoticeLeft('');
       bridge.postMessage({ type: 'article', url: null });
     };
   }, [slot, url, zoom]);

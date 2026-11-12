@@ -45,6 +45,7 @@ import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './clie
 import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, startedAfterUpdate, takeResumePoint, watchAppVersion } from './client/appVersion';
+import { copyText } from './client/share';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { readRowsExpired, UnreadSession } from './client/unreadSession';
@@ -1370,12 +1371,7 @@ export const App: React.FC = () => {
   );
 
   const handleCopyLink = useCallback(async (article: ArticleItem) => {
-    try {
-      await navigator.clipboard.writeText(article.url);
-      setNotice('링크를 복사했어요.');
-    } catch {
-      setNotice('링크를 복사하지 못했어요. 원문을 열어 주소를 복사해 주세요.');
-    }
+    setNotice(await copyText(article.url) ? '링크를 복사했어요.' : '링크를 복사하지 못했어요. 원문을 열어 주소를 복사해 주세요.');
   }, []);
 
   // 전체 키보드 단축키 (↑/↓/M/S/R/A/Q/W/C/O/ESC)

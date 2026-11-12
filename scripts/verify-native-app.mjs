@@ -46,7 +46,7 @@ try {
   assert.equal(await db.prepare('SELECT token FROM sessions WHERE token = ?').bind(old).first(), null, 'issuing a code clears unused expired codes');
 
   // 웹: 맥 앱이 만든 통로가 있을 때만 맥 앱으로 본다. 웹 보기 자리와 덮인 상태를 알린다.
-  const { nativeBridge, inNativeApp, articlePlacement, nativeAppScale } = await vite.ssrLoadModule('/src/client/nativeApp.ts');
+  const { nativeBridge, inNativeApp, articlePlacement, nativeAppScale, nativeNoticeLeft } = await vite.ssrLoadModule('/src/client/nativeApp.ts');
   assert.equal(nativeBridge({}), null);
   assert.equal(nativeAppScale({}), 0.9);
   for (const value of [NaN, Infinity, 0, 0.49, 1.51]) assert.equal(nativeAppScale({ feedexAppScale: value }), 0.9);
@@ -71,7 +71,13 @@ try {
     const drawer = readFileSync('src/components/ArticleDrawer.tsx', 'utf8');
     assert.match(drawer, /shareMenuPosition && createPortal\(<div ref=\{shareMenuRef\}[^>]*className=\{`feedex-desktop-share-menu fixed z-\[190\]/, 'the desktop share menu sits above the article frame instead of inside the toolbar');
     assert.match(readFileSync('src/App.tsx', 'utf8'), /className="feedex-notice" data-native=\{inNativeApp\(\) \|\| undefined\}/, 'the desktop app marks its notices');
-    assert.match(readFileSync('src/index.css', 'utf8'), /\.feedex-notice\[data-native\] \{ top: max\(8px, env\(safe-area-inset-top\)\); bottom: auto; \}/, 'the desktop app shows notices above the original view');
+    // 알림은 아래에 둔다. 원문 화면이 떠 있으면 그 왼쪽(목록 쪽) 가운데로 옮겨 가려지지 않게 한다.
+    const styles = readFileSync('src/index.css', 'utf8');
+    assert.match(styles, /\.feedex-notice\[data-native\] \{ left: calc\(var\(--feedex-native-left, 100vw\) \/ 2\); max-width: min\(420px, calc\(var\(--feedex-native-left, 100vw\) - 32px\)\); \}/, 'desktop app notices sit beside the original view');
+    assert.doesNotMatch(styles, /\.feedex-notice\[data-native\][^}]*top:/, 'desktop app notices stay at the bottom');
+    assert.equal(nativeNoticeLeft(612.4), '612px', 'the notice is centred left of the original view');
+    assert.equal(nativeNoticeLeft(0), '', 'a narrow window with no room on the left keeps the notice in the middle');
+    assert.equal(nativeNoticeLeft(319), '');
   }
 
   // 화면: 맥 앱 안에서는 시스템 로그인 창 버튼을 보이고, 웹 보기 자리에 원문 화면 자리만 둔다.
@@ -247,7 +253,7 @@ import UserNotifications
   const listing = sources.map((path) => `${createHash('sha256').update(readFileSync(path)).digest('hex')}  ${path}\n`).join('');
   assert.equal(createHash('sha256').update(listing).digest('hex'), readFileSync('public/downloads/FeedEx-for-Mac.source', 'utf8').trim(), 'the Mac app source changed: run scripts/build-macos-reader.sh to rebuild the download');
   assert.doesNotMatch(readFileSync('public/sw.js', 'utf8'), /downloads/, 'the service worker never stores the download on every device');
-  console.log('PASS: one install button, Mac app first in its dialog only on Mac browsers outside the app, no floating banner or settings duplicate, versioned link, zip version and source fingerprint match, not cached by the service worker; one-minute single-use Mac sign-in codes that never act as sessions, bridge placement and covers, system sign-in button and hand-off screen, original-view slot without frames, X copies kept, no install prompt, and message/sign-in origin checks in the Mac app.');
+  console.log('PASS: one install button, Mac app first in its dialog only on Mac browsers outside the app, no floating banner or settings duplicate, versioned link, zip version and source fingerprint match, not cached by the service worker; one-minute single-use Mac sign-in codes that never act as sessions, bridge placement and covers, bottom notices beside the original view, system sign-in button and hand-off screen, original-view slot without frames, X copies kept, no install prompt, and message/sign-in origin checks in the Mac app.');
 } finally {
   for (const [key, descriptor] of Object.entries(previous)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
   await vite.close();

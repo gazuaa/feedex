@@ -20,6 +20,40 @@ try {
   assert.equal(scrollChrome(position, 420, 400, true).hidden, false, 'settings and input focus keep controls visible');
   assert.equal(scrollChrome(position, -30, 400).hidden, false);
   const { framedCopy, UNPIN_SCRIPT } = await vite.ssrLoadModule('/src/client/mobile.ts');
+  // 공유: 공유 사이트 주소, 붙여 넣을 글, 복사가 막힐 때의 대체 방법, 메뉴 순서.
+  {
+    const { shareLinks, titleAndLink, summaryShareText, copyText } = await vite.ssrLoadModule('/src/client/share.ts');
+    const shared = { title: 'Bitcoin & ETF 소식', url: 'https://news.example.test/a?b=1&c=2' };
+    const links = shareLinks(shared);
+    assert.equal(new URL(links.x).searchParams.get('url'), shared.url); assert.equal(new URL(links.x).searchParams.get('text'), shared.title);
+    assert.equal(new URL(links.telegram).origin, 'https://t.me'); assert.equal(new URL(links.telegram).searchParams.get('url'), shared.url);
+    assert.equal(new URL(links.threads).searchParams.get('text'), `${shared.title}\n${shared.url}`, 'Threads gets the title and the address');
+    assert.ok(links.email.startsWith('mailto:?subject=')); assert.equal(decodeURIComponent(links.email.split('&body=')[1]), `${shared.title}\n${shared.url}`, 'the e-mail body carries the title too');
+    assert.equal(titleAndLink(shared), `${shared.title}\n${shared.url}`);
+    assert.equal(summaryShareText(shared, '**핵심 요약**\n한 줄\n\n**주요 포인트**\n• 하나'), `${shared.title}\n\n핵심 요약\n한 줄\n\n주요 포인트\n• 하나\n\n${shared.url}`, 'bold marks are dropped from a shared summary');
+    const saved = { navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), document: Object.getOwnPropertyDescriptor(globalThis, 'document') };
+    try {
+      let written = '', fallback = '', focused = 0;
+      const area = { style: {}, setAttribute() {}, select() { fallback = this.value; }, remove() {} };
+      Object.defineProperty(globalThis, 'document', { configurable: true, value: { activeElement: { focus: () => focused++ }, createElement: () => area, body: { appendChild() {} }, execCommand: (command) => command === 'copy' } });
+      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async (text) => { written = text; } } } });
+      assert.equal(await copyText('one'), true); assert.equal(written, 'one');
+      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async () => { throw new Error('denied'); } } } });
+      assert.equal(await copyText('two'), true, 'a blocked clipboard falls back to copying a hidden selection'); assert.equal(fallback, 'two'); assert.equal(focused, 1, 'focus returns to where it was');
+      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
+      document.execCommand = () => false;
+      assert.equal(await copyText('three'), false, 'a failed copy is reported');
+    } finally {
+      for (const [key, value] of Object.entries(saved)) if (value) Object.defineProperty(globalThis, key, value); else delete globalThis[key];
+    }
+    const drawerSource = readFileSync(new URL('../src/components/ArticleDrawer.tsx', import.meta.url), 'utf8');
+    const options = drawerSource.slice(drawerSource.indexOf('const shareOptions = (close: () => void) => {'), drawerSource.indexOf('return (\n    <div className="feedex-article-reader'));
+    assert.match(options, /\{isMobile && device\}\s*<button[^>]*>.*링크 복사/, 'phones offer other apps (KakaoTalk and so on) first');
+    assert.match(options, /\{!isMobile && device\}\s*<\/>/, 'desktops keep other apps last');
+    for (const label of ['제목과 링크 복사', '요약과 함께 복사', 'X에 공유', 'Threads에 공유', '텔레그램으로 공유', '이메일로 공유', '다른 앱으로 공유']) assert.ok(options.includes(label), label);
+    assert.match(options, /\{currentAiSummary && <button/, 'the summary copy appears only with a summary');
+    assert.match(options, /\{nativePlatform\(\) !== 'mac' && <a className=\{option\} href=\{links\.email\}/, 'the Mac app, which cannot open mail links, hides e-mail sharing');
+  }
   assert.match(framedCopy('<!doctype html><html lang="ko"><head><base href="https://site.example.test/"></head><body></body></html>'), /^<!doctype html><html lang="ko"><style>html,body\{overflow-x:hidden!important\}<\/style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">/, 'the copy never pans sideways, and its policy comes before any page script');
   assert.ok(framedCopy('<p>bare</p>').startsWith('<style>'));
   assert.match(framedCopy('<p>bare</p>'), /sfeedSqueezed/, 'a copy laid out for a desktop says so');
@@ -105,5 +139,5 @@ try {
   assert.match(loginView, /<p className="hidden lg:block /, 'phones skip the long intro'); assert.match(loginView, /<div className="hidden lg:grid /, 'phones skip the feature cards');
   const installCard = readFileSync(new URL('../src/components/PwaInstall.tsx', import.meta.url), 'utf8');
   assert.match(installCard, /aria-label="설치 안내 하루 동안 숨기기"[^>]*className="[^"]*h-10 w-10/, 'the install card close button is finger sized');
-  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
+  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, share links and copies with a clipboard fallback, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
 } finally { await vite.close(); }

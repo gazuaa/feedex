@@ -22,6 +22,9 @@ import {
   Share2,
   Mail,
   Link2,
+  Copy,
+  Send,
+  AtSign,
   RotateCw,
   X,
   Languages,
@@ -37,6 +40,7 @@ import { useTextSize } from '../client/textSize';
 import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile';
 import { dropSiteClasses } from '../shared/siteClasses';
 import { isCurrentSummary } from '../shared/aiSummary';
+import { copyText, shareLinks, summaryShareText, titleAndLink } from '../client/share';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
 import type { ArticleResources, WebResult } from '../client/articleResources';
@@ -52,7 +56,7 @@ import { useXPostFrame, useYouTubeCopyFrame, type XQuoteHint } from '../client/x
 import { youtubeEmbedSrc } from '../shared/youtubeEmbed';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 import { shownThumbnail } from '../client/thumbnails';
-import { inNativeApp, nativeBridge, useNativeArticle } from '../client/nativeApp';
+import { inNativeApp, nativeBridge, nativePlatform, useNativeArticle } from '../client/nativeApp';
 
 const VIEW_MODES = [
   { id: 'feed', label: '피드', title: '피드 본문 — RSS에 담긴 내용', Icon: Rss },
@@ -762,17 +766,33 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       await navigator.share({ title: article.title, url: article.url });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
-      if (shownArticleId.current === article.id) onNotice('기기 공유 메뉴를 열지 못했어요.');
+      if (shownArticleId.current === article.id) onNotice('다른 앱으로 공유하는 메뉴를 열지 못했어요.');
     }
   };
+  const copyForShare = async (text: string, done: string, close: () => void) => {
+    close();
+    onNotice(await copyText(text) ? done : '복사하지 못했어요. 원문을 열어 주소를 복사해 주세요.');
+  };
+  /**
+   * 공유 방법. 복사(링크, 제목과 링크, 요약이 있으면 요약과 함께) → 공유 사이트 → 이메일 → 다른 앱 순서다.
+   * 휴대폰에서는 카카오톡 등이 나오는 시스템 공유가 가장 많이 쓰이므로 맨 위에 둔다.
+   * 맥 앱은 메일 주소(mailto)를 열지 않으므로 이메일 공유를 빼고, 시스템 공유가 있으면 그것으로 메일을 보낸다.
+   */
   const shareOptions = (close: () => void) => {
     const option = 'flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left hover:bg-emerald-500/10';
+    const links = shareLinks(article);
+    const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+    const device = canShare && <button key="device" type="button" className={option} onClick={() => void shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />다른 앱으로 공유</button>;
     return <>
+      {isMobile && device}
       <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />링크 복사</button>
-      <a className={option} href={`https://x.com/intent/tweet?${new URLSearchParams({ url: article.url, text: article.title })}`} target="_blank" rel="noopener noreferrer" onClick={close}><ExternalLink size={16} aria-hidden="true" />X에 공유</a>
-      <a className={option} href={`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(article.url)}`} onClick={close}><Mail size={16} aria-hidden="true" />이메일로 공유</a>
-      {typeof navigator !== 'undefined' && typeof navigator.share === 'function' &&
-        <button type="button" className={option} onClick={() => void shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />기기 공유 메뉴</button>}
+      <button type="button" className={option} onClick={() => void copyForShare(titleAndLink(article), '제목과 링크를 복사했어요.', close)}><Copy size={16} aria-hidden="true" />제목과 링크 복사</button>
+      {currentAiSummary && <button type="button" className={option} onClick={() => void copyForShare(summaryShareText(article, currentAiSummary), '요약과 링크를 복사했어요.', close)}><Sparkles size={16} aria-hidden="true" />요약과 함께 복사</button>}
+      <a className={option} href={links.x} target="_blank" rel="noopener noreferrer" onClick={close}><ExternalLink size={16} aria-hidden="true" />X에 공유</a>
+      <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={close}><AtSign size={16} aria-hidden="true" />Threads에 공유</a>
+      <a className={option} href={links.telegram} target="_blank" rel="noopener noreferrer" onClick={close}><Send size={16} aria-hidden="true" />텔레그램으로 공유</a>
+      {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={close}><Mail size={16} aria-hidden="true" />이메일로 공유</a>}
+      {!isMobile && device}
     </>;
   };
 
