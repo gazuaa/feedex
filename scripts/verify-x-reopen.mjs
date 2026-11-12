@@ -44,6 +44,35 @@ try{
   await show(rows[0]);await show(rows[1]);
   for(let n=0;n<4;n++)await show(rows[n%2]);
   assert.equal(requests,2,'다른 글을 읽고 돌아와도 저장된 사본을 다시 요청하지 않는다.');
+  const reply = { ...rows[0], id: 'partial-reply', title: 'R to @parent: Reply preview' };
+  let attempts = 0;
+  const readyThread = { url: reply.url, thread: true, html: '<main>Original parent and reply</main>', translationProof: 'test-proof' };
+  const retryResources = {
+    async cachedWeb() {},
+    async web() {
+      attempts++;
+      return attempts === 1 ? { url: reply.url, thread: true, partial: true, html: '<main>Only reply</main>' } : readyThread;
+    },
+  };
+  await act(async () => { root.render(React.createElement(ArticleDrawer, { ...props, resources: retryResources, key: reply.id, article: reply })); });
+  assert.equal(attempts, 1);
+  assert.match(window.document.body.textContent, /다시 불러오는 중/);
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 1650)); });
+  assert.equal(attempts, 2);
+  assert.ok([...window.document.querySelectorAll('iframe')].some(frame => (frame.getAttribute('srcdoc') ?? frame.getAttribute('srcDoc') ?? '').includes('Original parent and reply')),
+    '원글이 빠진 사본을 받으면 사용자가 다시 누르기 전에 원글을 다시 받는다.');
+  const originalFetch = globalThis.fetch;
+  let submitted;
+  try {
+    globalThis.fetch = async (url, init) => {
+      assert.equal(url, `/api/articles/${reply.id}/translate`);
+      submitted = JSON.parse(init.body);
+      return Response.json({ title: '번역 제목', html: '<p>원글과 댓글 번역</p>', provider: 'deepl', bodySource: 'full' });
+    };
+    await act(async () => { window.document.querySelector('button[aria-label="번역"]').click(); });
+    assert.deepEqual(submitted.xThread, { html: readyThread.html, proof: readyThread.translationProof });
+    assert.match(window.document.body.textContent, /원글과 댓글 번역/);
+  } finally { globalThis.fetch = originalFetch; }
   console.log('PASS: real reader preview-to-ready frame replacement that keeps the same preview frame until the saved copy loads, cached A/B/A reopening and no duplicate copy requests.');
 }finally{
   if(root)await act(async()=>root.unmount());

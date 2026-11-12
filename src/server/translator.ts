@@ -186,7 +186,7 @@ async function aiTranslate(env: Env, title: string, html: string): Promise<Trans
   const { document } = parseHTML(`<!doctype html><html><body><div id="feedex-root">${html}</div></body></html>`);
   const root = document.getElementById('feedex-root')!;
   // 안쪽에 다른 블록이 없는 블록만 번역한다. 같은 글자를 두 번 번역하지 않는다.
-  const blocks = [...root.querySelectorAll(BLOCKS)].filter((element) => !element.querySelector(BLOCKS) && !element.closest('pre, code') && (element.textContent || '').trim() && !mostlyKorean(element.textContent || ''));
+  const blocks = [...root.querySelectorAll(BLOCKS)].filter((element) => !element.querySelector(BLOCKS) && !element.closest('pre, code, [translate="no"]') && (element.textContent || '').trim() && !mostlyKorean(element.textContent || ''));
   const texts = [title, ...blocks.map((element) => (element.textContent || '').replace(/\s+/g, ' ').trim())];
   const batches: number[][] = [];
   texts.forEach((text, index) => {
@@ -208,9 +208,12 @@ async function aiTranslate(env: Env, title: string, html: string): Promise<Trans
 
 // ── 번역 ─────────────────────────────────────────────────────────────────
 
-export async function translateArticle(env: Env, input: { title: string; html: string }, fetcher: Fetcher = fetch): Promise<TranslatedArticle> {
-  const plain = parseHTML(`<!doctype html><html><body>${input.html}</body></html>`).document.body.textContent || '';
-  if (mostlyKorean(`${input.title} ${plain}`)) return { title: input.title, html: input.html, provider: 'workers-ai', model: '', alreadyKorean: true };
+export async function translateArticle(env: Env, input: { title: string; html: string; mixedLanguages?: boolean }, fetcher: Fetcher = fetch): Promise<TranslatedArticle> {
+  const { body } = parseHTML(`<!doctype html><html><body>${input.html}</body></html>`).document;
+  const alreadyKorean = input.mixedLanguages
+    ? mostlyKorean(input.title) && [...body.querySelectorAll('.text')].every(node => mostlyKorean(node.textContent || ''))
+    : mostlyKorean(`${input.title} ${body.textContent || ''}`);
+  if (alreadyKorean) return { title: input.title, html: input.html, provider: 'workers-ai', model: '', alreadyKorean: true };
   const deepl = await readDeepLKey(env);
   if (deepl) {
     try { return await deeplTranslate(deepl.key, input.title, input.html, fetcher); }

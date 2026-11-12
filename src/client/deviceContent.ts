@@ -2,7 +2,7 @@ import type { ArticleItem } from './api';
 import { openDeviceDatabase } from './deviceDatabase';
 import { cacheGeneration, CONTENT_LIMIT, estimateBytes, retentionAge, SNAPSHOT_LIMITS } from './cachePolicy';
 
-export interface ContentEntry { account: string; key: string; data: Partial<ArticleItem> | { html: string; url: string; phone?: boolean; thread?: boolean }; savedAt: number; size: number }
+export interface ContentEntry { account: string; key: string; data: Partial<ArticleItem> | { html: string; url: string; phone?: boolean; thread?: boolean; partial?: boolean; translationProof?: string }; savedAt: number; size: number }
 const memory = new Map<string, ContentEntry>();
 const pending = new Set<Promise<unknown>>();
 // 정리는 계정의 모든 키를 훑으므로, 쓸 때마다가 아니라 주기적으로 돌린다.

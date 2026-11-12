@@ -37,7 +37,7 @@ import { dropSiteClasses } from '../shared/siteClasses';
 import { isCurrentSummary } from '../shared/aiSummary';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
-import type { ArticleResources } from '../client/articleResources';
+import type { ArticleResources, WebResult } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
 import { WebLabel, WebStatusBar } from './WebStatusBar';
 import { htmlToText, openInDeepL } from '../client/deeplWeb';
@@ -85,6 +85,9 @@ const PEEK_MS = 4000;
 const FRAME_WAIT_MS = 4000;
 /** X 글 완성본이 다 그려지기를 기다리며 미리보기를 덮어 두는 최대 시간. 이미지가 멈춰도 이 뒤에는 완성본을 보여 준다. */
 const PREVIEW_HOLD_MS = 3000;
+const X_RETRY_MS = 1500;
+
+type WebCopyState = Partial<Omit<WebResult, 'html'>> & { articleId: string; html: string | null; error?: string; fitting?: boolean; retrying?: boolean };
 
 
 function loadWebZoom(account: string, feed: string): number {
@@ -193,7 +196,9 @@ interface ArticleDrawerProps {
 }
 
 // 웹 보기 상단 안내: [전체 문구, 좁은 칸용 짧은 문구]
-function webCopyNotice(xWaiting: boolean, xFailed: boolean, copy: { thread?: boolean; textOnly?: boolean; fitting?: boolean } | null): [string, string] {
+function webCopyNotice(xWaiting: boolean, xFailed: boolean, copy: WebCopyState | null): [string, string] {
+  if (copy?.retrying && (xWaiting || copy.thread)) return ['X 원글과 댓글을 다시 불러오는 중이에요.', 'X 대화를 다시 불러오는 중'];
+  if (copy?.partial) return ['공개 미러에서 원글을 받지 못했어요.', '원글을 받지 못했어요'];
   if (xWaiting && xFailed) return ['공개 미러에서 댓글을 받지 못했어요. 먼저 받은 글만 보여드려요.', '댓글을 받지 못했어요'];
   if (xWaiting || copy?.thread) return ['공개 미러(Nitter)에서 받은 X 글과 댓글이에요. 로그인한 상태로 보려면 X에서 여세요.', '공개 미러로 받은 글과 댓글'];
   if (copy?.textOnly) return ['사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.', '본문만 보여드려요'];
@@ -281,7 +286,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   }, [summaryScope]);
   // 번역. 피드 보기는 피드 본문을, 리더·웹 보기는 원문 본문을 번역해 같은 자리에 보여 준다.
   // 웹 보기에서 번역을 켜면 사이트 대신 번역한 글을 보여 준다.
-  const [translation, setTranslation] = useState<{ articleId: string; source: 'full' | 'feed'; bodySource?: 'full' | 'feed'; title: string; html: string; provider: string } | null>(null);
+  const [translation, setTranslation] = useState<{ articleId: string; source: 'full' | 'feed'; bodySource?: 'full' | 'feed'; title: string; html: string; provider: string; threadProof?: string } | null>(null);
   const [translating, setTranslating] = useState(false);
   const [translated, setTranslated] = useState(false);
   const [translationError, setTranslationError] = useState('');
@@ -307,10 +312,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 프레임을 거부하는 사이트는 서버가 받아 온 스크립트 없는 사본으로 보여 준다.
   // textOnly: 원문 사이트가 원래 배치를 잠시 막아 받은 본문만 보여 주는 사본.
   // retrying: 보안 확인으로 막혀 잠시 뒤 자동으로 다시 받는 중.
-  const [webCopy, setWebCopy] = useState<{ articleId: string; html: string | null; error?: string; phone?: boolean; fitting?: boolean; textOnly?: boolean; retrying?: boolean; thread?: boolean } | null>(() => {
+  const [webCopy, setWebCopy] = useState<WebCopyState | null>(() => {
     if (!article || !resources) return null;
     const peeked = resources.peekCachedWeb?.(article);
-    return peeked ? { articleId: article.id, html: peeked.html, phone: peeked.phone, thread: peeked.thread, textOnly: peeked.textOnly } : null;
+    return peeked ? { articleId: article.id, ...peeked } : null;
   });
   const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html) : undefined, [webCopy?.html]);
   // X 글은 미러에서 사본을 받는 몇 초 동안, 피드로 받은 글을 사본과 같은 모양으로 같은 프레임에 먼저 그린다.
@@ -318,9 +323,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 비어 있으므로 받지 못한 것으로 본다.
   const xPost = Boolean(article && isXStatusUrl(article.url));
   const copyFor = webCopy?.articleId === article?.id ? webCopy : null;
+  const completeThread = copyFor?.thread && !copyFor.partial && copyFor.html ? copyFor : null;
   const copyReady = Boolean(copyFor?.html) && (!xPost || Boolean(copyFor?.thread));
   const xWaiting = mode === 'web' && xPost && !copyReady && !(frame?.articleId === article?.id && frame?.embeddable);
-  const xFailed = Boolean(copyFor) && !copyReady;
+  const xFailed = Boolean(copyFor) && !copyReady && !copyFor?.retrying;
   const xPreview = useMemo(() => xWaiting && article ? framedCopy(xThreadPreview(article, xFailed)) : undefined, [xWaiting, xFailed, article?.id, article?.title, article?.content_html, article?.feed_title, article?.feed_favicon]);
   // 완성된 사본이 도착해도 미리보기 프레임은 지우거나 새로 만들지 않고 그대로 위에 둔다. 그 아래에서 완성본을
   // 다 그리면 미리보기를 걷어 낸다. 미리보기를 다시 그리면 같은 글을 한 번 더 불러오며 화면이 비어 깜빡인다.
@@ -467,13 +473,26 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   useEffect(() => {
     if (!article || mode !== 'web' || nativeWeb) return;
     let active = true, retry: { stop: () => void } | undefined;
+    let xRetry: ReturnType<typeof setTimeout> | undefined;
     // X는 다른 사이트의 프레임을 늘 거부하므로 묻지 않고 바로 사본을 받는다.
     const known = publicDeviceArticle(article.url) ? undefined : isXStatusUrl(article.url) ? { embeddable: false, url: article.url, reason: 'framing' } : resources?.knownFrame(article.url);
     setFrame(known ? { articleId: article.id, ...known } : null);
     const load = async () => {
       const cached = await resources?.cachedWeb(article);
       if (!active) return;
-      if (cached) { setFrame({ articleId: article.id, embeddable: false, url: cached.url }); setWebCopy({ articleId: article.id, html: cached.html, phone: cached.phone, thread: cached.thread }); return; }
+      if (cached) { setFrame({ articleId: article.id, embeddable: false, url: cached.url }); setWebCopy({ articleId: article.id, ...cached }); return; }
+      if (isXStatusUrl(article.url)) {
+        const loadThread = async (canRetry: boolean) => {
+          const copy = await (resources ? resources.web(article) : apiRequest<WebResult>(`/api/articles/${article.id}/web-copy`)).catch(() => null);
+          if (!active) return;
+          if (copy?.thread && !copy.partial) { setWebCopy({ articleId: article.id, ...copy }); return; }
+          // 불완전한 응답과 일시적인 실패는 미리보기를 남겨 두고 한 번 더 확인한다.
+          setWebCopy(previous => ({ articleId: article.id, html: null, ...(previous?.articleId === article.id ? previous : {}), ...(copy?.thread ? copy : {}), retrying: canRetry }));
+          if (canRetry) xRetry = setTimeout(() => void loadThread(false), X_RETRY_MS);
+        };
+        await loadThread(true);
+        return;
+      }
       if (resources && publicDeviceArticle(article.url)) {
         setFrame({ articleId: article.id, embeddable: false, url: article.url, reason: 'framing' });
         // 원문 사이트가 리더 서비스를 잠시 막았으면, 이 글을 보고 있는 동안 자동으로 다시 받는다.
@@ -498,12 +517,12 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       setFrame({ articleId: article.id, ...result });
       if (result.embeddable) return;
       try {
-        const copy = await (resources ? resources.web(article) : apiRequest<{ html: string; textOnly?: boolean; thread?: boolean }>(`/api/articles/${article.id}/web-copy`));
-        if (active) setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly, thread: copy.thread });
+        const copy = await (resources ? resources.web(article) : apiRequest<WebResult>(`/api/articles/${article.id}/web-copy`));
+        if (active) setWebCopy({ articleId: article.id, ...copy });
       } catch (error) { if (active) setWebCopy({ articleId: article.id, html: null, error: error instanceof Error ? error.message : undefined }); }
     };
     void load().catch(() => {});
-    return () => { active = false; retry?.stop(); };
+    return () => { active = false; retry?.stop(); clearTimeout(xRetry); };
   }, [article?.id, mode, resources]);
 
   // 글이 데스크톱 열 옆의 좁은 틈에 놓이는 사본(framedCopy 참고)은 한 번만,
@@ -551,12 +570,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     try {
       if (mode === 'web') {
         const previous = webCopy?.articleId === target.id && webCopy.html ? webCopy : null;
-        setWebCopy(null);
+        if (!xPost) setWebCopy(null);
         try {
-          const copy = await (resources ? resources.refreshWeb(target) : apiRequest<{ html: string; textOnly?: boolean; thread?: boolean }>(`/api/articles/${target.id}/web-copy`));
+          const copy = await (resources ? resources.refreshWeb(target) : apiRequest<WebResult>(`/api/articles/${target.id}/web-copy`));
           // 원래 모양을 보던 중이면 본문만 받은 것으로 바꾸지 않는다.
           if (copy.textOnly && previous && !previous.textOnly) { if (here()) setWebCopy(previous); message = '사이트가 잠시 막아 원래 모양을 새로 받지 못했어요. 보던 사본을 그대로 둘게요.'; }
-          else if (here()) setWebCopy({ articleId: target.id, html: copy.html, textOnly: copy.textOnly, thread: copy.thread });
+          else if (copy.partial && previous?.thread && !previous.partial) { message = 'X 원글을 새로 받지 못했어요. 보던 대화를 그대로 표시합니다.'; }
+          else if (here()) setWebCopy({ articleId: target.id, ...copy });
         } catch (error) {
           if (here()) setWebCopy(previous ?? { articleId: target.id, html: null, error: error instanceof Error ? error.message : undefined });
           throw error;
@@ -581,9 +601,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   };
 
   const showWebCopy = () => {
+    if (xPost) { void refreshArticle(); return; }
     setFrame({ articleId: article.id, embeddable: false, url: article.url }); setWebCopy(null);
-    void (resources ? resources.web(article) : apiRequest<{ html: string; textOnly?: boolean; thread?: boolean }>(`/api/articles/${article.id}/web-copy`))
-      .then((copy) => setWebCopy({ articleId: article.id, html: copy.html, textOnly: copy.textOnly, thread: copy.thread }))
+    void (resources ? resources.web(article) : apiRequest<WebResult>(`/api/articles/${article.id}/web-copy`))
+      .then((copy) => setWebCopy({ articleId: article.id, ...copy }))
       .catch((error) => setWebCopy({ articleId: article.id, html: null, error: error instanceof Error ? error.message : undefined }));
   };
 
@@ -605,12 +626,19 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const source = translationSource;
     setTranslating(true); setTranslationError('');
     try {
+      let thread = copyFor;
+      if (xPost && source === 'full' && mode === 'web' && !thread?.thread && resources) {
+        thread = await resources.web(article).then(copy => ({ articleId: article.id, ...copy })).catch(() => null);
+      }
+      if (!current()) return;
+      const xThread = xPost && source === 'full' && thread?.thread && !thread.partial && thread.html && thread.translationProof
+        ? { html: thread.html, proof: thread.translationProof } : undefined;
       const res = await apiRequest<{ title: string; html: string; provider: string; bodySource?: 'full' | 'feed'; notice?: string; alreadyKorean?: boolean }>(`/api/articles/${article.id}/translate`, {
-        method: 'POST', body: JSON.stringify({ source, phone: isMobile }), signal: controller.signal,
+        method: 'POST', body: JSON.stringify({ source, phone: isMobile, xThread }), signal: controller.signal,
       });
       if (!current()) return;
       if (res.alreadyKorean) { setTranslated(false); onNotice('이미 한국어로 된 글이에요.'); return; }
-      setTranslation({ articleId: article.id, source, bodySource: res.bodySource, title: res.title, html: res.html, provider: res.provider });
+      setTranslation({ articleId: article.id, source, bodySource: res.bodySource, title: res.title, html: res.html, provider: res.provider, threadProof: xThread?.proof });
       setTranslated(true);
       if (res.notice) onNotice(res.notice);
     } catch (error) {
@@ -623,13 +651,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     if (translating) { translateRequest.current?.abort(); translateRequest.current = null; setTranslating(false); return; }
     if (showTranslation) { setTranslated(false); return; }
     // 이미 받아 둔 번역은 다시 요청하지 않는다.
-    if (translation?.articleId === article.id && translation.source === translationSource) { setTranslated(true); return; }
+    const sameThread = !xPost || translationSource === 'feed' || !completeThread?.translationProof || completeThread.translationProof === translation?.threadProof;
+    if (translation?.articleId === article.id && translation.source === translationSource && sameThread) { setTranslated(true); return; }
     void handleTranslate();
   };
   const translateAction = translating ? '번역 취소' : showTranslation ? '원문 보기' : '번역';
+  const canOpenArticleInDeepL = !xPost || translationSource === 'feed' || Boolean(completeThread);
   /** 사용자의 DeepL 웹 번역기에 제목과 본문을 넘긴다. DeepL API 없이 로그인한 DeepL 계정으로 번역한다. */
   const openArticleInDeepL = () => {
-    const body = htmlToText(article.full_content_html || article.content_html || `<p>${article.summary || ''}</p>`);
+    const body = xPost && translationSource === 'full' && completeThread?.html
+      ? [...new DOMParser().parseFromString(completeThread.html, 'text/html').querySelectorAll('.post .text')].map(node => htmlToText(node.innerHTML)).join('\n\n')
+      : htmlToText(article.full_content_html || article.content_html || `<p>${article.summary || ''}</p>`);
     openInDeepL(`${article.title}\n\n${body}`);
   };
   const translationFeedback = (translating || translationError) && <div className="feedex-translation-feedback" role={translating ? 'status' : 'alert'}>
@@ -637,7 +669,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     <span className="flex-1">{translating ? '한국어로 번역하는 중…' : translationError}</span>
     {translating ? <button type="button" onClick={toggleTranslation}>취소</button> : <>
       <button type="button" onClick={() => void handleTranslate()}>다시 시도</button>
-      <button type="button" onClick={openArticleInDeepL}>DeepL에서 번역</button>
+      {canOpenArticleInDeepL && <button type="button" onClick={openArticleInDeepL}>DeepL에서 번역</button>}
       <button type="button" aria-label="번역 오류 닫기" onClick={() => setTranslationError('')}><X size={16} /></button>
     </>}
   </div>;
@@ -1011,7 +1043,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               onLeave={onLeaveForOriginal}
             >
               {webCopyShown && !xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="원래 모양" long="원래 모양 다시 받기" /></button>}
-              {webCopyShown && xWaiting && xFailed && <button type="button" onClick={showWebCopy} className="hover:underline">다시 시도</button>}
+              {webCopyShown && !copyFor?.retrying && (copyFor?.partial || (xWaiting && xFailed)) && <button type="button" onClick={showWebCopy} disabled={refreshing} className="hover:underline">다시 시도</button>}
               {webFrameShown && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short={isDark ? "다크 사본" : "사본으로"} long={isDark ? "다크 웹 사본으로 보기" : "웹 사본으로 보기"} /></button>}
               {/* X 글은 공개 미러로 보여 주므로, 로그인한 상태로 보려면 X에서 연다. 다른 글의 원문은 막대가 이 창에서 연다. */}
               {webStatus?.xUrl && (
@@ -1208,7 +1240,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           {showTranslation && <div role="status" className={`feedex-translation-bar ${isDark ? 'border-emerald-500/30 text-emerald-300' : 'border-emerald-200 text-emerald-800'}`}>
             <Languages className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate">{translation!.source === 'full' && translation!.bodySource === 'feed' ? '피드 본문만 번역' : `${translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`}</span>
-            {translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL} className="shrink-0 whitespace-nowrap font-semibold hover:underline cursor-pointer">DeepL에서 보기</button>}
+            {canOpenArticleInDeepL && translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL} className="shrink-0 whitespace-nowrap font-semibold hover:underline cursor-pointer">DeepL에서 보기</button>}
             <button type="button" onClick={() => setTranslated(false)} className="shrink-0 whitespace-nowrap font-semibold hover:underline cursor-pointer">원문 보기</button>
           </div>}
 
@@ -1332,7 +1364,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           {mobileMenu === 'tools' ? <div className="feedex-mobile-reader-menu" aria-label="본문 도구">
             {/* 위쪽 ... 메뉴에서도 요약을 바로 열 수 있게 맨 위에 둔다. 아래 막대의 번역·요약 메뉴와 같은 동작이다. */}
             <button aria-pressed={aiOpen} onClick={() => { closeMobileMenu(); toggleAiSummary(); }}>{summarizing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}{aiAction}</button>
-            <button onClick={() => { closeMobileMenu(); openArticleInDeepL(); }}><ExternalLink size={18} />DeepL에서 번역</button>
+            {canOpenArticleInDeepL && <button onClick={() => { closeMobileMenu(); openArticleInDeepL(); }}><ExternalLink size={18} />DeepL에서 번역</button>}
             <button disabled={refreshing} onClick={() => { closeMobileMenu(); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />기사 새로고침</button>
             <p className="feedex-mobile-menu-label">{siteShown ? '사이트 확대·축소' : '글자 크기'}</p>
             {sizeControl('feedex-mobile-zoom')}

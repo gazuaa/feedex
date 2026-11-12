@@ -21,7 +21,7 @@ import { xRoutes } from './xConnection';
 import { feedHistoryRoutes } from './feedHistory';
 import { XFeedError } from './xFeed';
 import { inheritXView, saveXView } from './xViews';
-import { fetchXThread, refreshXCardImages, xStatusUrl } from './xThread';
+import { fetchXThread, refreshXCardImages, verifiedXThread, xStatusUrl, xThreadTranslationBody, xThreadWithProof } from './xThread';
 import { isXProfileFeed } from '../shared/xFeed';
 import { importOpmlFeed, OpmlSourceError } from './opmlImporter';
 import { clearOpmlFailure, listOpmlFailures, recordOpmlFailure } from './opmlFailures';
@@ -1334,13 +1334,17 @@ app.get('/api/articles/:id/x-post', async (c) => {
 // ?layout=phone은 받은 페이지가 데스크톱에만 맞을 때 휴대폰 폭으로 배치한 사본을 요청한다.
 app.get('/api/articles/:id/web-copy', async (c) => {
   const article = await c.env.DB.prepare(
-    'SELECT a.url, a.content_html FROM articles a WHERE a.id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)'
+    'SELECT a.url, a.title, a.content_html FROM articles a WHERE a.id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)'
   )
     .bind(c.req.param('id'), c.get('user').id)
-    .first<{ url: string; content_html: string | null }>();
+    .first<{ url: string; title: string; content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
-  // X 글은 공개 미러의 글 페이지로 글과 댓글을 보여 준다. 받지 못하면 원래 방식으로 x.com을 그린다.
-  if (xStatusUrl(article.url)) try { return c.json(await fetchXThread(article.url, article.content_html, c.env.DB)); } catch { /* 아래 원래 방식으로 넘어간다. */ }
+  // 공개 미러에서 못 받은 대화는 빈 x.com 사본으로 저장하지 않는다.
+  if (xStatusUrl(article.url)) {
+    c.header('Cache-Control', 'no-store');
+    try { return c.json(xThreadWithProof(c.env, await fetchXThread(article.url, article.content_html, c.env.DB, article.title))); }
+    catch { return c.json({ error: 'X 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.' }, 502); }
+  }
   try {
     return c.json(await fetchWebView(article.url, c.env, c.req.query('layout') === 'phone', pageAssetProxy(c.env, new URL(c.req.url).origin)));
   } catch {
@@ -1437,29 +1441,42 @@ async function readerBodyForArticleTools(env: Env, article: { id: string; url: s
 
 // 글 번역. 웹·리더 보기에서는 기사 본문을, 피드 보기에서는 피드 본문을 번역한다.
 app.post('/api/articles/:id/translate', async (c) => {
-  const body = await c.req.json<{ source?: unknown; force?: unknown; phone?: unknown }>().catch(() => ({} as { source?: unknown; force?: unknown; phone?: unknown }));
+  type Request = { source?: unknown; force?: unknown; phone?: unknown; xThread?: unknown };
+  const body: Request = await c.req.json<Request>().catch(() => ({}));
   const source = body.source === 'feed' ? 'feed' : 'full';
   const article = await c.env.DB.prepare(
     `SELECT id, title, url, summary, content_html, full_content_html
      FROM articles WHERE id = ? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
   ).bind(c.req.param('id'), c.get('user').id).first<{ id: string; title: string; url: string; summary: string | null; content_html: string | null; full_content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
-  const needsWebBody = source === 'full' && !xStatusUrl(article.url);
-  const full = needsWebBody ? await readerBodyForArticleTools(c.env, article, body.phone === true) : null;
-  if (needsWebBody && !full) return c.json({ error: '기사 전체 본문을 가져오지 못했어요. 다시 시도하거나 원문에서 읽어 주세요.' }, 422);
+  const needsXThread = source === 'full' && xStatusUrl(article.url);
+  let full: string | null = null;
+  if (needsXThread) {
+    let html = verifiedXThread(c.env, article.url, body.xThread);
+    if (!html) {
+      const copy = await fetchXThread(article.url, article.content_html, c.env.DB, article.title).catch(() => null);
+      if (copy && !copy.partial) html = copy.html;
+    }
+    full = html ? xThreadTranslationBody(html) : null;
+    if (!full) return c.json({ error: 'X 원글과 댓글을 가져오지 못했어요. 대화를 다시 불러온 뒤 번역해 주세요.' }, 422);
+  } else if (source === 'full') {
+    full = await readerBodyForArticleTools(c.env, article, body.phone === true);
+    if (!full) return c.json({ error: '기사 전체 본문을 가져오지 못했어요. 다시 시도하거나 원문에서 읽어 주세요.' }, 422);
+  }
   const bodySource = full ? 'full' : 'feed';
   const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const html = full || article.content_html || (article.summary ? `<p>${escaped(article.summary)}</p>` : '');
   if (!html.trim() && !article.title.trim()) return c.json({ error: '번역할 본문이 없어요.' }, 422);
   await ensureTranslationTable(c.env);
-  const hash = await sourceHash(article.title, html);
+  const title = needsXThread ? article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, '') : article.title;
+  const hash = await sourceHash(title, html);
   if (body.force !== true) {
     const saved = await c.env.DB.prepare('SELECT title, content_html, provider, model FROM article_translations WHERE article_id=? AND target_lang=? AND source_kind=? AND source_hash=?')
       .bind(article.id, 'KO', bodySource, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
     if (saved) return c.json({ title: saved.title, html: saved.content_html, provider: saved.provider, model: saved.model, bodySource, cached: true });
   }
   let result;
-  try { result = await translateArticle(c.env, { title: article.title, html }); }
+  try { result = await translateArticle(c.env, { title, html, mixedLanguages: needsXThread }); }
   catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : '번역하지 못했어요. 잠시 후 다시 시도해 주세요.' }, error instanceof TranslationError ? error.status as 502 : 502); }
   if (!result.alreadyKorean) {
     await c.env.DB.prepare(`INSERT INTO article_translations(article_id,target_lang,source_kind,source_hash,title,content_html,provider,model,created_at) VALUES(?,?,?,?,?,?,?,?,?)

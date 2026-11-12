@@ -10,7 +10,7 @@ import { loadPublicWebCopy, PublicWebCopyError } from './publicWebCopy';
 type ReaderResult = { fullContentHtml: string; publishedAt?: string };
 // textOnly: 원래 배치를 받지 못해 본문만 보여 주는 사본. 다음에 열 때 원래 배치를 다시 받도록 저장하지 않는다.
 // partial: 답글인데 미러가 원글을 불러오지 못한 X 사본. 역시 저장하지 않는다.
-type WebResult = { html: string; url: string; phone?: boolean; textOnly?: boolean; thread?: boolean; partial?: boolean };
+export type WebResult = { html: string; url: string; phone?: boolean; textOnly?: boolean; thread?: boolean; partial?: boolean; translationProof?: string };
 export class ArticleResources {
   private requests = new Map<string, Promise<unknown>>();
   private failures = new Map<string, number>();
@@ -45,7 +45,7 @@ export class ArticleResources {
     // 예전 X 글 사본은 댓글 자리만 회색으로 남은 x.com 화면이거나, 인용 글 상자가 깨진 사본이다. 지금 방식의 사본을 새로 받게 한다.
     // 대리 경로(/page-asset/) 없이 http 그림·스타일이 그대로 남은 사본이나, 유튜브 임베드 변환 전에 만든 http 사본도 다시 받는다.
     if (!stored || !('html' in stored.data)
-      || (isXStatusUrl(article.url) && (!stored.data.thread || !stored.data.html.includes(X_THREAD_MARK)))
+      || (isXStatusUrl(article.url) && (!stored.data.thread || stored.data.partial || !stored.data.html.includes(X_THREAD_MARK)))
       || /<(?:link|img)\b[^>]+(?:href|src)=["']http:\/\//i.test(stored.data.html)
       || (/^http:\/\//i.test(article.url) && stored.data.html.includes('<base ') && !stored.data.html.includes('data-sfeed-copy="2"'))) {
       this.preparedCopies.delete(article.id);
@@ -54,7 +54,7 @@ export class ArticleResources {
     try { this.copyOrigins.add(new URL(article.url).origin); } catch {}
     const prepared = this.preparedCopies.get(article.id);
     if (prepared?.source === stored.data) return prepared.result;
-    const result = { ...stored.data, html: revealCopyImages(stored.data.html) };
+    const result = stored.data.thread ? stored.data : { ...stored.data, html: revealCopyImages(stored.data.html) };
     this.preparedCopies.delete(article.id); this.preparedCopies.set(article.id, { source: stored.data, result });
     if (this.preparedCopies.size > 24) this.preparedCopies.delete(this.preparedCopies.keys().next().value!);
     return result;
@@ -82,7 +82,7 @@ export class ArticleResources {
   web(article: ArticleItem, background = false): Promise<WebResult> {
     const key = `web:${article.id}`;
     const running = this.requests.get(key) as Promise<WebResult> | undefined;
-    if (running && !background && this.backgroundWeb.has(key)) return running.catch(() => this.web(article));
+    if (running && !background && this.backgroundWeb.has(key)) return isXStatusUrl(article.url) ? running : running.catch(() => this.web(article));
     if (!running && background) this.backgroundWeb.add(key);
     const work = this.loadWeb(article, background);
     if (!running && background) void work.catch(() => {}).finally(() => this.backgroundWeb.delete(key));
@@ -116,10 +116,10 @@ export class ArticleResources {
         try { result = await this.request<WebResult>(`/api/articles/${article.id}/web-copy`); }
         catch (error) { throw deviceError || error; }
       }
-      if (!result.textOnly && !result.partial && this.current() && generation === cacheGeneration.get(this.account)) {
+      if (!result.textOnly && !result.partial && (!isXStatusUrl(article.url) || result.thread) && this.current() && generation === cacheGeneration.get(this.account)) {
         await writeContent(this.account, `web:${article.id}`, result);
         this.preparedCopies.delete(article.id);
-        this.preparedCopies.set(article.id, { source: result, result: { ...result, html: revealCopyImages(result.html) } });
+        this.preparedCopies.set(article.id, { source: result, result: result.thread ? result : { ...result, html: revealCopyImages(result.html) } });
         if (this.preparedCopies.size > 24) this.preparedCopies.delete(this.preparedCopies.keys().next().value!);
       }
       try { this.copyOrigins.add(new URL(article.url).origin); } catch {}

@@ -1,5 +1,6 @@
-import type { D1DatabaseLike } from './types';
+import type { D1DatabaseLike, Env } from './types';
 import { parseHTML } from 'linkedom';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { xVideoHtml } from '../shared/xMedia';
 import { originalUrl, providers, readFeed, restProvider, restingUntil } from './xFeed';
 import { X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
@@ -113,12 +114,14 @@ export async function refreshXCardImages(url: string, contentHtml: string | null
   return { contentHtml: updated, thumbnailUrl: fresh };
 }
 
-/** `partial`은 답글인데 미러가 원글을 불러오지 못한 사본이다. 기기는 저장하지 않고 다음에 다시 받는다. */
-export async function fetchXThread(url: string, feedHtml?: string | null, db?: D1DatabaseLike): Promise<{ html: string; url: string; thread: true; partial?: true }> {
+type XThread = { html: string; url: string; thread: true; partial?: true };
+
+/** `partial`은 답글인데 미러가 원글을 불러오지 못한 사본이다. 기기는 저장하지 않는다. */
+export async function fetchXThread(url: string, feedHtml?: string | null, db?: D1DatabaseLike, feedTitle?: string): Promise<XThread> {
   const match = STATUS.exec(url);
   if (!match) throw new Error('X 글 주소가 아닙니다.');
   const [, username, id] = match;
-  let partial: { html: string; url: string; thread: true; partial: true } | null = null;
+  let partial: XThread | null = null;
   for (const provider of providers) {
     if (await restingUntil(provider, db) || (pageless.get(provider) || 0) > Date.now()) continue;
     const controller = new AbortController();
@@ -136,9 +139,11 @@ export async function fetchXThread(url: string, feedHtml?: string | null, db?: D
         if (!document.querySelector('.error-panel')) pageless.set(provider, Date.now() + 3_600_000);
         continue;
       }
-      const result = { html: threadDocument(document as unknown as Element, main, provider, `https://x.com/${username}/status/${id}`, feedHtml), url: `https://x.com/${username}/status/${id}`, thread: true as const };
+      const page = document as unknown as Element;
+      const missing = missingParent(page, main, /^R to @[a-z\d_]{1,15}:/i.test(feedTitle || ''));
+      const result = { html: threadDocument(page, main, provider, url, feedHtml, missing), url, thread: true as const };
       // 답글인데 원글이 없으면 그 미러가 대화를 불러오지 못한 것이다. 다른 미러를 한 번 더 보고, 그래도 없으면 원글 없이 보여 준다.
-      if (!missingParent(document as unknown as Element, main)) return result;
+      if (!missing) return result;
       partial ??= { ...result, partial: true };
     } catch { /* 다음 경로를 쓴다. */ }
     finally { clearTimeout(timer); }
@@ -148,10 +153,45 @@ export async function fetchXThread(url: string, feedHtml?: string | null, db?: D
 }
 
 // 이 글 자신이 답글인데(인용한 글의 답글 표시가 아니라) 위쪽 대화에 글이 하나도 없다.
-const missingParent = (document: Element, main: Element) => [...main.querySelectorAll('.replying-to')].some((node) => !node.matches('.quote *'))
+const missingParent = (document: Element, main: Element, feedReply: boolean) => (feedReply || [...main.querySelectorAll('.replying-to')].some((node) => !node.matches('.quote *')))
   && !document.querySelector('.main-thread .before-tweet .timeline-item .tweet-header');
 
-function threadDocument(document: Element, main: Element, provider: string, statusUrl: string, feedHtml?: string | null): string {
+// 화면에 보인 완성본을 번역에서 그대로 쓰되, 서버가 만들지 않은 HTML은 번역기에 보내지 않는다.
+function threadProof(env: Env, url: string, html: string) {
+  const key = env.X_SETTINGS_SECRET || env.JWT_SECRET;
+  if (!key || key.length < 32 || html.length > 1_000_000) return;
+  return createHmac('sha256', key).update(`feedex-x-translation-v1\n${url}\n${html}`).digest('base64url');
+}
+
+export function xThreadWithProof(env: Env, copy: XThread) {
+  return copy.partial ? copy : { ...copy, translationProof: threadProof(env, copy.url, copy.html) };
+}
+
+export function verifiedXThread(env: Env, url: string, snapshot: unknown): string | undefined {
+  if (!snapshot || typeof snapshot !== 'object' || !('html' in snapshot) || !('proof' in snapshot)) return;
+  const { html, proof } = snapshot;
+  if (typeof html !== 'string' || typeof proof !== 'string' || !/^[\w-]{43}$/.test(proof) || !html.includes(X_THREAD_MARK)) return;
+  const expected = threadProof(env, url, html);
+  if (expected && timingSafeEqual(Buffer.from(expected), Buffer.from(proof))) return html;
+}
+
+export function xThreadTranslationBody(html: string): string {
+  const { document } = parseHTML(html);
+  const main = document.querySelector('main');
+  if (!main?.querySelector('article.post.main')) return '';
+  main.querySelectorAll('.avatar, .mini, .stats, .replying, .more, .empty').forEach(node => node.remove());
+  main.querySelectorAll('.who').forEach(node => node.setAttribute('translate', 'no'));
+  for (const text of main.querySelectorAll('.text')) {
+    if (text.querySelector('p')) continue;
+    // Workers AI는 문단을 번역한다. 일반 X 글과 인용 글에도 문단을 만들어 준다.
+    const paragraph = document.createElement('p');
+    paragraph.innerHTML = text.innerHTML;
+    text.replaceChildren(paragraph);
+  }
+  return main.innerHTML;
+}
+
+function threadDocument(document: Element, main: Element, provider: string, statusUrl: string, feedHtml: string | null | undefined, parentMissing: boolean): string {
   const hosts = new Set([new URL(provider).hostname]);
   const link = (value: string | null) => {
     if (!value) return null;
@@ -251,7 +291,7 @@ function threadDocument(document: Element, main: Element, provider: string, stat
   const header = main.querySelector('.tweet-header');
   const title = escape(`${header?.querySelector('.fullname')?.textContent?.trim() || 'X'} (${header?.querySelector('.username')?.textContent?.trim() || ''}) X 글`);
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(statusUrl)}" target="_blank">${X_THREAD_MARK}<title>${title}</title><style>${X_THREAD_STYLE}${X_VIDEO_STYLE}</style></head><body><main>`
-    + (missingParent(document, main) ? '<p class="empty parent-missing">공개 미러가 이 답글의 원글을 불러오지 못했어요. X에서 열면 볼 수 있어요.</p>' : items('.main-thread .before-tweet .timeline-item', 'before')) + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
+    + (parentMissing ? '<p class="empty parent-missing">공개 미러가 이 답글의 원글을 불러오지 못했어요. 위의 다시 시도를 누르거나 X에서 열어 보세요.</p>' : items('.main-thread .before-tweet .timeline-item', 'before')) + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
     + `<section class="replies"><h2>댓글</h2>${replies || '<p class="empty">아직 보이는 댓글이 없어요.</p>'}</section>`
     + `<p class="more"><a data-x-external href="${escape(statusUrl)}">${more ? '댓글 더 보기 · ' : ''}X에서 열기 (로그인한 상태로 보기·반응)</a></p>`
     + '</main></body></html>';

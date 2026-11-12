@@ -142,6 +142,34 @@ try {
   assert.match((await unavailable.json()).error, /전체 본문/);
   const excerpt = await (await call('/api/articles/web/translate', { token: owner.token, method: 'POST', body: { source: 'feed' } })).json();
   assert.equal(excerpt.bodySource, 'feed'); assert.equal(excerpt.html, '번역:<p>Feed excerpt</p>');
+
+  const xUrl = 'https://x.com/cz/status/123';
+  await db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,content_html,published_at,created_at) VALUES(?,?,?,?,?,?,?,?)')
+    .bind('x-reply', 'feed', 'x-reply', 'R to @parent: Selected reply', xUrl, '<p>Only the RSS reply</p>', stamp, stamp).run();
+  const xPost = (handle, text, extra = '') => `<div class="timeline-item"><div class="tweet-header"><span class="fullname">${handle}</span><span class="username">@${handle}</span></div><div class="tweet-content">${text}</div>${extra}</div>`;
+  const xMain = xPost('cz', 'Selected reply', '<div class="replying-to">Replying to @parent</div>');
+  const xBefore = xPost('parent', 'Original parent message', '<div class="quote"><a class="quote-link" href="/quote/status/42"></a><div class="quote-text">Quoted original</div></div>');
+  let xAvailable = true, mirrorCalls = 0;
+  globalThis.fetch = (url, init) => {
+    if (!String(url).includes('/cz/status/123')) return deeplFetch()(url, init);
+    mirrorCalls++;
+    return Promise.resolve(new Response(`<div class="main-thread">${xAvailable ? `<div class="before-tweet">${xBefore}</div>` : ''}<div class="main-tweet">${xMain}</div></div><div class="replies"><div class="reply">${xPost('other', 'Visible follow-up')}</div></div>`));
+  };
+  const thread = await (await call('/api/articles/x-reply/web-copy', { token: owner.token })).json();
+  assert.match(thread.translationProof, /^[\w-]{43}$/);
+  xAvailable = false;
+  const xTranslate = body => call('/api/articles/x-reply/translate', { token: owner.token, method: 'POST', body });
+  const snapshot = { html: thread.html, proof: thread.translationProof };
+  const xFull = await (await xTranslate({ source: 'full', xThread: snapshot })).json();
+  assert.equal(xFull.bodySource, 'full');
+  assert.match(xFull.html, /Original parent message[\s\S]*Quoted original[\s\S]*Selected reply[\s\S]*Visible follow-up/);
+  assert.doesNotMatch(xFull.html, /Only the RSS reply|<style>|<base/);
+  assert.equal(mirrorCalls, 1, '번역은 이미 표시한 사본을 쓰고 미러에 다시 묻지 않는다.');
+  const tampered = await xTranslate({ source: 'full', xThread: { ...snapshot, html: snapshot.html.replace('Original parent message', 'Forged text') } });
+  assert.equal(tampered.status, 422, '검증에 실패하고 원글도 없으면 댓글만 번역하지 않는다.');
+  const xFeed = await (await xTranslate({ source: 'feed' })).json();
+  assert.equal(xFeed.html, '번역:<p>Only the RSS reply</p>');
+
   globalThis.fetch = deeplFetch();
   const changedBody = fullBody.replace('Full text', 'Changed text');
   await db.prepare("UPDATE articles SET full_content_html=? WHERE id='art'").bind(changedBody).run();

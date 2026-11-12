@@ -1,6 +1,6 @@
 // X 글 웹 사본의 모양. 서버가 만든 사본과 기기가 먼저 그리는 미리보기가 같이 쓴다.
 // 사본을 만드는 방식이 바뀌면 숫자를 올린다. 기기는 이 표시가 없는 저장 사본을 버리고 새로 받는다.
-export const X_THREAD_MARK = '<meta name="sfeed-x-thread" content="6">';
+export const X_THREAD_MARK = '<meta name="sfeed-x-thread" content="7">';
 export const X_THREAD_STYLE = `
 *{box-sizing:border-box}body{margin:0;background:#fff;color:#0f1419;font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
 main{max-width:640px;margin:0 auto;padding:8px 16px 32px}a{color:#1d9bf0;text-decoration:none}a:hover{text-decoration:underline}
