@@ -13,6 +13,8 @@ import type { XPost } from '../client/xTimeline';
 
 export interface XPostTarget { articleId: string; url: string; quote?: XPost['quote'] }
 type Copy = { html: string; url: string; thread: true; partial?: true };
+/** 사본이 다 그려지기를 기다리며 미리보기를 덮어 두는 최대 시간. 이미지가 멈춰도 이 뒤에는 사본을 보여 준다. */
+const PREVIEW_HOLD_MS = 3000;
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** 미러 서버가 긴 글을 일부만 잘라 보낸 경우, 인용 원문에 있던 전체 글로 본문을 복원한다. */
@@ -82,19 +84,24 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     return () => { active = false; controller.abort(); };
   }, [accountId, source.id, url, retry, activeQuote]);
   const isReady = copy?.url === url;
-  const html = useMemo(() => framedCopy(isReady ? copy.html : preview), [isReady, copy?.html, preview]);
-  // 사본이 준비되면 새 프레임으로 넘어가되, 새 프레임이 로드될 때까지 미리보기를 유지해 검은 화면 깜빡임을 막는다.
+  const readyHtml = useMemo(() => isReady ? framedCopy(copy.html) : undefined, [isReady, copy?.html]);
+  const previewHtml = useMemo(() => framedCopy(preview), [preview]);
+  // 사본이 준비돼도 미리보기 프레임은 지우거나 새로 만들지 않고 위에 그대로 둔다. 그 아래에서 사본을 다 그리면
+  // 미리보기를 걷어 낸다. 미리보기를 새 프레임에 다시 그리면 같은 글을 한 번 더 불러오며 화면이 비어 깜빡인다.
   const [holdingPreview, setHoldingPreview] = useState<{ url: string; html: string } | null>(null);
   useEffect(() => {
-    if (!isReady && preview) setHoldingPreview({ url, html: framedCopy(preview) });
-  }, [isReady, preview, url]);
-  useEffect(() => { setHoldingPreview(null); }, [url]);
+    if (!isReady && preview) setHoldingPreview({ url, html: previewHtml });
+  }, [isReady, preview, previewHtml, url]);
+  // 다른 글로 바뀌면 그릴 때 주소로 걸러진다. 여기서 지우면 처음 열 때 방금 잡아 둔 미리보기까지 지워진다.
   useEffect(() => {
+    // 사본이 끝내 다 불러와지지 않아도(멈춘 이미지 등) 미리보기에 오래 머물지 않는다.
     if (isReady && holdingPreview) {
-      const timer = setTimeout(() => setHoldingPreview(null), 400);
+      const timer = setTimeout(() => setHoldingPreview(null), PREVIEW_HOLD_MS);
       return () => clearTimeout(timer);
     }
   }, [isReady, holdingPreview]);
+  const frameTitle = `${activeQuote?.name || handle} X 글`;
+  const frameStyle = { colorScheme: isDark ? 'dark' : 'light' } as const;
   return <section aria-label="앱에서 X 글 보기" className={`feedex-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto flex h-full min-h-0 min-w-0 w-full flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
     <header className={`feedex-linked-post-header flex items-center gap-2 border-b px-3 py-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
       <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2" onClick={back}><ChevronLeft size={21} /><span>{trail.length > 1 ? '이전 글' : '원래 글'}</span></button>
@@ -104,25 +111,31 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     </header>
     {error && <p role="status" className="px-4 py-2 text-sm text-slate-500">{error}</p>}
     <WebPager enabled={isMobile} onBack={back}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
-      <iframe
-        key={`${url}:${isReady ? 'ready' : 'preview'}`}
-        ref={frame}
-        title={`${activeQuote?.name || handle} X 글`}
-        srcDoc={html}
-        onLoad={() => { if (isReady) setHoldingPreview(null); }}
-        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-        referrerPolicy="no-referrer"
-        style={{ colorScheme: isDark ? 'dark' : 'light' }}
-        className="absolute inset-0 h-full w-full border-0 feedex-web-frame"
-      />
-      {isReady && holdingPreview && holdingPreview.url === url && (
+      {isReady && (
         <iframe
-          key={`${url}:preview-hold`}
-          title={`${activeQuote?.name || handle} X 글`}
-          srcDoc={holdingPreview.html}
+          key={`${url}:ready`}
+          ref={frame}
+          title={frameTitle}
+          srcDoc={readyHtml}
+          onLoad={() => setHoldingPreview(null)}
           sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
           referrerPolicy="no-referrer"
-          style={{ colorScheme: isDark ? 'dark' : 'light', zIndex: 1, pointerEvents: 'none' }}
+          style={frameStyle}
+          className="absolute inset-0 h-full w-full border-0 feedex-web-frame"
+        />
+      )}
+      {/* 미리보기 프레임. 사본이 도착해도 같은 프레임을 그대로 두므로 다시 불러오지 않는다. */}
+      {(!isReady || holdingPreview?.url === url) && (
+        <iframe
+          key={`${url}:preview`}
+          ref={isReady ? undefined : frame}
+          title={frameTitle}
+          srcDoc={isReady ? holdingPreview!.html : previewHtml}
+          aria-hidden={isReady ? true : undefined}
+          tabIndex={isReady ? -1 : undefined}
+          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+          referrerPolicy="no-referrer"
+          style={isReady ? { ...frameStyle, zIndex: 1, pointerEvents: 'none' } : frameStyle}
           className="absolute inset-0 h-full w-full border-0 feedex-web-frame"
         />
       )}

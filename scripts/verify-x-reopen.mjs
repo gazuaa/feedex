@@ -25,17 +25,26 @@ try{
   root=createRoot(window.document.getElementById('root'));
   const show=async article=>{
     await act(async()=>{root.render(React.createElement(ArticleDrawer,{...props,key:article.id,article}));});
+    const doc=frame=>frame.getAttribute('srcdoc')??frame.getAttribute('srcDoc')??'';
     const preview=window.document.querySelector('iframe');assert.ok(preview,'본문을 기다리는 동안 피드 미리보기를 표시한다.');
+    const previewDoc=doc(preview);
     assert.ok(pending.length);
     await act(async()=>{pending.shift()();});
-    const ready=window.document.querySelector('iframe');
+    const ready=[...window.document.querySelectorAll('iframe')].find(frame=>doc(frame).includes(`Saved ${article.id}`));
+    assert.ok(ready,'the saved copy is drawn');
     assert.notEqual(ready,preview,'미리보기 탐색에 저장 문서를 덮어쓰지 않고 새 프레임으로 표시한다.');
-    assert.ok(ready.getAttribute('srcDoc')?.includes(`Saved ${article.id}`)||ready.getAttribute('srcdoc')?.includes(`Saved ${article.id}`));
+    // 미리보기는 지웠다가 새 프레임에 다시 그리지 않는다. 그러면 같은 글을 한 번 더 불러오며 화면이 비어 깜빡인다.
+    assert.ok(preview.isConnected,'the preview frame stays in place while the saved copy loads');
+    assert.equal(doc(preview),previewDoc,'the preview document is not loaded again');
+    assert.equal(window.document.querySelectorAll('iframe').length,2,'no extra frame is made to hold the preview');
+    await act(async()=>{ready.dispatchEvent(new window.Event('load'));});
+    assert.ok(!preview.isConnected,'the preview is removed once the saved copy has loaded');
+    assert.deepEqual([...window.document.querySelectorAll('iframe')],[ready],'only the saved copy remains');
   };
   await show(rows[0]);await show(rows[1]);
   for(let n=0;n<4;n++)await show(rows[n%2]);
   assert.equal(requests,2,'다른 글을 읽고 돌아와도 저장된 사본을 다시 요청하지 않는다.');
-  console.log('PASS: real reader preview-to-ready frame replacement, cached A/B/A reopening and no duplicate copy requests.');
+  console.log('PASS: real reader preview-to-ready frame replacement that keeps the same preview frame until the saved copy loads, cached A/B/A reopening and no duplicate copy requests.');
 }finally{
   if(root)await act(async()=>root.unmount());
   for(const[key,descriptor]of originals)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];

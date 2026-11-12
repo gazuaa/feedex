@@ -83,6 +83,8 @@ const PEEK_MS = 4000;
 // 사이트 프레임이 다 불러왔다고 알리지 않아도 이만큼 기다린 뒤에는 보여 준다. 광고나 끝나지 않는 요청이 있는 사이트가 있다.
 // 한경·AI타임스 기사는 1~2초 안에 다 불러온다.
 const FRAME_WAIT_MS = 4000;
+/** X 글 완성본이 다 그려지기를 기다리며 미리보기를 덮어 두는 최대 시간. 이미지가 멈춰도 이 뒤에는 완성본을 보여 준다. */
+const PREVIEW_HOLD_MS = 3000;
 
 
 function loadWebZoom(account: string, feed: string): number {
@@ -320,15 +322,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const xWaiting = mode === 'web' && xPost && !copyReady && !(frame?.articleId === article?.id && frame?.embeddable);
   const xFailed = Boolean(copyFor) && !copyReady;
   const xPreview = useMemo(() => xWaiting && article ? framedCopy(xThreadPreview(article, xFailed)) : undefined, [xWaiting, xFailed, article?.id, article?.title, article?.content_html, article?.feed_title, article?.feed_favicon]);
-  // 미리보기를 거친 뒤 완성된 사본이 도착했을 때, 새 프레임이 로드될 때까지 미리보기를 유지해 검은 화면 깜빡임을 막는다.
+  // 완성된 사본이 도착해도 미리보기 프레임은 지우거나 새로 만들지 않고 그대로 위에 둔다. 그 아래에서 완성본을
+  // 다 그리면 미리보기를 걷어 낸다. 미리보기를 다시 그리면 같은 글을 한 번 더 불러오며 화면이 비어 깜빡인다.
   const [holdingPreview, setHoldingPreview] = useState<{ articleId: string; html: string } | null>(null);
   useEffect(() => {
     if (xWaiting && xPreview && article) setHoldingPreview({ articleId: article.id, html: xPreview });
   }, [xWaiting, xPreview, article?.id]);
-  useEffect(() => { setHoldingPreview(null); }, [article?.id]);
+  // 다른 글로 바뀌면 그릴 때 글 ID로 걸러진다. 여기서 지우면 처음 열 때 방금 잡아 둔 미리보기까지 지워진다.
   useEffect(() => {
+    // 완성본이 끝내 다 불러와지지 않아도(멈춘 이미지 등) 미리보기에 오래 머물지 않는다.
     if (!xWaiting && holdingPreview) {
-      const timer = setTimeout(() => setHoldingPreview(null), 400);
+      const timer = setTimeout(() => setHoldingPreview(null), PREVIEW_HOLD_MS);
       return () => clearTimeout(timer);
     }
   }, [xWaiting, holdingPreview]);
@@ -407,6 +411,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     target.postMessage({ sfeedInset: [inset / webZoom, (isMobile ? WEB_DOCK_SPACE : 0) / webZoom] }, '*');
   };
   useEffect(() => { insetCopy.current(); }, [isMobile, webZoom, article?.id, webCopyShown, xWaiting]);
+  // 웹 사본 프레임은 배율만큼 키워 보인다. 미리보기와 완성본 프레임이 같은 모양을 쓴다.
+  const copyFrameStyle: React.CSSProperties = {
+    width: `${100 / webZoom}%`,
+    height: `${100 / webZoom}%`,
+    transform: `scale(${webZoom})`,
+    transformOrigin: '0 0',
+    colorScheme: isDark ? 'dark' : 'light',
+  };
   useLayoutEffect(() => {
     const top = topRef.current;
     if (!top) return;
@@ -1016,42 +1028,32 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     * 스크립트는 스크롤 알림용으로만 돈다. 사본은 정리돼 있고 보안 정책이 나머지를 막는다.
                     * allow-same-origin이 없으므로 앱에 닿을 수 없고, X 글 링크는 앱에 알리고, 나머지 링크는 새 탭에서 연다.
                     */}
-                  {/* 캐시 본문이 즉시 도착해도 미리보기 탐색과 겹치지 않도록 완성된 문서는 새 프레임에서 그린다. */}
-                  <iframe
-                    ref={copyRef}
-                    key={`copy-${article.id}-${xWaiting ? 'preview' : 'ready'}`}
-                    srcDoc={xWaiting ? xPreview : copyHtml}
-                    onLoad={() => {
-                      insetCopy.current();
-                      if (!xWaiting) setHoldingPreview(null);
-                    }}
-                    title={article.title}
-                    className="absolute left-0 top-0 border-0 feedex-web-frame"
-                    style={{
-                      width: `${100 / webZoom}%`,
-                      height: `${100 / webZoom}%`,
-                      transform: `scale(${webZoom})`,
-                      transformOrigin: '0 0',
-                      colorScheme: isDark ? 'dark' : 'light',
-                    }}
-                    sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-                    referrerPolicy="no-referrer"
-                  />
-                  {/* 새 사본 프레임이 준비될 때까지 화면이 깜빡이지 않도록 이전 미리보기 프레임을 유지한다. */}
-                  {!xWaiting && holdingPreview && holdingPreview.articleId === article.id && (
+                  {/* 완성된 사본은 새 프레임에서 그린다. 미리보기 프레임이 다 그릴 때까지 위를 덮고 있다. */}
+                  {!xWaiting && (
                     <iframe
-                      key={`copy-${article.id}-preview-hold`}
-                      srcDoc={holdingPreview.html}
+                      ref={copyRef}
+                      key={`copy-${article.id}-ready`}
+                      srcDoc={copyHtml}
+                      onLoad={() => { insetCopy.current(); setHoldingPreview(null); }}
                       title={article.title}
-                      className="absolute left-0 top-0 border-0 feedex-web-frame pointer-events-none"
-                      style={{
-                        width: `${100 / webZoom}%`,
-                        height: `${100 / webZoom}%`,
-                        transform: `scale(${webZoom})`,
-                        transformOrigin: '0 0',
-                        colorScheme: isDark ? 'dark' : 'light',
-                        zIndex: 1,
-                      }}
+                      className="absolute left-0 top-0 border-0 feedex-web-frame"
+                      style={copyFrameStyle}
+                      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                  {/* 미리보기 프레임. 사본이 도착해도 같은 프레임을 그대로 두므로 다시 불러오지 않는다. */}
+                  {(xWaiting || holdingPreview?.articleId === article.id) && (
+                    <iframe
+                      ref={xWaiting ? copyRef : undefined}
+                      key={`copy-${article.id}-preview`}
+                      srcDoc={xWaiting ? xPreview : holdingPreview!.html}
+                      onLoad={xWaiting ? () => insetCopy.current() : undefined}
+                      title={article.title}
+                      aria-hidden={xWaiting ? undefined : true}
+                      tabIndex={xWaiting ? undefined : -1}
+                      className="absolute left-0 top-0 border-0 feedex-web-frame"
+                      style={xWaiting ? copyFrameStyle : { ...copyFrameStyle, zIndex: 1, pointerEvents: 'none' }}
                       sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
                       referrerPolicy="no-referrer"
                     />
