@@ -760,16 +760,19 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       if (shownArticleId.current === article.id) onCopyLink(article);
     });
   };
-  const openShareLink = (event: React.MouseEvent<HTMLAnchorElement>, close: () => void) => {
+  const openShareLink = (url: string, close: () => void, linkEvent?: React.MouseEvent<HTMLAnchorElement>) => {
     const bridge = nativeBridge();
-    if (bridge && event.currentTarget.protocol === 'https:') {
-      event.preventDefault();
-      bridge.postMessage({ type: 'openExternal', url: event.currentTarget.href });
-      close();
+    if (bridge && url.startsWith('https://')) {
+      linkEvent?.preventDefault();
+      bridge.postMessage({ type: 'openExternal', url });
+    } else if (linkEvent) {
+      // Slap은 사용자가 누른 원래 링크를 브라우저나 운영체제가 설치 앱에 연결한다.
+      window.setTimeout(close, 0);
       return;
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
-    // 브라우저가 링크를 연 뒤 메뉴를 닫는다.
-    window.setTimeout(close, 0);
+    close();
   };
   /**
    * 공유 방법: 링크 복사 → Slap과 공유 사이트 → 이메일. 휴대폰(터치 화면)에서는 시스템 공유를 맨 위에 둔다.
@@ -784,11 +787,12 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     return <>
       {phoneShare && <button type="button" className={option} onClick={() => shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />다른 앱으로 공유</button>}
       <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />링크 복사</button>
-      <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><MessageSquare size={16} aria-hidden="true" />Slap에 공유</a>
-      <a className={option} href={links.x} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><ExternalLink size={16} aria-hidden="true" />X에 공유</a>
-      <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><AtSign size={16} aria-hidden="true" />Threads에 공유</a>
-      <a className={option} href={links.telegram} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><Send size={16} aria-hidden="true" />텔레그램으로 공유</a>
-      {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(event, close)}><Mail size={16} aria-hidden="true" />이메일로 공유</a>}
+      <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.slap, close, event)}><MessageSquare size={16} aria-hidden="true" />Slap에 공유</a>
+      {/* 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 한다. */}
+      <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />X에 공유</button>
+      <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />Threads에 공유</a>
+      <button type="button" className={option} onClick={() => openShareLink(links.telegram, close)}><Send size={16} aria-hidden="true" />텔레그램으로 공유</button>
+      {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />이메일로 공유</a>}
     </>;
   };
 
