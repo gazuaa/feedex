@@ -19,6 +19,7 @@ import {
   MoreHorizontal,
   ChevronUp,
   Share2,
+  Mail,
   Link2,
   RotateCw,
   X,
@@ -344,7 +345,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       return () => clearTimeout(timer);
     }
   }, [xWaiting, holdingPreview]);
-  const [shareNotice, setShareNotice] = useState('');
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const shareMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => { setShareMenuOpen(false); }, [article?.id]);
@@ -364,7 +364,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       window.removeEventListener('keydown', escape, true);
     };
   }, [shareMenuOpen]);
-  const [mobileMenu, setMobileMenu] = useState<'tools' | 'assist' | null>(null);
+  const [mobileMenu, setMobileMenu] = useState<'tools' | 'assist' | 'share' | null>(null);
   const closeMobileMenu = () => setMobileMenu(null);
   const isMobile = useMobileViewport();
   const topRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), copyRef = useRef<HTMLIFrameElement>(null);
@@ -745,17 +745,24 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       : article.content_html || `<p>${article.summary || article.title}</p>`;
 
 
-  const shareArticle = async (desktop = false) => {
-    if (desktop && shareMenuOpen) { setShareMenuOpen(false); return; }
+  const shareWithDevice = async (close: () => void) => {
+    close();
     try {
-      if (navigator.share) await navigator.share({ title: article.title, url: article.url });
-      else if (desktop) setShareMenuOpen(true);
-      else { await navigator.clipboard.writeText(article.url); setShareNotice('링크를 복사했습니다.'); }
+      await navigator.share({ title: article.title, url: article.url });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
-      if (desktop) setShareMenuOpen(true);
-      else setShareNotice('공유하지 못했습니다. 원문 링크를 이용해 주세요.');
+      if (shownArticleId.current === article.id) onNotice('기기 공유 메뉴를 열지 못했어요.');
     }
+  };
+  const shareOptions = (close: () => void) => {
+    const option = 'flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left hover:bg-emerald-500/10';
+    return <>
+      <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />링크 복사</button>
+      <a className={option} href={`https://x.com/intent/tweet?${new URLSearchParams({ url: article.url, text: article.title })}`} target="_blank" rel="noopener noreferrer" onClick={close}><ExternalLink size={16} aria-hidden="true" />X에 공유</a>
+      <a className={option} href={`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(article.url)}`} onClick={close}><Mail size={16} aria-hidden="true" />이메일로 공유</a>
+      {typeof navigator !== 'undefined' && typeof navigator.share === 'function' &&
+        <button type="button" className={option} onClick={() => void shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />기기 공유 메뉴</button>}
+    </>;
   };
 
   return (
@@ -949,13 +956,12 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </button>
 
             <div ref={shareMenuRef} className="relative shrink-0">
-              <button type="button" onClick={() => void shareArticle(true)} aria-label="글 공유" title="글 공유" aria-expanded={shareMenuOpen}
+              <button type="button" onClick={() => setShareMenuOpen(open => !open)} aria-label="글 공유" title="글 공유" aria-expanded={shareMenuOpen}
                 className={`feedex-reader-icon ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
                 <Share2 className="w-4 h-4" />
               </button>
-              {shareMenuOpen && <div role="group" aria-label="공유 방법" className={`absolute right-0 top-full z-50 mt-2 min-w-36 rounded-xl border p-1.5 text-sm shadow-lg ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
-                <a className="block rounded-lg px-3 py-2 hover:bg-emerald-500/10" href={`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(article.url)}`} onClick={() => setShareMenuOpen(false)}>이메일로 공유</a>
-                <a className="block rounded-lg px-3 py-2 hover:bg-emerald-500/10" href={`https://x.com/intent/tweet?${new URLSearchParams({ url: article.url, text: article.title })}`} target="_blank" rel="noopener noreferrer" onClick={() => setShareMenuOpen(false)}>X에 공유</a>
+              {shareMenuOpen && <div role="group" aria-label="공유 방법" className={`feedex-desktop-share-menu absolute right-0 top-full z-50 mt-2 min-w-36 rounded-xl border p-1.5 text-sm shadow-lg ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+                {shareOptions(() => setShareMenuOpen(false))}
               </div>}
             </div>
 
@@ -1387,14 +1393,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>
         </div>
         )}
-        {shareNotice && <p role="status" className="feedex-mobile-share-notice lg:hidden">{shareNotice}</p>}
         {framed && barsHidden && <button type="button" className="feedex-web-peek lg:hidden" aria-label="메뉴 보이기" onClick={() => setPeek(1)}><ChevronUp size={22} /></button>}
         <nav aria-label="본문 조작" className="feedex-mobile-dock feedex-mobile-reader-dock lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
           <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
           <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
           <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>
           <button aria-label="다음 아티클" disabled={!hasNext} onClick={() => onNavigateRelative('next')}><ChevronRight size={21} /></button>
-          <button aria-label="글 공유" onClick={() => void shareArticle()}><Share2 size={18} /></button>
+          <button aria-label="글 공유" aria-expanded={mobileMenu === 'share'} onClick={() => setMobileMenu('share')}><Share2 size={18} /></button>
           <button aria-label="번역 및 AI 요약" aria-expanded={mobileMenu === 'assist'} onClick={() => setMobileMenu('assist')}>{translating || summarizing ? <Loader2 size={19} className="animate-spin" /> : <Sparkles size={19} />}</button>
         </nav>
         {isMobile && mobileMenu && <>
@@ -1407,6 +1412,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             <p className="feedex-mobile-menu-label">{siteShown ? '사이트 확대·축소' : '글자 크기'}</p>
             {sizeControl('feedex-mobile-zoom')}
             <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}><ExternalLink size={18} />원문 사이트 열기</a>
+          </div> : mobileMenu === 'share' ? <div role="group" className="feedex-mobile-reader-menu feedex-mobile-assist-menu" aria-label="공유 방법">
+            {shareOptions(closeMobileMenu)}
           </div> : <div className="feedex-mobile-reader-menu feedex-mobile-assist-menu" aria-label="번역 및 AI 요약">
             <button aria-pressed={showTranslation} onClick={() => { closeMobileMenu(); toggleTranslation(); }}>{translating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}{translateAction}</button>
             <button aria-pressed={aiOpen} onClick={() => { closeMobileMenu(); toggleAiSummary(); }}><Sparkles size={18} />{aiAction}</button>

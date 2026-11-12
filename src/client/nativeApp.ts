@@ -60,7 +60,7 @@ export function nativeSignInCallback(code: string, state: string | null) {
 }
 
 // 웹 보기 자리를 가리는 창들. 앱의 원문 화면은 웹 화면 위에 놓이므로, 이것들이 열리면 원문 화면을 잠시 숨긴다.
-export const NATIVE_COVERS = 'dialog[open], [aria-modal="true"], .feedex-desktop-settings[open], .feedex-mobile-settings[open], .feedex-context-menu';
+export const NATIVE_COVERS = 'dialog[open], [aria-modal="true"], .feedex-desktop-settings[open], .feedex-mobile-settings[open], .feedex-context-menu, .feedex-desktop-share-menu';
 
 /**
  * 웹 보기 자리의 위치와 덮인 상태. 앱은 이 자리에 로그인이 유지되는 원문 화면을 겹쳐 띄운다.

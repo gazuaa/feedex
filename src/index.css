@@ -399,7 +399,6 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-menu-label { padding: 6px 12px 0; color: var(--feedex-mobile-muted); font-size: 11px; }
   .feedex-mobile-reader-dock { z-index: 60; gap: 0; }
   .feedex-mobile-reader-dock > button { flex: 1; }
-  .feedex-mobile-share-notice { position: fixed; z-index: 61; bottom: calc(76px + env(safe-area-inset-bottom)); left: 20px; right: 20px; padding: 12px; border-radius: 14px; background: var(--feedex-mobile-raised); text-align: center; font-size: 12px; }
   /*
    * 웹 보기: 위쪽 두 막대(상단 막대와 상태 줄)와 아래쪽 막대는 사이트 위에 떠 있어서, 나타나고 사라져도
    * 사이트는 자리를 지킨다. 사본은 위·아래 여백을 문서 안에 넣고(ArticleDrawer의 sfeedInset),
