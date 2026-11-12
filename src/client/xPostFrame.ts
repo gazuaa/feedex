@@ -7,6 +7,43 @@ import { X_THREAD_MARK } from '../shared/xThreadStyle';
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const YT_FRAME_SCRIPT = `<script nonce="sfeed-scroll">{let y;const p=()=>{if(!y)return;const r=y.getBoundingClientRect();parent.postMessage({sfeedYouTubeRect:[r.left,r.top,r.width,r.height]},'*')};addEventListener('click',e=>{const a=e.target.closest('a[data-yt-id]');if(!a||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();y=a;const r=a.getBoundingClientRect();parent.postMessage({sfeedYouTube:{id:a.getAttribute('data-yt-id'),start:Number(a.getAttribute('data-yt-start'))||0,rect:[r.left,r.top,r.width,r.height]}},'*')});addEventListener('scroll',p,{passive:true});addEventListener('resize',p)}</script>`;
 
+// 답글을 열면 선택한 글부터 보여 준다. 위쪽 사진이 늦게 그려져도 위치를 유지하다가 사용자가 조작하면 멈춘다.
+const X_THREAD_START_SCRIPT = `<script nonce="sfeed-scroll">
+addEventListener('DOMContentLoaded', () => {
+  const selected = document.querySelector('main > article.post.main');
+  if (!selected) return;
+  const earlier = [];
+  for (let post = selected.previousElementSibling; post; post = post.previousElementSibling) {
+    if (post.matches('article.post.before') && post.querySelector('.text')) earlier.push(post);
+  }
+  if (!earlier.length) return;
+
+  const root = document.documentElement;
+  const controller = new AbortController();
+  const options = { capture: true, passive: true, signal: controller.signal };
+  const position = () => {
+    if (controller.signal.aborted) return;
+    const inset = parseFloat(document.body.style.paddingTop) || 0;
+    const top = window.scrollY + selected.getBoundingClientRect().top - inset - 8;
+    window.scrollTo({ top, behavior: 'instant' });
+  };
+  const observer = new ResizeObserver(position);
+  const stop = () => {
+    controller.abort();
+    observer.disconnect();
+    delete root.dataset.sfeedXPositioning;
+  };
+  for (const event of ['pointerdown', 'touchstart', 'wheel', 'keydown']) addEventListener(event, stop, options);
+  addEventListener('message', event => {
+    if (event.source === parent && Array.isArray(event.data?.sfeedInset)) position();
+  }, options);
+  root.dataset.sfeedXPositioning = '';
+  for (const post of earlier) observer.observe(post, { box: 'border-box' });
+  position();
+  setTimeout(stop, 4000);
+}, { once: true });
+</script>`;
+
 /** 영상 재생기는 X 사본과 YouTube 임베드 사본에서만 연결하고, 실제 코드는 재생할 때 불러온다. */
 export function xFrameTools(html: string): string {
   const yt = html.includes('data-yt-id=') ? YT_FRAME_SCRIPT : '';
@@ -14,6 +51,7 @@ export function xFrameTools(html: string): string {
   const asset = (path: string) => escape(new URL(path, location.origin).href);
   // srcdoc 프레임은 바깥 iframe의 referrerPolicy만으로 내부 영상 요청의 Referer를 없애지 못한다.
   return `<meta name="referrer" content="no-referrer"><script nonce="sfeed-scroll">addEventListener('error',e=>{if(e.target?.tagName==='IMG')e.target.style.display='none'},true);addEventListener('click',e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;const p=e.target.closest('a.photo:not(.video)');if(p){e.preventDefault();const box=p.closest('.media,.quote,article')||document,all=[...box.querySelectorAll('a.photo:not(.video)')],urls=all.map(x=>x.href||x.querySelector('img')?.src||'').filter(Boolean);if(urls.length)parent.postMessage({sfeedXPhotos:{urls,index:Math.max(0,all.indexOf(p))}},'*');return}const a=e.target.closest('a[href]');if(!a||a.hasAttribute('data-x-external'))return;const m=/^https?:\\/\\/(?:(?:www\\.|mobile\\.)?(?:twitter\\.com|x\\.com)|[^/]+)\\/([a-z\\d_]{1,15})\\/status\\/(\\d{1,20})(?:[/?#]|$)/i.exec(a.href);if(m){e.preventDefault();const u='https://x.com/'+m[1]+'/status/'+m[2];const q=a.closest('.quote');const t=q?.querySelector('.text')?.innerText?.trim()||'';const n=q?.querySelector('.who b')?.innerText?.trim()||'';const h=(q?.querySelector('.who span')?.innerText?.trim()||'').replace(/^@/,'');parent.postMessage({sfeedXPost:u,quoteText:t,quoteName:n,quoteHandle:h},'*')}})</script>`
+    + X_THREAD_START_SCRIPT
     + (html.includes('data-hls-src=') ? `<script nonce="sfeed-scroll" defer src="${asset(playerUrl)}" data-hls="${asset(hlsUrl)}"></script>` : '')
     + yt;
 }
