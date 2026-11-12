@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ExternalLink, Languages, Loader2, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Languages, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { apiRequest, type ArticleItem } from '../client/api';
 import { readContent, writeContent } from '../client/deviceContent';
-import { WebPager } from './ArticleDrawer';
+import { AiSummaryCard, WebPager } from './ArticleDrawer';
 import { framedCopy, useMobileViewport } from '../client/mobile';
 import { xThreadPreview } from '../client/xThreadPreview';
 import { useCopyTheme } from '../client/copyTheme';
@@ -13,6 +13,7 @@ import type { XPost } from '../client/xTimeline';
 export interface XPostTarget { articleId: string; url: string; quote?: XPost['quote'] }
 type Copy = { html: string; url: string; thread?: boolean; partial?: boolean; translationProof?: string };
 type Translation = { html: string; provider: string; alreadyKorean?: boolean; notice?: string };
+type Summary = { copy: Copy; open: boolean; pending: boolean; text?: string; error?: string };
 /** 사본이 다 그려지기를 기다리며 미리보기를 덮어 두는 최대 시간. 이미지가 멈춰도 이 뒤에는 사본을 보여 준다. */
 const PREVIEW_HOLD_MS = 3000;
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -46,6 +47,9 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   const translationRequest = useRef<AbortController | null>(null);
   const result = activeCopy && translation?.copy === activeCopy ? translation.result : null;
   const showTranslation = Boolean(translated && result && !result.alreadyKorean);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const summaryRequest = useRef<AbortController | null>(null);
+  const activeSummary = summary?.copy === activeCopy ? summary : null;
   const isMobile = useMobileViewport();
   const back = () => trail.length > 1 ? setTrail((items) => items.slice(0, -1)) : onBack();
   const open = useCallback((next: string, hint?: { text: string; name?: string; handle?: string }) => {
@@ -94,6 +98,8 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     setTranslated(false); setTranslating(false); setTranslationError('');
     return () => { translationRequest.current?.abort(); translationRequest.current = null; };
   }, [accountId, source.id, url, retry]);
+  useEffect(() => () => { summaryRequest.current?.abort(); summaryRequest.current = null; }, [accountId, source.id, url, retry]);
+  const snapshot = activeCopy?.translationProof && !activeCopy.partial ? { html: activeCopy.html, proof: activeCopy.translationProof } : undefined;
   const toggleTranslation = async () => {
     if (translationRequest.current) {
       translationRequest.current.abort(); translationRequest.current = null; setTranslating(false);
@@ -106,9 +112,8 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     translationRequest.current = controller;
     setTranslating(true); setTranslationError('');
     try {
-      const xThread = activeCopy.translationProof && !activeCopy.partial ? { html: activeCopy.html, proof: activeCopy.translationProof } : undefined;
       const response = await apiRequest<Translation>(`/api/articles/${encodeURIComponent(source.id)}/translate`, {
-        method: 'POST', body: JSON.stringify({ source: 'full', xUrl: url, xThread }), signal: controller.signal,
+        method: 'POST', body: JSON.stringify({ source: 'full', xUrl: url, xThread: snapshot }), signal: controller.signal,
       });
       if (translationRequest.current !== controller) return;
       setTranslation({ copy: activeCopy, result: response }); setTranslated(true);
@@ -117,6 +122,31 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     } finally {
       if (translationRequest.current === controller) { translationRequest.current = null; setTranslating(false); }
     }
+  };
+  const loadSummary = async () => {
+    if (!activeCopy || summaryRequest.current) return;
+    const controller = new AbortController();
+    summaryRequest.current = controller;
+    const pending = { copy: activeCopy, open: true, text: activeSummary?.text };
+    setSummary({ ...pending, pending: true });
+    try {
+      const response = await apiRequest<{ aiSummary: string }>(`/api/articles/${encodeURIComponent(source.id)}/summarize`, {
+        method: 'POST', body: JSON.stringify({ xUrl: url, xThread: snapshot }), signal: controller.signal,
+      });
+      if (summaryRequest.current === controller) setSummary({ ...pending, pending: false, text: response.aiSummary });
+    } catch (error) {
+      if (summaryRequest.current === controller) setSummary({ ...pending, pending: false, error: error instanceof Error ? error.message : '요약하지 못했어요. 다시 시도해 주세요.' });
+    } finally {
+      if (summaryRequest.current === controller) summaryRequest.current = null;
+    }
+  };
+  const toggleSummary = () => {
+    if (activeSummary?.open) {
+      summaryRequest.current?.abort(); summaryRequest.current = null;
+      setSummary({ ...activeSummary, open: false, pending: false });
+    } else if (activeSummary?.text) {
+      setSummary({ ...activeSummary, open: true, error: undefined });
+    } else void loadSummary();
   };
   const isReady = Boolean(activeCopy);
   const readyHtml = useMemo(() => {
@@ -142,6 +172,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   const frameTitle = `${activeQuote?.name || handle} X 글`;
   const frameStyle = { colorScheme: isDark ? 'dark' : 'light' } as const;
   const translateAction = translating ? '번역 취소' : showTranslation ? '원문 보기' : '번역';
+  const summaryAction = activeSummary?.pending ? '요약 취소' : activeSummary?.open ? '요약 닫기' : '요약';
   return <section aria-label="앱에서 X 글 보기" className={`feedex-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto flex h-full min-h-0 min-w-0 w-full flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
     <header className={`feedex-linked-post-header flex items-center gap-2 border-b px-3 py-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
       <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2" onClick={back}><ChevronLeft size={21} /><span>{trail.length > 1 ? '이전 글' : '원래 글'}</span></button>
@@ -150,6 +181,11 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
         className="p-3 disabled:opacity-40" onClick={() => void toggleTranslation()}>
         {translating ? <Loader2 size={19} className="animate-spin" /> : <Languages size={19} />}
       </button>
+      <button type="button" aria-label={summaryAction} title={summaryAction} aria-pressed={activeSummary?.open ?? false} disabled={!isReady}
+        className={`inline-flex items-center gap-1.5 p-3 disabled:opacity-40 ${activeSummary?.open ? 'text-emerald-600 dark:text-emerald-400' : ''}`} onClick={toggleSummary}>
+        {activeSummary?.pending ? <Loader2 size={19} className="animate-spin" /> : <Sparkles size={19} />}
+        <span className="hidden sm:inline text-xs font-semibold">요약</span>
+      </button>
       <button type="button" aria-label="X 글 새로고침" className="p-3" onClick={() => { setCopy(null); setRetry((value) => value + 1); }}><RefreshCw size={19} /></button>
       <a href={url} target="_blank" rel="noopener noreferrer" aria-label="X에서 열기" className="p-3"><ExternalLink size={19} /></a>
     </header>
@@ -157,6 +193,10 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     {(translating || translationError || (translated && result)) && <p role={translationError ? 'alert' : 'status'} className="px-4 py-2 text-sm text-slate-500">
       {translationError || (translating ? '한국어로 번역하는 중…' : result?.alreadyKorean ? '이미 한국어로 된 글이에요.' : result?.notice || `${result?.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`)}
     </p>}
+    {activeSummary?.open && <div className="feedex-web-summary">
+      <AiSummaryCard isDark={isDark} summarizing={activeSummary.pending} summary={activeSummary.text} error={activeSummary.error || ''}
+        loadingLabel="X 글을 요약하는 중…" onRegenerate={loadSummary} onClose={toggleSummary} />
+    </div>}
     <WebPager enabled={isMobile} onBack={back}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
       {isReady && (
         <iframe

@@ -1562,8 +1562,7 @@ export const App: React.FC = () => {
     const feed = target.feedId ? subscriptions.find((sub) => sub.feed_id === target.feedId) : null;
     const folder = target.folderId ? folders.find((item) => item.id === target.folderId) : null;
     if (article) {
-      items.push({ id: 'open-article', label: '앱에서 글 열기', run: () => handleSelectArticle(article) },
-        { id: 'read', label: article.is_read ? '안 읽음으로 표시' : '읽음으로 표시', run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
+      items.push({ id: 'read', label: article.is_read ? '안 읽음으로 표시' : '읽음으로 표시', run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
         { id: 'save', label: article.is_saved ? '저장 취소' : '나중에 읽기', run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
       items.push({ id: 'deepl-article', label: '이 글 DeepL로 번역', run: () => { const latest = articleCache.current.get(article.id) ?? article; openInDeepL(`${latest.title}\n\n${htmlToText(latest.full_content_html || latest.content_html || `<p>${latest.summary || ''}</p>`)}`); } });
       items.push({ id: 'block-title', label: '비슷한 글 숨기기…', separator: true, run: () => setBlockDialog({ accountId: user.id, article }) });

@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Archive, BookOpen, Bookmark, CheckCheck, CheckCircle2, Circle, Copy, ExternalLink, FolderInput, FolderOpen, FolderX, History, Languages, Link2, ListFilter, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, UserRoundMinus, type LucideIcon } from 'lucide-react';
+import { Archive, Bookmark, CheckCheck, CheckCircle2, Circle, Copy, ExternalLink, FolderInput, FolderOpen, FolderX, History, Languages, Link2, ListFilter, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, UserRoundMinus, type LucideIcon } from 'lucide-react';
 import { bindLongPress } from '../client/longPress';
 
 export interface AppContextTarget { articleId?: string; folderId?: string; feedId?: string; link?: string; selection?: string }
 export interface AppContextAction { id: string; label: string; run: () => void | Promise<unknown>; danger?: boolean; separator?: boolean }
 
 const MENU_ICONS: Record<string, LucideIcon> = {
-  'copy-text': Copy, 'open-article': BookOpen, read: CheckCircle2, save: Bookmark,
+  'copy-text': Copy, read: CheckCircle2, save: Bookmark,
   'block-title': ListFilter, 'edit-builder': Pencil, 'feed-history': History, 'rename-feed': Pencil,
   'open-feed': Newspaper, 'mark-feed': CheckCheck, 'move-feed': FolderInput, updates: Pause,
   unsubscribe: UserRoundMinus, 'open-folder': FolderOpen, 'mark-folder': CheckCheck, 'delete-folder': FolderX,

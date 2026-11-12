@@ -63,7 +63,7 @@ function parseSummary(response: unknown) {
 
 export async function summarizeArticleWithAI(
   env: Env,
-  article: { title: string; text: string; source: SummarySource },
+  article: { title: string; text: string; source: SummarySource; xPost?: boolean },
 ): Promise<{ summary: string; model: string } | null> {
   if (!env.AI || !article.text) return null;
   const models = new Set([env.AI_MODEL || DEFAULT_SUMMARY_MODEL, DEFAULT_SUMMARY_MODEL, BACKUP_SUMMARY_MODEL]);
@@ -74,7 +74,7 @@ export async function summarizeArticleWithAI(
     try {
       const input = {
         messages: [
-          { role: 'system' as const, content: SUMMARY_INSTRUCTIONS },
+          { role: 'system' as const, content: article.xPost ? `${SUMMARY_INSTRUCTIONS} 선택한 X 게시물이 요약 대상이다. 인용된 게시물은 맥락으로 사용하고 각 발언자를 구분한다.` : SUMMARY_INSTRUCTIONS },
           { role: 'user' as const, content: JSON.stringify({ title: normalizeMoney(article.title), article: text }) },
         ],
         response_format: { type: 'json_schema' as const, json_schema: { type: 'object', properties: { overview: { type: 'string' }, points: { type: 'array', items: { type: 'string' } } }, required: ['overview', 'points'] } },

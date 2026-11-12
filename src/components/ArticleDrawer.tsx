@@ -215,7 +215,7 @@ function SummaryText({ text }: { text: string }) {
   return <>{text.split(/\*\*(.+?)\*\*/g).map((part, index) => index % 2 ? <strong key={index}>{part}</strong> : part)}</>;
 }
 
-function AiSummaryCard({ isDark, summarizing, summary, error, onRegenerate, onClose }: { isDark: boolean; summarizing: boolean; summary?: string | null; error: string; onRegenerate: () => void; onClose?: () => void }) {
+export function AiSummaryCard({ isDark, summarizing, summary, error, onRegenerate, onClose, loadingLabel = '기사 본문을 요약하는 중…' }: { isDark: boolean; summarizing: boolean; summary?: string | null; error: string; onRegenerate: () => void; onClose?: () => void; loadingLabel?: string }) {
   // 웹 보기의 칸(onClose가 있는 경우)은 사이트를 덜 가리게 여백과 제목을 줄인다.
   return <div className={`${onClose ? 'p-3.5' : 'p-5'} rounded-2xl border relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
     <div className="flex items-center justify-between gap-2 mb-3">
@@ -231,7 +231,7 @@ function AiSummaryCard({ isDark, summarizing, summary, error, onRegenerate, onCl
       </div>
     </div>
     {summarizing ? (
-      <div role="status" className="py-4 flex items-center gap-2.5 text-sm"><Loader2 className="w-4 h-4 animate-spin" /><span>기사 본문을 요약하는 중…</span></div>
+      <div role="status" className="py-4 flex items-center gap-2.5 text-sm"><Loader2 className="w-4 h-4 animate-spin" /><span>{loadingLabel}</span></div>
     ) : <>
       {error && <p role="alert" className={isDark ? 'text-sm text-rose-300' : 'text-sm text-rose-700'}>{error}</p>}
       {summary && <div className={`text-sm whitespace-pre-line leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}><SummaryText text={summary} /></div>}
@@ -345,6 +345,25 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     }
   }, [xWaiting, holdingPreview]);
   const [shareNotice, setShareNotice] = useState('');
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const shareMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { setShareMenuOpen(false); }, [article?.id]);
+  useEffect(() => {
+    if (!shareMenuOpen) return;
+    const outside = (event: PointerEvent) => { if (!shareMenuRef.current?.contains(event.target as Node)) setShareMenuOpen(false); };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      setShareMenuOpen(false);
+      shareMenuRef.current?.querySelector('button')?.focus();
+    };
+    document.addEventListener('pointerdown', outside, true);
+    window.addEventListener('keydown', escape, true);
+    return () => {
+      document.removeEventListener('pointerdown', outside, true);
+      window.removeEventListener('keydown', escape, true);
+    };
+  }, [shareMenuOpen]);
   const [mobileMenu, setMobileMenu] = useState<'tools' | 'assist' | null>(null);
   const closeMobileMenu = () => setMobileMenu(null);
   const isMobile = useMobileViewport();
@@ -726,11 +745,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       : article.content_html || `<p>${article.summary || article.title}</p>`;
 
 
-  const shareArticle = async () => {
+  const shareArticle = async (desktop = false) => {
+    if (desktop && shareMenuOpen) { setShareMenuOpen(false); return; }
     try {
       if (navigator.share) await navigator.share({ title: article.title, url: article.url });
+      else if (desktop) setShareMenuOpen(true);
       else { await navigator.clipboard.writeText(article.url); setShareNotice('링크를 복사했습니다.'); }
-    } catch (error) { if (!(error instanceof Error && error.name === 'AbortError')) setShareNotice('공유하지 못했습니다. 원문 링크를 이용해 주세요.'); }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      if (desktop) setShareMenuOpen(true);
+      else setShareNotice('공유하지 못했습니다. 원문 링크를 이용해 주세요.');
+    }
   };
 
   return (
@@ -922,6 +947,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             >
               <Link2 className="w-4 h-4" />
             </button>
+
+            <div ref={shareMenuRef} className="relative shrink-0">
+              <button type="button" onClick={() => void shareArticle(true)} aria-label="글 공유" title="글 공유" aria-expanded={shareMenuOpen}
+                className={`feedex-reader-icon ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
+                <Share2 className="w-4 h-4" />
+              </button>
+              {shareMenuOpen && <div role="group" aria-label="공유 방법" className={`absolute right-0 top-full z-50 mt-2 min-w-36 rounded-xl border p-1.5 text-sm shadow-lg ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
+                <a className="block rounded-lg px-3 py-2 hover:bg-emerald-500/10" href={`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(article.url)}`} onClick={() => setShareMenuOpen(false)}>이메일로 공유</a>
+                <a className="block rounded-lg px-3 py-2 hover:bg-emerald-500/10" href={`https://x.com/intent/tweet?${new URLSearchParams({ url: article.url, text: article.title })}`} target="_blank" rel="noopener noreferrer" onClick={() => setShareMenuOpen(false)}>X에 공유</a>
+              </div>}
+            </div>
 
             {/* 원문 링크 열기 */}
             <a

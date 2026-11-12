@@ -1,6 +1,6 @@
 import { ArticleBlockTag } from './ArticleBlockTag';
 import React, { useMemo, useState } from 'react';
-import { Bookmark, CheckCircle2, Circle, ExternalLink, MessageCircle, Play, Repeat2 } from 'lucide-react';
+import { Bookmark, CheckCircle2, Circle, ExternalLink, Play, Repeat2 } from 'lucide-react';
 import { apiRequest, type ArticleItem } from '../client/api';
 import { parseXPost, xTime, type XMedia, type XPost } from '../client/xTimeline';
 import { useXAvatars } from '../client/xAvatars';
@@ -105,7 +105,6 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
         <MediaGrid media={post.quote.media || []} line={line} compact onImageError={refreshExpiredImage} />
       </div>}
       <div className="-ml-2 mt-1 flex max-w-[425px] items-center justify-between text-slate-500">
-        <button type="button" title="댓글 보기" aria-label="댓글 보기" onClick={(event) => { stop(event); onSelectArticle(article); }} className={`${action} hover:bg-sky-500/10 hover:text-sky-500`}><MessageCircle className="h-[18px] w-[18px]" /></button>
         <button type="button" title={article.is_read ? '안읽음으로 표시' : '읽음으로 표시'} aria-label={article.is_read ? '안읽음으로 표시' : '읽음으로 표시'} onClick={(event) => onToggleRead(article, event)} className={`${action} hover:bg-emerald-500/10 hover:text-emerald-500`}>{article.is_read ? <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500/80" /> : <Circle className="h-[18px] w-[18px]" />}</button>
         <button type="button" title="나중에 읽기(북마크)" aria-label="나중에 읽기(북마크)" aria-pressed={article.is_saved} onClick={(event) => onToggleSaved(article, event)} className={`${action} hover:bg-sky-500/10 hover:text-sky-500 ${article.is_saved ? 'text-sky-500' : ''}`}><Bookmark className={`h-[18px] w-[18px] ${article.is_saved ? 'fill-current' : ''}`} /></button>
         <a href={article.url} target="_blank" rel="noopener noreferrer" title="X에서 열기" aria-label="X에서 열기" onClick={stop} className={`${action} hover:bg-sky-500/10 hover:text-sky-500`}><ExternalLink className="h-[18px] w-[18px]" /></a>

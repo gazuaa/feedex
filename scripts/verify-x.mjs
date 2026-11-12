@@ -395,8 +395,8 @@ try {
   const previous = globalThis.DOMParser; globalThis.DOMParser = DOMParser;
   try {
     const html = renderToStaticMarkup(React.createElement(XTimeline, { articles: [{ ...base, id: 'r1', title: 'RT by @NASA: x', feed_title: 'NASA (@NASA)', url: 'https://x.com/NASAAdmin/status/1', content_html: '<p>&lt;script&gt;alert(1)&lt;/script&gt; hello</p>' }], selectedArticleId: null, onSelectArticle() {}, onToggleRead() {}, onToggleSaved() {}, isDark: true, listRef: { current: null } }));
-    for (const text of ['feedex-list-items feedex-x-timeline', 'data-article-id="r1"', 'NASA 님이 재게시함', '@NASAAdmin', '&lt;script&gt;alert(1)&lt;/script&gt; hello', 'aria-label="댓글 보기"', 'aria-label="X에서 열기"', 'href="https://x.com/NASAAdmin/status/1"']) assert.ok(html.includes(text), text);
-    assert.doesNotMatch(html, /<script/);
+    for (const text of ['feedex-list-items feedex-x-timeline', 'data-article-id="r1"', 'NASA 님이 재게시함', '@NASAAdmin', '&lt;script&gt;alert(1)&lt;/script&gt; hello', 'aria-label="X에서 열기"', 'href="https://x.com/NASAAdmin/status/1"']) assert.ok(html.includes(text), text);
+    assert.doesNotMatch(html, /<script|aria-label="댓글 보기"/);
     // 목록의 인용 글 상자는 링크가 아니다. 누르면 글 줄을 눌렀을 때처럼 이 글이 먼저 열린다. 인용한 글쓴이 사진 자리가 있다.
     const quotedRow = renderToStaticMarkup(React.createElement(XTimeline, { articles: [{ ...base, id: 'q1', title: '> hermes migrate grok-bot', url: 'https://x.com/NousResearch/status/2117326444669857941', content_html: '<p>hermes</p><hr/><blockquote><b>Elon Musk (@elonmusk)</b><p><p>The cost of serving Grok Bot</p></p><footer>— <cite><a href="https://x.com/elonmusk/status/2116992258520064397">https://x.com/elonmusk/status/2116992258520064397</a></cite></footer></blockquote>' }], selectedArticleId: null, onSelectArticle() {}, onToggleRead() {}, onToggleSaved() {}, isDark: false, listRef: { current: null } }));
     assert.doesNotMatch(quotedRow, /href="https:\/\/x\.com\/elonmusk\/status\/2116992258520064397"/);

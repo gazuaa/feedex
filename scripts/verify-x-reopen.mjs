@@ -83,10 +83,15 @@ try{
   const { XPostPanel } = await vite.ssrLoadModule('/src/components/XPostPanel.tsx');
   const quotedUrl = 'https://x.com/quoted/status/42';
   const quotedHtml = `<!doctype html><html><head>${X_THREAD_MARK}</head><body><main><article class="post main">引用原文</article></main></body></html>`;
-  let quoteTranslations = 0;
+  let quoteTranslations = 0, quoteSummaries = 0;
   try {
     globalThis.fetch = async (url, init) => {
       if (String(url).includes('/x-post?')) return Response.json({ url: quotedUrl, html: quotedHtml, thread: true, translationProof: 'quote-proof' });
+      if (url === `/api/articles/${reply.id}/summarize`) {
+        quoteSummaries++;
+        assert.deepEqual(JSON.parse(init.body), { xUrl: quotedUrl, xThread: { html: quotedHtml, proof: 'quote-proof' } });
+        return Response.json({ aiSummary: '**핵심 요약**\n열린 인용글의 요약입니다.' });
+      }
       assert.equal(url, `/api/articles/${reply.id}/translate`);
       quoteTranslations++;
       assert.deepEqual(JSON.parse(init.body), { source: 'full', xUrl: quotedUrl, xThread: { html: quotedHtml, proof: 'quote-proof' } });
@@ -101,6 +106,13 @@ try{
     assert.match(doc(), /引用原文/);
     await act(async () => { window.document.querySelector('button[aria-label="번역"]').click(); });
     assert.equal(quoteTranslations, 1, '같은 인용글은 원문으로 돌아갔다가 번역을 다시 켜도 재요청하지 않는다.');
+    await act(async () => { window.document.querySelector('button[aria-label="요약"]').click(); });
+    assert.match(window.document.querySelector('.feedex-web-summary').textContent, /열린 인용글의 요약/);
+    assert.match(doc(), /인용글 본문 번역/);
+    await act(async () => { window.document.querySelector('header button[aria-label="요약 닫기"]').click(); });
+    assert.equal(window.document.querySelector('.feedex-web-summary'), null);
+    await act(async () => { window.document.querySelector('button[aria-label="요약"]').click(); });
+    assert.equal(quoteSummaries, 1, '같은 글의 요약을 다시 펼칠 때 이미 받은 내용을 쓴다.');
   } finally { globalThis.fetch = originalFetch; }
   console.log('PASS: real reader preview-to-ready frame replacement that keeps the same preview frame until the saved copy loads, cached A/B/A reopening and no duplicate copy requests.');
 }finally{

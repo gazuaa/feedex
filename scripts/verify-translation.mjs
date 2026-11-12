@@ -172,7 +172,7 @@ try {
 
   const linkedUrl = 'https://x.com/quote/status/42';
   globalThis.fetch = (url, init) => String(url).endsWith('/quote/status/42')
-    ? Promise.resolve(new Response(`<div class="main-thread"><div class="main-tweet">${xPost('quote', 'Opened quote text')}</div></div><div class="replies"><div class="reply">${xPost('follower', 'Quote follow-up')}</div></div>`))
+    ? Promise.resolve(new Response(`<div class="main-thread"><div class="before-tweet">${xBefore}</div><div class="main-tweet">${xPost('quote', 'Opened quote text explains why the policy changed.', '<div class="quote"><div class="quote-text">Policy announcement from the original author</div></div>')}</div></div><div class="replies"><div class="reply">${xPost('follower', 'Quote follow-up')}</div></div>`))
     : deeplFetch()(url, init);
   const linked = await (await call(`/api/articles/x-reply/x-post?url=${encodeURIComponent(linkedUrl)}`, { token: owner.token })).json();
   assert.match(linked.translationProof, /^[\w-]{43}$/);
@@ -184,6 +184,20 @@ try {
   assert.equal((await (await xTranslate(linkedRequest)).json()).cached, true);
   assert.equal((await (await xTranslate({ source: 'full', xThread: snapshot })).json()).cached, true, '인용글 번역이 처음 글의 번역을 덮어쓰지 않는다.');
   assert.equal((await xTranslate({ ...linkedRequest, xUrl: 'https://example.test/quote/status/42' })).status, 400);
+
+  const quoteSummary = (token = owner.token, body = linkedRequest) => call('/api/articles/x-reply/summarize', { token, method: 'POST', body });
+  env.AI = { async run(_model, input) {
+    const { title, article } = JSON.parse(input.messages[1].content);
+    assert.equal(title, 'X 게시물 (@quote)');
+    assert.match(article, /선택한 게시물:\nOpened quote text[\s\S]*인용된 게시물:\nPolicy announcement/);
+    assert.doesNotMatch(article, /Original parent message|Quote follow-up|Selected reply/);
+    return { response: { overview: '이 게시물은 정책이 변경된 이유를 설명합니다.', points: [] } };
+  } };
+  assert.equal((await quoteSummary(other.token)).status, 404);
+  assert.equal((await quoteSummary(owner.token, { ...linkedRequest, xUrl: 'https://example.test/quote/status/42' })).status, 400);
+  assert.match((await (await quoteSummary()).json()).aiSummary, /정책이 변경된 이유/);
+  assert.equal((await db.prepare('SELECT ai_summary FROM articles WHERE id=?').bind('x-reply').first()).ai_summary, null, '인용글 요약은 처음 글에 저장하지 않는다.');
+  delete env.AI;
 
   globalThis.fetch = deeplFetch();
   const changedBody = fullBody.replace('Full text', 'Changed text');

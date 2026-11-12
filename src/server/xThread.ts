@@ -191,6 +191,16 @@ export function xThreadTranslationBody(html: string): string {
   return main.innerHTML;
 }
 
+export function xThreadSummaryPost(html: string) {
+  const { document } = parseHTML(html);
+  const post = document.querySelector('main > article.post.main');
+  return {
+    body: post?.querySelector('.body > .text')?.innerHTML || '',
+    quote: post?.querySelector('.quote-post .text')?.innerHTML || '',
+    author: post?.querySelector('.who span')?.textContent?.trim() || '',
+  };
+}
+
 function threadDocument(document: Element, main: Element, provider: string, statusUrl: string, feedHtml: string | null | undefined, parentMissing: boolean): string {
   const hosts = new Set([new URL(provider).hostname]);
   const link = (value: string | null) => {

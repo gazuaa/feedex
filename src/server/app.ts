@@ -21,7 +21,7 @@ import { xRoutes } from './xConnection';
 import { feedHistoryRoutes } from './feedHistory';
 import { XFeedError } from './xFeed';
 import { inheritXView, saveXView } from './xViews';
-import { fetchXThread, refreshXCardImages, verifiedXThread, xStatusUrl, xThreadTranslationBody, xThreadWithProof } from './xThread';
+import { fetchXThread, refreshXCardImages, verifiedXThread, xStatusUrl, xThreadSummaryPost, xThreadTranslationBody, xThreadWithProof } from './xThread';
 import { isXProfileFeed } from '../shared/xFeed';
 import { importOpmlFeed, OpmlSourceError } from './opmlImporter';
 import { clearOpmlFailure, listOpmlFailures, recordOpmlFailure } from './opmlFailures';
@@ -1530,7 +1530,8 @@ app.delete('/api/translation/deepl', async (c) => {
 
 // 기사 요약은 번역과 마찬가지로 구독한 원문부터 확인한다.
 app.post('/api/articles/:id/summarize', async (c) => {
-  const body = await c.req.json<{ force?: boolean; phone?: boolean }>().catch(() => ({} as { force?: boolean; phone?: boolean }));
+  type SummaryRequest = { force?: boolean; phone?: boolean; xUrl?: unknown; xThread?: unknown };
+  const body: SummaryRequest = await c.req.json<SummaryRequest>().catch(() => ({}));
   const article = await c.env.DB.prepare(
     `SELECT id, title, url, summary, content_html, full_content_html, ai_summary
      FROM articles WHERE id=? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
@@ -1539,6 +1540,24 @@ app.post('/api/articles/:id/summarize', async (c) => {
     full_content_html: string | null; ai_summary: string | null;
   }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  if (body.xUrl !== undefined) {
+    const url = body.xUrl;
+    if (typeof url !== 'string' || !xStatusUrl(url) || !xStatusUrl(article.url)) {
+      return c.json({ error: '요약할 X 글 주소를 확인해 주세요.' }, 400);
+    }
+    const html = verifiedXThread(c.env, url, body.xThread)
+      || (await fetchXThread(url, article.content_html, c.env.DB, url === article.url ? article.title : undefined).catch(() => null))?.html;
+    const post = xThreadSummaryPost(html || '');
+    const main = summaryText(post.body), quote = summaryText(post.quote);
+    if (!main || main.length + quote.length < 20) {
+      return c.json({ error: '요약할 X 글 본문을 충분히 가져오지 못했어요.' }, 422);
+    }
+    const text = quote ? `선택한 게시물:\n${main}\n\n인용된 게시물:\n${quote}` : main;
+    const title = post.author ? `X 게시물 (${post.author})` : 'X 게시물';
+    const result = await summarizeArticleWithAI(c.env, { title, text, source: 'full', xPost: true });
+    if (!result) return c.json({ error: 'X 글 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.' }, 502);
+    return c.json({ aiSummary: result.summary, cached: false });
+  }
   const full = await readerBodyForArticleTools(c.env, article, body.phone === true);
   const fullText = summaryText(full || '');
   const source = fullText ? 'full' : 'feed';

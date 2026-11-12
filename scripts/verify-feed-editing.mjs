@@ -35,7 +35,7 @@ try {
   assert.equal((await owner(path, { folderId: null })).status, 200); assert.equal((await state()).custom_title, 'My publisher', 'moving preserves the custom name');
   const reset = await owner(path, { customTitle: null }); assert.equal((await reset.json()).title, 'Original publisher'); assert.equal((await state()).custom_title, null);
   const { contextMenuIcon } = await vite.ssrLoadModule('/src/components/DesktopContextMenu.tsx');
-  const ids = ['copy-text','open-article','read','save','block-title','edit-builder','rename-feed','feed-history','open-feed','mark-feed','move-feed','updates','unsubscribe','open-folder','mark-folder','delete-folder','open-original','copy-link','all','refresh','add'];
+  const ids = ['copy-text','read','save','block-title','edit-builder','rename-feed','feed-history','open-feed','mark-feed','move-feed','updates','unsubscribe','open-folder','mark-folder','delete-folder','open-original','copy-link','all','refresh','add'];
   for (const id of ids) { const Icon = contextMenuIcon({ id, label: id }); assert.match(renderToStaticMarkup(React.createElement(Icon, { 'aria-hidden': true })), /<svg/); }
   assert.notEqual(contextMenuIcon({ id: 'updates', label: '업데이트 다시 받기' }), contextMenuIcon({ id: 'updates', label: '업데이트 중지' }));
   console.log('PASS: account-only renaming/reset, input validation, preserved folders, atomic invalid moves, device metadata sync, shared names unchanged, and icons for every menu action.');
