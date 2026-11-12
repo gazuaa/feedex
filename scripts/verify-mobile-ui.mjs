@@ -19,10 +19,24 @@ try {
   assert.equal(position.hidden, true, 'bottom rubber-banding must not reveal chrome');
   assert.equal(scrollChrome(position, 420, 400, true).hidden, false, 'settings and input focus keep controls visible');
   assert.equal(scrollChrome(position, -30, 400).hidden, false);
-  const { framedCopy } = await vite.ssrLoadModule('/src/client/mobile.ts');
+  const { framedCopy, UNPIN_SCRIPT } = await vite.ssrLoadModule('/src/client/mobile.ts');
   assert.match(framedCopy('<!doctype html><html lang="ko"><head><base href="https://site.example.test/"></head><body></body></html>'), /^<!doctype html><html lang="ko"><style>html,body\{overflow-x:hidden!important\}<\/style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">/, 'the copy never pans sideways, and its policy comes before any page script');
   assert.ok(framedCopy('<p>bare</p>').startsWith('<style>'));
   assert.match(framedCopy('<p>bare</p>'), /sfeedSqueezed/, 'a copy laid out for a desktop says so');
+  // 사본에는 사이트 스크립트가 없어 고정 머리말이 글 위에 붙어 따라온다. 고정 요소를 문서와 함께 스크롤되게 푼다.
+  assert.ok(framedCopy('<p>bare</p>').includes(UNPIN_SCRIPT), 'every copy unpins fixed and sticky parts');
+  {
+    const element = (position) => { const set = {}; return { position, set, style: { setProperty: (name, value, priority) => { set[name] = `${value}${priority ? ' !' + priority : ''}`; } } }; };
+    const header = element('fixed'), sideNav = element('sticky'), text = element('static'), card = element('relative');
+    const listeners = [];
+    const unpin = new Function('document', 'getComputedStyle', 'addEventListener', `${UNPIN_SCRIPT}return sfeedUnpin;`)(
+      { body: { getElementsByTagName: () => [header, sideNav, text, card] } }, (e) => ({ position: e.position }), (type) => listeners.push(type));
+    assert.deepEqual(listeners, ['DOMContentLoaded', 'load'], 'unpinning runs once the page is read and again after it loads');
+    unpin();
+    assert.deepEqual(header.set, { position: 'absolute !important' }, 'a fixed header stays at the top of the document and scrolls away');
+    assert.deepEqual(sideNav.set, { position: 'relative !important', top: 'auto !important', bottom: 'auto !important' }, 'a sticky bar stays in its place in the page');
+    assert.deepEqual(text.set, {}); assert.deepEqual(card.set, {}, 'other parts are left alone');
+  }
 
   const { MobileLibrary } = await vite.ssrLoadModule('/src/components/MobileLibrary.tsx');
   const { MobileSettingsContent: MobileSettings, MobileHeader } = await vite.ssrLoadModule('/src/components/MobileChrome.tsx');
@@ -91,5 +105,5 @@ try {
   assert.match(loginView, /<p className="hidden lg:block /, 'phones skip the long intro'); assert.match(loginView, /<div className="hidden lg:grid /, 'phones skip the feature cards');
   const installCard = readFileSync(new URL('../src/components/PwaInstall.tsx', import.meta.url), 'utf8');
   assert.match(installCard, /aria-label="설치 안내 하루 동안 숨기기"[^>]*className="[^"]*h-10 w-10/, 'the install card close button is finger sized');
-  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes and the AI summary in the top more menu.');
+  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
 } finally { await vite.close(); }
