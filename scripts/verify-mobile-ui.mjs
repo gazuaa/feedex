@@ -22,15 +22,13 @@ try {
   const { framedCopy, UNPIN_SCRIPT } = await vite.ssrLoadModule('/src/client/mobile.ts');
   // 공유: 공유 사이트 주소, 붙여 넣을 글, 복사가 막힐 때의 대체 방법, 메뉴 순서.
   {
-    const { shareLinks, titleAndLink, summaryShareText, copyText } = await vite.ssrLoadModule('/src/client/share.ts');
+    const { shareLinks, copyText } = await vite.ssrLoadModule('/src/client/share.ts');
     const shared = { title: 'Bitcoin & ETF 소식', url: 'https://news.example.test/a?b=1&c=2' };
     const links = shareLinks(shared);
     assert.equal(new URL(links.x).searchParams.get('url'), shared.url); assert.equal(new URL(links.x).searchParams.get('text'), shared.title);
     assert.equal(new URL(links.telegram).origin, 'https://t.me'); assert.equal(new URL(links.telegram).searchParams.get('url'), shared.url);
     assert.equal(new URL(links.threads).searchParams.get('text'), `${shared.title}\n${shared.url}`, 'Threads gets the title and the address');
     assert.ok(links.email.startsWith('mailto:?subject=')); assert.equal(decodeURIComponent(links.email.split('&body=')[1]), `${shared.title}\n${shared.url}`, 'the e-mail body carries the title too');
-    assert.equal(titleAndLink(shared), `${shared.title}\n${shared.url}`);
-    assert.equal(summaryShareText(shared, '**핵심 요약**\n한 줄\n\n**주요 포인트**\n• 하나'), `${shared.title}\n\n핵심 요약\n한 줄\n\n주요 포인트\n• 하나\n\n${shared.url}`, 'bold marks are dropped from a shared summary');
     const saved = { navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'), document: Object.getOwnPropertyDescriptor(globalThis, 'document') };
     try {
       let written = '', fallback = '', focused = 0;
@@ -48,10 +46,16 @@ try {
     }
     const drawerSource = readFileSync(new URL('../src/components/ArticleDrawer.tsx', import.meta.url), 'utf8');
     const options = drawerSource.slice(drawerSource.indexOf('const shareOptions = (close: () => void) => {'), drawerSource.indexOf('return (\n    <div className="feedex-article-reader'));
-    assert.match(options, /\{isMobile && device\}\s*<button[^>]*>.*링크 복사/, 'phones offer other apps (KakaoTalk and so on) first');
-    assert.match(options, /\{!isMobile && device\}\s*<\/>/, 'desktops keep other apps last');
-    for (const label of ['제목과 링크 복사', '요약과 함께 복사', 'X에 공유', 'Threads에 공유', '텔레그램으로 공유', '이메일로 공유', '다른 앱으로 공유']) assert.ok(options.includes(label), label);
-    assert.match(options, /\{currentAiSummary && <button/, 'the summary copy appears only with a summary');
+    // 다른 앱으로 공유는 휴대폰(터치 화면)에서만 맨 위에 둔다. 컴퓨터의 시스템 공유는 이메일 정도만 떠서 쓸모가 없다.
+    assert.match(options, /const phoneShare = isMobile && [^;]*navigator\.share === 'function'[^;]*\(pointer: coarse\)/, 'other apps appear only on touch phones');
+    assert.match(options, /\{phoneShare && <button[^\n]*다른 앱으로 공유<\/button>\}\s*<button[^>]*>.*링크 복사/, 'on phones other apps come first');
+    assert.equal(options.match(/다른 앱으로 공유/g).length, 1, 'desktops do not list other apps at the bottom');
+    for (const label of ['링크 복사', 'X에 공유', 'Threads에 공유', '텔레그램으로 공유', '이메일로 공유']) assert.ok(options.includes(label), label);
+    for (const label of ['제목과 링크 복사', '요약과 함께 복사']) assert.ok(!drawerSource.includes(label), `${label} is not offered`);
+    // 시스템 공유는 누른 순간 메뉴를 닫기 전에 연다. 열지 못하면 링크를 복사해 둔다.
+    const device = drawerSource.slice(drawerSource.indexOf('const shareWithDevice = (close: () => void) => {'), drawerSource.indexOf('const shareOptions = (close'));
+    assert.ok(device.indexOf('navigator.share(') < device.indexOf('close();'), 'the system share opens before the menu closes');
+    assert.match(device, /AbortError'\) return;\s*if \(shownArticleId\.current === article\.id\) onCopyLink\(article\);/, 'a share that cannot open copies the link instead');
     assert.match(options, /\{nativePlatform\(\) !== 'mac' && <a className=\{option\} href=\{links\.email\}/, 'the Mac app, which cannot open mail links, hides e-mail sharing');
   }
   assert.match(framedCopy('<!doctype html><html lang="ko"><head><base href="https://site.example.test/"></head><body></body></html>'), /^<!doctype html><html lang="ko"><style>html,body\{overflow-x:hidden!important\}<\/style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">/, 'the copy never pans sideways, and its policy comes before any page script');
@@ -139,5 +143,5 @@ try {
   assert.match(loginView, /<p className="hidden lg:block /, 'phones skip the long intro'); assert.match(loginView, /<div className="hidden lg:grid /, 'phones skip the feature cards');
   const installCard = readFileSync(new URL('../src/components/PwaInstall.tsx', import.meta.url), 'utf8');
   assert.match(installCard, /aria-label="설치 안내 하루 동안 숨기기"[^>]*className="[^"]*h-10 w-10/, 'the install card close button is finger sized');
-  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, share links and copies with a clipboard fallback, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
+  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, share links, phone-only system sharing that falls back to copying, a clipboard fallback, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
 } finally { await vite.close(); }

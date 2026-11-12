@@ -11,15 +11,6 @@ export function shareLinks({ title, url }: SharedArticle) {
   };
 }
 
-/** 메신저에 붙여 넣기 좋은 제목과 주소. */
-export const titleAndLink = ({ title, url }: SharedArticle) => `${title}\n${url}`;
-
-/** 제목, AI 요약, 주소. 요약의 굵게 표시(**)는 뺀다. */
-export function summaryShareText({ title, url }: SharedArticle, summary: string) {
-  const plain = summary.replace(/\*\*(.+?)\*\*/g, '$1').trim();
-  return `${title}\n\n${plain}\n\n${url}`;
-}
-
 /**
  * 클립보드에 글을 넣는다. 권한이 막힌 화면(일부 앱 화면 등)에서는 예전 방식(숨긴 글상자를 선택해 복사)으로
  * 한 번 더 시도한다. 그 뒤에는 원래 누르던 곳으로 초점을 돌려준다.
