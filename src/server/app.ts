@@ -1564,9 +1564,11 @@ app.post('/api/articles/:id/summarize', async (c) => {
       return [[`${label}:\n${text}`, quote ? `${quoteLabel}:\n${quote}` : ''].filter(Boolean).join('\n')];
     });
     if (!parts.length) return c.json({ error: '요약할 X 대화를 가져오지 못했어요. 대화를 다시 불러온 뒤 요약해 주세요.' }, 422);
-    const author = posts.find(post => post.kind === 'selected')?.author;
+    const selected = posts.find(post => post.kind === 'selected');
+    const author = selected?.author;
+    const includeSelectedReply = posts.some(post => post.kind === 'before') && Boolean(summaryText(selected?.body || ''));
     const title = author ? `X 대화 (${author})` : 'X 대화';
-    const result = await summarizeArticleWithAI(c.env, { title, text: parts.join('\n\n'), source: 'x' });
+    const result = await summarizeArticleWithAI(c.env, { title, text: parts.join('\n\n'), source: 'x', includeSelectedReply });
     if (!result) return c.json({ error: 'X 글 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.' }, 502);
     if (samePost) await c.env.DB.prepare('UPDATE articles SET ai_summary=? WHERE id=?').bind(result.summary, article.id).run();
     return c.json({ aiSummary: result.summary, cached: false });

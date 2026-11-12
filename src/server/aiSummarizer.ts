@@ -10,7 +10,7 @@ const SUMMARY_INSTRUCTIONS = [
   'overview는 무슨 일이 일어났고 왜 중요한지 독자에게 설명하는 한 문장이다. points는 개요에 나온 사실을 반복하지 않고 새로운 근거·수치·단서를 최대 4개 담는다.',
   '자연스러운 한국어 뉴스 문체로 쓰고 번역투와 불필요한 한자를 피한다. 업계 용어는 문맥에 맞게 옮긴다. 예: 금융 기사의 traditional rails는 기존 거래 인프라, spot ETF는 현물 ETF.',
   '본문에서 한국어 단위로 환산한 금액은 숫자와 단위를 그대로 복사한다. 수치의 기준 시점과 비교 대상을 생략하거나 서로 바꾸지 않는다. 연초 이후 변화와 확정된 연간 결과, 전망과 확정 사실을 구분한다.',
-  '기사에 없는 배경·평가, 키워드, 상투적인 문구는 넣지 않는다. 짧은 자료라 추가 사실이 없으면 points는 빈 배열로 둔다. overview와 points를 가진 JSON 객체만 답한다.',
+  '기사에 없는 배경·평가, 키워드, 상투적인 문구는 넣지 않는다. 짧은 자료라 추가 사실이 없으면 points는 빈 배열로 둔다. JSON 객체로만 답한다.',
 ].join(' ');
 
 export function summaryText(html: string): string {
@@ -46,7 +46,7 @@ export function summaryInput(text: string): string {
   return [excerpt(0, 6500), excerpt(middle - 2250, middle + 2250), excerpt(text.length - 4800, text.length)].join('\n[중간 일부 생략]\n');
 }
 
-function parseSummary(response: unknown) {
+function parseSummary(response: unknown, includeSelectedReply: boolean) {
   let value = response;
   if (typeof value === 'string') {
     try { value = JSON.parse(value.trim().replace(/^```(?:json)?\s*|\s*```$/gi, '')); }
@@ -57,35 +57,42 @@ function parseSummary(response: unknown) {
   const overview = value.overview.trim();
   const points = [...new Set(value.points.filter((item): item is string => typeof item === 'string')
     .map(item => item.trim()).filter(item => item && item !== overview))];
+  const reply = 'reply' in value && typeof value.reply === 'string' ? value.reply.trim() : '';
   if (overview.length < 16 || !/[가-힣]{2}/.test(overview) || points.length > 4) return null;
-  return { overview, points };
+  if (includeSelectedReply && !reply) return null;
+  return { overview, points, reply: includeSelectedReply ? reply : '' };
 }
 
 export async function summarizeArticleWithAI(
   env: Env,
-  article: { title: string; text: string; source: SummarySource },
+  article: { title: string; text: string; source: SummarySource; includeSelectedReply?: boolean },
 ): Promise<{ summary: string; model: string } | null> {
   if (!env.AI || !article.text) return null;
   const models = new Set([env.AI_MODEL || DEFAULT_SUMMARY_MODEL, DEFAULT_SUMMARY_MODEL, BACKUP_SUMMARY_MODEL]);
   const text = normalizeMoney(summaryInput(article.text));
   const money = (value: string) => [...value.matchAll(/\b[\d,]+(?:\.\d+)?\s*[만억조]\s*(?:달러|유로|파운드)/g)].map(match => match[0].replace(/[\s,]/g, ''));
   const sourceMoney = new Set(money(text + '\n' + normalizeMoney(article.title)));
+  const includeSelectedReply = article.includeSelectedReply === true;
+  const instructions = [SUMMARY_INSTRUCTIONS];
+  if (article.source === 'x') instructions.push('원글부터 선택한 글과 그 뒤에 이어지는 본 대화까지 순서대로 요약한다. 앞선 글이 어떤 맥락을 주는지 설명하고 발언자를 구분한다. 인용된 게시물은 해당 발언의 맥락으로 사용한다.');
+  if (includeSelectedReply) instructions.push('JSON에 reply도 반드시 넣는다. reply는 “선택한 게시물”에서 작성자가 새로 한 말이나 행동만 한 문장으로 설명한다. 짧은 답글이나 책·링크 소개도 생략하지 말고, 책 이름처럼 본문에 나온 고유명사는 유지한다. reply에 쓴 내용은 points에서 반복하지 않는다.');
   for (const model of models) {
     try {
       const input = {
         messages: [
-          { role: 'system' as const, content: article.source === 'x' ? `${SUMMARY_INSTRUCTIONS} 원글부터 선택한 글과 그 뒤에 이어지는 본 대화까지 순서대로 요약한다. 앞선 글이 어떤 맥락을 주는지 설명하고 발언자를 구분한다. 인용된 게시물은 해당 발언의 맥락으로 사용한다.` : SUMMARY_INSTRUCTIONS },
+          { role: 'system' as const, content: instructions.join(' ') },
           { role: 'user' as const, content: JSON.stringify({ title: normalizeMoney(article.title), article: text }) },
         ],
-        response_format: { type: 'json_schema' as const, json_schema: { type: 'object', properties: { overview: { type: 'string' }, points: { type: 'array', items: { type: 'string' } } }, required: ['overview', 'points'] } },
+        response_format: { type: 'json_schema' as const, json_schema: { type: 'object', properties: { overview: { type: 'string' }, points: { type: 'array', items: { type: 'string' } }, ...(includeSelectedReply ? { reply: { type: 'string' } } : {}) }, required: includeSelectedReply ? ['overview', 'points', 'reply'] : ['overview', 'points'] } },
         ...(model.startsWith('@cf/google/gemma-4-') || model.startsWith('@cf/qwen/qwen3.8-') ? { chat_template_kwargs: { enable_thinking: false } } : {}),
         max_tokens: 950,
         temperature: 0.15,
       };
       const result = await env.AI.run(model, input);
-      const parsed = parseSummary(result?.response ?? result?.result?.response ?? result?.choices?.[0]?.message?.content);
-      if (!parsed || (sourceMoney.size && money([parsed.overview, ...parsed.points].join('\n')).some(amount => !sourceMoney.has(amount)))) continue;
+      const parsed = parseSummary(result?.response ?? result?.result?.response ?? result?.choices?.[0]?.message?.content, includeSelectedReply);
+      if (!parsed || (sourceMoney.size && money([parsed.overview, ...parsed.points, parsed.reply].join('\n')).some(amount => !sourceMoney.has(amount)))) continue;
       const summary = [SUMMARY_HEADINGS[article.source], parsed.overview];
+      if (parsed.reply) summary.push('', '**선택한 답글**', parsed.reply);
       if (parsed.points.length) summary.push('', '**주요 포인트**', ...parsed.points.map(point => '• ' + point));
       return { summary: summary.join('\n'), model };
     } catch { /* 다음 모델에 같은 기사 본문을 보낸다. */ }

@@ -2,7 +2,7 @@
 export const SUMMARY_HEADINGS = {
   full: '**핵심 요약**',
   feed: '**핵심 요약 · 피드 본문 기준**',
-  x: '**핵심 요약 · X 대화 기준**',
+  x: '**X 대화 요약**',
 } as const;
 export type SummarySource = keyof typeof SUMMARY_HEADINGS;
 

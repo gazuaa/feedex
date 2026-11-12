@@ -192,7 +192,8 @@ try {
     assert.equal(title, 'X 대화 (@quote)');
     assert.match(article, /Original parent message[\s\S]*선택한 게시물 \(@quote\):\nOpened quote text[\s\S]*인용된 게시물:\nPolicy announcement/);
     assert.doesNotMatch(article, /Quote follow-up|Selected reply/);
-    return { response: { overview: '이 게시물은 정책이 변경된 이유를 설명합니다.', points: [] } };
+    assert.ok(input.response_format.json_schema.required.includes('reply'));
+    return { response: { overview: '이 게시물은 정책이 변경된 이유를 설명합니다.', points: [], reply: '인용한 글에서 정책 변경 이유를 설명했습니다.' } };
   } };
   assert.equal((await quoteSummary(other.token)).status, 404);
   assert.equal((await quoteSummary(owner.token, { ...linkedRequest, xUrl: 'https://example.test/quote/status/42' })).status, 400);
@@ -200,16 +201,19 @@ try {
   assert.equal((await db.prepare('SELECT ai_summary FROM articles WHERE id=?').bind('x-reply').first()).ai_summary, null, '인용글 요약은 처음 글에 저장하지 않는다.');
 
   await db.prepare('UPDATE articles SET ai_summary=? WHERE id=?').bind('**핵심 요약 · 피드 본문 기준**\n이전 답글 요약', 'x-reply').run();
+  let conversationCalls = 0;
   env.AI = { async run(_model, input) {
     const { title, article } = JSON.parse(input.messages[1].content);
     assert.equal(title, 'X 대화 (@cz)');
     assert.match(article, /Original parent message[\s\S]*Quoted original[\s\S]*Selected reply[\s\S]*Continuation of the same conversation/);
     assert.doesNotMatch(article, /Only the RSS reply|Visible follow-up/);
-    return { response: { overview: '원글의 설명에 답글과 후속 게시물이 이어집니다.', points: [] } };
+    if (++conversationCalls === 1) return { response: { overview: '원글의 설명에 후속 게시물이 이어집니다.', points: [] } };
+    return { response: { overview: '원글의 설명에 답글과 후속 게시물이 이어집니다.', points: [], reply: '선택한 글의 답변을 덧붙였습니다.' } };
   } };
   const conversation = await (await quoteSummary(owner.token, { xThread: snapshot })).json();
-  assert.match(conversation.aiSummary, /핵심 요약 · X 대화 기준/);
+  assert.match(conversation.aiSummary, /X 대화 요약[\s\S]*선택한 답글[\s\S]*선택한 글의 답변/);
   assert.equal(conversation.cached, false);
+  assert.equal(conversationCalls, 2, '첫 모델이 선택한 답글을 빠뜨리면 다음 모델이 다시 요약한다.');
   assert.equal((await (await quoteSummary(owner.token, {})).json()).cached, true);
   assert.equal((await quoteSummary(owner.token, { force: true })).status, 422, '원글을 불러올 수 없으면 답글만 요약하지 않는다.');
   delete env.AI;
