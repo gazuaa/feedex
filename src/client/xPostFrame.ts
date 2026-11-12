@@ -7,6 +7,24 @@ import { X_THREAD_MARK } from '../shared/xThreadStyle';
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const YT_FRAME_SCRIPT = `<script nonce="sfeed-scroll">{let y;const p=()=>{if(!y)return;const r=y.getBoundingClientRect();parent.postMessage({sfeedYouTubeRect:[r.left,r.top,r.width,r.height]},'*')};addEventListener('click',e=>{const a=e.target.closest('a[data-yt-id]');if(!a||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();y=a;const r=a.getBoundingClientRect();parent.postMessage({sfeedYouTube:{id:a.getAttribute('data-yt-id'),start:Number(a.getAttribute('data-yt-start'))||0,rect:[r.left,r.top,r.width,r.height]}},'*')});addEventListener('scroll',p,{passive:true});addEventListener('resize',p)}</script>`;
 
+// 공개 사본에는 사진 크기가 없는 경우가 많다. 저장된 사본에도 같은 크기의 칸을 잡아 로딩 전후 높이를 고정한다.
+const X_MEDIA_LAYOUT = `<style>
+main .media .photo {
+  width: 100%; min-width: 0; max-height: 520px; aspect-ratio: 4 / 3;
+  align-self: start; overflow: hidden; border-radius: 14px;
+  background: rgb(128 128 128 / 0.08);
+}
+main .media .photo.video { aspect-ratio: 16 / 9; }
+main .media .photo > img {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; object-fit: contain;
+}
+main .card { container-type: inline-size; }
+main .card > img {
+  aspect-ratio: 16 / 9; height: min(320px, 56.25cqw); object-fit: contain;
+  background: rgb(128 128 128 / 0.08);
+}
+</style>`;
+
 // 답글을 열면 선택한 글부터 보여 준다. 위쪽 사진이 늦게 그려져도 위치를 유지하다가 사용자가 조작하면 멈춘다.
 const X_THREAD_START_SCRIPT = `<script nonce="sfeed-scroll">
 addEventListener('DOMContentLoaded', () => {
@@ -50,8 +68,8 @@ export function xFrameTools(html: string): string {
   if (!html.includes(X_THREAD_MARK)) return yt;
   const asset = (path: string) => escape(new URL(path, location.origin).href);
   // srcdoc 프레임은 바깥 iframe의 referrerPolicy만으로 내부 영상 요청의 Referer를 없애지 못한다.
-  return `<meta name="referrer" content="no-referrer"><script nonce="sfeed-scroll">addEventListener('error',e=>{if(e.target?.tagName==='IMG')e.target.style.display='none'},true);addEventListener('click',e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;const p=e.target.closest('a.photo:not(.video)');if(p){e.preventDefault();const box=p.closest('.media,.quote,article')||document,all=[...box.querySelectorAll('a.photo:not(.video)')],urls=all.map(x=>x.href||x.querySelector('img')?.src||'').filter(Boolean);if(urls.length)parent.postMessage({sfeedXPhotos:{urls,index:Math.max(0,all.indexOf(p))}},'*');return}const a=e.target.closest('a[href]');if(!a||a.hasAttribute('data-x-external'))return;const m=/^https?:\\/\\/(?:(?:www\\.|mobile\\.)?(?:twitter\\.com|x\\.com)|[^/]+)\\/([a-z\\d_]{1,15})\\/status\\/(\\d{1,20})(?:[/?#]|$)/i.exec(a.href);if(m){e.preventDefault();const u='https://x.com/'+m[1]+'/status/'+m[2];const q=a.closest('.quote');const t=q?.querySelector('.text')?.innerText?.trim()||'';const n=q?.querySelector('.who b')?.innerText?.trim()||'';const h=(q?.querySelector('.who span')?.innerText?.trim()||'').replace(/^@/,'');parent.postMessage({sfeedXPost:u,quoteText:t,quoteName:n,quoteHandle:h},'*')}})</script>`
-    + X_THREAD_START_SCRIPT
+  return `<meta name="referrer" content="no-referrer"><script nonce="sfeed-scroll">addEventListener('error',e=>{if(e.target?.tagName==='IMG')e.target.style.visibility='hidden'},true);addEventListener('click',e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;const p=e.target.closest('a.photo:not(.video)');if(p){e.preventDefault();const box=p.closest('.media,.quote,article')||document,all=[...box.querySelectorAll('a.photo:not(.video)')],urls=all.map(x=>x.href||x.querySelector('img')?.src||'').filter(Boolean);if(urls.length)parent.postMessage({sfeedXPhotos:{urls,index:Math.max(0,all.indexOf(p))}},'*');return}const a=e.target.closest('a[href]');if(!a||a.hasAttribute('data-x-external'))return;const m=/^https?:\\/\\/(?:(?:www\\.|mobile\\.)?(?:twitter\\.com|x\\.com)|[^/]+)\\/([a-z\\d_]{1,15})\\/status\\/(\\d{1,20})(?:[/?#]|$)/i.exec(a.href);if(m){e.preventDefault();const u='https://x.com/'+m[1]+'/status/'+m[2];const q=a.closest('.quote');const t=q?.querySelector('.text')?.innerText?.trim()||'';const n=q?.querySelector('.who b')?.innerText?.trim()||'';const h=(q?.querySelector('.who span')?.innerText?.trim()||'').replace(/^@/,'');parent.postMessage({sfeedXPost:u,quoteText:t,quoteName:n,quoteHandle:h},'*')}})</script>`
+    + X_MEDIA_LAYOUT + X_THREAD_START_SCRIPT
     + (html.includes('data-hls-src=') ? `<script nonce="sfeed-scroll" defer src="${asset(playerUrl)}" data-hls="${asset(hlsUrl)}"></script>` : '')
     + yt;
 }
