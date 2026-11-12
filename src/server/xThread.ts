@@ -191,14 +191,17 @@ export function xThreadTranslationBody(html: string): string {
   return main.innerHTML;
 }
 
-export function xThreadSummaryPost(html: string) {
+export function xThreadSummaryPosts(html: string) {
   const { document } = parseHTML(html);
-  const post = document.querySelector('main > article.post.main');
-  return {
-    body: post?.querySelector('.body > .text')?.innerHTML || '',
-    quote: post?.querySelector('.quote-post .text')?.innerHTML || '',
-    author: post?.querySelector('.who span')?.textContent?.trim() || '',
-  };
+  if (!document.querySelector('main > article.post.main')) return [];
+  // 본 대화의 글만 고른다. 댓글은 별도 section 안에 있고 여기에는 포함되지 않는다.
+  return [...document.querySelectorAll('main > article.post:is(.before, .main, .after)')].map(post => ({
+    kind: post.classList.contains('main') ? 'selected' : post.classList.contains('before') ? 'before' : 'after',
+    body: post.querySelector('.body > .text')?.innerHTML || '',
+    quote: post.querySelector('.quote-post .text')?.innerHTML || '',
+    author: post.querySelector('.body > .who > span')?.textContent?.trim() || '',
+    quoteAuthor: post.querySelector('.quote-post .who > span')?.textContent?.trim() || '',
+  } as const));
 }
 
 function threadDocument(document: Element, main: Element, provider: string, statusUrl: string, feedHtml: string | null | undefined, parentMissing: boolean): string {

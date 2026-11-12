@@ -149,11 +149,12 @@ try {
   const xPost = (handle, text, extra = '') => `<div class="timeline-item"><div class="tweet-header"><span class="fullname">${handle}</span><span class="username">@${handle}</span></div><div class="tweet-content">${text}</div>${extra}</div>`;
   const xMain = xPost('cz', 'Selected reply', '<div class="replying-to">Replying to @parent</div>');
   const xBefore = xPost('parent', 'Original parent message', '<div class="quote"><a class="quote-link" href="/quote/status/42"></a><div class="quote-text">Quoted original</div></div>');
+  const xAfter = xPost('cz', 'Continuation of the same conversation');
   let xAvailable = true, mirrorCalls = 0;
   globalThis.fetch = (url, init) => {
     if (!String(url).includes('/cz/status/123')) return deeplFetch()(url, init);
     mirrorCalls++;
-    return Promise.resolve(new Response(`<div class="main-thread">${xAvailable ? `<div class="before-tweet">${xBefore}</div>` : ''}<div class="main-tweet">${xMain}</div></div><div class="replies"><div class="reply">${xPost('other', 'Visible follow-up')}</div></div>`));
+    return Promise.resolve(new Response(`<div class="main-thread">${xAvailable ? `<div class="before-tweet">${xBefore}</div>` : ''}<div class="main-tweet">${xMain}</div><div class="after-tweet">${xAfter}</div></div><div class="replies"><div class="reply">${xPost('other', 'Visible follow-up')}</div></div>`));
   };
   const thread = await (await call('/api/articles/x-reply/web-copy', { token: owner.token })).json();
   assert.match(thread.translationProof, /^[\w-]{43}$/);
@@ -188,15 +189,29 @@ try {
   const quoteSummary = (token = owner.token, body = linkedRequest) => call('/api/articles/x-reply/summarize', { token, method: 'POST', body });
   env.AI = { async run(_model, input) {
     const { title, article } = JSON.parse(input.messages[1].content);
-    assert.equal(title, 'X 게시물 (@quote)');
-    assert.match(article, /선택한 게시물:\nOpened quote text[\s\S]*인용된 게시물:\nPolicy announcement/);
-    assert.doesNotMatch(article, /Original parent message|Quote follow-up|Selected reply/);
+    assert.equal(title, 'X 대화 (@quote)');
+    assert.match(article, /Original parent message[\s\S]*선택한 게시물 \(@quote\):\nOpened quote text[\s\S]*인용된 게시물:\nPolicy announcement/);
+    assert.doesNotMatch(article, /Quote follow-up|Selected reply/);
     return { response: { overview: '이 게시물은 정책이 변경된 이유를 설명합니다.', points: [] } };
   } };
   assert.equal((await quoteSummary(other.token)).status, 404);
   assert.equal((await quoteSummary(owner.token, { ...linkedRequest, xUrl: 'https://example.test/quote/status/42' })).status, 400);
   assert.match((await (await quoteSummary()).json()).aiSummary, /정책이 변경된 이유/);
   assert.equal((await db.prepare('SELECT ai_summary FROM articles WHERE id=?').bind('x-reply').first()).ai_summary, null, '인용글 요약은 처음 글에 저장하지 않는다.');
+
+  await db.prepare('UPDATE articles SET ai_summary=? WHERE id=?').bind('**핵심 요약 · 피드 본문 기준**\n이전 답글 요약', 'x-reply').run();
+  env.AI = { async run(_model, input) {
+    const { title, article } = JSON.parse(input.messages[1].content);
+    assert.equal(title, 'X 대화 (@cz)');
+    assert.match(article, /Original parent message[\s\S]*Quoted original[\s\S]*Selected reply[\s\S]*Continuation of the same conversation/);
+    assert.doesNotMatch(article, /Only the RSS reply|Visible follow-up/);
+    return { response: { overview: '원글의 설명에 답글과 후속 게시물이 이어집니다.', points: [] } };
+  } };
+  const conversation = await (await quoteSummary(owner.token, { xThread: snapshot })).json();
+  assert.match(conversation.aiSummary, /핵심 요약 · X 대화 기준/);
+  assert.equal(conversation.cached, false);
+  assert.equal((await (await quoteSummary(owner.token, {})).json()).cached, true);
+  assert.equal((await quoteSummary(owner.token, { force: true })).status, 422, '원글을 불러올 수 없으면 답글만 요약하지 않는다.');
   delete env.AI;
 
   globalThis.fetch = deeplFetch();

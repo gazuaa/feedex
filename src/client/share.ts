@@ -4,6 +4,7 @@ export interface SharedArticle { title: string; url: string }
 /** 공유 사이트의 글쓰기 주소. 제목과 원문 주소만 넘긴다. */
 export function shareLinks({ title, url }: SharedArticle) {
   return {
+    slap: `https://slap.jyk.workers.dev/#${new URLSearchParams({ share: url, title })}`,
     x: `https://x.com/intent/tweet?${new URLSearchParams({ url, text: title })}`,
     telegram: `https://t.me/share/url?${new URLSearchParams({ url, text: title })}`,
     threads: `https://www.threads.com/intent/post?${new URLSearchParams({ text: `${title}\n${url}` })}`,

@@ -21,7 +21,7 @@ import { xRoutes } from './xConnection';
 import { feedHistoryRoutes } from './feedHistory';
 import { XFeedError } from './xFeed';
 import { inheritXView, saveXView } from './xViews';
-import { fetchXThread, refreshXCardImages, verifiedXThread, xStatusUrl, xThreadSummaryPost, xThreadTranslationBody, xThreadWithProof } from './xThread';
+import { fetchXThread, refreshXCardImages, verifiedXThread, xStatusUrl, xThreadSummaryPosts, xThreadTranslationBody, xThreadWithProof } from './xThread';
 import { isXProfileFeed } from '../shared/xFeed';
 import { importOpmlFeed, OpmlSourceError } from './opmlImporter';
 import { clearOpmlFailure, listOpmlFailures, recordOpmlFailure } from './opmlFailures';
@@ -1540,29 +1540,42 @@ app.post('/api/articles/:id/summarize', async (c) => {
     full_content_html: string | null; ai_summary: string | null;
   }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
-  if (body.xUrl !== undefined) {
-    const url = body.xUrl;
+  if (body.xUrl !== undefined || xStatusUrl(article.url)) {
+    const url = body.xUrl === undefined ? article.url : body.xUrl;
     if (typeof url !== 'string' || !xStatusUrl(url) || !xStatusUrl(article.url)) {
       return c.json({ error: '요약할 X 글 주소를 확인해 주세요.' }, 400);
     }
-    const html = verifiedXThread(c.env, url, body.xThread)
-      || (await fetchXThread(url, article.content_html, c.env.DB, url === article.url ? article.title : undefined).catch(() => null))?.html;
-    const post = xThreadSummaryPost(html || '');
-    const main = summaryText(post.body), quote = summaryText(post.quote);
-    if (!main || main.length + quote.length < 20) {
-      return c.json({ error: '요약할 X 글 본문을 충분히 가져오지 못했어요.' }, 422);
+    const samePost = url === article.url;
+    if (samePost && !body.force && isCurrentSummary(article.ai_summary, 'x')) {
+      return c.json({ aiSummary: article.ai_summary, cached: true });
     }
-    const text = quote ? `선택한 게시물:\n${main}\n\n인용된 게시물:\n${quote}` : main;
-    const title = post.author ? `X 게시물 (${post.author})` : 'X 게시물';
-    const result = await summarizeArticleWithAI(c.env, { title, text, source: 'full', xPost: true });
+    let html = verifiedXThread(c.env, url, body.xThread);
+    if (!html) {
+      const copy = await fetchXThread(url, article.content_html, c.env.DB, samePost ? article.title : undefined).catch(() => null);
+      if (copy && !copy.partial) html = copy.html;
+    }
+    const posts = html ? xThreadSummaryPosts(html) : [];
+    const labels = { before: '앞선 게시물', selected: '선택한 게시물', after: '이어지는 게시물' } as const;
+    const parts = posts.flatMap(post => {
+      const text = summaryText(post.body), quote = summaryText(post.quote);
+      if (!text && !quote) return [];
+      const label = `${labels[post.kind]}${post.author ? ` (${post.author})` : ''}`;
+      const quoteLabel = `인용된 게시물${post.quoteAuthor ? ` (${post.quoteAuthor})` : ''}`;
+      return [[`${label}:\n${text}`, quote ? `${quoteLabel}:\n${quote}` : ''].filter(Boolean).join('\n')];
+    });
+    if (!parts.length) return c.json({ error: '요약할 X 대화를 가져오지 못했어요. 대화를 다시 불러온 뒤 요약해 주세요.' }, 422);
+    const author = posts.find(post => post.kind === 'selected')?.author;
+    const title = author ? `X 대화 (${author})` : 'X 대화';
+    const result = await summarizeArticleWithAI(c.env, { title, text: parts.join('\n\n'), source: 'x' });
     if (!result) return c.json({ error: 'X 글 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.' }, 502);
+    if (samePost) await c.env.DB.prepare('UPDATE articles SET ai_summary=? WHERE id=?').bind(result.summary, article.id).run();
     return c.json({ aiSummary: result.summary, cached: false });
   }
   const full = await readerBodyForArticleTools(c.env, article, body.phone === true);
   const fullText = summaryText(full || '');
   const source = fullText ? 'full' : 'feed';
   const text = fullText || summaryText(article.content_html || '') || summaryText(article.summary || '');
-  if (text.length < (xStatusUrl(article.url) ? 20 : 65)) {
+  if (text.length < 65) {
     return c.json({ error: '요약할 기사 본문을 충분히 가져오지 못했어요. 원문을 확인해 주세요.' }, 422);
   }
   if (!body.force && isCurrentSummary(article.ai_summary, source)) {

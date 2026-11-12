@@ -1,5 +1,4 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   Bookmark,
@@ -21,6 +20,7 @@ import {
   ChevronUp,
   Share2,
   Mail,
+  MessageSquare,
   Link2,
   Send,
   AtSign,
@@ -275,11 +275,12 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [frame, setFrame] = useState<{ articleId: string; embeddable: boolean; url: string; reason?: string; layoutWidth?: number } | null>(null);
   const [readerRetry, setReaderRetry] = useState(0);
   const mode = viewMode;
+  const xPost = Boolean(article && isXStatusUrl(article.url));
   const [checkingDate, setCheckingDate] = useState(false);
   const [scrapingReader, setScrapingReader] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
   // 저장된 요약은 본문 위에 펼쳐 둔다. 웹 보기에서는 사이트를 가리므로 누를 때만 연다.
-  const currentAiSummary = isCurrentSummary(article?.ai_summary) ? article?.ai_summary : null;
+  const currentAiSummary = isCurrentSummary(article?.ai_summary, xPost ? 'x' : undefined) ? article?.ai_summary : null;
   const [aiOpen, setAiOpen] = useState(Boolean(currentAiSummary) && viewMode !== 'web');
   const summaryRequest = useRef<AbortController | null>(null);
   const summaryScope = `${accountId}:${article?.id || ''}`;
@@ -326,7 +327,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // X 글은 미러에서 사본을 받는 몇 초 동안, 피드로 받은 글을 사본과 같은 모양으로 같은 프레임에 먼저 그린다.
   // 사본을 받지 못하면 그 자리에 남기고 댓글 칸에만 알린다. 미러 대신 받은 x.com 화면 사본은 글도 댓글도
   // 비어 있으므로 받지 못한 것으로 본다.
-  const xPost = Boolean(article && isXStatusUrl(article.url));
   // X 대화의 인용 링크는 본문의 일부다. 기사 카드로 오인해 원글을 지우지 않도록 한다.
   const showingXTranslation = xPost && showTranslation && translation?.bodySource === 'full';
   const copyFor = webCopy?.articleId === article?.id ? webCopy : null;
@@ -349,38 +349,23 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       return () => clearTimeout(timer);
     }
   }, [xWaiting, holdingPreview]);
-  const [shareMenuPosition, setShareMenuPosition] = useState<{ left: number; top: number } | null>(null);
-  const shareButtonRef = useRef<HTMLButtonElement>(null);
-  const shareMenuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { setShareMenuPosition(null); }, [article?.id]);
-  useEffect(() => {
-    if (!shareMenuPosition) return;
-    const close = () => setShareMenuPosition(null);
-    const outside = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (!shareMenuRef.current?.contains(target) && !shareButtonRef.current?.contains(target)) close();
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      close();
-      shareButtonRef.current?.focus();
-    };
-    document.addEventListener('pointerdown', outside, true);
-    window.addEventListener('keydown', escape, true);
-    window.addEventListener('resize', close);
-    window.addEventListener('blur', close);
-    return () => {
-      document.removeEventListener('pointerdown', outside, true);
-      window.removeEventListener('keydown', escape, true);
-      window.removeEventListener('resize', close);
-      window.removeEventListener('blur', close);
-    };
-  }, [shareMenuPosition]);
-  useLayoutEffect(() => { if (shareMenuPosition) shareMenuRef.current?.querySelector('button')?.focus(); }, [shareMenuPosition]);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const shareDialogRef = useRef<HTMLDialogElement>(null);
+  const closeShareDialog = () => setShareDialogOpen(false);
+  useEffect(() => { setShareDialogOpen(false); }, [article?.id]);
+  useLayoutEffect(() => {
+    const dialog = shareDialogRef.current;
+    if (!shareDialogOpen || !dialog) return;
+    dialog.showModal();
+    return () => { dialog.close(); };
+  }, [shareDialogOpen]);
   const [mobileMenu, setMobileMenu] = useState<'tools' | 'assist' | 'share' | null>(null);
   const closeMobileMenu = () => setMobileMenu(null);
   const isMobile = useMobileViewport();
+  const openShare = () => {
+    if (isMobile && !inNativeApp() && window.matchMedia('(pointer: coarse)').matches) setMobileMenu('share');
+    else setShareDialogOpen(true);
+  };
   const topRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), copyRef = useRef<HTMLIFrameElement>(null);
   useCopyTheme(copyRef, isDark);
   useXPostFrame(copyRef, onOpenXPost, `${article?.id || ''}:${mode}`);
@@ -716,9 +701,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const current = () => !controller.signal.aborted && summaryRequest.current === controller && currentSummaryScope.current === summaryScope;
     setAiOpen(true); setSummarizing(true); setSummaryError('');
     try {
+      const xThread = xPost && completeThread?.translationProof
+        ? { html: completeThread.html, proof: completeThread.translationProof } : undefined;
       const res = await apiRequest<{ aiSummary: string }>(`/api/articles/${article.id}/summarize`, {
         method: 'POST',
-        body: JSON.stringify({ force, phone: isMobile }),
+        body: JSON.stringify({ force, phone: isMobile, xThread }),
         signal: controller.signal,
       });
       // 닫거나 다른 글로 이동한 뒤 도착한 응답은 화면과 새 요청 상태를 바꾸지 않는다.
@@ -738,7 +725,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       setAiOpen(false); setSummarizing(false);
     } else {
       setAiOpen(true);
-      if (!currentAiSummary || (mode !== 'feed' && !isCurrentSummary(currentAiSummary, 'full'))) void handleSummarizeAI();
+      if (!currentAiSummary || (!xPost && mode !== 'feed' && !isCurrentSummary(currentAiSummary, 'full'))) void handleSummarizeAI();
     }
   };
   const aiAction = summarizing ? '요약 취소' : aiOpen ? '요약 닫기' : '요약';
@@ -785,7 +772,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     window.setTimeout(close, 0);
   };
   /**
-   * 공유 방법: 링크 복사 → 공유 사이트 → 이메일. 휴대폰(터치 화면)에서는 카카오톡 등이 나오는 시스템 공유를 맨 위에 둔다.
+   * 공유 방법: 링크 복사 → Slap과 공유 사이트 → 이메일. 휴대폰(터치 화면)에서는 시스템 공유를 맨 위에 둔다.
    * 컴퓨터의 시스템 공유는 이메일 정도만 떠서 쓸모가 없으므로 데스크톱과 데스크톱 앱에서는 보이지 않는다.
    * 맥 앱은 메일 주소(mailto)를 열지 않으므로 이메일 공유를 뺀다.
    */
@@ -797,6 +784,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     return <>
       {phoneShare && <button type="button" className={option} onClick={() => shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />다른 앱으로 공유</button>}
       <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />링크 복사</button>
+      <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><MessageSquare size={16} aria-hidden="true" />Slap에 공유</a>
       <a className={option} href={links.x} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><ExternalLink size={16} aria-hidden="true" />X에 공유</a>
       <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><AtSign size={16} aria-hidden="true" />Threads에 공유</a>
       <a className={option} href={links.telegram} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(event, close)}><Send size={16} aria-hidden="true" />텔레그램으로 공유</a>
@@ -994,20 +982,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <Link2 className="w-4 h-4" />
             </button>
 
-            <button ref={shareButtonRef} type="button" aria-label="글 공유" title="글 공유" aria-expanded={Boolean(shareMenuPosition)}
-              onClick={(event) => {
-                if (shareMenuPosition) { setShareMenuPosition(null); return; }
-                const rect = event.currentTarget.getBoundingClientRect();
-                const width = Math.min(208, window.innerWidth - 16);
-                setShareMenuPosition({ left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)), top: rect.bottom + 8 });
-              }}
+            <button type="button" aria-label="글 공유" title="글 공유" aria-expanded={shareDialogOpen} aria-haspopup="dialog" onClick={openShare}
               className={`feedex-reader-icon ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
               <Share2 className="w-4 h-4" />
             </button>
-            {shareMenuPosition && createPortal(<div ref={shareMenuRef} role="group" aria-label="공유 방법" style={{ ...shareMenuPosition, maxHeight: `calc(100dvh - ${shareMenuPosition.top + 8}px)` }}
-              className={`feedex-desktop-share-menu fixed z-[190] w-52 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl border p-1.5 text-sm shadow-lg ${isDark ? 'border-slate-700 bg-slate-900 text-slate-100' : 'border-slate-200 bg-white text-slate-900'}`}>
-              {shareOptions(() => { setShareMenuPosition(null); shareButtonRef.current?.focus(); })}
-            </div>, document.body)}
 
             {/* 원문 링크 열기 */}
             <a
@@ -1107,7 +1085,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <div ref={webViewRef} className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
             {/* 웹 보기에서는 사이트 위에 요약을 접을 수 있는 칸으로 둔다. 길면 이 칸 안에서 스크롤한다. */}
             {aiOpen && (currentAiSummary || summarizing || summaryError) && <div className="feedex-web-summary">
-              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} />
+              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} loadingLabel={xPost ? 'X 대화를 요약하는 중…' : undefined} />
             </div>}
             {translationFeedback}
             {nativeWeb ? (<>
@@ -1333,7 +1311,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>}
 
           {/* Cloudflare Workers AI 요약 카드 */}
-          {aiOpen && (currentAiSummary || summarizing || summaryError) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} />}
+          {aiOpen && (currentAiSummary || summarizing || summaryError) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} loadingLabel={xPost ? 'X 대화를 요약하는 중…' : undefined} />}
 
           {/* 대표 썸네일 이미지 (contentHtml에 이미 들어 있지 않을 때) */}
           {article.thumbnail_url &&
@@ -1443,9 +1421,20 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
           <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>
           <button aria-label="다음 아티클" disabled={!hasNext} onClick={() => onNavigateRelative('next')}><ChevronRight size={21} /></button>
-          <button aria-label="글 공유" aria-expanded={mobileMenu === 'share'} onClick={() => setMobileMenu('share')}><Share2 size={18} /></button>
+          <button aria-label="글 공유" aria-expanded={shareDialogOpen || mobileMenu === 'share'} onClick={openShare}><Share2 size={18} /></button>
           <button aria-label="번역 및 AI 요약" aria-expanded={mobileMenu === 'assist'} onClick={() => setMobileMenu('assist')}>{translating || summarizing ? <Loader2 size={19} className="animate-spin" /> : <Sparkles size={19} />}</button>
         </nav>
+        {shareDialogOpen && <dialog ref={shareDialogRef} aria-label="공유 방법" onCancel={(event) => { event.preventDefault(); closeShareDialog(); }}
+          onClick={(event) => { if (event.target === event.currentTarget) closeShareDialog(); }}
+          className={`feedex-desktop-share-menu fixed inset-0 m-auto max-h-[calc(100dvh-24px)] w-[calc(100%-24px)] max-w-sm overflow-y-auto rounded-2xl border text-sm shadow-2xl backdrop:bg-black/45 ${isDark ? 'border-slate-700 bg-slate-900 text-slate-100' : 'border-slate-200 bg-white text-slate-900'}`}>
+          <div className="p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="font-semibold">글 공유</h2>
+              <button type="button" aria-label="공유 닫기" className="rounded-lg p-2 hover:bg-emerald-500/10" onClick={closeShareDialog}><X size={17} /></button>
+            </div>
+            <div className="grid gap-1 min-[350px]:grid-cols-2">{shareOptions(closeShareDialog)}</div>
+          </div>
+        </dialog>}
         {isMobile && mobileMenu && <>
           <button type="button" className="feedex-reader-menu-backdrop" aria-label="메뉴 닫기" onClick={closeMobileMenu} />
           {mobileMenu === 'tools' ? <div className="feedex-mobile-reader-menu" aria-label="본문 도구">

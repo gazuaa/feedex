@@ -391,6 +391,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-body-modes button[aria-checked=true] { color: #059669; background: var(--feedex-mobile-surface); box-shadow: 0 1px 5px #0001; }
   .feedex-reader-menu-backdrop { position: absolute; inset: 0; z-index: 62; }
   .feedex-mobile-reader-menu { position: absolute; z-index: 63; right: 10px; top: var(--feedex-reader-top-height, calc(50px + env(safe-area-inset-top))); width: 220px; border: 1px solid var(--feedex-mobile-line); border-radius: 20px; padding: 8px; background: var(--feedex-mobile-surface); box-shadow: 0 8px 30px #0003; }
+  .feedex-mobile-share-menu { max-height: calc(100dvh - 150px - env(safe-area-inset-bottom)); overflow-y: auto; }
   .feedex-mobile-assist-menu { top: auto; right: 20px; bottom: calc(78px + env(safe-area-inset-bottom)); }
   .feedex-mobile-reader-menu > button, .feedex-mobile-reader-menu > a { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 8px 12px; font-size: 13px; }
   .feedex-mobile-zoom { display: flex; justify-content: space-evenly; }

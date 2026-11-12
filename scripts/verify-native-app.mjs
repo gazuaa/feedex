@@ -69,7 +69,8 @@ try {
     for (const menu of ['feedex-mobile-reader-menu', 'feedex-mobile-reader-menu feedex-mobile-assist-menu', 'feedex-mobile-reader-menu feedex-mobile-assist-menu feedex-mobile-share-menu'])
       assert.equal(covered(`<div class="${menu}"></div>`), true, `a narrow window's ${menu} hides the original view`);
     const drawer = readFileSync('src/components/ArticleDrawer.tsx', 'utf8');
-    assert.match(drawer, /shareMenuPosition && createPortal\(<div ref=\{shareMenuRef\}[^>]*className=\{`feedex-desktop-share-menu fixed z-\[190\]/, 'the desktop share menu sits above the article frame instead of inside the toolbar');
+    assert.match(drawer, /shareDialogOpen && <dialog ref=\{shareDialogRef\}/, 'desktop sharing uses a dialog');
+    assert.match(drawer, /dialog\.showModal\(\)/, 'the dialog opens above the article frame');
     assert.match(readFileSync('src/App.tsx', 'utf8'), /className="feedex-notice" data-native=\{inNativeApp\(\) \|\| undefined\}/, 'the desktop app marks its notices');
     // 원문이 뜨면 알림을 목록 아래로 옮기고, 목록 쪽 공간이 부족하면 원문 위에 띄운다.
     const styles = readFileSync('src/index.css', 'utf8');

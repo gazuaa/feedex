@@ -25,6 +25,9 @@ try {
     const { shareLinks, copyText } = await vite.ssrLoadModule('/src/client/share.ts');
     const shared = { title: 'Bitcoin & ETF 소식', url: 'https://news.example.test/a?b=1&c=2' };
     const links = shareLinks(shared);
+    const slap = new URL(links.slap), slapShare = new URLSearchParams(slap.hash.slice(1));
+    assert.equal(slap.origin, 'https://slap.jyk.workers.dev');
+    assert.equal(slapShare.get('share'), shared.url); assert.equal(slapShare.get('title'), shared.title);
     assert.equal(new URL(links.x).searchParams.get('url'), shared.url); assert.equal(new URL(links.x).searchParams.get('text'), shared.title);
     assert.equal(new URL(links.telegram).origin, 'https://t.me'); assert.equal(new URL(links.telegram).searchParams.get('url'), shared.url);
     assert.equal(new URL(links.threads).origin, 'https://www.threads.com');
@@ -51,7 +54,7 @@ try {
     assert.match(options, /const phoneShare = isMobile && [^;]*navigator\.share === 'function'[^;]*\(pointer: coarse\)/, 'other apps appear only on touch phones');
     assert.match(options, /\{phoneShare && <button[^\n]*다른 앱으로 공유<\/button>\}\s*<button[^>]*>.*링크 복사/, 'on phones other apps come first');
     assert.equal(options.match(/다른 앱으로 공유/g).length, 1, 'desktops do not list other apps at the bottom');
-    for (const label of ['링크 복사', 'X에 공유', 'Threads에 공유', '텔레그램으로 공유', '이메일로 공유']) assert.ok(options.includes(label), label);
+    for (const label of ['링크 복사', 'Slap에 공유', 'X에 공유', 'Threads에 공유', '텔레그램으로 공유', '이메일로 공유']) assert.ok(options.includes(label), label);
     for (const label of ['제목과 링크 복사', '요약과 함께 복사']) assert.ok(!drawerSource.includes(label), `${label} is not offered`);
     // 시스템 공유는 누른 순간 메뉴를 닫기 전에 연다. 열지 못하면 링크를 복사해 둔다.
     const device = drawerSource.slice(drawerSource.indexOf('const shareWithDevice = (close: () => void) => {'), drawerSource.indexOf('const shareOptions = (close'));
