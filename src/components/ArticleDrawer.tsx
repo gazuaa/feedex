@@ -322,6 +322,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 사본을 받지 못하면 그 자리에 남기고 댓글 칸에만 알린다. 미러 대신 받은 x.com 화면 사본은 글도 댓글도
   // 비어 있으므로 받지 못한 것으로 본다.
   const xPost = Boolean(article && isXStatusUrl(article.url));
+  // X 대화의 인용 링크는 본문의 일부다. 기사 카드로 오인해 원글을 지우지 않도록 한다.
+  const showingXTranslation = xPost && showTranslation && translation?.bodySource === 'full';
   const copyFor = webCopy?.articleId === article?.id ? webCopy : null;
   const completeThread = copyFor?.thread && !copyFor.partial && copyFor.html ? copyFor : null;
   const copyReady = Boolean(copyFor?.html) && (!xPost || Boolean(copyFor?.thread));
@@ -1318,7 +1320,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               html={showTranslation ? translation!.html : activeHtml}
               onOpenXPost={xPost ? onOpenXPost : undefined}
               base={article.url}
-              title={showTranslation ? translation!.title : showingReader ? article.title : undefined}
+              title={showingXTranslation ? undefined : showTranslation ? translation!.title : showingReader ? article.title : undefined}
               style={{ fontSize: `calc(var(--feedex-article-font) * ${fontScale})` }}
               className={`feedex-article-content ${
                 isDark ? 'text-slate-200' : 'text-slate-800'

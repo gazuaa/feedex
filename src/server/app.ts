@@ -1326,7 +1326,7 @@ app.get('/api/articles/:id/x-post', async (c) => {
     .bind(c.req.param('id'), c.get('user').id).first<{ url: string; content_html: string | null }>();
   if (!source || !xStatusUrl(source.url)) return c.json({ error: 'X 글을 찾을 수 없습니다.' }, 404);
   c.header('Cache-Control', 'no-store');
-  try { return c.json(await fetchXThread(url, source.content_html, c.env.DB)); }
+  try { return c.json(xThreadWithProof(c.env, await fetchXThread(url, source.content_html, c.env.DB))); }
   catch { return c.json({ error: 'X 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' }, 502); }
 });
 
@@ -1441,7 +1441,7 @@ async function readerBodyForArticleTools(env: Env, article: { id: string; url: s
 
 // 글 번역. 웹·리더 보기에서는 기사 본문을, 피드 보기에서는 피드 본문을 번역한다.
 app.post('/api/articles/:id/translate', async (c) => {
-  type Request = { source?: unknown; force?: unknown; phone?: unknown; xThread?: unknown };
+  type Request = { source?: unknown; force?: unknown; phone?: unknown; xThread?: unknown; xUrl?: unknown };
   const body: Request = await c.req.json<Request>().catch(() => ({}));
   const source = body.source === 'feed' ? 'feed' : 'full';
   const article = await c.env.DB.prepare(
@@ -1450,11 +1450,17 @@ app.post('/api/articles/:id/translate', async (c) => {
   ).bind(c.req.param('id'), c.get('user').id).first<{ id: string; title: string; url: string; summary: string | null; content_html: string | null; full_content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
   const needsXThread = source === 'full' && xStatusUrl(article.url);
+  const linkedUrl = body.xUrl;
+  if (linkedUrl !== undefined && (!needsXThread || typeof linkedUrl !== 'string' || !xStatusUrl(linkedUrl))) {
+    return c.json({ error: '번역할 X 글 주소를 확인해 주세요.' }, 400);
+  }
+  const threadUrl = linkedUrl ?? article.url;
+  const linkedThread = threadUrl !== article.url;
   let full: string | null = null;
   if (needsXThread) {
-    let html = verifiedXThread(c.env, article.url, body.xThread);
+    let html = verifiedXThread(c.env, threadUrl, body.xThread);
     if (!html) {
-      const copy = await fetchXThread(article.url, article.content_html, c.env.DB, article.title).catch(() => null);
+      const copy = await fetchXThread(threadUrl, article.content_html, c.env.DB, linkedThread ? undefined : article.title).catch(() => null);
       if (copy && !copy.partial) html = copy.html;
     }
     full = html ? xThreadTranslationBody(html) : null;
@@ -1464,15 +1470,16 @@ app.post('/api/articles/:id/translate', async (c) => {
     if (!full) return c.json({ error: '기사 전체 본문을 가져오지 못했어요. 다시 시도하거나 원문에서 읽어 주세요.' }, 422);
   }
   const bodySource = full ? 'full' : 'feed';
+  const cacheSource = linkedThread ? `x:${threadUrl.split('/').at(-1)}` : bodySource;
   const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const html = full || article.content_html || (article.summary ? `<p>${escaped(article.summary)}</p>` : '');
   if (!html.trim() && !article.title.trim()) return c.json({ error: '번역할 본문이 없어요.' }, 422);
   await ensureTranslationTable(c.env);
-  const title = needsXThread ? article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, '') : article.title;
+  const title = linkedThread ? 'X 게시물' : needsXThread ? article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, '') : article.title;
   const hash = await sourceHash(title, html);
   if (body.force !== true) {
     const saved = await c.env.DB.prepare('SELECT title, content_html, provider, model FROM article_translations WHERE article_id=? AND target_lang=? AND source_kind=? AND source_hash=?')
-      .bind(article.id, 'KO', bodySource, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
+      .bind(article.id, 'KO', cacheSource, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
     if (saved) return c.json({ title: saved.title, html: saved.content_html, provider: saved.provider, model: saved.model, bodySource, cached: true });
   }
   let result;
@@ -1481,7 +1488,7 @@ app.post('/api/articles/:id/translate', async (c) => {
   if (!result.alreadyKorean) {
     await c.env.DB.prepare(`INSERT INTO article_translations(article_id,target_lang,source_kind,source_hash,title,content_html,provider,model,created_at) VALUES(?,?,?,?,?,?,?,?,?)
       ON CONFLICT(article_id,target_lang,source_kind) DO UPDATE SET source_hash=excluded.source_hash,title=excluded.title,content_html=excluded.content_html,provider=excluded.provider,model=excluded.model,created_at=excluded.created_at`)
-      .bind(article.id, 'KO', bodySource, hash, result.title, result.html, result.provider, result.model, new Date().toISOString()).run();
+      .bind(article.id, 'KO', cacheSource, hash, result.title, result.html, result.provider, result.model, new Date().toISOString()).run();
   }
   return c.json({ title: result.title, html: result.html, provider: result.provider, model: result.model, bodySource, notice: result.notice, alreadyKorean: Boolean(result.alreadyKorean), cached: false });
 });

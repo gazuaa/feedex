@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ExternalLink, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Languages, Loader2, RefreshCw } from 'lucide-react';
 import { apiRequest, type ArticleItem } from '../client/api';
 import { readContent, writeContent } from '../client/deviceContent';
 import { WebPager } from './ArticleDrawer';
@@ -7,12 +7,12 @@ import { framedCopy, useMobileViewport } from '../client/mobile';
 import { xThreadPreview } from '../client/xThreadPreview';
 import { useCopyTheme } from '../client/copyTheme';
 import { useXPostFrame } from '../client/xPostFrame';
-import { isXStatusUrl } from '../shared/xFeed';
-import { X_THREAD_MARK } from '../shared/xThreadStyle';
+import { X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
 import type { XPost } from '../client/xTimeline';
 
 export interface XPostTarget { articleId: string; url: string; quote?: XPost['quote'] }
-type Copy = { html: string; url: string; thread: true; partial?: true };
+type Copy = { html: string; url: string; thread?: boolean; partial?: boolean; translationProof?: string };
+type Translation = { html: string; provider: string; alreadyKorean?: boolean; notice?: string };
 /** 사본이 다 그려지기를 기다리며 미리보기를 덮어 두는 최대 시간. 이미지가 멈춰도 이 뒤에는 사본을 보여 준다. */
 const PREVIEW_HOLD_MS = 3000;
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -36,20 +36,28 @@ function enhanceCopyHtml(html: string, quote?: XPost['quote']): string {
 export function XPostPanel({ accountId, source, target, onBack, isDark }: { accountId: string; source: ArticleItem; target: XPostTarget; onBack: () => void; isDark: boolean }) {
   const [trail, setTrail] = useState([target.url]), [retry, setRetry] = useState(0);
   const [hints, setHints] = useState<Map<string, XPost['quote']>>(new Map());
-  const [copy, setCopy] = useState<{ url: string; html: string } | null>(null), [error, setError] = useState('');
+  const [copy, setCopy] = useState<Copy | null>(null), [error, setError] = useState('');
   const frame = useRef<HTMLIFrameElement>(null), url = trail.at(-1)!;
+  const activeCopy = copy?.url === url ? copy : null;
+  const [translation, setTranslation] = useState<{ copy: Copy; result: Translation } | null>(null);
+  const [translated, setTranslated] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [translationError, setTranslationError] = useState('');
+  const translationRequest = useRef<AbortController | null>(null);
+  const result = activeCopy && translation?.copy === activeCopy ? translation.result : null;
+  const showTranslation = Boolean(translated && result && !result.alreadyKorean);
   const isMobile = useMobileViewport();
   const back = () => trail.length > 1 ? setTrail((items) => items.slice(0, -1)) : onBack();
   const open = useCallback((next: string, hint?: { text: string; name?: string; handle?: string }) => {
     const match = /^https?:\/\/(?:(?:www\.|mobile\.)?(?:twitter\.com|x\.com)|[^/]+)\/([a-z\d_]{1,15})\/status\/(\d{1,20})(?:[/?#]|$)/i.exec(next);
     if (match) {
       const normalized = `https://x.com/${match[1]}/status/${match[2]}`;
-      if (hint?.text) {
+      if (hint?.text && !showTranslation) {
         setHints((m) => new Map(m).set(normalized, { name: hint.name || '', handle: hint.handle || '', text: hint.text, href: normalized, media: [] }));
       }
       setTrail((items) => items.at(-1) === normalized ? items : [...items, normalized]);
     }
-  }, []);
+  }, [showTranslation]);
   useCopyTheme(frame, isDark);
   useXPostFrame(frame, open, url);
   const activeQuote = url === target.url ? target.quote : hints.get(url) || null;
@@ -69,22 +77,53 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     const load = async () => {
       const key = `x-post:${url}`, cached = retry ? undefined : await readContent(accountId, key);
       if (!active) return;
-      if (cached && 'html' in cached.data && cached.data.html.includes(X_THREAD_MARK)) {
-        setCopy({ url, html: enhanceCopyHtml(cached.data.html, activeQuote) });
+      if (cached && 'html' in cached.data && !cached.data.partial && cached.data.html.includes(X_THREAD_MARK)) {
+        setCopy(cached.data);
         return;
       }
       const result = await apiRequest<Copy>(`/api/articles/${encodeURIComponent(source.id)}/x-post?url=${encodeURIComponent(url)}`, { signal: controller.signal });
       if (!active) return;
-      const enhancedHtml = enhanceCopyHtml(result.html, activeQuote);
-      setCopy({ url, html: enhancedHtml });
+      setCopy(result);
       // 원글을 못 불러온 답글 사본은 저장하지 않고 다음에 다시 받는다.
-      if (!result.partial) await writeContent(accountId, key, { ...result, html: enhancedHtml });
+      if (!result.partial) await writeContent(accountId, key, result);
     };
     void load().catch(() => { if (active) setError('글을 불러오지 못했어요. 다시 시도해 주세요.'); });
     return () => { active = false; controller.abort(); };
-  }, [accountId, source.id, url, retry, activeQuote]);
-  const isReady = copy?.url === url;
-  const readyHtml = useMemo(() => isReady ? framedCopy(copy.html) : undefined, [isReady, copy?.html]);
+  }, [accountId, source.id, url, retry]);
+  useEffect(() => {
+    setTranslated(false); setTranslating(false); setTranslationError('');
+    return () => { translationRequest.current?.abort(); translationRequest.current = null; };
+  }, [accountId, source.id, url, retry]);
+  const toggleTranslation = async () => {
+    if (translationRequest.current) {
+      translationRequest.current.abort(); translationRequest.current = null; setTranslating(false);
+      return;
+    }
+    if (!activeCopy) return;
+    if (showTranslation) { setTranslated(false); return; }
+    if (result) { setTranslated(true); return; }
+    const controller = new AbortController();
+    translationRequest.current = controller;
+    setTranslating(true); setTranslationError('');
+    try {
+      const xThread = activeCopy.translationProof && !activeCopy.partial ? { html: activeCopy.html, proof: activeCopy.translationProof } : undefined;
+      const response = await apiRequest<Translation>(`/api/articles/${encodeURIComponent(source.id)}/translate`, {
+        method: 'POST', body: JSON.stringify({ source: 'full', xUrl: url, xThread }), signal: controller.signal,
+      });
+      if (translationRequest.current !== controller) return;
+      setTranslation({ copy: activeCopy, result: response }); setTranslated(true);
+    } catch (err) {
+      if (translationRequest.current === controller) setTranslationError(err instanceof Error ? err.message : '번역하지 못했어요. 다시 시도해 주세요.');
+    } finally {
+      if (translationRequest.current === controller) { translationRequest.current = null; setTranslating(false); }
+    }
+  };
+  const isReady = Boolean(activeCopy);
+  const readyHtml = useMemo(() => {
+    if (!activeCopy) return undefined;
+    if (!showTranslation || !result) return framedCopy(enhanceCopyHtml(activeCopy.html, activeQuote));
+    return framedCopy(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(url)}" target="_blank">${X_THREAD_MARK}<style>${X_THREAD_STYLE}${X_VIDEO_STYLE}</style></head><body><main>${result.html}</main></body></html>`);
+  }, [activeCopy, activeQuote, showTranslation, result, url]);
   const previewHtml = useMemo(() => framedCopy(preview), [preview]);
   // 사본이 준비돼도 미리보기 프레임은 지우거나 새로 만들지 않고 위에 그대로 둔다. 그 아래에서 사본을 다 그리면
   // 미리보기를 걷어 낸다. 미리보기를 새 프레임에 다시 그리면 같은 글을 한 번 더 불러오며 화면이 비어 깜빡인다.
@@ -102,14 +141,22 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   }, [isReady, holdingPreview]);
   const frameTitle = `${activeQuote?.name || handle} X 글`;
   const frameStyle = { colorScheme: isDark ? 'dark' : 'light' } as const;
+  const translateAction = translating ? '번역 취소' : showTranslation ? '원문 보기' : '번역';
   return <section aria-label="앱에서 X 글 보기" className={`feedex-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto flex h-full min-h-0 min-w-0 w-full flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
     <header className={`feedex-linked-post-header flex items-center gap-2 border-b px-3 py-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
       <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2" onClick={back}><ChevronLeft size={21} /><span>{trail.length > 1 ? '이전 글' : '원래 글'}</span></button>
       <span className="min-w-0 flex-1 truncate text-sm text-slate-500">@{url.split('/')[3]}</span>
+      <button type="button" aria-label={translateAction} title={translateAction} aria-pressed={showTranslation} disabled={!isReady}
+        className="p-3 disabled:opacity-40" onClick={() => void toggleTranslation()}>
+        {translating ? <Loader2 size={19} className="animate-spin" /> : <Languages size={19} />}
+      </button>
       <button type="button" aria-label="X 글 새로고침" className="p-3" onClick={() => { setCopy(null); setRetry((value) => value + 1); }}><RefreshCw size={19} /></button>
       <a href={url} target="_blank" rel="noopener noreferrer" aria-label="X에서 열기" className="p-3"><ExternalLink size={19} /></a>
     </header>
     {error && <p role="status" className="px-4 py-2 text-sm text-slate-500">{error}</p>}
+    {(translating || translationError || (translated && result)) && <p role={translationError ? 'alert' : 'status'} className="px-4 py-2 text-sm text-slate-500">
+      {translationError || (translating ? '한국어로 번역하는 중…' : result?.alreadyKorean ? '이미 한국어로 된 글이에요.' : result?.notice || `${result?.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`)}
+    </p>}
     <WebPager enabled={isMobile} onBack={back}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
       {isReady && (
         <iframe

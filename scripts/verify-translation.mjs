@@ -170,6 +170,21 @@ try {
   const xFeed = await (await xTranslate({ source: 'feed' })).json();
   assert.equal(xFeed.html, '번역:<p>Only the RSS reply</p>');
 
+  const linkedUrl = 'https://x.com/quote/status/42';
+  globalThis.fetch = (url, init) => String(url).endsWith('/quote/status/42')
+    ? Promise.resolve(new Response(`<div class="main-thread"><div class="main-tweet">${xPost('quote', 'Opened quote text')}</div></div><div class="replies"><div class="reply">${xPost('follower', 'Quote follow-up')}</div></div>`))
+    : deeplFetch()(url, init);
+  const linked = await (await call(`/api/articles/x-reply/x-post?url=${encodeURIComponent(linkedUrl)}`, { token: owner.token })).json();
+  assert.match(linked.translationProof, /^[\w-]{43}$/);
+  globalThis.fetch = deeplFetch();
+  const linkedRequest = { source: 'full', xUrl: linkedUrl, xThread: { html: linked.html, proof: linked.translationProof } };
+  const linkedTranslation = await (await xTranslate(linkedRequest)).json();
+  assert.match(linkedTranslation.html, /Opened quote text[\s\S]*Quote follow-up/);
+  assert.doesNotMatch(linkedTranslation.html, /Selected reply|Only the RSS reply/);
+  assert.equal((await (await xTranslate(linkedRequest)).json()).cached, true);
+  assert.equal((await (await xTranslate({ source: 'full', xThread: snapshot })).json()).cached, true, '인용글 번역이 처음 글의 번역을 덮어쓰지 않는다.');
+  assert.equal((await xTranslate({ ...linkedRequest, xUrl: 'https://example.test/quote/status/42' })).status, 400);
+
   globalThis.fetch = deeplFetch();
   const changedBody = fullBody.replace('Full text', 'Changed text');
   await db.prepare("UPDATE articles SET full_content_html=? WHERE id='art'").bind(changedBody).run();

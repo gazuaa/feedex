@@ -67,11 +67,40 @@ try{
     globalThis.fetch = async (url, init) => {
       assert.equal(url, `/api/articles/${reply.id}/translate`);
       submitted = JSON.parse(init.body);
-      return Response.json({ title: '번역 제목', html: '<p>원글과 댓글 번역</p>', provider: 'deepl', bodySource: 'full' });
+      const html = [
+        '<article class="post before"><p>원글 작성자</p><p>원글 본문 번역</p><div class="quote"><a href="https://x.com/quoted/status/3">' + '원글에 달린 긴 인용글의 번역입니다. '.repeat(12) + '</a></div></article>',
+        '<article class="post before"><p>중간 댓글 번역</p></article>',
+        '<article class="post main"><p>선택한 댓글 번역</p></article>',
+      ].join('');
+      return Response.json({ title: '번역 제목', html, provider: 'deepl', bodySource: 'full' });
     };
     await act(async () => { window.document.querySelector('button[aria-label="번역"]').click(); });
     assert.deepEqual(submitted.xThread, { html: readyThread.html, proof: readyThread.translationProof });
-    assert.match(window.document.body.textContent, /원글과 댓글 번역/);
+    const translatedBody = window.document.querySelector('.feedex-article-content');
+    assert.match(translatedBody.textContent, /^원글 작성자원글 본문 번역원글에 달린 긴 인용글[\s\S]*중간 댓글 번역선택한 댓글 번역/,
+      '긴 인용글이 링크여도 원글을 삭제하지 않고 대화 순서대로 보여 준다.');
+  } finally { globalThis.fetch = originalFetch; }
+  const { XPostPanel } = await vite.ssrLoadModule('/src/components/XPostPanel.tsx');
+  const quotedUrl = 'https://x.com/quoted/status/42';
+  const quotedHtml = `<!doctype html><html><head>${X_THREAD_MARK}</head><body><main><article class="post main">引用原文</article></main></body></html>`;
+  let quoteTranslations = 0;
+  try {
+    globalThis.fetch = async (url, init) => {
+      if (String(url).includes('/x-post?')) return Response.json({ url: quotedUrl, html: quotedHtml, thread: true, translationProof: 'quote-proof' });
+      assert.equal(url, `/api/articles/${reply.id}/translate`);
+      quoteTranslations++;
+      assert.deepEqual(JSON.parse(init.body), { source: 'full', xUrl: quotedUrl, xThread: { html: quotedHtml, proof: 'quote-proof' } });
+      return Response.json({ html: '<article class="post main">인용글 본문 번역</article>', provider: 'deepl' });
+    };
+    await act(async () => { root.render(React.createElement(XPostPanel, { accountId: props.accountId, source: reply, target: { articleId: reply.id, url: quotedUrl }, onBack() {}, isDark: false })); });
+    const doc = () => [...window.document.querySelectorAll('iframe')].map(frame => frame.getAttribute('srcdoc') ?? frame.getAttribute('srcDoc') ?? '').join('');
+    assert.match(doc(), /引用原文/);
+    await act(async () => { window.document.querySelector('button[aria-label="번역"]').click(); });
+    assert.match(doc(), /인용글 본문 번역/);
+    await act(async () => { window.document.querySelector('button[aria-label="원문 보기"]').click(); });
+    assert.match(doc(), /引用原文/);
+    await act(async () => { window.document.querySelector('button[aria-label="번역"]').click(); });
+    assert.equal(quoteTranslations, 1, '같은 인용글은 원문으로 돌아갔다가 번역을 다시 켜도 재요청하지 않는다.');
   } finally { globalThis.fetch = originalFetch; }
   console.log('PASS: real reader preview-to-ready frame replacement that keeps the same preview frame until the saved copy loads, cached A/B/A reopening and no duplicate copy requests.');
 }finally{
