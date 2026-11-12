@@ -63,15 +63,40 @@ try {
   assert.equal(scroll, 620);
   open(library); assert.equal(index, 0);
   forward();
+  const stepsBefore = entries.length;
   open({ ...list, unread: true });
   const unread = location;
   open({ ...unread, search: 'b' }); open({ ...unread, search: 'bitcoin' });
-  const count = entries.length;
-  assert.equal(index, 2); assert.equal(count, 3, 'typing replaces the list entry');
+  assert.equal(index, 1); assert.equal(entries.length, stepsBefore, 'switching to the unread tab and typing replace the list entry');
   open({ ...location, articleId: 'read-article' }, 300);
   back(); assert.equal(location.search, 'bitcoin'); assert.equal(location.unread, true); assert.equal(scroll, 300);
-  back(); assert.deepEqual(location, list);
+  back(); assert.equal(location.library, true, 'swiping back from a list goes to the library, not to the previous tab');
   forward(); forward();
+  {
+    // 아래 막대의 전체·안 읽음·저장 탭은 뒤로 가기 단계를 만들지 않는다. 전체 글의 저장 탭은 범위가 'saved'로 바뀐다.
+    const before = { location, scroll, entries: entries.length, index, deferred: deferredBack };
+    const tabEntries = [null]; let tabIndex = 0, tabLocation = library;
+    const tabHistory = {
+      get length() { return tabEntries.length; }, get state() { return tabEntries[tabIndex]; },
+      replaceState(state) { tabEntries[tabIndex] = structuredClone(state); },
+      pushState(state) { tabEntries.splice(tabIndex + 1); tabEntries.push(structuredClone(state)); tabIndex++; },
+      go(delta) { tabIndex += delta; tabs.pop(this.state); },
+    };
+    const tabs = new MobileNavigation(tabHistory, 'owner', library, (next) => { tabLocation = next; });
+    const show = (next) => { tabLocation = next; tabs.record(next, 0); };
+    const all = { ...library, library: false };
+    show(all); assert.equal(tabEntries.length, 2);
+    show({ ...all, unread: true }); show({ ...all, scope: 'saved' }); show(all); show({ ...all, unread: true });
+    assert.equal(tabEntries.length, 2, 'switching tabs on the all list adds no back steps');
+    assert.equal(tabs.backTarget(), 'library');
+    tabs.back(); tabs.record(tabLocation); assert.equal(tabLocation.library, true, 'back goes to the library, not to the previous tab');
+    const feed = { ...list, scope: 'feed', folderId: null, feedId: 'news' };
+    show(feed); const steps = tabEntries.length;
+    show({ ...feed, unread: true }); show({ ...feed, saved: true }); show(feed);
+    assert.equal(tabEntries.length, steps, 'switching tabs inside a feed adds no back steps either');
+    show({ ...feed, feedId: 'other' }); assert.equal(tabEntries.length, steps + 1, 'opening another feed is still a back step');
+    assert.deepEqual({ location, scroll, entries: entries.length, index, deferred: deferredBack }, before);
+  }
   // 다시 불러와도 본문을 저장하지 않고 ID만으로 지금 보던 리더를 되살릴 수 있다.
   navigation = new MobileNavigation(history, 'owner', library, restore);
   assert.equal(location.articleId, 'read-article'); assert.equal(scroll, 300, 'an ordinary reload keeps the list place behind the article');
@@ -152,5 +177,5 @@ try {
   assert.equal((await get(other.token)).articles.length, 0, 'a single-article lookup still requires a subscription');
   assert.equal((await get(owner.token, '/api/articles?unreadOnly=true')).articles.length, 0, 'history restoration must not mark read articles unread');
   assert.equal((await app.request(query, {}, env)).status, 401);
-  console.log('PASS: ordinary right-swipe Back; native gesture, vertical scroll, horizontal content, controls and pinch preservation; mobile history, scroll/filter restoration, searches carried through the library, reload (list at the top after an update reload) and account isolation.');
+  console.log('PASS: ordinary right-swipe Back; native gesture, vertical scroll, horizontal content, controls and pinch preservation; mobile history, scroll/filter restoration, searches carried through the library, tab switches that add no back steps, reload (list at the top after an update reload) and account isolation.');
 } finally { await vite.close(); }

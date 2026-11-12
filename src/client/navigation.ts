@@ -34,6 +34,13 @@ const normal = (location: MobileLocation): MobileLocation => ({ ...location, sav
 const equal = (a: MobileLocation, b: MobileLocation) => JSON.stringify(normal(a)) === JSON.stringify(normal(b));
 const sameList = (a: MobileLocation, b: MobileLocation) => a.scope === b.scope && a.folderId === b.folderId && a.feedId === b.feedId && a.unread === b.unread && Boolean(a.saved) === Boolean(b.saved) && a.search === b.search;
 const root = (location: MobileLocation): MobileLocation => ({ ...location, articleId: null, library: true });
+// 같은 목록에서 전체·안 읽음·저장 탭만 바꾼 것인지. 전체 글의 저장 탭은 범위가 'saved'로 바뀐다.
+const listShown = (location: MobileLocation) => !location.articleId && !location.library;
+const libraryScope = (scope: ScopeType) => scope === 'all' || scope === 'saved';
+const switchesTab = (a: MobileLocation, b: MobileLocation) => listShown(a) && listShown(b)
+  && a.folderId === b.folderId && a.feedId === b.feedId && a.search === b.search
+  && (a.scope === b.scope || (libraryScope(a.scope) && libraryScope(b.scope)))
+  && (a.unread !== b.unread || Boolean(a.saved) !== Boolean(b.saved) || a.scope !== b.scope);
 
 // 기록에는 이동 식별자만 둔다. 글 본문이나 토큰은 절대 넣지 않는다.
 // 브라우저의 기록 스택을 그대로 써서 iOS 가장자리 밀기와 브라우저 뒤로/앞으로가 같게 동작한다.
@@ -151,12 +158,16 @@ export class MobileNavigation {
     }
     // 검색창을 고칠 때 글자마다 뒤로 가기 단계가 생기면 안 된다.
     const typing = previous.location.search !== location.search && equal({ ...previous.location, search: location.search }, location);
-    const index = previous.index + (typing ? 0 : 1);
+    // 아래 막대의 전체·안 읽음·저장 탭을 바꾸는 것도 같은 목록을 거르는 것이라 뒤로 가기 단계를 만들지 않는다.
+    // 밀어서 뒤로 가면 이전 탭이 아니라 그 목록을 열기 전 화면(보관함 등)으로 간다.
+    const tab = !typing && switchesTab(previous.location, location);
+    const replace = typing || tab;
+    const index = previous.index + (replace ? 0 : 1);
     this.write({ version: 1, account: this.account, index, location,
       list: location.articleId ? previous.location.articleId ? previous.list : previous.index : location.library ? null : index,
       library: location.library ? null : previous.location.library ? previous.index : previous.library,
       scroll: location.articleId ? this.current.scroll : typing ? scroll : 0,
-    }, !typing);
+    }, !replace);
   }
 }
 
