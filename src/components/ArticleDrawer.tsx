@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   Bookmark,
@@ -345,25 +346,35 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       return () => clearTimeout(timer);
     }
   }, [xWaiting, holdingPreview]);
-  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [shareMenuPosition, setShareMenuPosition] = useState<{ left: number; top: number } | null>(null);
+  const shareButtonRef = useRef<HTMLButtonElement>(null);
   const shareMenuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { setShareMenuOpen(false); }, [article?.id]);
+  useEffect(() => { setShareMenuPosition(null); }, [article?.id]);
   useEffect(() => {
-    if (!shareMenuOpen) return;
-    const outside = (event: PointerEvent) => { if (!shareMenuRef.current?.contains(event.target as Node)) setShareMenuOpen(false); };
+    if (!shareMenuPosition) return;
+    const close = () => setShareMenuPosition(null);
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!shareMenuRef.current?.contains(target) && !shareButtonRef.current?.contains(target)) close();
+    };
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.stopPropagation();
-      setShareMenuOpen(false);
-      shareMenuRef.current?.querySelector('button')?.focus();
+      close();
+      shareButtonRef.current?.focus();
     };
     document.addEventListener('pointerdown', outside, true);
     window.addEventListener('keydown', escape, true);
+    window.addEventListener('resize', close);
+    window.addEventListener('blur', close);
     return () => {
       document.removeEventListener('pointerdown', outside, true);
       window.removeEventListener('keydown', escape, true);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('blur', close);
     };
-  }, [shareMenuOpen]);
+  }, [shareMenuPosition]);
+  useLayoutEffect(() => { if (shareMenuPosition) shareMenuRef.current?.querySelector('button')?.focus(); }, [shareMenuPosition]);
   const [mobileMenu, setMobileMenu] = useState<'tools' | 'assist' | 'share' | null>(null);
   const closeMobileMenu = () => setMobileMenu(null);
   const isMobile = useMobileViewport();
@@ -955,15 +966,20 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <Link2 className="w-4 h-4" />
             </button>
 
-            <div ref={shareMenuRef} className="relative shrink-0">
-              <button type="button" onClick={() => setShareMenuOpen(open => !open)} aria-label="글 공유" title="글 공유" aria-expanded={shareMenuOpen}
-                className={`feedex-reader-icon ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
-                <Share2 className="w-4 h-4" />
-              </button>
-              {shareMenuOpen && <div role="group" aria-label="공유 방법" className={`feedex-desktop-share-menu absolute right-0 top-full z-50 mt-2 min-w-36 rounded-xl border p-1.5 text-sm shadow-lg ${isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white'}`}>
-                {shareOptions(() => setShareMenuOpen(false))}
-              </div>}
-            </div>
+            <button ref={shareButtonRef} type="button" aria-label="글 공유" title="글 공유" aria-expanded={Boolean(shareMenuPosition)}
+              onClick={(event) => {
+                if (shareMenuPosition) { setShareMenuPosition(null); return; }
+                const rect = event.currentTarget.getBoundingClientRect();
+                const width = Math.min(208, window.innerWidth - 16);
+                setShareMenuPosition({ left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)), top: rect.bottom + 8 });
+              }}
+              className={`feedex-reader-icon ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
+              <Share2 className="w-4 h-4" />
+            </button>
+            {shareMenuPosition && createPortal(<div ref={shareMenuRef} role="group" aria-label="공유 방법" style={shareMenuPosition}
+              className={`feedex-desktop-share-menu fixed z-[190] w-52 max-w-[calc(100vw-16px)] rounded-xl border p-1.5 text-sm shadow-lg ${isDark ? 'border-slate-700 bg-slate-900 text-slate-100' : 'border-slate-200 bg-white text-slate-900'}`}>
+              {shareOptions(() => { setShareMenuPosition(null); shareButtonRef.current?.focus(); })}
+            </div>, document.body)}
 
             {/* 원문 링크 열기 */}
             <a
@@ -1412,7 +1428,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             <p className="feedex-mobile-menu-label">{siteShown ? '사이트 확대·축소' : '글자 크기'}</p>
             {sizeControl('feedex-mobile-zoom')}
             <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}><ExternalLink size={18} />원문 사이트 열기</a>
-          </div> : mobileMenu === 'share' ? <div role="group" className="feedex-mobile-reader-menu feedex-mobile-assist-menu" aria-label="공유 방법">
+          </div> : mobileMenu === 'share' ? <div role="group" className="feedex-mobile-reader-menu feedex-mobile-assist-menu feedex-mobile-share-menu" aria-label="공유 방법">
             {shareOptions(closeMobileMenu)}
           </div> : <div className="feedex-mobile-reader-menu feedex-mobile-assist-menu" aria-label="번역 및 AI 요약">
             <button aria-pressed={showTranslation} onClick={() => { closeMobileMenu(); toggleTranslation(); }}>{translating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}{translateAction}</button>

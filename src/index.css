@@ -101,6 +101,8 @@ html.dark .feedex-block-empty button, html.dark .feedex-block-rule-actions butto
 /* 모바일 하단 막대 위에 뜨는 짧은 확인 안내. */
 .feedex-notice { position: fixed; z-index: 120; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: min(420px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 14px; background: #0f172aeb; color: #f8fafc; box-shadow: 0 8px 24px #0004; font-size: 13px; line-height: 1.45; text-align: center; pointer-events: none; }
 @media (min-width: 1024px) { .feedex-notice { bottom: 24px; } }
+/* 데스크톱 앱의 원문 화면은 웹 화면 위에 놓이므로 알림은 원문보다 위쪽에 표시한다. */
+.feedex-notice[data-native] { top: max(8px, env(safe-area-inset-top)); bottom: auto; }
 .feedex-context-menu { position: fixed; z-index: 200; min-width: 210px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; padding: 5px; border: 1px solid var(--feedex-border); border-radius: 13px; background: var(--feedex-panel); color: var(--feedex-text); box-shadow: 0 12px 38px #0003; }
 .feedex-context-menu > button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; padding: 7px 11px; border-radius: 8px; text-align: left; font-size: 13px; cursor: pointer; outline: none; }
 .feedex-context-menu > button > svg { flex: 0 0 auto; }
@@ -409,6 +411,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-status > div { min-height: 27px; }
   .feedex-web-status > div > div > * { padding-block: 4px; }
   .feedex-web-status[data-scroll-hidden] { transform: translateY(calc(-100% - var(--feedex-reader-top-height, 58px))); }
+  .feedex-web-view > .feedex-web-status:first-child + [data-native-article] { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
   .feedex-web-view > .feedex-web-summary { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
   .feedex-web-view > .feedex-translation-feedback:first-child { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top) + 6px); }
   .feedex-web-view > :is([data-web-loading], .feedex-web-fill) { padding-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }

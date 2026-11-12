@@ -60,6 +60,19 @@ try {
   assert.deepEqual(articlePlacement(slot(700.2, 640), page(), 'https://www.hankyung.com/article/1', 1.1), { type: 'article', url: 'https://www.hankyung.com/article/1', zoom: 1.1, hidden: false, rect: { x: 320, y: 97, width: 700, height: 640 } });
   assert.equal(articlePlacement(slot(0, 640), page(), 'https://a.test/', 1).hidden, true, 'an empty slot hides the original view');
   assert.equal(articlePlacement(slot(700, 640), page({}), 'https://a.test/', 1).hidden, true, 'a dialog or menu over the slot hides the original view');
+  // 공유 메뉴와 좁은 창의 글 화면 메뉴(본문 도구, 번역·요약, 공유)는 원문 화면 위로 펼쳐지므로, 열려 있는 동안 원문 화면을 숨긴다.
+  {
+    const { parseHTML } = await import('linkedom');
+    const covered = (markup) => articlePlacement(slot(700, 640), parseHTML(`<!doctype html><html><body>${markup}</body></html>`).document, 'https://a.test/', 1).hidden;
+    assert.equal(covered('<main></main>'), false);
+    assert.equal(covered('<div class="feedex-desktop-share-menu fixed"></div>'), true, 'the desktop share menu hides the original view');
+    for (const menu of ['feedex-mobile-reader-menu', 'feedex-mobile-reader-menu feedex-mobile-assist-menu', 'feedex-mobile-reader-menu feedex-mobile-assist-menu feedex-mobile-share-menu'])
+      assert.equal(covered(`<div class="${menu}"></div>`), true, `a narrow window's ${menu} hides the original view`);
+    const drawer = readFileSync('src/components/ArticleDrawer.tsx', 'utf8');
+    assert.match(drawer, /shareMenuPosition && createPortal\(<div ref=\{shareMenuRef\}[^>]*className=\{`feedex-desktop-share-menu fixed z-\[190\]/, 'the desktop share menu sits above the article frame instead of inside the toolbar');
+    assert.match(readFileSync('src/App.tsx', 'utf8'), /className="feedex-notice" data-native=\{inNativeApp\(\) \|\| undefined\}/, 'the desktop app marks its notices');
+    assert.match(readFileSync('src/index.css', 'utf8'), /\.feedex-notice\[data-native\] \{ top: max\(8px, env\(safe-area-inset-top\)\); bottom: auto; \}/, 'the desktop app shows notices above the original view');
+  }
 
   // 화면: 맥 앱 안에서는 시스템 로그인 창 버튼을 보이고, 웹 보기 자리에 원문 화면 자리만 둔다.
   Object.defineProperty(globalThis, 'webkit', { value: host.webkit, configurable: true });

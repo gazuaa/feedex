@@ -1833,7 +1833,7 @@ export const App: React.FC = () => {
         </ConfirmDialog>
       )}
 
-      {notice && <div className="feedex-notice" role="status" aria-live="polite">{notice}</div>}
+      {notice && <div className="feedex-notice" data-native={inNativeApp() || undefined} role="status" aria-live="polite">{notice}</div>}
 
       {/* 피드 찾기 / 피드 추가 / OPML 창 */}
       <DiscoverModal
