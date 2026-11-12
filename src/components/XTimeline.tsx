@@ -1,6 +1,6 @@
 import { ArticleBlockTag } from './ArticleBlockTag';
 import React, { useMemo, useState } from 'react';
-import { Bookmark, CheckCircle2, Circle, ExternalLink, Play, Repeat2 } from 'lucide-react';
+import { Play, Repeat2 } from 'lucide-react';
 import { apiRequest, type ArticleItem } from '../client/api';
 import { parseXPost, xTime, type XMedia, type XPost } from '../client/xTimeline';
 import { useXAvatars } from '../client/xAvatars';
@@ -13,8 +13,6 @@ interface Props {
   articles: ArticleItem[];
   selectedArticleId: string | null;
   onSelectArticle: (article: ArticleItem) => void;
-  onToggleRead: (article: ArticleItem, e: React.MouseEvent) => void;
-  onToggleSaved: (article: ArticleItem, e: React.MouseEvent) => void;
   onUpdateArticleFields?: (id: string, fields: Partial<ArticleItem>) => void;
   isDark: boolean;
   retainReadRows?: boolean;
@@ -23,20 +21,20 @@ interface Props {
 }
 
 // X 폴더와 X 계정은 X 타임라인처럼 보여 준다. 글을 누르면 다른 목록처럼 리더에서 열린다.
-export function XTimeline({ articles, selectedArticleId, onSelectArticle, onToggleRead, onToggleSaved, onUpdateArticleFields, isDark, retainReadRows, blockedArticleIds, listRef }: Props) {
+export function XTimeline({ articles, selectedArticleId, onSelectArticle, onUpdateArticleFields, isDark, retainReadRows, blockedArticleIds, listRef }: Props) {
   // 인용한 글과 재게시한 글은 글쓴이가 구독 계정이 아닐 수 있어 프로필 사진을 따로 찾는다.
   const posts = useMemo(() => new Map(articles.map((article) => [article.id, parseXPost(article)])), [articles]);
   const tabStop = articles.some((article) => article.id === selectedArticleId) ? selectedArticleId : articles[0]?.id;
   const avatarOf = useXAvatars([...posts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
   return <div ref={listRef} data-render-deferred={articles.length >= 120 || undefined} className={`feedex-list-items feedex-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
-    {articles.map((article) => <XPostRow tabIndex={tabStop === article.id ? 0 : -1} blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id) || parseXPost(article)} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onToggleRead={onToggleRead} onToggleSaved={onToggleSaved} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />)}
+    {articles.map((article) => <XPostRow tabIndex={tabStop === article.id ? 0 : -1} blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id) || parseXPost(article)} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />)}
   </div>;
 }
 
 // timeline은 X 폴더의 줄이다. 여러 피드가 섞인 목록에서는 그 목록의 모양에 맞춘다.
 // row는 매거진 목록의 구분선 줄, card는 카드 격자의 상자, plain은 제목 목록의 줄이다(구분선은 목록이 그린다).
 export type XRowVariant = 'timeline' | 'row' | 'card' | 'plain';
-export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onToggleRead, onToggleSaved, onUpdateArticleFields, isDark, tabIndex = 0, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; tabIndex?: number; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onToggleRead' | 'onToggleSaved' | 'onUpdateArticleFields' | 'isDark'>) {
+export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onUpdateArticleFields, isDark, tabIndex = 0, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; tabIndex?: number; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onUpdateArticleFields' | 'isDark'>) {
   const [brokenCard, setBrokenCard] = useState<string | null>(null);
   const refreshExpiredImage = (src: string) => {
     if (!onUpdateArticleFields || !src.includes('pbs.twimg.com/card_img/') || refreshedCards.has(article.id)) return;
@@ -63,7 +61,6 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
     ? isDark ? 'text-slate-400' : 'text-slate-500'
     : isDark ? 'text-slate-100' : 'text-slate-900';
   const stop = (event: React.MouseEvent) => event.stopPropagation();
-  const action = 'p-2 rounded-full transition cursor-pointer inline-flex items-center gap-1';
   return <article
     data-article-id={article.id}
     data-article-read={article.is_read}
@@ -75,7 +72,7 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
     onClick={() => onSelectArticle(article)}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelectArticle(article); } }}
     data-x-variant={variant}
-    className={`feedex-x-post flex gap-3 px-4 pt-3 pb-1 cursor-pointer transition ${frame} ${hover}`}
+    className={`feedex-x-post flex gap-3 px-4 py-3 cursor-pointer transition ${frame} ${hover}`}
   >
     <div className="flex w-10 shrink-0 flex-col items-end gap-1">
       {post.repostedBy && <Repeat2 aria-hidden="true" className="h-4 w-4 text-slate-500" />}
@@ -104,11 +101,6 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
         {post.quote.text && <span className={`mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-5 line-clamp-6 ${strong}`}>{post.quote.text}</span>}
         <MediaGrid media={post.quote.media || []} line={line} compact onImageError={refreshExpiredImage} />
       </div>}
-      <div className="-ml-2 mt-1 flex max-w-[425px] items-center justify-between text-slate-500">
-        <button type="button" title={article.is_read ? '안읽음으로 표시' : '읽음으로 표시'} aria-label={article.is_read ? '안읽음으로 표시' : '읽음으로 표시'} onClick={(event) => onToggleRead(article, event)} className={`${action} hover:bg-emerald-500/10 hover:text-emerald-500`}>{article.is_read ? <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500/80" /> : <Circle className="h-[18px] w-[18px]" />}</button>
-        <button type="button" title="나중에 읽기(북마크)" aria-label="나중에 읽기(북마크)" aria-pressed={article.is_saved} onClick={(event) => onToggleSaved(article, event)} className={`${action} hover:bg-sky-500/10 hover:text-sky-500 ${article.is_saved ? 'text-sky-500' : ''}`}><Bookmark className={`h-[18px] w-[18px] ${article.is_saved ? 'fill-current' : ''}`} /></button>
-        <a href={article.url} target="_blank" rel="noopener noreferrer" title="X에서 열기" aria-label="X에서 열기" onClick={stop} className={`${action} hover:bg-sky-500/10 hover:text-sky-500`}><ExternalLink className="h-[18px] w-[18px]" /></a>
-      </div>
     </div>
   </article>;
 }
