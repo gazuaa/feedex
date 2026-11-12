@@ -171,7 +171,7 @@ try {
     assert.equal((await db.prepare("SELECT last_error FROM feeds WHERE id='schedule25'").first()).last_error, null,
       '예전 코드가 실패 시각을 성공처럼 기록한 피드도 다시 수집한다');
 
-    const providers = ['https://nitter.mie.foundation', 'https://nitter.mizuki.st'];
+    const providers = ['https://nitter.mie.foundation', 'https://ruf.st'];
     for (const id of ['schedule26', 'schedule27']) {
       await db.prepare('INSERT INTO feeds(id,xml_url,title,last_fetched_at,created_at) VALUES(?,?,?,?,?)')
         .bind(id, `https://x.com/${id}`, id, old, now).run();

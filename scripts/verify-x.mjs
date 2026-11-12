@@ -163,7 +163,7 @@ try {
       if (url.searchParams.has('pagination_token')) return Response.json({ data: [{ id: '3', username: 'third', name: 'Third' }], meta: { result_count: 1 } });
       return Response.json({ data: [{ id: '1', username: 'NASA', name: 'NASA', protected: false, profile_image_url: 'https://pbs.twimg.com/a.jpg' }, { id: '2', username: 'private', name: 'Private', protected: true }], meta: { next_token: '0123456789abcdef' } });
     }
-    assert.ok(['nitter.mie.foundation', 'nitter.mizuki.st'].includes(url.hostname));
+    assert.ok(['nitter.mie.foundation', 'ruf.st'].includes(url.hostname));
     rssCalls.push({ url, options });
     assert.equal(options.credentials, 'omit'); assert.equal(options.redirect, 'manual');
     assert.ok(!new Headers(options.headers).has('Authorization'));
@@ -172,7 +172,7 @@ try {
       if (pageMode === 'missing') return new Response('<html><body><div class="error-panel"><span>Tweet not found</span></div></body></html>');
       if (pageMode === 'down') return new Response('', { status: 503 });
       // 답글 글 페이지: orphan은 두 미러 모두 원글을 못 불러오고, orphan-one은 첫 미러만 못 불러온다.
-      if (pageMode === 'orphan' || pageMode === 'orphan-one') return new Response(replyPage(pageMode === 'orphan-one' && url.hostname === 'nitter.mizuki.st'));
+      if (pageMode === 'orphan' || pageMode === 'orphan-one') return new Response(replyPage(pageMode === 'orphan-one' && url.hostname === 'ruf.st'));
       if (pageMode === 'quote-no-media') return new Response(statusPage(url.pathname.split('/')[1]).replace(/<div class="quote-media-container">[\s\S]*?<\/div>/, ''));
       if (pageMode === 'card-refresh') return new Response(statusPage(url.pathname.split('/')[1]).replace('<p class="tweet-published">', '<div class="card large"><a class="card-container" href="https://hark.com/"><div class="card-image-container"><div class="card-image"><img src="/pic/card_img%2F2117762426506768385%2FJUwJy2wG%3Fformat%3Djpg%26name%3D800x419"></div></div></a></div><p class="tweet-published">'));
       return new Response(statusPage(url.pathname.split('/')[1]));
@@ -325,7 +325,7 @@ try {
   assert.equal(pageCalls(), pagesBefore + 2);
   pagesBefore = pageCalls();
   await fetchXThread('https://x.com/nasa/status/2000000000000000005');
-  assert.deepEqual(rssCalls.slice(-1).map(({ url }) => url.hostname), ['nitter.mizuki.st']);
+  assert.deepEqual(rssCalls.slice(-1).map(({ url }) => url.hostname), ['ruf.st']);
   assert.equal(pageCalls(), pagesBefore + 1, '봇 확인을 건 경로의 글 페이지는 다시 부르지 않는다.');
   pageMode = 'missing';
   await assert.rejects(fetchXThread('https://x.com/nasa/status/2000000000000000006'));
@@ -426,7 +426,7 @@ try {
   for (const name of ['@onelimited', '@nextone', '@thirdone']) {
     const from = rssCalls.length;
     assert.equal((await fetchAndParseFeed(name)).xmlUrl, `https://x.com/${name.slice(1)}`);
-    assert.ok(rssCalls.slice(from).every(({ url }, index, calls) => url.hostname === 'nitter.mizuki.st' || index < calls.length - 1));
+    assert.ok(rssCalls.slice(from).every(({ url }, index, calls) => url.hostname === 'ruf.st' || index < calls.length - 1));
   }
   assert.equal(rssCalls.filter(({ url }) => url.hostname === 'nitter.mie.foundation' && /onelimited|nextone|thirdone/.test(url.pathname)).length, 1, '한도를 알린 경로는 쉬는 동안 부르지 않는다.');
 
@@ -518,5 +518,43 @@ try {
     } finally { Date.now = avatarNow; rssMode = 'ok'; }
   }
 
-  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, an X-style timeline for X folders, and paced backfill of older X posts with gap filling.');
+  // 미러 RSS의 리트윗 날짜는 원래 글의 날짜다. 하루 넘게 지난 글을 리트윗한 것은 지금 새 글로 들어오지 않게 뺀다.
+  {
+    const { dropStaleReposts, currentProvider, fetchXOlderPage, STALE_REPOST_MS } = await vite.ssrLoadModule('/src/server/xFeed.ts');
+    const { parseXmlFeedContent } = await vite.ssrLoadModule('/src/server/rssParser.ts');
+    const hour = 3_600_000, now = Date.parse('2026-11-13T00:00:00Z');
+    const at = (hoursAgo) => new Date(now - hoursAgo * hour).toISOString();
+    const post = (id, hoursAgo, repost = false) => ({ guid: `x:${id}`, title: `${repost ? 'RT by @raoul: ' : ''}post ${id}`, url: `https://x.com/u/status/${id}`, author: null, summary: null, contentHtml: null, thumbnailUrl: null, publishedAt: at(hoursAgo) });
+    const ids = (list) => list.map((article) => article.guid);
+    // 첫 쪽 맨 위의 리트윗은 방금 한 것이다. 이틀 전 글은 빼고 몇 시간 전 글은 남긴다.
+    assert.deepEqual(ids(dropStaleReposts([post(1, 48, true), post(2, 3, true), post(3, 1), post(4, 80, true), post(5, 50), post(6, 60, true), post(7, 55)], now)),
+      ['x:2', 'x:3', 'x:5', 'x:6', 'x:7'], 'a two-day-old post retweeted now is dropped, a fresh retweet and own posts stay, and lower retweets are judged by the own posts below');
+    // 본인 글 사이의 리트윗은 아래쪽 본인 글보다 나중에 한 것이다. 그보다 하루 넘게 앞선 글이면 뺀다.
+    assert.deepEqual(ids(dropStaleReposts([post(1, 2), post(2, 30, true), post(3, 5), post(4, 6, true), post(5, 8)], now)),
+      ['x:1', 'x:3', 'x:4', 'x:5'], 'a retweet is dated no earlier than the own post below it');
+    // 다음 쪽(예전 글)에서는 지금 시각을 모르므로, 아래쪽 본인 글이 없는 리트윗은 남긴다.
+    assert.deepEqual(ids(dropStaleReposts([post(1, 120, true), post(2, 90), post(3, 100, true), post(4, 95)])), ['x:2', 'x:3', 'x:4'], 'older pages use the own posts below');
+    assert.deepEqual(ids(dropStaleReposts([post(1, 100), post(2, 200, true)])), ['x:1', 'x:2'], 'with nothing below, a retweet is kept');
+    assert.deepEqual(ids(dropStaleReposts([{ ...post(1, 0, true), publishedAt: 'unknown' }], now)), ['x:1'], 'an undated retweet is kept');
+    assert.deepEqual(ids(dropStaleReposts([post(1, 23.9, true)], now)), ['x:1']); assert.equal(STALE_REPOST_MS, 24 * hour);
+    // 주소를 옮긴 미러: 옛 주소로 기억한 다음 쪽 위치를 새 주소에서 이어 받는다.
+    assert.equal(currentProvider('https://nitter.mizuki.st'), 'https://ruf.st');
+    assert.equal(currentProvider('https://nitter.mie.foundation'), 'https://nitter.mie.foundation');
+    // 앞선 시험이 이 미러에 남긴 쉬는 시간을 넘긴 시각에서 받는다.
+    const before = globalThis.fetch, beforeNow = Date.now, asked = [];
+    Date.now = () => beforeNow() + 7 * 24 * hour;
+    globalThis.fetch = async (input) => {
+      asked.push(String(input));
+      const item = (id, title, date) => `<item><title>${title}</title><link>https://ruf.st/raoul/status/${id}#m</link><guid>https://ruf.st/raoul/status/${id}#m</guid><pubDate>${new Date(date).toUTCString()}</pubDate><description>${title}</description></item>`;
+      return new Response(`<?xml version="1.0"?><rss version="2.0"><channel><title>raoul</title><link>https://ruf.st/raoul</link><description>x</description>${item(11, 'RT by @raoul: old', now - 100 * hour)}${item(12, 'own', now - 50 * hour)}</channel></rss>`, { headers: { 'Content-Type': 'application/rss+xml', 'Min-Id': 'nextcursor-0001' } });
+    };
+    try {
+      const page = await fetchXOlderPage('https://x.com/raoul', { provider: 'https://nitter.mizuki.st', cursor: 'cursor-00001' }, parseXmlFeedContent);
+      assert.ok(asked[0].startsWith('https://ruf.st/raoul/rss?cursor=cursor-00001'), 'the moved mirror is asked at its new address');
+      assert.deepEqual(page.articles.map((article) => article.url), ['https://x.com/raoul/status/12'], 'older pages drop stale retweets too');
+      assert.deepEqual(page.older, { provider: 'https://ruf.st', cursor: 'nextcursor-0001' }, 'the next page is remembered at the new address');
+    } finally { globalThis.fetch = before; Date.now = beforeNow; }
+  }
+
+  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, an X-style timeline for X folders, paced backfill of older X posts with gap filling, no late arrivals from retweets of day-old posts, and the moved mirror address.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }

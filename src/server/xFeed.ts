@@ -3,7 +3,11 @@ import { xProfile } from '../shared/xFeed';
 import { retryAfterMs } from './retryAfter';
 import type { D1DatabaseLike } from './types';
 
-export const providers = ['https://nitter.mie.foundation', 'https://nitter.mizuki.st'];
+export const providers = ['https://nitter.mie.foundation', 'https://ruf.st'];
+// 주소를 옮긴 미러. 옛 주소는 301로 새 주소를 알려 주는데, 요청은 주소 이동을 따라가지 않으므로 그동안 이 미러를
+// 쓰지 못했다. 옛 주소로 기억해 둔 다음 쪽 위치(x_backfill)도 새 주소에서 이어 받는다.
+const MOVED_PROVIDERS: Record<string, string> = { 'https://nitter.mizuki.st': 'https://ruf.st' };
+export const currentProvider = (provider: string) => MOVED_PROVIDERS[provider] ?? provider;
 const cache = new Map<string, { expires: number; feed: ParsedFeed; bytes: number }>();
 let cachedBytes = 0;
 const flights = new Map<string, Promise<ParsedFeed>>();
@@ -82,6 +86,33 @@ function profileImage(xml: string, provider: string, hosts: ReadonlySet<string>)
 }
 
 type Parse = (xml: string, url: string) => ParsedFeed;
+
+/** 이만큼 지난 글을 리트윗한 것은 받지 않는다. */
+export const STALE_REPOST_MS = 24 * 3_600_000;
+const REPOST = /^RT by @[a-z\d_]{1,15}:/i;
+/**
+ * 미러 RSS의 리트윗 날짜는 리트윗한 시각이 아니라 원래 글의 시각이다. 그래서 이틀 전 글을 지금 리트윗하면 이틀 전
+ * 날짜의 글이 지금 새로 들어와, 오래된 글이 뒤늦게 올라온 것처럼 보인다. 하루 넘게 지난 글을 리트윗한 것은 뺀다.
+ * 리트윗한 시각은 RSS 순서(타임라인 순서, 최신이 위)로 가늠한다. 아래쪽 본인 글보다는 나중이므로 그 날짜가 하한이다.
+ * 첫 쪽의 맨 위(위에 본인 글이 없는) 리트윗은 지난번 새로고침 뒤에 한 것이므로 지금(`seenAt`)으로 본다.
+ * 시각을 가늠할 수 없으면 남긴다.
+ */
+export function dropStaleReposts(articles: ParsedArticle[], seenAt?: number): ParsedArticle[] {
+  const time = (article: ParsedArticle) => Date.parse(article.publishedAt);
+  let ownAbove = false;
+  return articles.filter((article, index) => {
+    if (!REPOST.test(article.title)) { ownAbove = true; return true; }
+    const posted = time(article);
+    if (!Number.isFinite(posted)) return true;
+    let reposted = !ownAbove && seenAt !== undefined ? seenAt : -Infinity;
+    for (const below of articles.slice(index + 1)) {
+      if (REPOST.test(below.title)) continue;
+      const at = time(below);
+      if (Number.isFinite(at)) reposted = Math.max(reposted, at);
+    }
+    return !Number.isFinite(reposted) || reposted - posted <= STALE_REPOST_MS;
+  });
+}
 /** 미러가 알려 준 더 옛날 글 쪽. 미러마다 위치 값이 다를 수 있어 그 미러와 함께 기억한다. */
 export interface XOlderPage { provider: string; cursor: string }
 // 미러 RSS는 Min-Id 헤더로 다음 쪽(더 옛날 글)의 위치를 알려 준다.
@@ -118,23 +149,23 @@ function readXPage(xml: string, provider: string, profile: { username: string; u
  * `failed`는 이 쪽을 받지 못한 것이다. 다음 쪽이 없으면 `older`가 비어 있다.
  */
 export async function fetchXOlderPage(profileUrl: string, page: XOlderPage, parse: Parse, db?: D1DatabaseLike): Promise<{ articles: ParsedArticle[]; older?: XOlderPage } | 'limited' | 'failed'> {
-  const profile = xProfile(profileUrl);
-  if (!profile || !providers.includes(page.provider)) return 'failed';
-  if (await restingUntil(page.provider, db)) return 'limited';
+  const profile = xProfile(profileUrl), provider = currentProvider(page.provider);
+  if (!profile || !providers.includes(provider)) return 'failed';
+  if (await restingUntil(provider, db)) return 'limited';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(`${page.provider}/${profile.username}/rss?cursor=${encodeURIComponent(page.cursor)}`, {
+    const response = await fetch(`${provider}/${profile.username}/rss?cursor=${encodeURIComponent(page.cursor)}`, {
       headers: { Accept: 'application/rss+xml, application/xml;q=0.9', 'User-Agent': 'FeedExRSS/1.0' },
       redirect: 'manual', credentials: 'omit', signal: controller.signal,
     });
-    if (response.status === 429) { await response.body?.cancel(); await restProvider(page.provider, response.headers.get('Retry-After'), db); return 'limited'; }
+    if (response.status === 429) { await response.body?.cancel(); await restProvider(provider, response.headers.get('Retry-After'), db); return 'limited'; }
     if (!response.ok) { await response.body?.cancel(); return 'failed'; }
-    const read = readXPage(await readFeed(response), page.provider, profile, parse);
+    const read = readXPage(await readFeed(response), provider, profile, parse);
     if (!read) return 'failed';
-    const older = olderPage(response, page.provider);
-    // 글이 없는 쪽이나 같은 위치를 다시 알려 주면 끝까지 받은 것이다.
-    return { articles: read.articles, older: read.articles.length && older?.cursor !== page.cursor ? older : undefined };
+    const older = olderPage(response, provider);
+    // 글이 없는 쪽이나 같은 위치를 다시 알려 주면 끝까지 받은 것이다. 빈 쪽 판단은 거르기 전의 글 수로 한다.
+    return { articles: dropStaleReposts(read.articles), older: read.articles.length && older?.cursor !== page.cursor ? older : undefined };
   } catch { return 'failed'; }
   finally { clearTimeout(timer); }
 }
@@ -184,7 +215,7 @@ export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLik
           description: `@${profile.username}의 공개 X 게시물`,
           // 채널 이미지는 계정의 프로필 사진이다. 목록과 X 타임라인의 얼굴로 쓴다.
           faviconUrl: profileImage(xml, provider, hosts) || 'https://abs.twimg.com/favicons/twitter.3.ico',
-          articles: read.articles,
+          articles: dropStaleReposts(read.articles, Date.now()),
           xOlder: olderPage(response, provider),
         };
         cachedBytes -= cache.get(profile.url)?.bytes || 0;
