@@ -1,4 +1,5 @@
 import type { D1DatabaseLike } from './types';
+import { pauseSupported } from './feedPause';
 
 // X 미러 상태. 요청 한도(429)는 x_provider_cooldowns에 남지만, 주소 이동(301)·서버 오류·보안 확인 페이지 같은 실패는
 // 아무 데도 남지 않았다. 그래서 2026-11에 nitter.mizuki.st가 ruf.st로 옮긴 뒤 이틀 동안 미러 하나만 쓰이며
@@ -92,4 +93,37 @@ export async function mirrorStatuses(db: D1DatabaseLike, providers: readonly str
       limitedUntil: limitedUntil && limitedUntil > now ? limitedUntil : null,
     };
   });
+}
+
+/** 이만큼 한 번도 받지 못한 X 계정은 운영자 설정에 따로 보인다. 정기 실행은 계정마다 15분 안팎으로 다시 받는다. */
+export const ACCOUNT_STALE_MS = 3 * 3_600_000;
+export interface StaleXAccount { handle: string; title: string; lastOkAt: string | null; error: string | null; failures: number; retryAt: number | null }
+
+/**
+ * 구독 중인(멈추지 않은) X 계정 가운데 마지막으로 받은 지 오래된 계정. 피드의 last_fetched_at은 받기에 성공했을 때만
+ * 바뀌므로, 미러는 멀쩡해도 특정 계정만 계속 실패하거나(이름 변경, 비공개 전환 등) 차례가 밀리는 경우를 찾는다.
+ */
+export async function staleXAccounts(db: D1DatabaseLike, now = Date.now(), limit = 20): Promise<{ total: number; accounts: StaleXAccount[] }> {
+  const paused = await pauseSupported(db);
+  const where = `f.xml_url LIKE 'https://x.com/%'
+    AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=f.id ${paused ? 'AND s.paused_at IS NULL' : ''})
+    AND (f.last_fetched_at IS NULL OR f.last_fetched_at < ?)`;
+  const cutoff = new Date(now - ACCOUNT_STALE_MS).toISOString();
+  type Row = { xml_url: string; title: string; last_fetched_at: string | null; last_error: string | null; failures: number | null; retry_at: number | null };
+  const [count, rows] = await Promise.all([
+    db.prepare(`SELECT COUNT(*) AS n FROM feeds f WHERE ${where}`).bind(cutoff).first<{ n: number }>(),
+    db.prepare(`SELECT f.xml_url,f.title,f.last_fetched_at,f.last_error,r.failures,r.retry_at FROM feeds f
+      LEFT JOIN feed_refresh_state r ON r.feed_id=f.id WHERE ${where} ORDER BY f.last_fetched_at ASC LIMIT ?`).bind(cutoff, limit).all<Row>(),
+  ]);
+  return {
+    total: Number(count?.n || 0),
+    accounts: rows.results.map((row) => ({
+      handle: row.xml_url.split('/').pop() || row.xml_url,
+      title: row.title,
+      lastOkAt: row.last_fetched_at,
+      error: row.last_error ? row.last_error.slice(0, 200) : null,
+      failures: Number(row.failures || 0),
+      retryAt: row.retry_at && Number(row.retry_at) > now ? Number(row.retry_at) : null,
+    })),
+  };
 }

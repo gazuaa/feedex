@@ -20,7 +20,7 @@ import { normalizeFeedUrl } from '../shared/feedDiscovery';
 import { xRoutes } from './xConnection';
 import { feedHistoryRoutes } from './feedHistory';
 import { providers as xProviders, XFeedError } from './xFeed';
-import { mirrorStatuses } from './xMirrorHealth';
+import { mirrorStatuses, staleXAccounts } from './xMirrorHealth';
 import { inheritXView, saveXView } from './xViews';
 import { fetchXThread, refreshXCardImages, verifiedXThread, xStatusUrl, xThreadSummaryPosts, xThreadTranslationBody, xThreadWithProof } from './xThread';
 import { isXProfileFeed } from '../shared/xFeed';
@@ -1505,11 +1505,12 @@ async function translationConfig(env: Env, user: UserRecord) {
   }
   return { canManage: true, provider: deepl ? 'deepl' : 'workers-ai', managed: Boolean(deepl?.managed), usage, problem, storage: Boolean(env.X_SETTINGS_SECRET && env.X_SETTINGS_SECRET.length >= 32) };
 }
-// X 미러 상태. 운영자에게만 보인다. 미러가 주소를 옮기거나 멈추면 설정 화면에서 알 수 있다.
+// X 미러와 계정 수집 상태. 운영자에게만 보인다. 미러가 주소를 옮기거나 멈추거나, 특정 계정을 오래 받지 못하면 설정 화면에서 알 수 있다.
 app.get('/api/x-mirrors', async (c) => {
   c.header('Cache-Control', 'no-store');
   if (!canManageX(c.env, c.get('user'))) return c.json({ canManage: false });
-  return c.json({ canManage: true, mirrors: await mirrorStatuses(c.env.DB, xProviders) });
+  const [mirrors, stale] = await Promise.all([mirrorStatuses(c.env.DB, xProviders), staleXAccounts(c.env.DB)]);
+  return c.json({ canManage: true, mirrors, staleAccounts: stale.accounts, staleTotal: stale.total });
 });
 app.get('/api/translation/config', async (c) => {
   c.header('Cache-Control', 'no-store');

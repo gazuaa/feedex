@@ -631,5 +631,52 @@ try {
     assert.equal(ago(now - 30_000, now), '방금'); assert.equal(ago(now - 3 * 24 * hour, now), '3일 전');
   }
 
-  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, an X-style timeline for X folders, paced backfill of older X posts with gap filling, no late arrivals from retweets of day-old posts, the moved mirror address, and mirror health recorded for the operator.');
+  // 미러는 멀쩡해도 특정 계정만 오래 받지 못하면 운영자 설정에 이름과 이유가 보인다. 멈춘 구독과 구독자 없는 계정은 뺀다.
+  {
+    const accountsDb = new LocalD1Database(':memory:', 'migrations/0001_schema.sql');
+    await accountsDb.exec(readFileSync('migrations/0009_feed_refresh_state.sql', 'utf8'));
+    const accountsEnv = { DB: accountsDb, ALLOW_QUICK_LOGIN: 'true', OWNER_EMAIL: 'x-accounts@example.test' };
+    const quick = async (email) => (await (await app.request('/api/auth/google/quick', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }, accountsEnv)).json());
+    const owner = await quick('x-accounts@example.test'), stranger = await quick('x-stranger@example.test');
+    const now = Date.now(), hoursAgo = (hours) => new Date(now - hours * 3_600_000).toISOString();
+    const account = async (handle, lastOk, { error = null, failures = 0, retryAt = 0, paused = false, subscribed = true } = {}) => {
+      const id = `feed-${handle}`;
+      await accountsDb.prepare('INSERT INTO feeds(id,xml_url,title,created_at,last_fetched_at,last_error) VALUES(?,?,?,?,?,?)').bind(id, `https://x.com/${handle}`, `${handle} / @${handle}`, hoursAgo(100), lastOk, error).run();
+      if (subscribed) await accountsDb.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at,paused_at) VALUES(?,?,?,?,?)').bind(`sub-${handle}`, owner.user.id, id, hoursAgo(100), paused ? hoursAgo(50) : null).run();
+      await accountsDb.prepare('INSERT INTO feed_refresh_state(feed_id,attempted_at,lease_until,retry_at,failures) VALUES(?,?,0,?,?)').bind(id, hoursAgo(0.1), retryAt, failures).run();
+    };
+    await account('fresh', hoursAgo(0.2));
+    await account('renamed', hoursAgo(30), { error: 'X 공개 게시물을 가져오지 못했습니다.', failures: 4, retryAt: now + 1_800_000 });
+    await account('waiting', hoursAgo(5));
+    await account('pausedone', hoursAgo(80), { paused: true });
+    await account('nobody', hoursAgo(80), { subscribed: false });
+    await accountsDb.prepare('INSERT INTO feeds(id,xml_url,title,created_at,last_fetched_at) VALUES(?,?,?,?,?)').bind('feed-rss', 'https://news.example.test/rss', 'news', hoursAgo(100), hoursAgo(90)).run();
+    await accountsDb.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('sub-rss', owner.user.id, 'feed-rss', hoursAgo(100)).run();
+    const { staleXAccounts } = await vite.ssrLoadModule('/src/server/xMirrorHealth.ts');
+    const found = await staleXAccounts(accountsDb, now);
+    assert.equal(found.total, 2, 'only subscribed, unpaused X accounts not fetched for three hours');
+    assert.deepEqual(found.accounts.map((item) => item.handle), ['renamed', 'waiting'], 'the longest-missed account comes first');
+    assert.equal(found.accounts[0].failures, 4); assert.equal(found.accounts[0].retryAt, now + 1_800_000); assert.match(found.accounts[0].error, /가져오지 못했습니다/);
+    assert.equal(found.accounts[1].error, null);
+    assert.equal((await staleXAccounts(accountsDb, now, 1)).accounts.length, 1, 'the list is capped');
+    const ownerView = await (await app.request('/api/x-mirrors', { headers: { authorization: `Bearer ${owner.token}` } }, accountsEnv)).json();
+    assert.equal(ownerView.staleTotal, 2); assert.deepEqual(ownerView.staleAccounts.map((item) => item.handle), ['renamed', 'waiting']);
+    assert.deepEqual(await (await app.request('/api/x-mirrors', { headers: { authorization: `Bearer ${stranger.token}` } }, accountsEnv)).json(), { canManage: false }, 'other people see no accounts either');
+
+    // 설정 화면: 미러가 정상이어도 오래 받지 못한 계정이 있으면 '확인 필요'와 계정, 이유가 보인다.
+    const React = (await import('react')).default, { renderToStaticMarkup } = await import('react-dom/server');
+    const { XMirrorStatus, accountLine } = await vite.ssrLoadModule('/src/components/XMirrorStatus.tsx');
+    const okMirrors = [{ provider: 'https://ruf.st', host: 'ruf.st', state: 'ok', lastOkAt: now - 60_000, failingSince: null, lastFailure: null, limitedUntil: null }];
+    const view = (extra) => renderToStaticMarkup(React.createElement(XMirrorStatus, { initial: { canManage: true, mirrors: okMirrors, ...extra }, now }));
+    const calm = view({ staleAccounts: [], staleTotal: 0 });
+    assert.match(calm, /X 수집/); assert.match(calm, /모든 X 계정을 3시간 안에 받았어요/); assert.match(calm, />정상<\/strong>/);
+    const worried = view({ staleAccounts: found.accounts, staleTotal: 23 });
+    assert.match(worried, /data-alert="true">확인 필요<\/strong>/); assert.match(worried, /X 계정 23개를 3시간 넘게 받지 못했어요/);
+    assert.match(worried, /@renamed<\/span><small>30시간 전 마지막으로 받음 · 4번째 실패: X 공개 게시물을 가져오지 못했습니다\.<\/small>/);
+    assert.match(worried, /@waiting<\/span><small>5시간 전 마지막으로 받음 · 수집 차례를 기다리는 중<\/small>/);
+    assert.match(worried, /외 21개/, 'more accounts than listed are counted');
+    assert.equal(accountLine({ handle: 'new', title: 'new', lastOkAt: null, error: 'X 게시물 제공 경로의 요청 한도에 도달했습니다.', failures: 1, retryAt: null }, now), '받은 적 없음 · X 게시물 제공 경로의 요청 한도에 도달했습니다.');
+  }
+
+  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, an X-style timeline for X folders, paced backfill of older X posts with gap filling, no late arrivals from retweets of day-old posts, the moved mirror address, and mirror health plus long-missed accounts shown to the operator.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }
