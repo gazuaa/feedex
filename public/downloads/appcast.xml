@@ -5,14 +5,14 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <title>FeedEx for Mac</title>
     <link>https://feedex.jyk.workers.dev/</link>
     <item>
-      <title>FeedEx 2.4</title>
-      <sparkle:version>6</sparkle:version>
-      <sparkle:shortVersionString>2.4</sparkle:shortVersionString>
+      <title>FeedEx 2.5</title>
+      <sparkle:version>7</sparkle:version>
+      <sparkle:shortVersionString>2.5</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>
-      <enclosure url="https://feedex.jyk.workers.dev/downloads/FeedEx-for-Mac-2.4.zip" length="1216168" type="application/octet-stream" sparkle:edSignature="dFZWpJT8IewOERaopS98TkwvgNaHShgAzW2dNTaGMzlF3xlFhF7v461P7CcTaN6GQirnGLQrRUUKg3wgwVd3DQ=="></enclosure>
+      <enclosure url="https://feedex.jyk.workers.dev/downloads/FeedEx-for-Mac-2.5.zip" length="1219979" type="application/octet-stream" sparkle:edSignature="u1aZtVBfX8WUsQCk7mj6Ph2StOVcue1N3xoi8lwCxCxE9B3kpACTXi/azcN1rw1qgQOwdZ4RbUTyC91jZU3yBw=="></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: 6y3B19lvXpfkzLfFiTzhue87RD86+7JilyXWBqcv+31862i5T7WZ7w82PT8wQi76Zj9qikQM3mXEbuCP9tzHBQ==
+edSignature: BMG11cNuRH5VFYGCNaSYwQBFkAyIiGuByeppQhHVPeNWlpcJlnOWVLX7KDKTs74F8c/UxkpZqd0QrcDqDruXDg==
 length: 990
 -->

@@ -9,7 +9,9 @@ export type NativeMessage =
   | { type: 'checkForUpdates' }
   | { type: 'appScale'; action: 'smaller' | 'larger' | 'reset' }
   | { type: 'article'; url: string | null; rect?: NativeRect; zoom?: number; hidden?: boolean }
-  | { type: 'openExternal'; url: string };
+  | { type: 'openExternal'; url: string }
+  // 설치한 Slap 앱을 전용 주소(url, web+slap:)로 연다. 이 컴퓨터에 받을 앱이 없으면 fallback(https)을 기본 브라우저로 연다.
+  | { type: 'openSlap'; url: string; fallback: string };
 interface NativeBridge { postMessage(message: NativeMessage): void }
 /** 윈도우 앱이 주고받는 통로. 보낼 때는 어느 통로인지(channel) 붙이고, 답은 message 이벤트로 받는다. */
 export interface WindowsWebView {
@@ -39,6 +41,11 @@ export function nativeBridge(host: BridgeHost = globalThis as BridgeHost): Nativ
   return view ? { postMessage: (message) => view.postMessage({ channel: 'feedex', body: message }) } : null;
 }
 export const inNativeApp = (host?: BridgeHost) => Boolean(nativeBridge(host));
+/** 데스크톱 앱이 문서마다 알려 주는 지원 기능(예: 'openSlap'). 기능이 생기기 전의 앱은 비어 있다. */
+export function nativeFeatures(host: { feedexAppFeatures?: unknown } = globalThis as { feedexAppFeatures?: unknown }): string[] {
+  const features = host.feedexAppFeatures;
+  return Array.isArray(features) ? features.filter((feature): feature is string => typeof feature === 'string') : [];
+}
 /** 화면에 쓰는 앱 이름과 운영체제 이름. */
 export const nativeAppName = (platform: NativePlatform | null = nativePlatform()) => platform === 'windows' ? '윈도우 앱' : '맥 앱';
 export const nativeSystemName = (platform: NativePlatform | null = nativePlatform()) => platform === 'windows' ? 'Windows' : 'macOS';

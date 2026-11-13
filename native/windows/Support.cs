@@ -69,6 +69,16 @@ namespace FeedEx
             catch (Exception) { /* 열 앱이 없으면 아무것도 하지 않는다. */ }
         }
 
+        /// <summary>
+        /// 이 컴퓨터에 그 주소 형식(예: web+slap)을 받는 앱이 등록되어 있는지. Chrome·Edge는 설치한 웹 앱의 주소 처리기를
+        /// 여기에 등록한다. 없는데 열면 윈도우가 '앱 선택' 창을 띄우므로 먼저 확인한다.
+        /// </summary>
+        public static bool HasProtocolHandler(string scheme)
+        {
+            try { using (var key = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey(scheme)) return key?.GetValue("URL Protocol") != null; }
+            catch (Exception) { return false; }
+        }
+
         public static Icon AppIcon()
         {
             try { return Icon.ExtractAssociatedIcon(Assembly.GetEntryAssembly().Location); }

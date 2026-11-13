@@ -29,6 +29,25 @@ try {
     assert.equal(slap.origin, 'https://slap.jyk.workers.dev');
     assert.equal(slap.searchParams.get('share'), '1');
     assert.equal(slapShare.get('share'), shared.url); assert.equal(slapShare.get('title'), shared.title);
+    // Slap 앱: 데스크톱은 전용 주소(web+slap:)로 설치한 앱을 연다. 아이폰·아이패드 홈 화면 앱은 링크로 열 수 없다.
+    const { slapAppLink, isAppleTouch, openSlapApp } = await vite.ssrLoadModule('/src/client/share.ts');
+    const appLink = new URL(slapAppLink(shared));
+    assert.equal(appLink.protocol, 'web+slap:'); assert.equal(appLink.searchParams.get('url'), shared.url); assert.equal(appLink.searchParams.get('title'), shared.title);
+    assert.equal(isAppleTouch('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 5), true);
+    assert.equal(isAppleTouch('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5), true, 'an iPad looks like a Mac but has touch');
+    assert.equal(isAppleTouch('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0), false);
+    assert.equal(isAppleTouch('Mozilla/5.0 (Linux; Android 14; Pixel 8)', 5), false);
+    const fakeWindow = () => {
+      const handlers = {}, timers = [], add = (type, fn) => { handlers[type] = fn; }, remove = (type) => { delete handlers[type]; };
+      return { handlers, timers, location: { href: '' }, addEventListener: add, removeEventListener: remove, document: { addEventListener: add, removeEventListener: remove }, setTimeout: (fn) => { timers.push(fn); return 1; } };
+    };
+    let missed = 0;
+    const opened = fakeWindow(); openSlapApp('web+slap:share?url=x', () => missed++, opened);
+    assert.equal(opened.location.href, 'web+slap:share?url=x'); opened.handlers.blur(); opened.timers[0]();
+    assert.equal(missed, 0, 'the app opened, so the window lost focus and nothing is said');
+    assert.equal(opened.handlers.blur, undefined, 'the focus watch is removed afterwards');
+    const notOpened = fakeWindow(); openSlapApp('web+slap:share?url=x', () => missed++, notOpened); notOpened.timers[0]();
+    assert.equal(missed, 1, 'nothing took the address, so the reader is told instead of opening a second tab');
     assert.equal(new URL(links.x).searchParams.get('url'), shared.url); assert.equal(new URL(links.x).searchParams.get('text'), shared.title);
     assert.equal(new URL(links.telegram).origin, 'https://t.me'); assert.equal(new URL(links.telegram).searchParams.get('url'), shared.url);
     assert.equal(new URL(links.threads).origin, 'https://www.threads.com');
@@ -64,6 +83,14 @@ try {
     assert.ok(device.indexOf('navigator.share(') < device.indexOf('close();'), 'the system share opens before the menu closes');
     assert.match(device, /AbortError'\) return;\s*if \(shownArticleId\.current === article\.id\) onCopyLink\(article\);/, 'a share that cannot open copies the link instead');
     assert.match(options, /\{nativePlatform\(\) !== 'mac' && <a className=\{option\} href=\{links\.email\}/, 'the Mac app, which cannot open mail links, hides e-mail sharing');
+    // Slap에 공유: 먼저 같은 이메일 앞으로 Slap에 맡기고, 기기에 맞게 연다.
+    const slapFlow = drawerSource.slice(drawerSource.indexOf('const shareToSlap = async'), drawerSource.indexOf('const shareOptions = (close'));
+    assert.match(slapFlow, /apiRequest<\{ ok: boolean \}>\(`\/api\/articles\/\$\{article\.id\}\/slap`/, 'the article is left in Slap first');
+    assert.ok(slapFlow.indexOf('/slap`') < slapFlow.indexOf('nativeBridge()'), 'it is left before anything opens');
+    assert.match(slapFlow, /nativeFeatures\(\)\.includes\('openSlap'\) \? \{ type: 'openSlap', url: app, fallback: web \} : \{ type: 'openExternal', url: web \}/, 'new desktop apps open the Slap app, older ones the browser');
+    assert.match(slapFlow, /isAppleTouch\(navigator\.userAgent, navigator\.maxTouchPoints\)\) \{\s*onNotice\(left \? 'Slap에 보냈어요\. 홈 화면의 Slap 앱을 열면/, 'iPhone and iPad are told to open the home-screen app');
+    assert.match(slapFlow, /openSlapApp\(app, \(\) => onNotice\(/, 'desktop browsers open the installed app through web+slap:');
+    assert.match(options, /onClick=\{\(event\) => void shareToSlap\(close, event\)\}/);
   }
   assert.match(framedCopy('<!doctype html><html lang="ko"><head><base href="https://site.example.test/"></head><body></body></html>'), /^<!doctype html><html lang="ko"><style>html,body\{overflow-x:hidden!important\}[^<]*<\/style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">/, 'the copy document stays in place, and its policy comes before any page script');
   assert.ok(framedCopy('<p>bare</p>').startsWith('<style>'));
@@ -150,5 +177,5 @@ try {
   assert.match(loginView, /<p className="hidden lg:block /, 'phones skip the long intro'); assert.match(loginView, /<div className="hidden lg:grid /, 'phones skip the feature cards');
   const installCard = readFileSync(new URL('../src/components/PwaInstall.tsx', import.meta.url), 'utf8');
   assert.match(installCard, /aria-label="설치 안내 하루 동안 숨기기"[^>]*className="[^"]*h-10 w-10/, 'the install card close button is finger sized');
-  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, share links, phone-only system sharing that falls back to copying, a clipboard fallback, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
+  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, share links, Slap sharing that opens the installed app (or tells iPhone to open it), phone-only system sharing that falls back to copying, a clipboard fallback, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
 } finally { await vite.close(); }

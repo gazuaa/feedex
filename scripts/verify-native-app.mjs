@@ -126,6 +126,16 @@ try {
   assert.match(swift, /ASWebAuthenticationSession\(url: url, callbackURLScheme: "feedex-reader"\)/);
   assert.match(swift, /code\.range\(of: "\^sfeed_code_\[0-9a-f\]\{64\}\$", options: \.regularExpression\)/);
   assert.doesNotMatch(readFileSync('native/macos/Main.swift', 'utf8'), /signed-in/, 'links opened from elsewhere cannot sign the app in');
+  // Slap 공유: 이 맥에 web+slap 주소를 받는 앱(Chrome·Edge가 설치한 Slap)이 있을 때만 그것을 열고, 없으면 Slap 웹을 연다.
+  assert.match(swift, /window\.feedexAppFeatures = \['openSlap'\];/, 'the Mac app tells the page it can open Slap');
+  assert.match(swift, /case "openSlap":[\s\S]*?let url = slapAddress\(text\), NSWorkspace\.shared\.urlForApplication\(toOpen: url\) != nil \{\s*NSWorkspace\.shared\.open\(url\)\s*\} else if let text = body\["fallback"\] as\? String, let url = webAddress\(text\)/);
+  assert.match(swift, /text\.hasPrefix\("web\+slap:share\?"\)/, 'only the Slap share address is accepted');
+  {
+    const { nativeFeatures } = await vite.ssrLoadModule('/src/client/nativeApp.ts');
+    assert.deepEqual(nativeFeatures({ feedexAppFeatures: ['openSlap', 7, null] }), ['openSlap']);
+    assert.deepEqual(nativeFeatures({}), [], 'older apps announce nothing and keep opening the browser');
+    assert.deepEqual(nativeFeatures({ feedexAppFeatures: 'openSlap' }), []);
+  }
   assert.match(swift, /FEEDEX_DEBUG_DIR/); assert.match(readFileSync('native/macos/Info.plist', 'utf8'), /<key>CFBundleName<\/key><string>FeedEx<\/string>/, 'the Mac app is called FeedEx');
   if (process.platform === 'darwin') {
     const directory = mkdtempSync(join(tmpdir(), 'feedex-launch-test-'));
@@ -254,7 +264,7 @@ import UserNotifications
   const listing = sources.map((path) => `${createHash('sha256').update(readFileSync(path)).digest('hex')}  ${path}\n`).join('');
   assert.equal(createHash('sha256').update(listing).digest('hex'), readFileSync('public/downloads/FeedEx-for-Mac.source', 'utf8').trim(), 'the Mac app source changed: run scripts/build-macos-reader.sh to rebuild the download');
   assert.doesNotMatch(readFileSync('public/sw.js', 'utf8'), /downloads/, 'the service worker never stores the download on every device');
-  console.log('PASS: one install button, Mac app first in its dialog only on Mac browsers outside the app, no floating banner or settings duplicate, versioned link, zip version and source fingerprint match, not cached by the service worker; one-minute single-use Mac sign-in codes that never act as sessions, bridge placement and covers, bottom notices beside the original view, system sign-in button and hand-off screen, original-view slot without frames, X copies kept, no install prompt, and message/sign-in origin checks in the Mac app.');
+  console.log('PASS: one install button, Mac app first in its dialog only on Mac browsers outside the app, no floating banner or settings duplicate, versioned link, zip version and source fingerprint match, not cached by the service worker; one-minute single-use Mac sign-in codes that never act as sessions, bridge placement and covers, bottom notices beside the original view, system sign-in button and hand-off screen, original-view slot without frames, X copies kept, no install prompt, and message/sign-in origin checks in the Mac app, and opening the installed Slap app.');
 } finally {
   for (const [key, descriptor] of Object.entries(previous)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
   await vite.close();

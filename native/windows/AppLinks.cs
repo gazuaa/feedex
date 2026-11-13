@@ -37,6 +37,17 @@ namespace FeedEx
             return url;
         }
 
+        /// <summary>
+        /// 설치한 Slap 앱을 여는 전용 주소(web+slap:share?url=…). FeedEx 화면이 공유할 기사를 실어 보낸다.
+        /// 이 형식으로 시작하는 주소만 받고, 공백·제어 문자가 있거나 아주 긴 주소는 받지 않는다.
+        /// </summary>
+        public static string SlapAddress(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text.Length > 8192 || !text.StartsWith("web+slap:share?", StringComparison.Ordinal)) return null;
+            foreach (var c in text) if (char.IsControl(c) || char.IsWhiteSpace(c)) return null;
+            return text;
+        }
+
         public static bool SameOrigin(Uri url, Uri other) =>
             url != null && other != null && url.IsAbsoluteUri && other.IsAbsoluteUri && url.Scheme == other.Scheme
             && string.Equals(url.Host, other.Host, StringComparison.OrdinalIgnoreCase) && url.Port == other.Port;

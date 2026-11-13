@@ -12,7 +12,9 @@ trap 'rm -rf "$temp"' EXIT
 # 맥 앱 이름은 크롬 앱과 같은 FeedEx다.
 bundle="$temp/FeedEx.app"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Frameworks"
-ditto "$sparkle/Sparkle.framework" "$bundle/Contents/Frameworks/Sparkle.framework"
+# 저장소가 iCloud로 동기화되는 폴더에 있으면 Sparkle 파일에 Finder 정보 같은 부속 정보가 붙는다. codesign은 이것을 거부하므로
+# 앱에 넣을 때 부속 정보(리소스 포크, 확장 속성)는 빼고 복사한다. Sparkle 자체의 서명은 그대로 남는다.
+ditto --norsrc --noextattr --noacl "$sparkle/Sparkle.framework" "$bundle/Contents/Frameworks/Sparkle.framework"
 cp "$root/native/macos/Info.plist" "$bundle/Contents/Info.plist"
 cp "$sparkle/LICENSE" "$bundle/Contents/Resources/Sparkle-LICENSE.txt"
 sips -s format icns "$root/public/icons/icon-512.png" --out "$bundle/Contents/Resources/FeedExReader.icns" >/dev/null

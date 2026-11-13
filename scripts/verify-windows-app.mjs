@@ -197,6 +197,11 @@ try {
   assert.match(form, /var core = article\.CoreWebView2;[\s\S]*?core\.Settings\.IsWebMessageEnabled = false;/, 'publisher pages cannot message the app');
   assert.match(popup, /core\.Settings\.IsWebMessageEnabled = false;/, 'publisher sign-in windows cannot message the app');
   assert.match(form, /window !== window\.top \|\| location\.origin !== " \+ origin \+ "\) return; window\.feedexWindowsApp = true;/, 'the app marker is only set in the FeedEx page');
+  // Slap 공유: 이 컴퓨터에 web+slap 주소를 받는 앱(Chrome·Edge가 설치한 Slap)이 있을 때만 그것을 열고, 없으면 Slap 웹을 연다.
+  assert.match(form, /window\.feedexWindowsApp = true; window\.feedexAppFeatures = \['openSlap'\];/, 'the app tells the page it can open Slap');
+  assert.match(form, /case "openSlap": OpenSlap\(Json\.Text\(body, "url"\), Json\.Text\(body, "fallback"\)\); break;/);
+  assert.match(form, /var app = AppLinks\.SlapAddress\(url\);\s*if \(app != null && Shell\.HasProtocolHandler\("web\+slap"\)\) \{ Shell\.Open\(app\); return; \}\s*var web = AppLinks\.WebAddress\(fallback\);/, 'Windows does not show its app picker when Slap is not installed');
+  assert.match(support, /Registry\.ClassesRoot\.OpenSubKey\(scheme\)\) return key\?\.GetValue\("URL Protocol"\) != null;/);
   assert.ok(program.indexOf('Microsoft.Web.WebView2.Core.dll') < program.indexOf('Start(instance'), 'missing files are explained before WebView2 loads');
   assert.match(program, /\[MethodImpl\(MethodImplOptions\.NoInlining\)\]\s*static void Start/);
   assert.match(support, /Registry\.CurrentUser\.CreateSubKey\(@"Software\\Classes\\" \+ AppLinks\.Scheme\)/, 'links are registered for this user only');
@@ -224,7 +229,7 @@ try {
     assert.match(result.stdout, /PASS: Windows app links/);
     ran = true;
   }
-  console.log(`PASS: Windows app bridge detection and channels, numbered notification replies, Windows wording in settings, sign-in and hand-off with state, install dialog with the Windows app first and a one-line browser app, small versioned zip with matching update info and source fingerprint, message origin and sign-in state checks in the app${ran ? ', C# link/sign-in/scale rules' : ''}.`);
+  console.log(`PASS: Windows app bridge detection and channels, numbered notification replies, Windows wording in settings, sign-in and hand-off with state, install dialog with the Windows app first and a one-line browser app, small versioned zip with matching update info and source fingerprint, message origin and sign-in state checks in the app, opening the installed Slap app${ran ? ', C# link/sign-in/scale rules' : ''}.`);
 } finally {
   for (const [key, descriptor] of Object.entries(previous)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
   await vite.close();

@@ -13,6 +13,13 @@ database_name = "sfeed"
 database_id = "3c299f5d-16ca-4ca8-8a07-e37a8565f94d"
 
 # Cloudflare Workers AI (기사 요약용 기본 무료 LLM)
+# Slap(같은 계정의 Worker)에 공유할 기사를 맡기는 통로. 서비스 바인딩이라 인터넷 주소가 없고 비밀 키도 필요 없다.
+# 아이폰 홈 화면의 Slap 앱은 링크로 열 수 없어서, 맡겨 두면 사용자가 Slap을 열 때 공유 창이 뜬다.
+[[services]]
+binding = "SLAP"
+service = "slap"
+entrypoint = "ArticleInbox"
+
 [ai]
 binding = "AI"
 

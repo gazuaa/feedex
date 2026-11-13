@@ -37,6 +37,8 @@ export interface Env {
   DB: D1DatabaseLike;
   BROWSER?: BrowserWorker;
   AI?: WorkersAILike;
+  /** Slap Worker의 ArticleInbox 입구(서비스 바인딩). 같은 이메일 앞으로 공유할 기사를 맡긴다. 로컬 개발에는 없다. */
+  SLAP?: { leave(email: string, article: { url: string; title: string }): Promise<boolean> };
   ASSETS?: {
     fetch(request: Request): Promise<Response>;
   };

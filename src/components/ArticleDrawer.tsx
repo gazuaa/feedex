@@ -39,7 +39,7 @@ import { useTextSize } from '../client/textSize';
 import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile';
 import { dropSiteClasses, X_THREAD_CLASSES } from '../shared/siteClasses';
 import { isCurrentSummary } from '../shared/aiSummary';
-import { shareLinks } from '../client/share';
+import { isAppleTouch, openSlapApp, shareLinks, slapAppLink } from '../client/share';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
 import { leavesForOriginal, mobileOriginalArticle, opensOriginalSeparately } from '../client/originalWindow';
@@ -57,7 +57,7 @@ import { useXPostFrame, useYouTubeCopyFrame, type XQuoteHint } from '../client/x
 import { youtubeEmbedSrc } from '../shared/youtubeEmbed';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 import { shownThumbnail } from '../client/thumbnails';
-import { inNativeApp, nativeBridge, nativePlatform, useNativeArticle } from '../client/nativeApp';
+import { inNativeApp, nativeBridge, nativeFeatures, nativePlatform, useNativeArticle } from '../client/nativeApp';
 
 const VIEW_MODES = [
   { id: 'feed', label: '피드', title: '피드 본문 — RSS에 담긴 내용', Icon: Rss },
@@ -783,13 +783,38 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       linkEvent?.preventDefault();
       bridge.postMessage({ type: 'openExternal', url });
     } else if (linkEvent) {
-      // Slap은 사용자가 누른 원래 링크를 브라우저나 운영체제가 설치 앱에 연결한다.
+      // 사용자가 누른 원래 링크를 브라우저나 운영체제가 연다.
       window.setTimeout(close, 0);
       return;
     } else {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
     close();
+  };
+  /**
+   * Slap에 공유. 먼저 같은 이메일 앞으로 Slap에 기사를 맡긴다. 그러면 Slap을 어디서 열든(아이폰 홈 화면 앱 포함) 공유 창이 뜬다.
+   * 그다음 기기에 맞게 Slap을 연다. 아이폰·아이패드의 홈 화면 앱은 링크로 열 수 없어 알리기만 하고, 데스크톱은 설치한 Slap 앱을
+   * 전용 주소(web+slap:)로 바로 연다. 전용 주소에도 기사를 실어, 맡기기에 실패해도 앱이 열리면 공유 창이 뜬다.
+   */
+  const shareToSlap = async (close: () => void, linkEvent: React.MouseEvent<HTMLAnchorElement>) => {
+    linkEvent.preventDefault();
+    close();
+    const target = { title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url };
+    const web = shareLinks(target).slap, app = slapAppLink(target);
+    const left = await apiRequest<{ ok: boolean }>(`/api/articles/${article.id}/slap`, { method: 'POST', body: '{}' }).then(() => true, () => false);
+    const bridge = nativeBridge();
+    if (bridge) {
+      // 맥·윈도우 앱: 이 컴퓨터에 설치한 Slap 앱이 있으면 그것을, 없으면 기본 브라우저의 Slap을 연다. 예전 앱은 브라우저로 연다.
+      bridge.postMessage(nativeFeatures().includes('openSlap') ? { type: 'openSlap', url: app, fallback: web } : { type: 'openExternal', url: web });
+      return;
+    }
+    if (isAppleTouch(navigator.userAgent, navigator.maxTouchPoints)) {
+      onNotice(left ? 'Slap에 보냈어요. 홈 화면의 Slap 앱을 열면 채널을 고를 수 있어요.' : 'Slap에 보내지 못했어요. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+    // 안드로이드: 설치한 Slap 앱이 Slap 주소를 받아 연다.
+    if (window.matchMedia?.('(pointer: coarse)').matches) { window.open(web, '_blank', 'noopener,noreferrer'); return; }
+    openSlapApp(app, () => onNotice(left ? 'Slap 앱이 열리지 않았어요. Slap을 열면 공유 창이 떠요.' : 'Slap 앱이 열리지 않았어요. Chrome이나 Edge에 Slap 앱을 설치했는지 확인해 주세요.'));
   };
   /**
    * 공유 방법: 링크 복사 → Slap과 공유 사이트 → 이메일. 휴대폰(터치 화면)에서는 시스템 공유를 맨 위에 둔다.
@@ -804,7 +829,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     return <>
       {phoneShare && <button type="button" className={option} onClick={() => shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />다른 앱으로 공유</button>}
       <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />링크 복사</button>
-      <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.slap, close, event)}><MessageSquare size={16} aria-hidden="true" />Slap에 공유</a>
+      <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => void shareToSlap(close, event)}><MessageSquare size={16} aria-hidden="true" />Slap에 공유</a>
       {/* 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 한다. */}
       <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />X에 공유</button>
       <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />Threads에 공유</a>

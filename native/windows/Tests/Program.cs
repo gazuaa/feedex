@@ -35,6 +35,12 @@ namespace FeedEx
             Check(AppLinks.WebAddress("file:///C:/Windows/notepad.exe") == null, "files are refused");
             Check(AppLinks.WebAddress("https://user:pass@a.test/") == null, "addresses with credentials are refused");
             Check(AppLinks.WebAddress("https://a.test/" + new string('x', 9000)) == null, "very long addresses are refused");
+            Check(AppLinks.SlapAddress("web+slap:share?url=https%3A%2F%2Fa.test%2F&title=%EA%B8%B0%EC%82%AC") != null, "the Slap app address is accepted");
+            Check(AppLinks.SlapAddress("web+slap:other?url=x") == null, "other Slap addresses are refused");
+            Check(AppLinks.SlapAddress("https://slap.jyk.workers.dev/") == null, "web addresses are not Slap app addresses");
+            Check(AppLinks.SlapAddress("web+slap:share?url=a b") == null, "addresses with spaces are refused");
+            Check(AppLinks.SlapAddress("web+slap:share?url=a\nb") == null, "addresses with line breaks are refused");
+            Check(AppLinks.SlapAddress("web+slap:share?" + new string('x', 9000)) == null, "very long Slap addresses are refused");
             Check(AppLinks.SameOrigin(new Uri("https://feedex.jyk.workers.dev/a"), new Uri("https://feedex.jyk.workers.dev/")), "same origin");
             Check(!AppLinks.SameOrigin(new Uri("https://feedex.jyk.workers.dev.evil.test/"), new Uri("https://feedex.jyk.workers.dev/")), "a longer host is another origin");
             Check(!AppLinks.SameOrigin(new Uri("http://feedex.jyk.workers.dev/"), new Uri("https://feedex.jyk.workers.dev/")), "another scheme is another origin");

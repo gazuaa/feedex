@@ -42,6 +42,15 @@ func webAddress(_ text: String) -> URL? {
     return url
 }
 
+/// 설치한 Slap 앱을 여는 전용 주소(web+slap:share?url=…). FeedEx 화면이 공유할 기사를 실어 보낸다.
+/// 이 형식으로 시작하는 주소만 받고, 공백·제어 문자가 있거나 아주 긴 주소는 받지 않는다.
+func slapAddress(_ text: String) -> URL? {
+    guard text.utf8.count <= 8192, text.hasPrefix("web+slap:share?"),
+          !text.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) || CharacterSet.controlCharacters.contains($0) }),
+          let url = URL(string: text), url.scheme == "web+slap" else { return nil }
+    return url
+}
+
 private func number(_ value: Any?) -> CGFloat? {
     if let value = value as? NSNumber { return CGFloat(truncating: value) }
     return nil
@@ -120,7 +129,8 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
     private func installScaleScript() {
         let scripts = app.configuration.userContentController
         scripts.removeAllUserScripts()
-        scripts.addUserScript(WKUserScript(source: "window.feedexAppScale = \(appScale);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        // 앱이 지원하는 기능도 함께 알린다. 화면은 이 표시가 있을 때만 새 메시지(openSlap)를 보낸다.
+        scripts.addUserScript(WKUserScript(source: "window.feedexAppScale = \(appScale); window.feedexAppFeatures = ['openSlap'];", injectionTime: .atDocumentStart, forMainFrameOnly: true))
     }
 
     func changeAppScale(_ action: String) {
@@ -156,6 +166,13 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
             if let action = body["action"] as? String { changeAppScale(action) }
         case "openExternal":
             if let text = body["url"] as? String, let url = webAddress(text) { NSWorkspace.shared.open(url) }
+        case "openSlap":
+            // 이 맥에 web+slap 주소를 받는 앱(Chrome·Edge가 설치한 Slap)이 있으면 그것을, 없으면 Slap 웹을 기본 브라우저로 연다.
+            if let text = body["url"] as? String, let url = slapAddress(text), NSWorkspace.shared.urlForApplication(toOpen: url) != nil {
+                NSWorkspace.shared.open(url)
+            } else if let text = body["fallback"] as? String, let url = webAddress(text) {
+                NSWorkspace.shared.open(url)
+            }
         default: break
         }
     }

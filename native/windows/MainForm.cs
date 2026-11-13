@@ -226,7 +226,7 @@ namespace FeedEx
             if (previous != null) core.RemoveScriptToExecuteOnDocumentCreated(previous);
             var origin = Json.Serialize(AppLinks.Origin(home));
             bootScript = await core.AddScriptToExecuteOnDocumentCreatedAsync(
-                "(() => { if (window !== window.top || location.origin !== " + origin + ") return; window.feedexWindowsApp = true; window.feedexAppScale = " + ScaleText() + "; })();");
+                "(() => { if (window !== window.top || location.origin !== " + origin + ") return; window.feedexWindowsApp = true; window.feedexAppFeatures = ['openSlap']; window.feedexAppScale = " + ScaleText() + "; })();");
         }
 
         string ScaleText() => appScale.ToString("0.##", CultureInfo.InvariantCulture);
@@ -262,7 +262,20 @@ namespace FeedEx
                     var url = AppLinks.WebAddress(Json.Text(body, "url"));
                     if (url != null) Shell.Open(url.AbsoluteUri);
                     break;
+                case "openSlap": OpenSlap(Json.Text(body, "url"), Json.Text(body, "fallback")); break;
             }
+        }
+
+        /// <summary>
+        /// 설치한 Slap 앱을 전용 주소(web+slap:)로 연다. 이 컴퓨터에 받을 앱이 등록되어 있을 때만 열고, 없으면 Slap 웹(fallback)을
+        /// 기본 브라우저로 연다. 어느 쪽이든 FeedEx가 미리 맡긴 기사로 Slap에 공유 창이 뜬다.
+        /// </summary>
+        void OpenSlap(string url, string fallback)
+        {
+            var app = AppLinks.SlapAddress(url);
+            if (app != null && Shell.HasProtocolHandler("web+slap")) { Shell.Open(app); return; }
+            var web = AppLinks.WebAddress(fallback);
+            if (web != null) Shell.Open(web.AbsoluteUri);
         }
 
         /// <summary>알림 요청은 같은 번호를 붙여 답한다. 웹은 그 번호로 기다리던 요청을 끝낸다.</summary>

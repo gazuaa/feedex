@@ -99,6 +99,26 @@ try {
   const fullBody = '<p>Full text</p><p>Another paragraph</p>';
   await db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,content_html,full_content_html,published_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind('art', 'feed', 'art', 'Hello title', 'https://example.test/a', '<p>Feed text</p>', fullBody, stamp, stamp).run();
 
+  // Slap에 공유: 같은 이메일 앞으로 Slap에 기사를 맡긴다(서비스 바인딩). 구독한 글만, 바인딩이 없으면 503이다.
+  {
+    await db.prepare('INSERT INTO articles(id,feed_id,guid,title,url,published_at,created_at) VALUES(?,?,?,?,?,?,?)').bind('slap-x', 'feed', 'slap-x', 'RT by @someone: Retweeted post', 'https://x.com/someone/status/1', stamp, stamp).run();
+    const left = [];
+    const slapEnv = { ...env, SLAP: { leave: async (email, article) => { left.push({ email, article }); return true; } } };
+    const share = (id, token, bindings = slapEnv) => app.request(`/api/articles/${id}/slap`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: '{}' }, bindings);
+    assert.equal((await share('art', owner.token)).status, 200);
+    assert.deepEqual(left.at(-1), { email: 'owner@example.test', article: { url: 'https://example.test/a', title: 'Hello title' } }, 'the article is left for the same e-mail');
+    assert.equal((await share('slap-x', owner.token)).status, 200);
+    assert.equal(left.at(-1).article.title, 'Retweeted post', 'the RT marker is dropped');
+    assert.equal((await share('art', other.token)).status, 404, 'only subscribed articles are left');
+    assert.equal(left.length, 2);
+    assert.equal((await share('art', owner.token, env)).status, 503, 'without the Slap binding (local) nothing is left');
+    const quiet = console.error; console.error = () => {};
+    try {
+      assert.equal((await share('art', owner.token, { ...env, SLAP: { leave: async () => { throw new Error('down'); } } })).status, 502);
+      assert.equal((await share('art', owner.token, { ...env, SLAP: { leave: async () => false } })).status, 502);
+    } finally { console.error = quiet; }
+    assert.match((await import('node:fs')).readFileSync('wrangler.toml', 'utf8'), /\[\[services\]\]\nbinding = "SLAP"\nservice = "slap"\nentrypoint = "ArticleInbox"/, 'FeedEx reaches Slap through a service binding, not a public address');
+  }
   assert.deepEqual(await (await call('/api/translation/config', { token: other.token })).json(), { canManage: false }, 'only the operator sees translation settings');
   assert.equal((await call('/api/translation/deepl', { token: other.token, method: 'PUT', body: { key: freeKey } })).status, 403);
   const before = await (await call('/api/translation/config', { token: owner.token })).json();
@@ -284,7 +304,7 @@ try {
   assert.match(appSource, /id: 'deepl-article', label: '이 글 DeepL로 번역'/, 'a whole article can go to DeepL from the right-click menu');
   assert.match((await import('node:fs')).readFileSync('src/client/deeplWeb.ts', 'utf8'), /bridge\.postMessage\(\{ type: 'openExternal', url \}\)/, 'the Mac and Windows apps open DeepL in the default browser');
 
-  console.log('PASS: DeepL endpoint, auth header, HTML handling, escaped titles, size-limited parts in order; Workers AI paragraph translation with model fallback, code and Korean left alone; DeepL quota falls back to Workers AI; Korean articles cost nothing; subscribed-only translations saved per source and redone when the article changes; operator-only encrypted DeepL key that is checked before saving and never returned; translate button in every view and the operator setting; X conversation translations without a repeated heading and with boxed quotes; DeepL web hand-off for selections and whole articles without the API.');
+  console.log('PASS: DeepL endpoint, auth header, HTML handling, escaped titles, size-limited parts in order; Workers AI paragraph translation with model fallback, code and Korean left alone; DeepL quota falls back to Workers AI; Korean articles cost nothing; subscribed-only translations saved per source and redone when the article changes; operator-only encrypted DeepL key that is checked before saving and never returned; translate button in every view and the operator setting; X conversation translations without a repeated heading and with boxed quotes; articles left in Slap for the same e-mail; DeepL web hand-off for selections and whole articles without the API.');
 } finally {
   globalThis.fetch = originalFetch;
   if (previousParser) Object.defineProperty(globalThis, 'DOMParser', previousParser); else delete globalThis.DOMParser;

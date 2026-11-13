@@ -1441,6 +1441,25 @@ async function readerBodyForArticleTools(env: Env, article: { id: string; url: s
 }
 
 // 글 번역. 웹·리더 보기에서는 기사 본문을, 피드 보기에서는 피드 본문을 번역한다.
+// Slap에 공유: 같은 이메일 앞으로 Slap에 기사를 맡긴다. 사용자가 Slap을 열면(아이폰 홈 화면 앱 포함) 공유 창이 뜬다.
+app.post('/api/articles/:id/slap', async (c) => {
+  const user = c.get('user');
+  const article = await c.env.DB.prepare(
+    `SELECT id, title, url FROM articles WHERE id=? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
+  ).bind(c.req.param('id'), user.id).first<{ id: string; title: string; url: string }>();
+  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  if (!c.env.SLAP) return c.json({ error: 'Slap에 연결되어 있지 않아요.' }, 503);
+  // X 글 제목의 'RT by @…:'·'R to @…:' 표시는 공유할 글에 필요 없다.
+  const title = article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, '').slice(0, 300);
+  try {
+    if (!await c.env.SLAP.leave(user.email.toLowerCase(), { url: article.url, title })) return c.json({ error: 'Slap에 보내지 못했어요.' }, 502);
+  } catch (error) {
+    console.error('Slap 공유 맡기기 실패:', error instanceof Error ? error.message : error);
+    return c.json({ error: 'Slap에 보내지 못했어요.' }, 502);
+  }
+  return c.json({ ok: true });
+});
+
 app.post('/api/articles/:id/translate', async (c) => {
   type Request = { source?: unknown; force?: unknown; phone?: unknown; xThread?: unknown; xUrl?: unknown };
   const body: Request = await c.req.json<Request>().catch(() => ({}));
