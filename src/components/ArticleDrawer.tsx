@@ -37,7 +37,7 @@ import {
 import { useCopyTheme } from '../client/copyTheme';
 import { useTextSize } from '../client/textSize';
 import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile';
-import { dropSiteClasses } from '../shared/siteClasses';
+import { dropSiteClasses, X_THREAD_CLASSES } from '../shared/siteClasses';
 import { isCurrentSummary } from '../shared/aiSummary';
 import { shareLinks } from '../client/share';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
@@ -109,16 +109,16 @@ function loadWebZoom(account: string, feed: string): number {
 }
 
 // 본문을 HTML로 넣으므로, 바뀔 때마다 그 자리에서 이미지를 보정한다.
-function ArticleBody({ html, base, title, className, style, onOpenXPost }: { html: string; base: string; title?: string; className: string; style: React.CSSProperties; onOpenXPost?: (url: string, hint?: XQuoteHint) => void }) {
+function ArticleBody({ html, base, title, className, style, onOpenXPost, xThread = false }: { html: string; base: string; title?: string; className: string; style: React.CSSProperties; onOpenXPost?: (url: string, hint?: XQuoteHint) => void; xThread?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (!ref.current) return;
-    // 서버에서 클래스와 페이지 자체 머리글을 빼기 전에 저장된 본문.
-    dropSiteClasses(ref.current);
+    // 서버에서 클래스와 페이지 자체 머리글을 빼기 전에 저장된 본문. X 대화 번역은 우리가 만든 구조 이름만 남긴다.
+    dropSiteClasses(ref.current, xThread ? X_THREAD_CLASSES : undefined);
     if (title) dropArticleChrome(ref.current, [titleKey(title)]);
     wrapArticleTables(ref.current);
     return bindArticleImages(ref.current, base);
-  }, [html, base, title]);
+  }, [html, base, title, xThread]);
   return <div ref={ref} style={style} className={className} onClick={(event) => {
     const link = (event.target as Element).closest('a[href]') as HTMLAnchorElement | null;
     if (onOpenXPost && link && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
@@ -1323,28 +1323,29 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               )}
             </div>
 
-            <h1
+            {/* X 대화 번역은 본문 맨 위에 작성자와 원글을 그대로 보여 주므로 큰 제목으로 한 번 더 쓰지 않는다. */}
+            {!showingXTranslation && <h1
               className={`text-2xl sm:text-3xl font-extrabold leading-tight tracking-tight ${
                 isDark ? 'text-white' : 'text-slate-900'
               }`}
             >
               {showTranslation ? translation!.title : article.title}
-            </h1>
+            </h1>}
           </div>
 
-          {/* 번역해서 보여 주는 중이라는 표시. 누르면 원문으로 돌아간다. */}
-          {showTranslation && <div role="status" className={`feedex-translation-bar ${isDark ? 'border-emerald-500/30 text-emerald-300' : 'border-emerald-200 text-emerald-800'}`}>
-            <Languages className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate">{translation!.source === 'full' && translation!.bodySource === 'feed' ? '피드 본문만 번역' : `${translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`}</span>
-            {canOpenArticleInDeepL && translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL} className="shrink-0 whitespace-nowrap font-semibold hover:underline cursor-pointer">DeepL에서 보기</button>}
-            <button type="button" onClick={() => setTranslated(false)} className="shrink-0 whitespace-nowrap font-semibold hover:underline cursor-pointer">원문 보기</button>
+          {/* 번역해서 보여 주는 중이라는 작은 표시. 누르면 원문으로 돌아간다. */}
+          {showTranslation && <div role="status" className="feedex-translation-bar">
+            <Languages className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 truncate">{translation!.source === 'full' && translation!.bodySource === 'feed' ? '피드 본문만 번역' : `${translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`}</span>
+            {canOpenArticleInDeepL && translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL}>DeepL에서 보기</button>}
+            <button type="button" onClick={() => setTranslated(false)}>원문 보기</button>
           </div>}
 
           {/* Cloudflare Workers AI 요약 카드 */}
           {aiOpen && (currentAiSummary || summarizing || summaryError) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} loadingLabel={xPost ? 'X 대화를 요약하는 중…' : undefined} />}
 
-          {/* 대표 썸네일 이미지 (contentHtml에 이미 들어 있지 않을 때) */}
-          {article.thumbnail_url &&
+          {/* 대표 썸네일 이미지 (contentHtml에 이미 들어 있지 않을 때). X 대화 번역은 작성자 줄과 사진을 본문에 함께 보여 주므로 넣지 않는다. */}
+          {article.thumbnail_url && !showingXTranslation &&
             !bodyShowsImage(activeHtml, article.thumbnail_url) && (
               <div className="rounded-2xl overflow-hidden border border-slate-800/60">
                 <img
@@ -1413,10 +1414,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             <ArticleBody
               html={showTranslation ? translation!.html : activeHtml}
               onOpenXPost={xPost ? onOpenXPost : undefined}
+              xThread={showingXTranslation}
               base={article.url}
               title={showingXTranslation ? undefined : showTranslation ? translation!.title : showingReader ? article.title : undefined}
               style={{ fontSize: `calc(var(--feedex-article-font) * ${fontScale})` }}
-              className={`feedex-article-content ${
+              className={`feedex-article-content ${showingXTranslation ? 'feedex-x-translation ' : ''}${
                 isDark ? 'text-slate-200' : 'text-slate-800'
               }`}
             />

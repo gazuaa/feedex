@@ -242,6 +242,27 @@ try {
   const drawer = (await import('node:fs')).readFileSync('src/components/ArticleDrawer.tsx', 'utf8');
   assert.match(drawer, /const siteShown = mode === 'web' && !showTranslation;/);
   assert.match(drawer, /const nativeWeb = siteShown &&/, 'the Mac and Windows original view steps aside while a translation is shown');
+  // X 대화 번역: 원글을 큰 제목으로 한 번 더 쓰지 않고, 우리가 만든 대화 구조(글·작성자 줄·인용 상자·사진)를 남겨 X처럼 그린다.
+  assert.match(drawer, /\{!showingXTranslation && <h1/, 'an X conversation translation does not repeat the post as a heading');
+  assert.match(drawer, /article\.thumbnail_url && !showingXTranslation &&/, 'nor shows the profile photo as a large picture');
+  assert.match(drawer, /xThread=\{showingXTranslation\}/); assert.match(drawer, /showingXTranslation \? 'feedex-x-translation ' : ''/);
+  {
+    const { dropSiteClasses, X_THREAD_CLASSES } = await vite.ssrLoadModule('/src/shared/siteClasses.ts');
+    const markup = '<article class="post main flex"><p class="who">CZ</p><div class="quote"><a class="quote-post w-full">quoted</a></div><span class="sr-only">hidden</span><div class="grid">site</div></article>';
+    const site = new DOMParser().parseFromString(`<html><body>${markup}</body></html>`, 'text/html');
+    dropSiteClasses(site.body);
+    assert.equal(site.body.querySelectorAll('[class]').length, 0, 'ordinary article bodies keep no class names');
+    const thread = new DOMParser().parseFromString(`<html><body>${markup}</body></html>`, 'text/html');
+    dropSiteClasses(thread.body, X_THREAD_CLASSES);
+    assert.equal(thread.body.querySelector('article').getAttribute('class'), 'post main', 'only the conversation structure names stay');
+    assert.equal(thread.body.querySelector('a').getAttribute('class'), 'quote-post');
+    assert.equal(thread.body.querySelector('.grid, [class*="flex"], [class*="w-full"]'), null, 'site utility names are still dropped');
+    assert.equal(thread.body.textContent.includes('hidden'), false, 'screen-reader-only parts are still removed');
+  }
+  const styles = (await import('node:fs')).readFileSync('src/index.css', 'utf8');
+  assert.match(styles, /html \.feedex-article-content\.feedex-x-translation \.quote \{[^}]*border: 1px solid/, 'a quoted post is a box, not green link text');
+  assert.match(styles, /html \.feedex-article-content\.feedex-x-translation \.quote-post \{[^}]*text-decoration: none/);
+  assert.match(styles, /\.feedex-translation-bar \{[^}]*width: fit-content/, 'the translation notice is a small pill, not a full-width box');
   const { TranslationSetting } = await vite.ssrLoadModule('/src/components/TranslationSetting.tsx');
   const deeplSetting = renderToStaticMarkup(React.createElement(TranslationSetting, { initial: { canManage: true, provider: 'deepl', managed: false, usage: { used: 1234, limit: 500000 }, storage: true } }));
   assert.match(deeplSetting, /DeepL/); assert.match(deeplSetting, /이번 달 1,234 \/ 500,000자 사용/); assert.match(deeplSetting, /키 지우기/);
@@ -263,7 +284,7 @@ try {
   assert.match(appSource, /id: 'deepl-article', label: '이 글 DeepL로 번역'/, 'a whole article can go to DeepL from the right-click menu');
   assert.match((await import('node:fs')).readFileSync('src/client/deeplWeb.ts', 'utf8'), /bridge\.postMessage\(\{ type: 'openExternal', url \}\)/, 'the Mac and Windows apps open DeepL in the default browser');
 
-  console.log('PASS: DeepL endpoint, auth header, HTML handling, escaped titles, size-limited parts in order; Workers AI paragraph translation with model fallback, code and Korean left alone; DeepL quota falls back to Workers AI; Korean articles cost nothing; subscribed-only translations saved per source and redone when the article changes; operator-only encrypted DeepL key that is checked before saving and never returned; translate button in every view and the operator setting; DeepL web hand-off for selections and whole articles without the API.');
+  console.log('PASS: DeepL endpoint, auth header, HTML handling, escaped titles, size-limited parts in order; Workers AI paragraph translation with model fallback, code and Korean left alone; DeepL quota falls back to Workers AI; Korean articles cost nothing; subscribed-only translations saved per source and redone when the article changes; operator-only encrypted DeepL key that is checked before saving and never returned; translate button in every view and the operator setting; X conversation translations without a repeated heading and with boxed quotes; DeepL web hand-off for selections and whole articles without the API.');
 } finally {
   globalThis.fetch = originalFetch;
   if (previousParser) Object.defineProperty(globalThis, 'DOMParser', previousParser); else delete globalThis.DOMParser;

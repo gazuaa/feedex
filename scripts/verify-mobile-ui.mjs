@@ -142,7 +142,7 @@ try {
   assert.match(viewer, /height:calc\(52px \+ env\(safe-area-inset-top\)\)/, 'the photo viewer close button clears the notch');
   assert.match(viewer, /height:100dvh/); assert.match(viewer, /padding:8px 16px calc\(24px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(viewer, /else if \(dy > 90 && dy > Math\.abs\(dx\) \* 1\.5\) close\(\);/, 'a downward swipe closes the photo viewer');
-  assert.match(drawer, /<span className="min-w-0 flex-1 truncate">[^\n]*피드 본문만 번역[^\n]*<\/span>/, 'the translation label can shrink to fit one line on phones');
+  assert.match(drawer, /<span className="min-w-0 truncate">[^\n]*피드 본문만 번역[^\n]*<\/span>/, 'the translation label can shrink to fit one line on phones');
   // 휴대폰 시작: 로그인한 앱은 구글 로그인 스크립트를 받지 않고, 로그인 화면은 버튼이 첫 화면에 오게 긴 소개를 접는다.
   assert.doesNotMatch(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /<script[^>]*accounts\.google\.com\/gsi\/client/, 'the app shell no longer loads Google sign-in for signed-in people');
   const loginView = readFileSync(new URL('../src/components/LoginView.tsx', import.meta.url), 'utf8');

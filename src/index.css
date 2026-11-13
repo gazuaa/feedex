@@ -182,8 +182,11 @@ html.dark .feedex-setting-link { color: #34d399; }
 .feedex-reader-content .feedex-table-scroll { display: block; width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .feedex-reader-content .feedex-table-scroll > table { max-width: none; }
 /* 번역해서 보여 주는 중이라는 띠. */
-.feedex-translation-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid; border-radius: 12px; background: #10b9810f; font-size: 13px; line-height: 1.5; }
-.feedex-translation-bar button { min-height: 32px; }
+/* 번역해서 보여 주는 중이라는 작은 표시. 글 폭 전체를 차지하지 않고 내용만큼만 차지한다. */
+.feedex-translation-bar { display: flex; align-items: center; gap: 6px; width: fit-content; max-width: 100%; padding: 3px 4px 3px 10px; border-radius: 999px; background: #10b9811a; color: #047857; font-size: 12px; line-height: 1.4; }
+html.dark .feedex-translation-bar { background: #10b98124; color: #6ee7b7; }
+.feedex-translation-bar > button { flex: none; min-height: 26px; padding: 0 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.feedex-translation-bar > button:hover { background: #10b98124; }
 .feedex-translation-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; flex-shrink: 0; padding: 6px 14px; border: 1px solid var(--feedex-border); border-radius: 10px; background: var(--feedex-panel); color: var(--feedex-text); font-size: 13px; }
 .feedex-translation-feedback > button { min-height: 32px; color: inherit; font-weight: 600; cursor: pointer; }
 .feedex-translation-feedback > button:hover { text-decoration: underline; }
@@ -585,6 +588,43 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
 
 html:not(.dark) .feedex-article-content a { color: #047857; }
 html:not(.dark) .feedex-article-content pre { background: #f1f5f9; color: #0f172a; border-color: #cbd5e1; }
+
+/*
+ * X 대화 번역. 웹 사본과 같은 구조(글, 작성자 줄, 본문, 인용 상자, 사진, 댓글)를 앱의 글꼴과 색으로 X처럼 보여 준다.
+ * 일반 기사 규칙(초록 밑줄 링크, 큰 문단 간격, 가운데 큰 사진)이 인용 상자를 링크 글자로 만들지 않게 덮는다.
+ * 위의 밝은 화면 링크 색 규칙과 같은 세기로 맞추고 뒤에 둔다.
+ */
+html .feedex-article-content.feedex-x-translation { line-height: 1.65; }
+html .feedex-article-content.feedex-x-translation .post { display: block; padding: 14px 0; border-bottom: 1px solid var(--feedex-border); }
+html .feedex-article-content.feedex-x-translation > .post:first-child { padding-top: 0; }
+html .feedex-article-content.feedex-x-translation .post.main .text { font-size: 1.12em; }
+html .feedex-article-content.feedex-x-translation .who { display: block; margin: 0 0 4px; color: var(--feedex-muted); font-size: 13px; line-height: 1.5; }
+html .feedex-article-content.feedex-x-translation .who b { color: var(--feedex-text); font-weight: 700; }
+html .feedex-article-content.feedex-x-translation .who a { color: var(--feedex-muted); text-decoration: none; }
+html .feedex-article-content.feedex-x-translation .text p { margin: 0; white-space: pre-wrap; }
+html .feedex-article-content.feedex-x-translation .text p + p { margin-top: .6em; }
+html .feedex-article-content.feedex-x-translation a, html .feedex-article-content.feedex-x-translation .link { color: #1d9bf0; text-decoration: none; }
+html .feedex-article-content.feedex-x-translation a:hover { text-decoration: underline; }
+html .feedex-article-content.feedex-x-translation .quote { margin-top: 10px; border: 1px solid var(--feedex-border); border-radius: 14px; overflow: hidden; }
+html .feedex-article-content.feedex-x-translation .quote-post { display: block; padding: 10px 12px; color: inherit; text-decoration: none; }
+html .feedex-article-content.feedex-x-translation .quote-post:hover { background: #10b9810d; text-decoration: none; }
+html .feedex-article-content.feedex-x-translation .quote .text { display: block; font-size: .95em; }
+html .feedex-article-content.feedex-x-translation .quote .media { margin: 0 12px 12px; }
+/* 사진은 X처럼 두 칸씩 놓는다. 한 장이거나 홀수의 마지막 장은 한 줄을 다 쓴다. 여러 장이면 같은 비율로 자른다. */
+html .feedex-article-content.feedex-x-translation .media { display: grid; gap: 4px; margin-top: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html .feedex-article-content.feedex-x-translation .media > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+html .feedex-article-content.feedex-x-translation .media a { display: block; }
+html .feedex-article-content.feedex-x-translation .media img, html .feedex-article-content.feedex-x-translation .media video { width: 100%; max-height: 420px; object-fit: cover; margin: 0; border-radius: 12px; }
+html .feedex-article-content.feedex-x-translation .media:has(> :nth-child(2)) img { aspect-ratio: 4 / 3; height: auto; }
+html .feedex-article-content.feedex-x-translation .card { display: block; margin-top: 10px; border: 1px solid var(--feedex-border); border-radius: 14px; overflow: hidden; color: inherit; }
+html .feedex-article-content.feedex-x-translation .card img { width: 100%; max-height: 260px; object-fit: cover; margin: 0; border-radius: 0; }
+html .feedex-article-content.feedex-x-translation .card span { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
+html .feedex-article-content.feedex-x-translation :is(.card small, .card em) { color: var(--feedex-muted); font-style: normal; font-size: 13px; }
+html .feedex-article-content.feedex-x-translation .replies h2 { margin: 24px 0 4px; font-size: 15px; }
+html .feedex-article-content.feedex-x-translation .thread { border-bottom: 1px solid var(--feedex-border); }
+html .feedex-article-content.feedex-x-translation .thread .post { border-bottom: 0; }
+html .feedex-article-content.feedex-x-translation .reply .text { font-size: .95em; }
+html .feedex-article-content.feedex-x-translation .parent-missing { margin: 4px 0 0; padding: 10px 12px; border: 1px dashed var(--feedex-border); border-radius: 14px; font-size: 14px; }
 html:not(.dark) .feedex-login { background: var(--feedex-background); color: var(--feedex-text); }
 html:not(.dark) .feedex-login > div { background-image: none; background-color: var(--feedex-panel); border-color: var(--feedex-border); }
 html:not(.dark) .feedex-login .text-white, html:not(.dark) .feedex-login .text-slate-100, html:not(.dark) .feedex-login .text-slate-300 { color: var(--feedex-text); }
