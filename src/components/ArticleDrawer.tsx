@@ -151,13 +151,8 @@ export function WebLoading({ overlay = false }: { overlay?: boolean }) {
 
 /**
  * 프레임 안 사이트는 자기 터치를 그대로 쓰지만, iOS에서는 사이트가 쓰지 않는 옆으로 끌기가
- * 이 페이저로 넘어온다. 왼쪽의 빈 페이지에 멈추면 끌기를 어디서 시작했든 뒤로 간다.
- * 스크롤하는 동안 리더는 다른 보기처럼 미끄러진다. 화면 전체가 끌기를 따라 움직이고
- * 목록이 아래에서 들어온다. 사이트 페이지는 리더가 움직인 만큼 되돌려 두어서
- * 스크롤 속도대로 손가락 아래에 머문다.
- *
- * 빈 페이지에 닿아도 손가락이 떨어지고 스크롤이 멈춘 뒤에 닫는다. iOS는 끌고 있는 이 페이저와
- * 손가락 아래 프레임을 그 자리에서 지우면, 돌아간 목록이 손가락 스크롤에 움직이지 않는다.
+ * 이 페이저로 넘어온다. 사이트가 밀리면 투명한 왼쪽 페이지를 통해 아래 목록이 바로 보인다.
+ * 평소에는 밀기가 끝난 뒤 닫고, 웹뷰가 종료 알림을 놓쳐도 뒤로 가기 위치에 오래 머무르지 않는다.
  */
 export function WebPager({ enabled, onBack, children }: { enabled: boolean; onBack: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null), back = useRef(onBack);

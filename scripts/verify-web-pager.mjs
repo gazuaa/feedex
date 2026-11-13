@@ -31,7 +31,7 @@ try {
     return { window, document, pager, tick, render, cleanup, message, touch, edge, backs: () => backs };
   };
   {
-    const s = setup(); s.message(1); s.edge(); s.tick(2000); s.render();
+    const s = setup(); s.message(1); s.edge(); s.tick(300); s.render();
     assert.equal(s.backs(), 0, '사본 안에서 손가락을 누르고 멈춰도 리더를 지우지 않는다');
     s.message(0); s.tick(200); s.render(); assert.equal(s.backs(), 1);
     assert.equal(s.document.querySelector('.feedex-feed-list').style.transform || '', '', '돌아오기 전에 목록의 변형을 정리한다');
@@ -51,7 +51,7 @@ try {
     assert.equal(r.pager.scrollLeft, 393); assert.equal(r.document.querySelector('.feedex-article-reader').style.transform || '', ''); r.cleanup();
   }
   {
-    const s = setup(); s.touch('touchstart', 1); s.edge(); s.tick(2000); s.render(); assert.equal(s.backs(), 0);
+    const s = setup(); s.touch('touchstart', 1); s.edge(); s.tick(300); s.render(); assert.equal(s.backs(), 0);
     s.touch('touchend', 0); s.tick(200); s.render(); assert.equal(s.backs(), 1, '페이저 위 터치도 종료 후에만 이동한다'); s.cleanup();
   }
   {
@@ -74,8 +74,16 @@ try {
     // 터치를 시작한 덮개가 지워지면 종료가 페이저까지 오지 않는다. 그 터치는 잊는다.
     const s = setup(), cover = s.document.createElement('div'); s.pager.lastElementChild.append(cover);
     const start = new s.window.Event('touchstart', { bubbles: true }); Object.assign(start, { touches: [{}] }); cover.dispatchEvent(start);
-    s.edge(); s.tick(2000); s.render(); assert.equal(s.backs(), 0, '덮개 위 손가락이 그대로면 닫지 않는다');
+    s.edge(); s.tick(300); s.render(); assert.equal(s.backs(), 0, '덮개 위 손가락이 그대로면 닫지 않는다');
     cover.remove(); s.edge(); s.tick(200); s.render(); assert.equal(s.backs(), 1, '덮개가 사라진 뒤에는 남은 터치 때문에 멈추지 않는다'); s.cleanup();
+  }
+  {
+    const s = setup(); s.message(1); s.edge(); s.tick(800); s.render();
+    assert.equal(s.backs(), 1, '터치 종료가 누락돼도 뒤로 가기 위치에서 계속 멈추지 않는다');
+    s.message(0); s.tick(800); s.render(); assert.equal(s.backs(), 1); s.cleanup();
+    const r = setup(); r.message(1); r.edge(); r.tick(300);
+    r.pager.scrollLeft = 393; r.pager.dispatchEvent(new r.window.Event('scroll'));
+    r.tick(800); r.render(); assert.equal(r.backs(), 0, '다시 본문 쪽으로 당기면 예약된 닫기를 취소한다'); r.cleanup();
   }
   {
     const s = setup(); s.edge(); s.pager.scrollLeft = 393; s.pager.dispatchEvent(new s.window.Event('scroll')); s.tick(200); s.render(); assert.equal(s.backs(), 0, '취소한 밀기는 뒤로 가지 않는다');

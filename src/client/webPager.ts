@@ -1,6 +1,9 @@
 import { COMMIT_SHARE, DURATION, presentReaderSlide } from './swipeBack';
 
-/** 웹뷰에서 밀던 손가락을 뗀 뒤에만 리더를 닫는다. 사본 안의 터치도 직접 확인한다. */
+// 프레임이 종료 알림을 놓쳐도 뒤로 가기 위치에서 오래 멈추지 않게 한다.
+const EDGE_IDLE_MS = 650;
+
+/** 웹뷰의 뒤로 가기 스크롤과 사본 안의 터치 종료를 확인한다. */
 export function bindWebPager(pager: HTMLElement, onBack: () => void) {
   const view = pager.ownerDocument.defaultView;
   if (!view) return () => {};
@@ -28,6 +31,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
     slide = null;
     pager.style.removeProperty('transform');
     page?.style.removeProperty('transform');
+    delete pager.dataset.sliding;
   };
   const cancelLeave = () => { view.clearTimeout(timer); view.cancelAnimationFrame(frame); };
   const home = () => { if (!gone && !settling && !touching()) pager.scrollLeft = max(); };
@@ -37,6 +41,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
   // 닫히는 리더는 React가 화면에서 지울 때까지 오른쪽 바깥에 그대로 두어 다시 번쩍 나타나지 않게 하고,
   // 아래쪽 목록의 변형만 먼저 풀어 곧바로 깨끗하게 보이게 한다.
   const finishLeave = () => {
+    cancelLeave();
     gone = true;
     settling = false;
     slide?.clearUnder();
@@ -72,8 +77,10 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
     }, DURATION);
   };
   const leave = () => {
+    if (gone || settling) return;
+    if (touching()) { settle(); return; }
     cancelLeave();
-    if (gone || settling || touching()) return;
+    if (max() <= 1) return;
     if (pager.scrollLeft > 1) { snap(); return; }
     // 터치 종료와 스크롤 종료가 같은 프레임에 와도 네이티브 스크롤을 지우기 전에 정리할 시간을 준다.
     frame = view.requestAnimationFrame(() => {
@@ -84,8 +91,15 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
     });
   };
   const settle = () => {
+    if (gone || settling) return;
     cancelLeave();
-    if (gone || settling || touching()) return;
+    if (max() <= 1) return;
+    if (touching()) {
+      if (pager.scrollLeft <= 1) timer = view.setTimeout(() => {
+        if (!gone && !settling && pager.scrollLeft <= 1) finishLeave();
+      }, EDGE_IDLE_MS);
+      return;
+    }
     if (pager.scrollLeft <= 1) timer = view.setTimeout(leave, 160);
     else if (pager.scrollLeft < max() - 1) timer = view.setTimeout(snap, 140);
   };
@@ -96,6 +110,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
     if (lastAt && now > lastAt) velocity = (dx - lastDx) / (now - lastAt);
     lastDx = dx; lastAt = now;
     if (dx < 1) { cancelLeave(); velocity = 0; rest(); return; }
+    pager.dataset.sliding = '';
     // 스냅 자식(page)에 변형을 걸면 WebKit이 변형된 위치를 스냅 지점으로 삼아 끌던 자리에 멈추므로,
     // 페이저 자체를 반대로 옮겨 화면 자리에 고정하고 스냅 지점은 원래 자리에 둔다.
     slide ??= presentReaderSlide(pager.ownerDocument);
@@ -108,16 +123,16 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
   const touch = (event: TouchEvent) => {
     touches = event.touches.length;
     touchTarget = touches ? event.target : null;
-    if (touching()) cancelLeave(); else settle();
+    settle();
   };
   const message = (event: MessageEvent) => {
     const count = event.data?.sfeedTouchCount;
     if (!Number.isInteger(count) || count < 0 || count > 10 || !event.source) return;
     // 손가락을 뗐다는 알림은 이미 지워진 프레임에서 와도 받는다(프레임은 사라지기 직전에 알린다).
-    if (count === 0 && frameTouches.delete(event.source)) { if (!touching()) settle(); return; }
+    if (count === 0 && frameTouches.delete(event.source)) { settle(); return; }
     if (!frames().includes(event.source as Window)) return;
     if (count) frameTouches.add(event.source); else frameTouches.delete(event.source);
-    if (touching()) cancelLeave(); else settle();
+    settle();
   };
   pager.addEventListener('scroll', scroll, { passive: true });
   pager.addEventListener('scrollend', leave);

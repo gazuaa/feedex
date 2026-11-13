@@ -429,6 +429,11 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-pager::-webkit-scrollbar { display: none; }
   .feedex-web-pager > * { flex: 0 0 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
   .feedex-web-pager-back { pointer-events: none; }
+  /* 프레임의 스크롤은 iOS가 먼저 그린다. 비어 있는 왼쪽 페이지 뒤로 목록이 바로 보이게 한다. */
+  .feedex-article-reader:has(.feedex-web-pager), .feedex-reader:has(.feedex-web-pager) { background: transparent; }
+  .feedex-article-reader:has(.feedex-web-pager) > .backdrop-blur-xs { display: none; }
+  .feedex-web-pager > :not(.feedex-web-pager-back) { background: var(--feedex-mobile-surface); }
+  .feedex-article-reader:has(.feedex-web-pager[data-sliding]) :is(.feedex-web-peek, .feedex-web-status, .feedex-mobile-reader-top, .feedex-mobile-reader-dock, .feedex-linked-post-header) { visibility: hidden; transition: none; }
   .feedex-mobile-settings-panel > button { min-height: 44px; }
 }
 
