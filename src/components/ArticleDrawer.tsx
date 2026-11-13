@@ -42,6 +42,8 @@ import { isCurrentSummary } from '../shared/aiSummary';
 import { shareLinks } from '../client/share';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
+import { leavesForOriginal, mobileOriginalArticle } from '../client/originalWindow';
+import { prefersMobileTableCopy, wrapArticleTables } from '../client/articleTables';
 import type { ArticleResources, WebResult } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
 import { WebLabel, WebStatusBar } from './WebStatusBar';
@@ -83,6 +85,8 @@ export function fixedLayoutFit(layoutWidth: number | undefined, paneWidth: numbe
 const WEB_STATUS_HEIGHT = 28;
 /** 휴대폰 하단 막대가 사이트 아래쪽을 가리는 높이. 사본은 이만큼 끝에 여백을 둔다. */
 const WEB_DOCK_SPACE = 64;
+/** 원문에서 넓은 표의 끝 열까지 배치할 수 있도록 확보하는 최소 폭. */
+const ORIGINAL_TABLE_WIDTH = 600;
 /** 프레임 안 사이트 위로 꺼낸 막대가 다시 접히기 전까지 머무는 시간. */
 const PEEK_MS = 4000;
 // 사이트 프레임이 다 불러왔다고 알리지 않아도 이만큼 기다린 뒤에는 보여 준다. 광고나 끝나지 않는 요청이 있는 사이트가 있다.
@@ -112,6 +116,7 @@ function ArticleBody({ html, base, title, className, style, onOpenXPost }: { htm
     // 서버에서 클래스와 페이지 자체 머리글을 빼기 전에 저장된 본문.
     dropSiteClasses(ref.current);
     if (title) dropArticleChrome(ref.current, [titleKey(title)]);
+    wrapArticleTables(ref.current);
     return bindArticleImages(ref.current, base);
   }, [html, base, title]);
   return <div ref={ref} style={style} className={className} onClick={(event) => {
@@ -303,6 +308,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [fontScale] = useTextSize();
   const [webZoom, setWebZoom] = useState(() => loadWebZoom(accountId, article?.feed_id || ''));
   const [framePaneWidth, setFramePaneWidth] = useState(0);
+  const [fitOriginalTable, setFitOriginalTable] = useState(false);
   const framePaneRef = React.useCallback((pane: HTMLDivElement | null) => {
     if (!pane) return;
     setFramePaneWidth(pane.clientWidth);
@@ -371,6 +377,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 맥 앱에서는 웹 보기 자리에 앱이 원문 화면을 겹쳐 띄운다. 사이트를 직접 연 화면이라 로그인이 유지되고
   // 프레임을 막는 사이트도 그대로 보인다. X 글은 공개 미러 사본으로 보여 준다.
   const nativeWeb = siteShown && Boolean(article) && !xPost && inNativeApp();
+  const mobileOriginal = isMobile && !inNativeApp() && article ? mobileOriginalArticle(article.url) : null;
+  const mobileTableSite = Boolean(isMobile && article && prefersMobileTableCopy(article.url));
+  const originalFrameFit = fitOriginalTable && mobileTableSite && framePaneWidth ? Math.min(1, framePaneWidth / ORIGINAL_TABLE_WIDTH) : fixedLayoutFit(frame?.layoutWidth, framePaneWidth);
+  const originalFrameStyle = frameScaleStyle(webZoom * originalFrameFit);
   const nativeSlotRef = useRef<HTMLDivElement>(null);
   useNativeArticle(nativeSlotRef, nativeWeb && article ? article.url : null, webZoom);
   // 프레임 안 사이트 자체의 스크롤은 따라갈 수 없으므로, 불러온 뒤 몇 초만 막대를 보여 주고 접어 둔다.
@@ -486,19 +496,21 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 원문을 프레임에 넣어도 되는지 알기 전에는 띄우지 않는다. 막는 사이트는 브라우저가 앱이 알아챌 수 없는
   // 오류 화면을 그리고, 판단이 늦거나 실패하면 그 화면에 머문다. 이미 판단한 사이트는 바로 정한다.
   useEffect(() => {
-    if (!article || mode !== 'web' || nativeWeb) return;
+    if (!article || mode !== 'web' || nativeWeb || mobileOriginal) return;
     let active = true, retry: { stop: () => void } | undefined;
     let xRetry: ReturnType<typeof setTimeout> | undefined;
+    const preferTableCopy = mobileTableSite;
     // X는 다른 사이트의 프레임을 늘 거부하므로 묻지 않고 바로 사본을 받는다.
     const known = publicDeviceArticle(article.url) ? undefined : isXStatusUrl(article.url) ? { embeddable: false, url: article.url, reason: 'framing' } : resources?.knownFrame(article.url);
-    setFrame(known ? { articleId: article.id, ...known } : null);
+    setFrame(known && !preferTableCopy ? { articleId: article.id, ...known } : null);
     const load = async () => {
       const cached = await resources?.cachedWeb(article);
       if (!active) return;
       if (cached) { setFrame({ articleId: article.id, embeddable: false, url: cached.url }); setWebCopy({ articleId: article.id, ...cached }); return; }
+      const loadCopy = () => resources ? resources.web(article) : apiRequest<WebResult>(`/api/articles/${article.id}/web-copy`);
       if (isXStatusUrl(article.url)) {
         const loadThread = async (canRetry: boolean) => {
-          const copy = await (resources ? resources.web(article) : apiRequest<WebResult>(`/api/articles/${article.id}/web-copy`)).catch(() => null);
+          const copy = await loadCopy().catch(() => null);
           if (!active) return;
           if (copy?.thread && !copy.partial) { setWebCopy({ articleId: article.id, ...copy }); return; }
           // 불완전한 응답과 일시적인 실패는 미리보기를 남겨 두고 한 번 더 확인한다.
@@ -506,6 +518,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           if (canRetry) xRetry = setTimeout(() => void loadThread(false), X_RETRY_MS);
         };
         await loadThread(true);
+        return;
+      }
+      // 원문 프레임 안의 표는 직접 수정할 수 없으므로, 표가 있는 기사에만 사본을 우선 사용한다.
+      const tableCopy = preferTableCopy ? await loadCopy().catch(() => null) : null;
+      if (!active) return;
+      if (tableCopy?.html && /<table[\s>]/i.test(tableCopy.html)) {
+        setFrame({ articleId: article.id, embeddable: false, url: tableCopy.url });
+        setWebCopy({ articleId: article.id, ...tableCopy });
         return;
       }
       if (resources && publicDeviceArticle(article.url)) {
@@ -532,13 +552,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       setFrame({ articleId: article.id, ...result });
       if (result.embeddable) return;
       try {
-        const copy = await (resources ? resources.web(article) : apiRequest<WebResult>(`/api/articles/${article.id}/web-copy`));
+        const copy = tableCopy ?? await loadCopy();
         if (active) setWebCopy({ articleId: article.id, ...copy });
       } catch (error) { if (active) setWebCopy({ articleId: article.id, html: null, error: error instanceof Error ? error.message : undefined }); }
     };
     void load().catch(() => {});
     return () => { active = false; retry?.stop(); clearTimeout(xRetry); };
-  }, [article?.id, mode, resources]);
+  }, [article?.id, mode, resources, isMobile]);
 
   // 글이 데스크톱 열 옆의 좁은 틈에 놓이는 사본(framedCopy 참고)은 한 번만,
   // 서버가 휴대폰 폭으로 배치한 사본으로 바꾼다.
@@ -1095,7 +1115,15 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               </WebStatusBar>
               {/* 맥 앱이 이 자리에 원문 화면을 겹쳐 띄운다. */}
               <div ref={nativeSlotRef} data-native-article className="relative flex-1 min-h-0 bg-white" />
-            </>) : (<>
+            </>) : mobileOriginal ? (
+              <div className="feedex-web-fill flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
+                <p className="text-sm text-slate-500 dark:text-slate-400">4Pillars의 보안 확인은 원문에서 진행할 수 있어요.</p>
+                <a href={mobileOriginal.href} rel="noreferrer" onClick={(event) => { if (leavesForOriginal(event)) onLeaveForOriginal?.(); }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950">
+                  원문에서 읽기 <ExternalLink size={15} aria-hidden="true" />
+                </a>
+              </div>
+            ) : (<>
             <WebStatusBar
               key={article.id}
               url={article.url}
@@ -1110,6 +1138,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               {webCopyShown && !xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="원래 모양" long="원래 모양 다시 받기" /></button>}
               {webCopyShown && !copyFor?.retrying && (copyFor?.partial || (xWaiting && xFailed)) && <button type="button" onClick={showWebCopy} disabled={refreshing} className="hover:underline">다시 시도</button>}
               {webFrameShown && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short={isDark ? "다크 사본" : "사본으로"} long={isDark ? "다크 웹 사본으로 보기" : "웹 사본으로 보기"} /></button>}
+              {webFrameShown && mobileTableSite && <button type="button" onClick={() => setFitOriginalTable(!fitOriginalTable)} className="hover:underline">{fitOriginalTable ? '기본 크기' : '표 너비 맞춤'}</button>}
               {/* X 글은 공개 미러로 보여 주므로, 로그인한 상태로 보려면 X에서 연다. 다른 글의 원문은 막대가 이 창에서 연다. */}
               {webStatus?.xUrl && (
                 <a href={webStatus.xUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
@@ -1193,14 +1222,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <WebLoading />
             ) : frame.embeddable ? (
               <>
-                <WebPager enabled={isMobile} onBack={onClose}>
-                <div ref={framePaneRef} className="relative flex-1 min-h-0 overflow-hidden feedex-web-frame">
+                <WebPager enabled={isMobile && (!mobileTableSite || fitOriginalTable)} onBack={onClose}>
+                <div ref={framePaneRef} data-wide-frame={mobileTableSite && !fitOriginalTable || undefined} className="relative flex-1 min-h-0 overflow-hidden feedex-web-frame">
                   <iframe
                     key={`${article.id}:${frameReloads}`}
                     src={frame.url}
                     title={article.title}
                     className="absolute left-0 top-0 border-0 feedex-web-frame"
-                    style={{ ...frameScaleStyle(webZoom * fixedLayoutFit(frame.layoutWidth, framePaneWidth)), colorScheme: isDark ? 'dark' : 'light' }}
+                    style={{ ...originalFrameStyle, ...(mobileTableSite && !fitOriginalTable ? { width: `max(${originalFrameStyle.width}, ${ORIGINAL_TABLE_WIDTH}px)` } : {}), colorScheme: isDark ? 'dark' : 'light' }}
                     sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-storage-access-by-user-activation"
                     onError={showWebCopy}
                     onLoad={() => setLoadedFrame(article.id)}

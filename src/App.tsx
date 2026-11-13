@@ -35,6 +35,7 @@ import { emptiesUnreadList, useMobileViewport, useScrollChrome } from './client/
 import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
 import { useMobileScrollRecovery } from './client/mobileScrollRecovery';
+import { mobileOriginalArticle } from './client/originalWindow';
 import { NativeHandoff } from './components/NativeHandoff';
 import { inNativeApp, inNativeSignInWindow } from './client/nativeApp';
 import { htmlToText, openInDeepL } from './client/deeplWeb';
@@ -257,15 +258,17 @@ export const App: React.FC = () => {
   // 맥 앱·탭·홈 화면 앱에서 새 배포를 정기적으로 확인하고 자동 반영한다(appVersion.ts).
   // 바꾸기 직전에 지금 보던 목록과 글, 스크롤 위치를 남긴다.
   const resumeSource = useRef({ account: '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, unread: unreadOnly, articleId: selectedArticleId });
+  const leavingListForOriginal = useRef(false);
   resumeSource.current = { account: user?.id ?? '', scope: activeScope, folderId: activeFolderId, feedId: activeFeedId, search: searchQuery, saved: savedOnly, unread: unreadOnly, articleId: selectedArticleId };
   // 지금 보던 목록과 글, 스크롤 위치를 이 탭에 남긴다. 새 배포로 바꿀 때, 새로고침할 때와 원문을 읽으러 이 창을 떠날 때 쓴다.
   const saveResumePoint = useCallback((original = false) => {
     const source = resumeSource.current; if (!source.account) return;
+    if (original) leavingListForOriginal.current = true;
     keepResumePoint({ ...source, at: Date.now(), listScroll: articleListRef.current?.scrollTop ?? 0, readerScroll: document.querySelector('.feedex-reader-content')?.scrollTop ?? 0, ...(original ? { original: true } : {}) });
   }, []);
   // 새로고침이나 탭 이동 시 현재 보고 있는 글과 스크롤 위치를 남겨 즉시 복원한다.
   useEffect(() => {
-    const onLeave = () => saveResumePoint();
+    const onLeave = () => { if (!leavingListForOriginal.current) saveResumePoint(); };
     window.addEventListener('beforeunload', onLeave);
     window.addEventListener('pagehide', onLeave);
     return () => {
@@ -285,7 +288,10 @@ export const App: React.FC = () => {
   // 원문에서 뒤로 왔을 때 브라우저가 떠나기 전 화면을 그대로 되살렸으면 남겨 둔 자리는 쓰지 않는다.
   // 남겨 두면 나중에 새로 고칠 때 엉뚱하게 그 자리로 돌아간다.
   useEffect(() => {
-    const shown = (event: PageTransitionEvent) => { if (event.persisted && user?.id) takeResumePoint(user.id); };
+    const shown = (event: PageTransitionEvent) => {
+      leavingListForOriginal.current = false;
+      if (event.persisted && user?.id) takeResumePoint(user.id);
+    };
     window.addEventListener('pageshow', shown);
     return () => window.removeEventListener('pageshow', shown);
   }, [user?.id]);
@@ -352,7 +358,7 @@ export const App: React.FC = () => {
       setMobileSidebarOpen(false);
     }
     // 새 버전으로 바꾸느라 새로 고쳤으면 글 목록은 맨 위에서 시작한다.
-    setResumePlace({ articleId: point.articleId, list: isMobile || startedAfterUpdate() ? 0 : point.listScroll, reader: point.articleId ? point.readerScroll : 0 });
+    setResumePlace({ articleId: point.articleId, list: startedAfterUpdate() || (isMobile && !point.original) ? 0 : point.listScroll, reader: point.articleId ? point.readerScroll : 0 });
   }, [user?.id, authChecking]);
   // 목록과 본문은 따로 받아 차례로 그려진다. 그 위치까지 내려갈 수 있을 만큼 길어지면 맞추고,
   // 5초가 지나면 그만둔다.
@@ -925,13 +931,24 @@ export const App: React.FC = () => {
   const handleSelectArticle = useCallback(
     (article: ArticleItem) => {
       articleCache.current.set(article.id, article);
+      const original = isMobile && !inNativeApp() ? mobileOriginalArticle(article.url) : null;
+      if (original && user && !selectedArticleId && feedViewPreference(user.id, article.feed_id, subscriptions.find(sub => sub.feed_id === article.feed_id)?.view_mode) === 'web') {
+        saveResumePoint(true);
+        if (!article.is_read) {
+          void handleUpdateArticleState(article, { isRead: true }, () => apiRequest(`/api/articles/${article.id}/state`, {
+            method: 'POST', body: JSON.stringify({ isRead: true }), keepalive: true,
+          }));
+        }
+        window.location.assign(original.href);
+        return;
+      }
       setXPostTarget(null);
       setSelectedArticleId(article.id);
       if (!article.is_read) {
         handleUpdateArticleState(article, { isRead: true });
       }
     },
-    [handleUpdateArticleState]
+    [handleUpdateArticleState, isMobile, saveResumePoint, selectedArticleId, subscriptions, user]
   );
 
   const handleOpenXPost = (article: ArticleItem, rawUrl: string, hint?: XQuoteHint) => {

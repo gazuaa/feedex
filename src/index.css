@@ -179,6 +179,8 @@ html.dark .feedex-setting-link { color: #34d399; }
 .feedex-global-controls { margin-left: auto; }
 .feedex-header-divider { display: none; }
 .feedex-reader-content { scrollbar-gutter: stable; }
+.feedex-reader-content .feedex-table-scroll { display: block; width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.feedex-reader-content .feedex-table-scroll > table { max-width: none; }
 /* 번역해서 보여 주는 중이라는 띠. */
 .feedex-translation-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid; border-radius: 12px; background: #10b9810f; font-size: 13px; line-height: 1.5; }
 .feedex-translation-bar button { min-height: 32px; }
@@ -429,10 +431,12 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-pager::-webkit-scrollbar { display: none; }
   .feedex-web-pager > * { flex: 0 0 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
   .feedex-web-pager-back { pointer-events: none; }
+  .feedex-web-frame[data-wide-frame] { overflow-x: auto; overscroll-behavior-x: contain; }
   /* 프레임의 스크롤은 iOS가 먼저 그린다. 비어 있는 왼쪽 페이지 뒤로 목록이 바로 보이게 한다. */
   .feedex-article-reader:has(.feedex-web-pager), .feedex-reader:has(.feedex-web-pager) { background: transparent; }
   .feedex-article-reader:has(.feedex-web-pager) > .backdrop-blur-xs { display: none; }
   .feedex-web-pager > :not(.feedex-web-pager-back) { background: var(--feedex-mobile-surface); }
+  .feedex-web-view:has(.feedex-web-pager):not(:has(.feedex-web-pager[data-sliding]))::after { content: ''; position: absolute; inset: auto 0 0; height: env(safe-area-inset-bottom); background: var(--feedex-mobile-surface); pointer-events: none; }
   .feedex-article-reader:has(.feedex-web-pager[data-sliding]) :is(.feedex-web-peek, .feedex-web-status, .feedex-mobile-reader-top, .feedex-mobile-reader-dock, .feedex-linked-post-header) { visibility: hidden; transition: none; }
   .feedex-mobile-settings-panel > button { min-height: 44px; }
 }

@@ -65,7 +65,7 @@ try {
     assert.match(device, /AbortError'\) return;\s*if \(shownArticleId\.current === article\.id\) onCopyLink\(article\);/, 'a share that cannot open copies the link instead');
     assert.match(options, /\{nativePlatform\(\) !== 'mac' && <a className=\{option\} href=\{links\.email\}/, 'the Mac app, which cannot open mail links, hides e-mail sharing');
   }
-  assert.match(framedCopy('<!doctype html><html lang="ko"><head><base href="https://site.example.test/"></head><body></body></html>'), /^<!doctype html><html lang="ko"><style>html,body\{overflow-x:hidden!important\}<\/style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">/, 'the copy never pans sideways, and its policy comes before any page script');
+  assert.match(framedCopy('<!doctype html><html lang="ko"><head><base href="https://site.example.test/"></head><body></body></html>'), /^<!doctype html><html lang="ko"><style>html,body\{overflow-x:hidden!important\}[^<]*<\/style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">/, 'the copy document stays in place, and its policy comes before any page script');
   assert.ok(framedCopy('<p>bare</p>').startsWith('<style>'));
   assert.match(framedCopy('<p>bare</p>'), /sfeedSqueezed/, 'a copy laid out for a desktop says so');
   // 사본에는 사이트 스크립트가 없어 고정 머리말이 글 위에 붙어 따라온다. 고정 요소를 문서와 함께 스크롤되게 푼다.

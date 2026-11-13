@@ -3,20 +3,29 @@ import hlsUrl from 'hls.js/dist/hls.light.min.js?url';
 import playerUrl from './xFramePlayer.js?url';
 import { isXStatusUrl } from '../shared/xFeed';
 import { X_THREAD_MARK } from '../shared/xThreadStyle';
+import { isBackSwipe } from './swipeBack';
 
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const YT_FRAME_SCRIPT = `<script nonce="sfeed-scroll">{let y;const p=()=>{if(!y)return;const r=y.getBoundingClientRect();parent.postMessage({sfeedYouTubeRect:[r.left,r.top,r.width,r.height]},'*')};addEventListener('click',e=>{const a=e.target.closest('a[data-yt-id]');if(!a||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();y=a;const r=a.getBoundingClientRect();parent.postMessage({sfeedYouTube:{id:a.getAttribute('data-yt-id'),start:Number(a.getAttribute('data-yt-start'))||0,rect:[r.left,r.top,r.width,r.height]}},'*')});addEventListener('scroll',p,{passive:true});addEventListener('resize',p)}</script>`;
 
-// 공개 사본에는 사진 크기가 없는 경우가 많다. 저장된 사본에도 같은 크기의 칸을 잡아 로딩 전후 높이를 고정한다.
+// 저장된 사본에도 한 장은 사진 비율, 여러 장은 같은 높이의 갤러리로 표시한다.
 const X_MEDIA_LAYOUT = `<style>
-main .media .photo {
-  width: 100%; min-width: 0; max-height: 520px; aspect-ratio: 4 / 3;
-  align-self: start; overflow: hidden; border-radius: 14px;
-  background: rgb(128 128 128 / 0.08);
+main .media:has(> .photo:not(.video)) { container-type: inline-size; grid-template-columns: minmax(0, 1fr); }
+main .media > .photo:not(.video) { min-width: 0; overflow: hidden; border-radius: 14px; }
+main .media > .photo:not(.video) > img {
+  width: 100%; height: auto; aspect-ratio: auto 4 / 3; max-height: min(520px, 135cqw); margin: 0;
+  object-fit: cover;
 }
-main .media .photo.video { aspect-ratio: 16 / 9; }
-main .media .photo > img {
-  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; object-fit: contain;
+main .media .photo.video { aspect-ratio: 16 / 9; max-height: 520px; overflow: hidden; border-radius: 14px; }
+main .media .photo.video > img { position: absolute; inset: 0; height: 100%; margin: 0; object-fit: contain; }
+main .media:has(> .photo + .photo):not(:has(> :not(.photo), > .video)) {
+  grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr;
+  gap: 2px; aspect-ratio: 16 / 9; max-height: 520px; overflow: hidden; border-radius: 14px;
+}
+main .media:has(> .photo:nth-child(2)):not(:has(> :not(.photo), > .video)) > .photo { border-radius: 0; min-height: 0; }
+main .media:has(> .photo:nth-child(3):last-child):not(:has(> :not(.photo), > .video)) > .photo:first-child { grid-row: span 2; }
+main .media:has(> .photo:nth-child(2)):not(:has(> :not(.photo), > .video)) > .photo > img {
+  position: absolute; inset: 0; height: 100%; max-height: none; border: 0; border-radius: 0;
 }
 main .card { container-type: inline-size; }
 main .card > img {
@@ -80,22 +89,31 @@ export function fullXPhotoUrl(url: string): string {
 }
 
 /** 본문 사진을 새 탭으로 내보내지 않고 앱 안의 모달 뷰어로 크게 보여 준다. */
-let activePhotoClose: (() => void) | null = null;
+let activePhoto: { discard: () => void } | null = null;
+let photoClosing: Promise<void> | null = null;
+const PHOTO_HISTORY = 'sfeedPhotoViewer';
 
 export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   const urls = rawUrls.filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u)).map(fullXPhotoUrl);
   if (!urls.length || typeof document === 'undefined') return;
-  activePhotoClose?.();
-  const previous = document.querySelector<HTMLDialogElement>('dialog[data-sfeed-photo-viewer]');
-  if (previous) { if (previous.open) previous.close(); previous.remove(); }
+  if (photoClosing) {
+    let cancelled = false, close: (() => void) | undefined;
+    void photoClosing.then(() => { if (!cancelled) close = openPhotoViewer(rawUrls, startIndex); });
+    return () => { cancelled = true; close?.(); };
+  }
+  activePhoto?.discard();
 
   let index = Math.max(0, Math.min(urls.length - 1, Math.floor(startIndex) || 0));
   let zoomed = false;
 
   const dialog = document.createElement('dialog');
+  const mobile = window.matchMedia?.('(max-width: 1023px)').matches === true;
+  const previousFocus = document.activeElement;
   dialog.setAttribute('data-sfeed-photo-viewer', '');
   dialog.setAttribute('aria-label', '사진 크게 보기');
+  dialog.setAttribute('aria-modal', 'true');
   dialog.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;max-width:100vw;max-height:100vh;max-height:100dvh;margin:0;padding:0;border:0;background:rgba(2,6,23,0.92);backdrop-filter:blur(6px);color:#f8fafc;overflow:hidden;display:flex;flex-direction:column;user-select:none;z-index:9999';
+  dialog.style.touchAction = 'pan-y';
 
   // 홈 화면 앱에서는 화면 위쪽 상태 표시줄·노치 아래로 닫기 단추를 내린다.
   const header = document.createElement('div');
@@ -127,7 +145,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
 
   const stage = document.createElement('div');
   stage.setAttribute('data-photo-stage', '');
-  stage.style.cssText = 'flex:1;min-height:0;width:100%;overflow:auto;display:flex;align-items:center;justify-content:center;padding:8px 16px calc(24px + env(safe-area-inset-bottom))';
+  stage.style.cssText = 'flex:1;min-height:0;width:100%;overflow:auto;overscroll-behavior:contain;touch-action:pan-y;display:flex;align-items:center;justify-content:center;padding:8px 16px calc(24px + env(safe-area-inset-bottom))';
 
   const img = document.createElement('img');
   img.setAttribute('data-photo-img', '');
@@ -169,14 +187,53 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   };
 
   let closed = false;
-  const close = () => {
+  const page = window.location?.href;
+  const history = window.history;
+  const currentState = history?.state;
+  const previousState = currentState?.[PHOTO_HISTORY] ? currentState[PHOTO_HISTORY].previous : currentState;
+  const marker = mobile ? { previous: previousState } : null;
+  if (marker && !currentState?.[PHOTO_HISTORY]) history.pushState({ ...currentState, [PHOTO_HISTORY]: marker }, '');
+  let finishClosing: (() => void) | undefined;
+  const removeViewer = () => {
     if (closed) return;
     closed = true;
-    window.removeEventListener('popstate', close);
-    window.removeEventListener('pagehide', close);
-    if (activePhotoClose === close) activePhotoClose = null;
+    if (activePhoto === viewer) activePhoto = null;
     if (typeof dialog.close === 'function' && dialog.open) dialog.close();
     dialog.remove();
+    if (mobile && previousFocus instanceof window.HTMLElement && previousFocus.tagName !== 'IFRAME') previousFocus.focus({ preventScroll: true });
+  };
+  const discard = () => {
+    window.removeEventListener('popstate', onPop, true);
+    window.removeEventListener('pagehide', onHide);
+    finishClosing?.();
+    removeViewer();
+  };
+  const viewer = { discard };
+  const onPop = (event: PopStateEvent) => {
+    if (marker && window.location.href === page && !event.state?.[PHOTO_HISTORY]
+      && event.state?.sfeedNavigation?.index === previousState?.sfeedNavigation?.index) {
+      // 사진용으로 추가한 한 단계는 피드의 뒤로 가기 처리에 넘기지 않는다.
+      event.stopImmediatePropagation();
+    }
+    discard();
+  };
+  const onHide = () => {
+    if (marker && history.state?.[PHOTO_HISTORY]) history.replaceState(previousState, '');
+    discard();
+  };
+  const close = () => {
+    if (closed) return;
+    if (!marker || !history.state?.[PHOTO_HISTORY]) { discard(); return; }
+    // 기록이 돌아오기 전에 다시 눌러도 이전 닫기가 새 사진을 닫지 않게 한다.
+    photoClosing = new Promise<void>((resolve) => {
+      const timeout = window.setTimeout(() => {
+        if (history.state?.[PHOTO_HISTORY]) history.replaceState(previousState, '');
+        discard();
+      }, 500);
+      finishClosing = () => { window.clearTimeout(timeout); photoClosing = null; resolve(); };
+    });
+    removeViewer();
+    history.back();
   };
   const step = (delta: number) => {
     const next = index + delta;
@@ -202,32 +259,50 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   dialog.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
   // 브라우저 기본 닫기나 기록 이동에서도 닫힌 레이어가 목록 위에 남지 않게 한다.
   dialog.addEventListener('close', close);
-  window.addEventListener('popstate', close);
-  window.addEventListener('pagehide', close);
-  activePhotoClose = close;
+  window.addEventListener('popstate', onPop, true);
+  window.addEventListener('pagehide', onHide, { once: true });
+  activePhoto = viewer;
   dialog.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); step(-1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); step(1); }
   });
 
-  let touchX = 0, touchY = 0;
-  stage.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) { touchX = e.touches[0].clientX; touchY = e.touches[0].clientY; }
+  let touchStart: { x: number; y: number; time: number } | null = null;
+  dialog.addEventListener('touchstart', (e) => {
+    const touch = e.touches[0];
+    touchStart = e.touches.length === 1 ? { x: touch.clientX, y: touch.clientY, time: e.timeStamp } : null;
   }, { passive: true });
-  stage.addEventListener('touchend', (e) => {
-    if (zoomed || e.changedTouches.length !== 1) return;
-    const dx = e.changedTouches[0].clientX - touchX, dy = e.changedTouches[0].clientY - touchY;
+  dialog.addEventListener('touchcancel', () => { touchStart = null; }, { passive: true });
+  dialog.addEventListener('touchmove', (e) => {
+    const start = touchStart, touch = e.touches[0];
+    if (!mobile || !start || !touch || e.touches.length !== 1 || !e.cancelable) return;
+    const dx = touch.clientX - start.x;
+    if ((start.x <= 32 || (urls.length === 1 && !zoomed)) && dx > 12 && dx > Math.abs(touch.clientY - start.y) * 1.5) e.preventDefault();
+  }, { passive: false });
+  dialog.addEventListener('touchend', (e) => {
+    const start = touchStart, touch = e.changedTouches[0];
+    touchStart = null;
+    if (!start || !touch || e.changedTouches.length !== 1) return;
+    const dx = touch.clientX - start.x, dy = touch.clientY - start.y;
+    if (mobile && (start.x <= 32 || (urls.length === 1 && !zoomed)) && isBackSwipe(start, { x: touch.clientX, y: touch.clientY, time: e.timeStamp })) {
+      if (e.cancelable) e.preventDefault();
+      close();
+      return;
+    }
+    if (zoomed || !stage.contains(e.target as Node)) return;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
     // 휴대폰에서는 사진을 아래로 끌어내려 닫는다.
     else if (dy > 90 && dy > Math.abs(dx) * 1.5) close();
-  }, { passive: true });
+  }, { passive: false });
 
   dialog.append(header, stage);
   if (urls.length > 1) dialog.append(prevBtn, nextBtn);
   document.body.append(dialog);
   render();
-  if (typeof dialog.showModal === 'function') dialog.showModal();
+  // iOS에서 showModal의 비활성 영역이 닫은 뒤에도 웹뷰의 스크롤을 막을 수 있다.
+  if (mobile) { dialog.setAttribute('open', ''); closeBtn.focus({ preventScroll: true }); }
+  else if (typeof dialog.showModal === 'function') dialog.showModal();
   else dialog.setAttribute('open', '');
   return close;
 }
