@@ -72,4 +72,19 @@ export function useScrollChrome(ref: RefObject<HTMLElement | null>, enabled: boo
 // 그 밖의 고정 요소도 처음 화면에만 놓인다. 모두 읽은 뒤 바꾸어 스타일 계산을 한 번만 한다.
 export const UNPIN_SCRIPT = `const sfeedUnpin=()=>{const b=document.body;if(!b)return;const pinned=[];for(const e of b.getElementsByTagName('*')){const p=getComputedStyle(e).position;if(p==='fixed'||p==='sticky')pinned.push([e,p])}for(const[e,p]of pinned){if(p==='fixed')e.style.setProperty('position','absolute','important');else{e.style.setProperty('position','relative','important');e.style.setProperty('top','auto','important');e.style.setProperty('bottom','auto','important')}}};addEventListener('DOMContentLoaded',sfeedUnpin);addEventListener('load',sfeedUnpin);`;
 const COPY_PREAMBLE = `<style>html,body{overflow-x:hidden!important}${ARTICLE_TABLE_STYLE}</style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">for(const type of ['touchstart','touchend','touchcancel'])addEventListener(type,e=>parent.postMessage({sfeedTouchCount:e.touches.length},'*'),{passive:true,capture:true});addEventListener('pagehide',()=>parent.postMessage({sfeedTouchCount:0},'*'));addEventListener('scroll',()=>{const d=document.scrollingElement||document.documentElement;parent.postMessage({sfeedScroll:[d.scrollTop,d.scrollHeight-innerHeight,innerHeight],sfeedXPositioning:document.documentElement.hasAttribute('data-sfeed-x-positioning')},'*')},{passive:true});addEventListener('message',e=>{const s=e.data?.sfeedInset;if(Array.isArray(s)){const b=document.body;if(b){b.style.paddingTop=(s[0]||0)+'px';b.style.paddingBottom=(s[1]||0)+'px'}}});parent.postMessage({sfeedReady:1},'*');let sfeedSent;const sfeedFit=()=>{let n=0,s=0;for(const p of document.querySelectorAll('p')){const l=p.textContent.trim().length,w=p.getBoundingClientRect().width;if(l>79&&w){n+=l;s+=l*w}}if(!sfeedSent&&innerWidth<700&&n>400&&s/n<innerWidth/2){sfeedSent=1;parent.postMessage({sfeedSqueezed:1},'*')}};addEventListener('load',sfeedFit);setTimeout(sfeedFit,4000);addEventListener('DOMContentLoaded',()=>{if(innerWidth<1024)(${wrapArticleTables.toString()})(document)});${UNPIN_SCRIPT}</script>`;
-export const framedCopy = (html: string) => html.replace(/^(\s*<!doctype[^>]*>)?(\s*<html[^>]*>)?/i, (start) => start + COPY_PREAMBLE + COPY_THEME_MARKUP + xFrameTools(html));
+// 원문 스크립트가 없는 CoinDesk 사본에서는 접힌 공유 패널을 숨기고 기사 열을 프레임 폭에 맞춘다.
+const COINDESK_MOBILE_WIDTH = `<style data-feedex-coindesk-width>
+html, body { width: 100%; min-width: 0; max-width: 100%; margin-inline: 0; }
+#content, #content .container-lg { box-sizing: border-box; min-width: 0 !important; max-width: 100% !important; }
+#content .grid:has(> .article-content-wrapper) { grid-template-columns: minmax(0, 1fr) !important; }
+#content .grid:has(> .article-content-wrapper) > * { min-width: 0 !important; grid-column: 1 / -1 !important; }
+#content .article-content-wrapper { overflow-wrap: anywhere; }
+#content .article-content-wrapper :is(figure, img, video) { max-width: 100%; }
+#content .article-content-wrapper figure { margin-inline: 0; }
+#content .article-content-wrapper img { height: auto; }
+.share-dialog-button ~ [class~="translate-y-full"] { display: none !important; }
+[class~="group/strip"] > div { box-sizing: border-box; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+</style>`;
+
+export const framedCopy = (html: string, fitCoinDesk = false) => html.replace(/^(\s*<!doctype[^>]*>)?(\s*<html[^>]*>)?/i,
+  (start) => start + COPY_PREAMBLE + COPY_THEME_MARKUP + xFrameTools(html) + (fitCoinDesk ? COINDESK_MOBILE_WIDTH : ''));

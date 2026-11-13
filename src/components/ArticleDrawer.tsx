@@ -49,7 +49,7 @@ import { readFeedPreference, saveFeedPreference } from '../client/devicePreferen
 import { WebLabel, WebStatusBar } from './WebStatusBar';
 import { htmlToText, openInDeepL } from '../client/deeplWeb';
 import { TextSizeControl } from './ReadingSettings';
-import { publicDeviceArticle } from '../shared/publicWebPage';
+import { publicCoinDeskArticle, publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
 import { xThreadPreview } from '../client/xThreadPreview';
 import { retryChallenged } from '../client/publicWebCopy';
@@ -208,7 +208,7 @@ function webCopyNotice(xWaiting: boolean, xFailed: boolean, copy: WebCopyState |
   if (xWaiting || copy?.thread) return ['공개 미러(Nitter)에서 받은 X 글과 댓글이에요. 로그인한 상태로 보려면 X에서 여세요.', '공개 미러로 받은 글과 댓글'];
   if (copy?.textOnly) return ['사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.', '본문만 보여드려요'];
   if (copy?.fitting) return ['휴대폰 화면에 맞춘 사본을 준비하고 있어요.', '화면에 맞추는 중'];
-  return ['사이트가 직접 표시를 막아 사본으로 보여드려요. 동영상·댓글은 원문에서 동작해요.', '사본 · 영상·댓글은 원문에서'];
+  return ['웹 사본으로 표시 중', '사본'];
 }
 
 /**
@@ -305,6 +305,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   }, [summaryScope, translationSource]);
   // 웹 보기에서 번역을 보여 주는 동안은 사이트 대신 글을 그린다.
   const siteShown = mode === 'web' && !showTranslation;
+  const isMobile = useMobileViewport();
+  const fitCoinDesk = Boolean(isMobile && article && publicCoinDeskArticle(article.url));
   const [fontScale] = useTextSize();
   const [webZoom, setWebZoom] = useState(() => loadWebZoom(accountId, article?.feed_id || ''));
   const [framePaneWidth, setFramePaneWidth] = useState(0);
@@ -324,7 +326,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const peeked = resources.peekCachedWeb?.(article);
     return peeked ? { articleId: article.id, ...peeked } : null;
   });
-  const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html) : undefined, [webCopy?.html]);
+  const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html, fitCoinDesk && !webCopy.textOnly) : undefined, [webCopy?.html, webCopy?.textOnly, fitCoinDesk]);
   // X 글은 미러에서 사본을 받는 몇 초 동안, 피드로 받은 글을 사본과 같은 모양으로 같은 프레임에 먼저 그린다.
   // 사본을 받지 못하면 그 자리에 남기고 댓글 칸에만 알린다. 미러 대신 받은 x.com 화면 사본은 글도 댓글도
   // 비어 있으므로 받지 못한 것으로 본다.
@@ -362,7 +364,6 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   }, [shareDialogOpen]);
   const [mobileMenu, setMobileMenu] = useState<'tools' | 'assist' | 'share' | null>(null);
   const closeMobileMenu = () => setMobileMenu(null);
-  const isMobile = useMobileViewport();
   const openShare = () => {
     if (isMobile && !inNativeApp() && window.matchMedia('(pointer: coarse)').matches) setMobileMenu('share');
     else setShareDialogOpen(true);
@@ -565,7 +566,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 서버가 휴대폰 폭으로 배치한 사본으로 바꾼다.
   useEffect(() => {
     // 본문만 보기는 앱이 휴대폰 폭에 맞춰 만든 문서라 바꿀 필요가 없다.
-    if (!isMobile || !resources || !article || webCopy?.articleId !== article.id || !webCopy.html || webCopy.phone || webCopy.textOnly || webCopy.thread) return;
+    if (!isMobile || fitCoinDesk || !resources || !article || webCopy?.articleId !== article.id || !webCopy.html || webCopy.phone || webCopy.textOnly || webCopy.thread) return;
     const target = article;
     const message = (event: MessageEvent) => {
       if (event.source !== copyRef.current?.contentWindow || !event.data?.sfeedSqueezed) return;
@@ -576,7 +577,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     };
     window.addEventListener('message', message);
     return () => window.removeEventListener('message', message);
-  }, [isMobile, resources, article?.id, webCopy?.articleId, webCopy?.html, webCopy?.phone, webCopy?.textOnly]);
+  }, [isMobile, fitCoinDesk, resources, article?.id, webCopy?.articleId, webCopy?.html, webCopy?.phone, webCopy?.textOnly]);
 
   useEffect(() => {
     if (!article || article.body_deferred || article.date_source === 'original') { setCheckingDate(false); return; }
