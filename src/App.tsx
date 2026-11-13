@@ -35,7 +35,7 @@ import { emptiesUnreadList, useMobileViewport, useScrollChrome } from './client/
 import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
 import { useMobileScrollRecovery } from './client/mobileScrollRecovery';
-import { mobileOriginalArticle } from './client/originalWindow';
+import { mobileOriginalArticle, opensOriginalSeparately } from './client/originalWindow';
 import { NativeHandoff } from './components/NativeHandoff';
 import { inNativeApp, inNativeSignInWindow } from './client/nativeApp';
 import { htmlToText, openInDeepL } from './client/deeplWeb';
@@ -933,13 +933,15 @@ export const App: React.FC = () => {
       articleCache.current.set(article.id, article);
       const original = isMobile && !inNativeApp() ? mobileOriginalArticle(article.url) : null;
       if (original && user && !selectedArticleId && feedViewPreference(user.id, article.feed_id, subscriptions.find(sub => sub.feed_id === article.feed_id)?.view_mode) === 'web') {
-        saveResumePoint(true);
+        const separate = opensOriginalSeparately();
+        if (!separate) saveResumePoint(true);
         if (!article.is_read) {
           void handleUpdateArticleState(article, { isRead: true }, () => apiRequest(`/api/articles/${article.id}/state`, {
             method: 'POST', body: JSON.stringify({ isRead: true }), keepalive: true,
           }));
         }
-        window.location.assign(original.href);
+        if (separate) window.open(original.href, '_blank', 'noopener,noreferrer');
+        else window.location.assign(original.href);
         return;
       }
       setXPostTarget(null);

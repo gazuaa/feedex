@@ -3,7 +3,7 @@ import hlsUrl from 'hls.js/dist/hls.light.min.js?url';
 import playerUrl from './xFramePlayer.js?url';
 import { isXStatusUrl } from '../shared/xFeed';
 import { X_THREAD_MARK } from '../shared/xThreadStyle';
-import { isBackSwipe } from './swipeBack';
+import { COMMIT_SHARE, isBackSwipe } from './swipeBack';
 
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const YT_FRAME_SCRIPT = `<script nonce="sfeed-scroll">{let y;const p=()=>{if(!y)return;const r=y.getBoundingClientRect();parent.postMessage({sfeedYouTubeRect:[r.left,r.top,r.width,r.height]},'*')};addEventListener('click',e=>{const a=e.target.closest('a[data-yt-id]');if(!a||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();y=a;const r=a.getBoundingClientRect();parent.postMessage({sfeedYouTube:{id:a.getAttribute('data-yt-id'),start:Number(a.getAttribute('data-yt-start'))||0,rect:[r.left,r.top,r.width,r.height]}},'*')});addEventListener('scroll',p,{passive:true});addEventListener('resize',p)}</script>`;
@@ -108,6 +108,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
 
   const dialog = document.createElement('dialog');
   const mobile = window.matchMedia?.('(max-width: 1023px)').matches === true;
+  const animated = mobile && typeof dialog.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const previousFocus = document.activeElement;
   dialog.setAttribute('data-sfeed-photo-viewer', '');
   dialog.setAttribute('aria-label', '사진 크게 보기');
@@ -186,7 +187,8 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     }
   };
 
-  let closed = false;
+  let closed = false, closing = false;
+  let animation: Animation | undefined;
   const page = window.location?.href;
   const history = window.history;
   const currentState = history?.state;
@@ -198,6 +200,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     if (closed) return;
     closed = true;
     if (activePhoto === viewer) activePhoto = null;
+    animation?.cancel();
     if (typeof dialog.close === 'function' && dialog.open) dialog.close();
     dialog.remove();
     if (mobile && previousFocus instanceof window.HTMLElement && previousFocus.tagName !== 'IFRAME') previousFocus.focus({ preventScroll: true });
@@ -210,19 +213,24 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   };
   const viewer = { discard };
   const onPop = (event: PopStateEvent) => {
-    if (marker && window.location.href === page && !event.state?.[PHOTO_HISTORY]
-      && event.state?.sfeedNavigation?.index === previousState?.sfeedNavigation?.index) {
-      // 사진용으로 추가한 한 단계는 피드의 뒤로 가기 처리에 넘기지 않는다.
-      event.stopImmediatePropagation();
+    if (!marker || window.location.href !== page || event.state?.[PHOTO_HISTORY]) { discard(); return; }
+    const previous = previousState?.sfeedNavigation, next = event.state?.sfeedNavigation;
+    const sameEntry = next?.index === previous?.index && next?.account === previous?.account;
+    const skipped = previous && (!next || (next.account === previous.account && next.index < previous.index));
+    if (!sameEntry && !skipped) { discard(); return; }
+    event.stopImmediatePropagation();
+    if (skipped) {
+      // iOS는 프레임의 메시지로 연 사진의 기록을 건너뛸 수 있다. 이 경우 보고 있던 글의 기록을 복원한다.
+      history.pushState(previousState, '');
     }
-    discard();
+    if (closing) discard();
+    else dismiss('slide', discard);
   };
   const onHide = () => {
     if (marker && history.state?.[PHOTO_HISTORY]) history.replaceState(previousState, '');
     discard();
   };
-  const close = () => {
-    if (closed) return;
+  const releaseHistory = () => {
     if (!marker || !history.state?.[PHOTO_HISTORY]) { discard(); return; }
     // 기록이 돌아오기 전에 다시 눌러도 이전 닫기가 새 사진을 닫지 않게 한다.
     photoClosing = new Promise<void>((resolve) => {
@@ -235,6 +243,17 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     removeViewer();
     history.back();
   };
+  const dismiss = (motion: 'fade' | 'slide', done: () => void) => {
+    if (closed || closing) return;
+    closing = true;
+    if (!animated || !dialog.open) { done(); return; }
+    animation?.cancel();
+    animation = dialog.animate([{ opacity: 1, transform: 'translateX(0)' }, motion === 'slide'
+      ? { opacity: 0, transform: 'translateX(25vw)' } : { opacity: 0, transform: 'scale(.98)' }],
+    { duration: 180, easing: 'ease-out', fill: 'forwards' });
+    void animation.finished.then(done, () => {});
+  };
+  const close = () => dismiss('fade', releaseHistory);
   const step = (delta: number) => {
     const next = index + delta;
     if (next < 0 || next >= urls.length) return;
@@ -272,7 +291,9 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   dialog.addEventListener('touchstart', (e) => {
     const touch = e.touches[0];
     touchStart = e.touches.length === 1 ? { x: touch.clientX, y: touch.clientY, time: e.timeStamp } : null;
-  }, { passive: true });
+    // iOS의 화면 가장자리 동작을 시작점에서 막아 사진 아래의 글로 전달되지 않게 한다.
+    if (mobile && touchStart && touchStart.x <= 32 && e.cancelable) e.preventDefault();
+  }, { passive: false });
   dialog.addEventListener('touchcancel', () => { touchStart = null; }, { passive: true });
   dialog.addEventListener('touchmove', (e) => {
     const start = touchStart, touch = e.touches[0];
@@ -285,9 +306,10 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     touchStart = null;
     if (!start || !touch || e.changedTouches.length !== 1) return;
     const dx = touch.clientX - start.x, dy = touch.clientY - start.y;
-    if (mobile && (start.x <= 32 || (urls.length === 1 && !zoomed)) && isBackSwipe(start, { x: touch.clientX, y: touch.clientY, time: e.timeStamp })) {
+    const backSwipe = isBackSwipe(start, { x: touch.clientX, y: touch.clientY, time: e.timeStamp }) || (dx >= window.innerWidth * COMMIT_SHARE && dx > Math.abs(dy) * 1.8);
+    if (mobile && (start.x <= 32 || (urls.length === 1 && !zoomed)) && backSwipe) {
       if (e.cancelable) e.preventDefault();
-      close();
+      dismiss('slide', releaseHistory);
       return;
     }
     if (zoomed || !stage.contains(e.target as Node)) return;
@@ -304,7 +326,8 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   if (mobile) { dialog.setAttribute('open', ''); closeBtn.focus({ preventScroll: true }); }
   else if (typeof dialog.showModal === 'function') dialog.showModal();
   else dialog.setAttribute('open', '');
-  return close;
+  if (animated) animation = dialog.animate([{ opacity: 0, transform: 'scale(.98)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 160, easing: 'ease-out' });
+  return () => { if (mobile) { if (!closing && !closed) { closing = true; releaseHistory(); } } else close(); };
 }
 
 export interface XQuoteHint {
@@ -321,7 +344,7 @@ export function useXPostFrame(frame: RefObject<HTMLIFrameElement | null>, onOpen
       if (event.source !== frame.current?.contentWindow) return;
       const photos = event.data?.sfeedXPhotos;
       if (photos && Array.isArray(photos.urls)) {
-        closePhoto?.(); closePhoto = openPhotoViewer(photos.urls, Number(photos.index) || 0);
+        closePhoto = openPhotoViewer(photos.urls, Number(photos.index) || 0);
         return;
       }
       const url = event.data?.sfeedXPost;

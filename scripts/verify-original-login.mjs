@@ -5,12 +5,17 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 const vite = await createServer({ configFile: false, server: { middlewareMode: true, ws: false }, appType: 'custom', logLevel: 'silent' });
 try {
-  const { originalArticleUrl, leavesForOriginal } = await vite.ssrLoadModule('/src/client/originalWindow.ts');
+  const { originalArticleUrl, leavesForOriginal, opensOriginalSeparately } = await vite.ssrLoadModule('/src/client/originalWindow.ts');
   for (const url of ['javascript:alert(1)', 'data:text/html,x', 'https://user:secret@example.test/a', '/relative']) assert.equal(originalArticleUrl(url), null);
   // 원문은 이 창에서 연다. 새 탭이나 새 창으로 여는 클릭이면 FeedEx가 남으므로 돌아올 자리를 남기지 않는다.
   const click = { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, defaultPrevented: false };
   assert.equal(leavesForOriginal(click), true);
   for (const change of [{ metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }, { defaultPrevented: true }]) assert.equal(leavesForOriginal({ ...click, ...change }), false, `${JSON.stringify(change)} keeps FeedEx open`);
+  const iphone = { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)', maxTouchPoints: 5 };
+  assert.equal(opensOriginalSeparately(iphone, false), false, '아이폰 브라우저 탭은 같은 창에서 연다');
+  assert.equal(opensOriginalSeparately(iphone, true), true, '아이폰 홈 화면 앱은 별도 창에서 연다');
+  assert.equal(opensOriginalSeparately({ ...iphone, standalone: true }, false), true, 'iOS의 standalone 속성도 지원한다');
+  assert.equal(opensOriginalSeparately({ userAgent: 'Mozilla/5.0 (Macintosh)', maxTouchPoints: 0 }, true), false, '데스크톱의 원문 열기는 유지한다');
 
   const { WebStatusBar } = await vite.ssrLoadModule('/src/components/WebStatusBar.tsx');
   const bar = (props) => renderToStaticMarkup(React.createElement(WebStatusBar, { url: 'https://login.example.test/article/one', isDark: false, hidden: false, canLogin: true, notice: 'notice', shortNotice: 'short', ...props }));

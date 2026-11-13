@@ -1,6 +1,6 @@
-// 웹 보기 안에서는 브라우저가 원문 사이트에 로그인 정보(쿠키)를 보내지 않는다. 그래서 원문은 FeedEx 창에서
-// 바로 열어, 사이트를 직접 연 것처럼 로그인하고 읽게 한다. 로그인 정보는 브라우저와 원문 사이트 사이에만 있고
-// FeedEx 서버로 오지 않는다.
+import { installPlatform } from './pwa';
+
+// 원문 사이트를 직접 열어 브라우저에 저장된 로그인 상태를 사용한다.
 export function originalArticleUrl(value: string): URL | null {
   try { const url = new URL(value); return /^https?:$/.test(url.protocol) && !url.username && !url.password ? url : null; } catch { return null; }
 }
@@ -9,6 +9,12 @@ export function originalArticleUrl(value: string): URL | null {
 export function mobileOriginalArticle(value: string): URL | null {
   const url = originalArticleUrl(value);
   return url?.origin === 'https://research.4pillars.io' && /^\/(?:ko|en)\/research\/[^/]+\/?$/.test(url.pathname) ? url : null;
+}
+
+/** iOS 홈 화면 앱은 외부 브라우저를 닫을 때 그대로 돌아오도록 앱 기록을 건드리지 않는다. */
+export function opensOriginalSeparately(browser = typeof navigator === 'undefined' ? undefined : navigator as Navigator & { standalone?: boolean },
+  standalone = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches) {
+  return Boolean(browser && installPlatform(browser.userAgent, browser.maxTouchPoints) === 'ios' && (browser.standalone || standalone));
 }
 /** 이 창에서 원문으로 넘어가는 클릭인지. 새 탭이나 새 창으로 여는 클릭이면 FeedEx는 그대로 남는다. */
 export function leavesForOriginal(event: Pick<MouseEvent, 'button' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'defaultPrevented'>): boolean {

@@ -25,6 +25,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
   let slide: ReturnType<typeof presentReaderSlide> = null;
   const page = pager.lastElementChild as HTMLElement | null;
   const max = () => Math.max(0, pager.scrollWidth - pager.clientWidth);
+  const photoOpen = () => Boolean(pager.ownerDocument.querySelector('dialog[data-sfeed-photo-viewer][open]'));
   const rest = () => {
     settling = false;
     slide?.clear();
@@ -42,6 +43,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
   // 아래쪽 목록의 변형만 먼저 풀어 곧바로 깨끗하게 보이게 한다.
   const finishLeave = () => {
     cancelLeave();
+    if (photoOpen()) { rest(); pager.scrollLeft = max(); return; }
     gone = true;
     settling = false;
     slide?.clearUnder();
@@ -56,7 +58,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
   // 스크롤이나 프레임 교체로 화면 중간에 멈췄을 때도 그 자리에 얼어붙지 않게 끝까지 닫거나 제자리로 되돌린다.
   const snap = () => {
     cancelLeave();
-    if (gone || settling || touching()) return;
+    if (gone || settling || touching() || photoOpen()) return;
     if (pager.scrollLeft <= 1) { leave(); return; }
     const dx = Math.max(0, max() - pager.scrollLeft);
     if (dx < 1) { rest(); return; }
@@ -77,7 +79,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
     }, DURATION);
   };
   const leave = () => {
-    if (gone || settling) return;
+    if (gone || settling || photoOpen()) return;
     if (touching()) { settle(); return; }
     cancelLeave();
     if (max() <= 1) return;
@@ -85,18 +87,18 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
     // 터치 종료와 스크롤 종료가 같은 프레임에 와도 네이티브 스크롤을 지우기 전에 정리할 시간을 준다.
     frame = view.requestAnimationFrame(() => {
       frame = view.requestAnimationFrame(() => {
-        if (gone || settling || touching() || pager.scrollLeft > 1) return;
+        if (gone || settling || touching() || photoOpen() || pager.scrollLeft > 1) return;
         finishLeave();
       });
     });
   };
   const settle = () => {
-    if (gone || settling) return;
+    if (gone || settling || photoOpen()) return;
     cancelLeave();
     if (max() <= 1) return;
     if (touching()) {
       if (pager.scrollLeft <= 1) timer = view.setTimeout(() => {
-        if (!gone && !settling && pager.scrollLeft <= 1) finishLeave();
+        if (!gone && !settling && !photoOpen() && pager.scrollLeft <= 1) finishLeave();
       }, EDGE_IDLE_MS);
       return;
     }
@@ -105,6 +107,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
   };
   const scroll = () => {
     if (gone || settling) return;
+    if (photoOpen()) { cancelLeave(); rest(); pager.scrollLeft = max(); return; }
     const dx = Math.max(0, max() - pager.scrollLeft);
     const now = view.performance?.now?.() ?? Date.now();
     if (lastAt && now > lastAt) velocity = (dx - lastDx) / (now - lastAt);

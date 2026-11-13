@@ -42,7 +42,7 @@ import { isCurrentSummary } from '../shared/aiSummary';
 import { shareLinks } from '../client/share';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
-import { leavesForOriginal, mobileOriginalArticle } from '../client/originalWindow';
+import { leavesForOriginal, mobileOriginalArticle, opensOriginalSeparately } from '../client/originalWindow';
 import { prefersMobileTableCopy, wrapArticleTables } from '../client/articleTables';
 import type { ArticleResources, WebResult } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
@@ -378,6 +378,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 프레임을 막는 사이트도 그대로 보인다. X 글은 공개 미러 사본으로 보여 준다.
   const nativeWeb = siteShown && Boolean(article) && !xPost && inNativeApp();
   const mobileOriginal = isMobile && !inNativeApp() && article ? mobileOriginalArticle(article.url) : null;
+  const separateOriginal = Boolean(mobileOriginal && opensOriginalSeparately());
   const mobileTableSite = Boolean(isMobile && article && prefersMobileTableCopy(article.url));
   const originalFrameFit = fitOriginalTable && mobileTableSite && framePaneWidth ? Math.min(1, framePaneWidth / ORIGINAL_TABLE_WIDTH) : fixedLayoutFit(frame?.layoutWidth, framePaneWidth);
   const originalFrameStyle = frameScaleStyle(webZoom * originalFrameFit);
@@ -1118,7 +1119,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </>) : mobileOriginal ? (
               <div className="feedex-web-fill flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
                 <p className="text-sm text-slate-500 dark:text-slate-400">4Pillars의 보안 확인은 원문에서 진행할 수 있어요.</p>
-                <a href={mobileOriginal.href} rel="noreferrer" onClick={(event) => { if (leavesForOriginal(event)) onLeaveForOriginal?.(); }}
+                <a href={mobileOriginal.href} target={separateOriginal ? '_blank' : undefined} rel="noreferrer" onClick={(event) => { if (!separateOriginal && leavesForOriginal(event)) onLeaveForOriginal?.(); }}
                   className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950">
                   원문에서 읽기 <ExternalLink size={15} aria-hidden="true" />
                 </a>

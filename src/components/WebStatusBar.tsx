@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { ExternalLink, Loader2 } from 'lucide-react';
-import { leavesForOriginal, originalArticleUrl } from '../client/originalWindow';
+import { leavesForOriginal, opensOriginalSeparately, originalArticleUrl } from '../client/originalWindow';
 
-const ORIGINAL_HELP = '원문 사이트를 이 창에서 열어요. 로그인이 필요한 글은 거기서 로그인해 읽고, 뒤로 가면 FeedEx로 돌아와요.';
+const ORIGINAL_HELP = '원문 사이트에서 읽고 로그인할 수 있어요.';
 
 /** 막대 폭에 맞는 이름을 보여 준다. 데스크톱에서도 글 칸이 좁을 수 있어 기기가 아니라 막대 폭으로 고른다. */
 export function WebLabel({ short, long }: { short: string; long: string }) {
@@ -27,6 +27,7 @@ export function WebStatusBar({ url, isDark, hidden, canLogin, busy = false, noti
   children?: ReactNode;
 }) {
   const original = canLogin ? originalArticleUrl(url) : null;
+  const separate = opensOriginalSeparately();
   // 글자가 작아서 밝은 배경에서는 한 단계 진한 색을 쓴다.
   const accent = isDark ? 'text-emerald-400' : 'text-emerald-600';
   // 휴대폰에서는 접혀도 막대를 지우지 않고 사이트 위로 올려 보내, 사이트가 자리를 지키게 한다(index.css).
@@ -36,9 +37,8 @@ export function WebStatusBar({ url, isDark, hidden, canLogin, busy = false, noti
       <span role="status" className="min-w-0 flex-1 truncate" title={notice}><WebLabel short={shortNotice} long={notice} /></span>
       <div className="flex shrink-0 items-center gap-3 whitespace-nowrap [&>*]:py-2">
         {children}
-        {/* 새 창을 띄우지 않고 이 창에서 넘어간다. 크롬 앱 창 안에서 열리고, 뒤로 가면 돌아온다. */}
         {original && (
-          <a href={original.href} rel="noreferrer" title={ORIGINAL_HELP} onClick={(event) => { if (leavesForOriginal(event)) onLeave?.(); }} className={`inline-flex items-center gap-1 font-semibold hover:underline ${accent}`}>
+          <a href={original.href} target={separate ? '_blank' : undefined} rel="noreferrer" title={ORIGINAL_HELP} onClick={(event) => { if (!separate && leavesForOriginal(event)) onLeave?.(); }} className={`inline-flex items-center gap-1 font-semibold hover:underline ${accent}`}>
             <WebLabel short="원문" long="원문에서 읽기·로그인" /><ExternalLink className="w-3 h-3" aria-hidden="true" />
           </a>
         )}
