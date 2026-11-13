@@ -19,7 +19,8 @@ import type { OpmlFeed } from '../shared/opml';
 import { normalizeFeedUrl } from '../shared/feedDiscovery';
 import { xRoutes } from './xConnection';
 import { feedHistoryRoutes } from './feedHistory';
-import { XFeedError } from './xFeed';
+import { providers as xProviders, XFeedError } from './xFeed';
+import { mirrorStatuses } from './xMirrorHealth';
 import { inheritXView, saveXView } from './xViews';
 import { fetchXThread, refreshXCardImages, verifiedXThread, xStatusUrl, xThreadSummaryPosts, xThreadTranslationBody, xThreadWithProof } from './xThread';
 import { isXProfileFeed } from '../shared/xFeed';
@@ -1504,6 +1505,12 @@ async function translationConfig(env: Env, user: UserRecord) {
   }
   return { canManage: true, provider: deepl ? 'deepl' : 'workers-ai', managed: Boolean(deepl?.managed), usage, problem, storage: Boolean(env.X_SETTINGS_SECRET && env.X_SETTINGS_SECRET.length >= 32) };
 }
+// X 미러 상태. 운영자에게만 보인다. 미러가 주소를 옮기거나 멈추면 설정 화면에서 알 수 있다.
+app.get('/api/x-mirrors', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  if (!canManageX(c.env, c.get('user'))) return c.json({ canManage: false });
+  return c.json({ canManage: true, mirrors: await mirrorStatuses(c.env.DB, xProviders) });
+});
 app.get('/api/translation/config', async (c) => {
   c.header('Cache-Control', 'no-store');
   return c.json(await translationConfig(c.env, c.get('user')));

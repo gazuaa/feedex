@@ -2,6 +2,7 @@ import type { ParsedArticle, ParsedFeed } from './rssParser';
 import { xProfile } from '../shared/xFeed';
 import { retryAfterMs } from './retryAfter';
 import type { D1DatabaseLike } from './types';
+import { describeError, describeResponse, NOT_A_FEED, recordMirror } from './xMirrorHealth';
 
 export const providers = ['https://nitter.mie.foundation', 'https://ruf.st'];
 // 주소를 옮긴 미러. 옛 주소는 301로 새 주소를 알려 주는데, 요청은 주소 이동을 따라가지 않으므로 그동안 이 미러를
@@ -159,14 +160,15 @@ export async function fetchXOlderPage(profileUrl: string, page: XOlderPage, pars
       headers: { Accept: 'application/rss+xml, application/xml;q=0.9', 'User-Agent': 'FeedExRSS/1.0' },
       redirect: 'manual', credentials: 'omit', signal: controller.signal,
     });
-    if (response.status === 429) { await response.body?.cancel(); await restProvider(provider, response.headers.get('Retry-After'), db); return 'limited'; }
-    if (!response.ok) { await response.body?.cancel(); return 'failed'; }
+    if (response.status === 429) { await response.body?.cancel(); await restProvider(provider, response.headers.get('Retry-After'), db); await recordMirror(db, provider, { kind: 'limited' }); return 'limited'; }
+    if (!response.ok) { await response.body?.cancel(); await recordMirror(db, provider, { kind: 'failed', detail: describeResponse(response) }); return 'failed'; }
     const read = readXPage(await readFeed(response), provider, profile, parse);
-    if (!read) return 'failed';
+    if (!read) { await recordMirror(db, provider, { kind: 'failed', detail: NOT_A_FEED }); return 'failed'; }
+    await recordMirror(db, provider, { kind: 'ok' });
     const older = olderPage(response, provider);
     // 글이 없는 쪽이나 같은 위치를 다시 알려 주면 끝까지 받은 것이다. 빈 쪽 판단은 거르기 전의 글 수로 한다.
     return { articles: dropStaleReposts(read.articles), older: read.articles.length && older?.cursor !== page.cursor ? older : undefined };
-  } catch { return 'failed'; }
+  } catch (error) { await recordMirror(db, provider, { kind: 'failed', detail: describeError(error) }); return 'failed'; }
   finally { clearTimeout(timer); }
 }
 
@@ -201,14 +203,17 @@ export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLik
         if (response.status === 429) {
           await response.body?.cancel();
           const resume = await restProvider(provider, response.headers.get('Retry-After'), db);
+          await recordMirror(db, provider, { kind: 'limited' });
           limitedProviders++;
           limitedUntil = limitedUntil ? Math.min(limitedUntil, resume) : resume;
           continue;
         }
-        if (!response.ok) { await response.body?.cancel(); continue; }
+        // 주소 이동·서버 오류·보안 확인 페이지는 다른 미러로 넘어가되, 미러가 조용히 멈춘 것을 알 수 있게 남긴다.
+        if (!response.ok) { await response.body?.cancel(); await recordMirror(db, provider, { kind: 'failed', detail: describeResponse(response) }); continue; }
         const xml = await readFeed(response);
         const read = readXPage(xml, provider, profile, parse);
-        if (!read) continue;
+        if (!read) { await recordMirror(db, provider, { kind: 'failed', detail: NOT_A_FEED }); continue; }
+        await recordMirror(db, provider, { kind: 'ok' });
         const { parsed, hosts } = read;
         const feed: ParsedFeed = {
           ...parsed, xmlUrl: profile.url, htmlUrl: profile.url,
@@ -229,6 +234,7 @@ export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLik
         return feed;
       } catch (error) {
         if (error instanceof XFeedError) throw error;
+        await recordMirror(db, provider, { kind: 'failed', detail: describeError(error) });
       } finally { clearTimeout(timer); }
     }
     // 받을 수 있는 경로가 하나도 없었다면 가장 먼저 풀리는 시점을 알려, 다음 계정을 곧바로 실패시키지 않게 한다.

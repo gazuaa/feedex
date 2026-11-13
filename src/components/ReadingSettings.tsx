@@ -4,6 +4,7 @@ import type { LayoutMode } from '../client/api';
 import { LocalNotificationSetting } from './LocalNotificationSetting';
 import { CacheSettings } from './CacheSettings';
 import { TranslationSetting } from './TranslationSetting';
+import { XMirrorStatus } from './XMirrorStatus';
 import { ArticleBlockSetting } from './ArticleBlockDialog';
 import { FONT_SCALES, useTextSize } from '../client/textSize';
 import { AUTO_REFRESH_OPTIONS } from '../shared/preferences';
@@ -86,7 +87,7 @@ export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefresh
       <SettingGroup title="보기"><NativeAppScaleSetting /><TextSizeSetting /><LayoutSetting layout={layout} onChangeLayout={onChangeLayout} /></SettingGroup>
       <SettingGroup title="읽기"><ScrollReadSetting {...props} /></SettingGroup>
       <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
-      {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { if (ref.current) ref.current.open = false; onManageArticleBlocks(); }} /><TranslationSetting /></SettingGroup>}
+      {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { if (ref.current) ref.current.open = false; onManageArticleBlocks(); }} /><TranslationSetting /><XMirrorStatus /></SettingGroup>}
       {accountId && <SettingGroup title="이 기기"><NativeAppUpdateSetting /><CacheSettings accountId={accountId} /></SettingGroup>}
     </div>
   </details>;

@@ -556,5 +556,80 @@ try {
     } finally { globalThis.fetch = before; Date.now = beforeNow; }
   }
 
-  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, an X-style timeline for X folders, paced backfill of older X posts with gap filling, no late arrivals from retweets of day-old posts, and the moved mirror address.');
+  // 미러가 주소를 옮기거나 멈추면 기록이 남아 운영자 설정에서 보인다. 요청 한도(429)는 쉬는 시간 기록이 따로 있다.
+  {
+    const health = await vite.ssrLoadModule('/src/server/xMirrorHealth.ts');
+    const { fetchXFeed } = await vite.ssrLoadModule('/src/server/xFeed.ts');
+    const { parseXmlFeedContent } = await vite.ssrLoadModule('/src/server/rssParser.ts');
+    assert.equal(health.describeResponse(new Response(null, { status: 301, headers: { Location: 'https://ruf.st/a/rss' } })), 'HTTP 301 → ruf.st (주소 이동)');
+    assert.equal(health.describeResponse(new Response('', { status: 503 })), 'HTTP 503');
+    const timedOut = new Error('late'); timedOut.name = 'AbortError';
+    assert.equal(health.describeError(timedOut), '응답 시간 초과'); assert.equal(health.describeError(new TypeError('fetch failed')), '연결 오류');
+    const hour = 3_600_000, base = 1_900_000_000_000;
+    assert.equal(health.mirrorState({ last_ok_at: base - 60_000, failing_since: null }, null, base), 'ok');
+    assert.equal(health.mirrorState({ last_ok_at: base - 3 * hour, failing_since: null }, null, base), 'stale', 'no success for hours needs a look');
+    assert.equal(health.mirrorState({ last_ok_at: base - hour, failing_since: base - 1000 }, null, base), 'failing');
+    assert.equal(health.mirrorState(undefined, base + 60_000, base), 'limited'); assert.equal(health.mirrorState(undefined, null, base), 'unknown');
+
+    // 실제 수집 경로: 한 미러가 다른 곳으로 옮겼다고 답하면 실패로 남고, 다른 미러에서 받은 것은 성공으로 남는다.
+    const mirrorDb = new LocalD1Database(':memory:', 'migrations/0001_schema.sql');
+    const before = globalThis.fetch, beforeNow = Date.now;
+    let clock = base;
+    Date.now = () => clock;
+    const rss = (user) => `<?xml version="1.0"?><rss version="2.0"><channel><title>${user}</title><link>https://ruf.st/${user}</link><description>x</description><item><title>hello</title><link>https://ruf.st/${user}/status/77#m</link><pubDate>${new Date(base).toUTCString()}</pubDate><description>hello</description></item></channel></rss>`;
+    let mie = 'moved', ruf = 'ok';
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input)), user = url.pathname.split('/')[1];
+      const mode = url.hostname === 'nitter.mie.foundation' ? mie : ruf;
+      if (mode === 'moved') return new Response(null, { status: 301, headers: { Location: `https://elsewhere.example.test/${user}/rss` } });
+      if (mode === 'challenge') return new Response('<html><title>Making sure you are not a bot</title></html>');
+      if (mode === 'down') return new Response('', { status: 503 });
+      return new Response(rss(user), { headers: { 'Content-Type': 'application/rss+xml' } });
+    };
+    const rows = async () => Object.fromEntries((await mirrorDb.prepare('SELECT * FROM x_provider_health').all()).results.map((row) => [row.provider, row]));
+    try {
+      for (const user of ['mirrorone', 'mirrortwo']) await fetchXFeed(`https://x.com/${user}`, parseXmlFeedContent, mirrorDb);
+      let saved = await rows();
+      assert.equal(saved['https://nitter.mie.foundation'].last_failure, 'HTTP 301 → elsewhere.example.test (주소 이동)', 'a moved mirror is recorded with where it went');
+      assert.equal(saved['https://nitter.mie.foundation'].failing_since, base);
+      assert.equal(saved['https://ruf.st'].last_ok_at, base); assert.equal(saved['https://ruf.st'].failing_since, null);
+      // 같은 결과는 5분 안에 다시 쓰지 않고, 실패가 이어지는 동안 처음 실패한 시각을 지킨다.
+      clock = base + 6 * 60_000; mie = 'challenge';
+      for (const user of ['mirrorthree', 'mirrorfour']) await fetchXFeed(`https://x.com/${user}`, parseXmlFeedContent, mirrorDb);
+      saved = await rows();
+      assert.equal(saved['https://nitter.mie.foundation'].failing_since, base, 'the first failure time is kept');
+      assert.equal(saved['https://nitter.mie.foundation'].last_failure, 'RSS가 아닌 응답(보안 확인 페이지 등)');
+      // 다시 받으면 실패 기록이 풀린다.
+      clock = base + 12 * 60_000; mie = 'ok'; ruf = 'down';
+      for (const user of ['mirrorfive', 'mirrorsix']) await fetchXFeed(`https://x.com/${user}`, parseXmlFeedContent, mirrorDb);
+      saved = await rows();
+      assert.equal(saved['https://nitter.mie.foundation'].failing_since, null, 'a success clears the failure');
+      assert.equal(saved['https://ruf.st'].last_failure, 'HTTP 503');
+      const statuses = await health.mirrorStatuses(mirrorDb, ['https://nitter.mie.foundation', 'https://ruf.st'], clock);
+      assert.deepEqual(statuses.map((mirror) => [mirror.host, mirror.state]), [['nitter.mie.foundation', 'ok'], ['ruf.st', 'failing']]);
+    } finally { globalThis.fetch = before; Date.now = beforeNow; }
+
+    // 운영자만 미러 상태를 본다.
+    await health.recordMirror(db, 'https://ruf.st', { kind: 'failed', detail: 'HTTP 301 → new.example.test (주소 이동)' }, base + 24 * hour);
+    const ownerView = await (await request('/api/x-mirrors')).json();
+    assert.equal(ownerView.canManage, true);
+    assert.deepEqual(ownerView.mirrors.map((mirror) => mirror.host), ['nitter.mie.foundation', 'ruf.st']);
+    assert.equal(ownerView.mirrors[1].state, 'failing'); assert.match(ownerView.mirrors[1].lastFailure, /주소 이동/);
+    assert.deepEqual(await (await request('/api/x-mirrors', null, other)).json(), { canManage: false }, 'other people see nothing');
+
+    // 설정 화면: 실패하는 미러가 있으면 '확인 필요'와 원인을 보인다.
+    const React = (await import('react')).default, { renderToStaticMarkup } = await import('react-dom/server');
+    const { XMirrorStatus, ago } = await vite.ssrLoadModule('/src/components/XMirrorStatus.tsx');
+    const now = base;
+    const view = (mirrors) => renderToStaticMarkup(React.createElement(XMirrorStatus, { initial: { canManage: true, mirrors }, now }));
+    const mirror = (host, state, extra = {}) => ({ provider: `https://${host}`, host, state, lastOkAt: null, failingSince: null, lastFailure: null, limitedUntil: null, ...extra });
+    const healthy = view([mirror('nitter.mie.foundation', 'ok', { lastOkAt: now - 3 * 60_000 }), mirror('ruf.st', 'limited', { limitedUntil: now + 5 * 60_000 })]);
+    assert.match(healthy, />정상<\/strong>/); assert.match(healthy, /3분 전 받음/); assert.match(healthy, /요청 한도로 쉬는 중 · 5분 뒤 다시 시도/);
+    const broken = view([mirror('nitter.mie.foundation', 'ok', { lastOkAt: now - 60_000 }), mirror('ruf.st', 'failing', { failingSince: now - 2 * hour, lastFailure: 'HTTP 301 → new.example.test (주소 이동)' })]);
+    assert.match(broken, /data-alert="true">확인 필요<\/strong>/); assert.match(broken, /2시간 전부터 실패 · HTTP 301 → new\.example\.test \(주소 이동\)/);
+    assert.equal(renderToStaticMarkup(React.createElement(XMirrorStatus, { initial: { canManage: false }, now })), '<span hidden=""></span>', 'hidden for everyone but the operator');
+    assert.equal(ago(now - 30_000, now), '방금'); assert.equal(ago(now - 3 * 24 * hour, now), '3일 전');
+  }
+
+  console.log('PASS: owner-only encrypted persistent X setup, no secret disclosure or overwrite on invalid input, stored-key OAuth, PKCE/state/session checks, private account-bound tokens, paginated follows, explicit imports, public feed refresh/cache, per-provider cooldown with fallback and alias hosts, import waits on rate limits, one shared body view for every subscribed X account, safe X post copies with replies from mirror pages, profile-photo X icons, an X-style timeline for X folders, paced backfill of older X posts with gap filling, no late arrivals from retweets of day-old posts, the moved mirror address, and mirror health recorded for the operator.');
 } finally { globalThis.fetch = originalFetch; await vite.close(); }

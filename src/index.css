@@ -140,6 +140,13 @@ html:not(.dark) :is(.feedex-segmented, .feedex-setting-row > .feedex-text-size-c
 html:not(.dark) :is(.feedex-cache-clear, .feedex-cache-actions button, .feedex-auto-refresh-setting select) { background-color: #f1f5f9; }
 .feedex-translation-key { display: flex; gap: 8px; margin-top: 8px; }
 .feedex-translation-key input { min-width: 0; flex: 1; min-height: 34px; padding: 0 10px; border: 1px solid var(--feedex-border); border-radius: 10px; background: var(--feedex-background); color: var(--feedex-text); font-size: 12px; }
+/* 운영자 설정의 X 미러 상태. 확인이 필요한 미러와 요약은 주황색으로 보인다. */
+.feedex-x-mirrors { margin-top: 8px; }
+.feedex-x-mirror-list { display: grid; gap: 4px; margin: 2px 0 0; padding: 0; list-style: none; }
+.feedex-x-mirror-list li { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--feedex-text); }
+.feedex-x-mirror-list small { min-width: 0; color: var(--feedex-muted); text-align: right; overflow-wrap: anywhere; }
+.feedex-x-mirrors [data-alert] small, .feedex-x-mirrors strong[data-alert] { color: #b45309; }
+html.dark .feedex-x-mirrors [data-alert] small, html.dark .feedex-x-mirrors strong[data-alert] { color: #fbbf24; }
 .feedex-setting-link { margin-left: 2px; padding: 0; color: #059669; font-weight: 600; cursor: pointer; }
 .feedex-setting-link:hover { text-decoration: underline; }
 html.dark .feedex-setting-link { color: #34d399; }

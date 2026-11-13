@@ -9,6 +9,7 @@ import { ScrollReadSetting, TextSizeSetting, LayoutSetting, AutoRefreshSetting, 
 import { LocalNotificationSetting } from './LocalNotificationSetting';
 import { CacheSettings } from './CacheSettings';
 import { TranslationSetting } from './TranslationSetting';
+import { XMirrorStatus } from './XMirrorStatus';
 import { ArticleBlockSetting } from './ArticleBlockDialog';
 import { RefreshIcon } from './RefreshIcon';
 
@@ -58,7 +59,7 @@ export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLa
       </SettingGroup>
       {!library && <SettingGroup title="읽기"><ScrollReadSetting markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} /></SettingGroup>}
       <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
-      {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} /><TranslationSetting /></SettingGroup>}
+      {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} /><TranslationSetting /><XMirrorStatus /></SettingGroup>}
       {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} active /></SettingGroup>}
       <SettingGroup title="기타">
         <button type="button" onClick={() => { close(); onOpenOpml(); }}><FileCode2 size={17} />OPML 가져오기 / 내보내기</button>
