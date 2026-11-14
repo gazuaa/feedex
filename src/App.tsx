@@ -236,7 +236,10 @@ export const App: React.FC = () => {
     setMobileSidebarOpen(location.library);
     setDiscoverOpen(false);
   }, () => articleListRef.current?.scrollTop ?? 0, startedAfterUpdate());
-  const closeReader = () => setSelectedArticleId(null);
+  const closeReader = useCallback(() => {
+    setXPostTarget(null);
+    setSelectedArticleId(null);
+  }, []);
   const [markReadTarget, setMarkReadTarget] = useState<{
     scope: ScopeType;
     folderId: string | null;
@@ -1613,6 +1616,7 @@ export const App: React.FC = () => {
         inactive={isMobile && mobileSidebarOpen}
         mobileReaderOpen={isMobile && Boolean(selectedArticle)}
         listRef={articleListRef}
+        onClearSelection={selectedArticleId ? closeReader : undefined}
         sidebar={
           <Sidebar
             user={user}

@@ -101,7 +101,16 @@ try {
   const { patchPage } = await vite.ssrLoadModule('/src/client/syncPages.ts');
   const page = { articles: [{ ...article, id: 'new', published_at: '2026-10-27' }, { ...article, id: 'old', published_at: '2026-01-01' }], hasMore: false };
   assert.deepEqual(patchPage(page, 'articles?scope=all&sort=oldest', [], new Set(), new Set()).articles.map((item) => item.id), ['old', 'new']);
-  console.log('PASS: local feed-name/article-title notifications, fallback, permission/dedup/account boundaries; mobile long-press/scroll/ghost-click guards; zero-unread folders/feeds hidden; logo fallback; X rows inside mixed lists; oldest-first local ordering.');
+
+  const { shouldClearListSelection } = await vite.ssrLoadModule('/src/components/ResizableWorkspace.tsx');
+  const fakeTarget = (matches) => ({ closest: (selector) => matches.some((token) => selector.includes(token)) ? {} : null });
+  assert.equal(shouldClearListSelection(null), false);
+  assert.equal(shouldClearListSelection({}), false);
+  assert.equal(shouldClearListSelection(fakeTarget([])), true, 'clicking empty space in feed-list/list-items/x-timeline clears selection');
+  for (const hit of ['[data-article-id]', 'button', 'a', '.feedex-block-bar', '.feedex-block-empty']) {
+    assert.equal(shouldClearListSelection(fakeTarget([hit])), false, `clicking inside ${hit} keeps selection`);
+  }
+  console.log('PASS: local feed-name/article-title notifications, fallback, permission/dedup/account boundaries; mobile long-press/scroll/ghost-click guards; zero-unread folders/feeds hidden; logo fallback; X rows inside mixed lists; oldest-first local ordering; empty-space selection clearing.');
 } finally {
   for (const [key, descriptor] of Object.entries(originals)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
   await vite.close();

@@ -12,9 +12,18 @@ interface ResizableWorkspaceProps {
   listRef: React.Ref<HTMLElement>;
   inactive?: boolean;
   mobileReaderOpen?: boolean;
+  onClearSelection?: () => void;
 }
 
-export function ResizableWorkspace({ userId, isDark, sidebar, header, reader, footer, children, listRef, inactive, mobileReaderOpen }: ResizableWorkspaceProps) {
+// 피드 목록의 글·버튼·필터 바 바깥 빈 공간을 누르면 읽고 있던 글 선택을 해제한다.
+export function shouldClearListSelection(target: EventTarget | null): boolean {
+  const el = target as { closest?: (selector: string) => unknown } | null;
+  if (!el || typeof el.closest !== 'function') return false;
+  if (typeof Element !== 'undefined' && !(target instanceof Element)) return false;
+  return !el.closest('[data-article-id], button, a, input, select, textarea, [role="button"], .feedex-block-bar, .feedex-block-empty');
+}
+
+export function ResizableWorkspace({ userId, isDark, sidebar, header, reader, footer, children, listRef, inactive, mobileReaderOpen, onClearSelection }: ResizableWorkspaceProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const readerRef = useRef<HTMLElement>(null);
   const [containerWidth, setContainerWidth] = useState(1280);
@@ -81,7 +90,10 @@ export function ResizableWorkspace({ userId, isDark, sidebar, header, reader, fo
       <div className="feedex-workspace-header shrink-0" inert={inactive || mobileReaderOpen || undefined} aria-hidden={mobileReaderOpen || undefined}>{header}</div>
       <div className="feedex-content-panes flex-1 min-w-0 min-h-0 overflow-hidden">
         {/* 모바일 본문이 터치를 받는 동안에도 iOS가 목록의 스크롤 입력 영역을 유지하게 한다. */}
-        <main ref={listRef} aria-hidden={mobileReaderOpen || undefined} id="feed-article-list" aria-label="피드 목록" tabIndex={inactive || mobileReaderOpen ? -1 : 0} className="feedex-feed-list min-w-0 min-h-0 overflow-y-auto overscroll-contain" onFocusCapture={mobileReaderOpen ? () => {
+        <main ref={listRef} aria-hidden={mobileReaderOpen || undefined} id="feed-article-list" aria-label="피드 목록" tabIndex={inactive || mobileReaderOpen ? -1 : 0} className="feedex-feed-list min-w-0 min-h-0 overflow-y-auto overscroll-contain" onClick={(event) => {
+          if (!onClearSelection || event.defaultPrevented) return;
+          if (shouldClearListSelection(event.target)) onClearSelection();
+        }} onFocusCapture={mobileReaderOpen ? () => {
           const controls = readerRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], iframe');
           const first = controls && Array.from(controls).find((control) => control.getClientRects().length && !control.closest('[inert]'));
           first?.focus({ preventScroll: true });
