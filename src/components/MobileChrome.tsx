@@ -57,8 +57,7 @@ export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLa
         <TextSizeSetting />
         {!library && <LayoutSetting layout={layout} onChangeLayout={(value) => { onChangeLayout(value); close(); }} />}
       </SettingGroup>
-      {!library && <SettingGroup title="읽기"><ScrollReadSetting markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} /></SettingGroup>}
-      <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
+      <SettingGroup title="읽기">{!library && <ScrollReadSetting markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} />}<AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
       {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} /><TranslationSetting /><XMirrorStatus /></SettingGroup>}
       {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} active /></SettingGroup>}
       <SettingGroup title="기타">

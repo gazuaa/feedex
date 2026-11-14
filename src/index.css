@@ -131,12 +131,13 @@ html:not(.dark) :is(.feedex-segmented, .feedex-setting-row > .feedex-text-size-c
 /* 설정의 선택 상자와 버튼은 크기 조절기와 같은 회색 바탕, 같은 높이로 맞춘다. */
 .feedex-auto-refresh-setting select { flex-shrink: 0; max-width: 120px; min-height: 34px; padding: 0 28px 0 12px; border: 0; border-radius: 10px; appearance: none; -webkit-appearance: none; background: var(--feedex-background) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center; color: var(--feedex-text); font-size: 12px; font-weight: 500; cursor: pointer; }
 .feedex-setting-message { margin-top: 6px; color: var(--feedex-muted); font-size: 11px; line-height: 1.5; }
-.feedex-cache-usage { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 12px; color: var(--feedex-muted); }
-.feedex-cache-usage output { color: var(--feedex-text); font-variant-numeric: tabular-nums; }
+.feedex-cache-controls { display: flex; flex-shrink: 0; gap: 6px; }
+.feedex-cache-settings output { font-variant-numeric: tabular-nums; }
 .feedex-cache-confirm { margin-top: 10px; font-size: 12px; line-height: 1.5; color: var(--feedex-muted); }
 .feedex-cache-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .feedex-cache-clear, .feedex-cache-actions button { flex-shrink: 0; min-height: 34px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--feedex-background); font-size: 12px; font-weight: 500; color: var(--feedex-text); cursor: pointer; }
 .feedex-cache-clear:hover, .feedex-cache-actions button:hover, .feedex-auto-refresh-setting select:hover { filter: brightness(.97); }
+.feedex-cache-clear:disabled, .feedex-cache-actions button:disabled { opacity: .5; cursor: default; }
 html:not(.dark) :is(.feedex-cache-clear, .feedex-cache-actions button, .feedex-auto-refresh-setting select) { background-color: #f1f5f9; }
 .feedex-translation-key { display: flex; gap: 8px; margin-top: 8px; }
 .feedex-translation-key input { min-width: 0; flex: 1; min-height: 34px; padding: 0 10px; border: 1px solid var(--feedex-border); border-radius: 10px; background: var(--feedex-background); color: var(--feedex-text); font-size: 12px; }
@@ -299,6 +300,9 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-settings-heading > button { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; color: var(--feedex-mobile-muted); background: var(--feedex-mobile-raised); cursor: pointer; }
   .feedex-mobile-settings-panel { position: static; flex: 1; min-height: 0; width: 100%; max-height: none; padding: 16px 20px calc(24px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: auto; }
   .feedex-mobile-settings-panel :is(button, select):not([role="switch"]) { min-height: 44px; }
+  /* 설명 줄 안의 글자 링크는 줄 높이를 늘리지 않고, 보이지 않는 여백으로 누르기 쉬운 크기를 채운다. */
+  .feedex-mobile-settings-panel small .feedex-setting-link { position: relative; min-height: 0; }
+  .feedex-mobile-settings-panel small .feedex-setting-link::after { content: ''; position: absolute; inset: -14px -8px; }
   .feedex-mobile-settings-panel .feedex-text-size-control > button { min-width: 44px; min-height: 44px; }
   .feedex-mobile-settings-panel .feedex-segmented button { min-width: 44px; min-height: 44px; }
   .feedex-mobile-sync-status { display: flex; align-items: center; gap: 5px; min-height: 18px; margin-top: 2px; font-size: 11px; line-height: 1.4; color: #b45309; }

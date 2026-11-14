@@ -285,9 +285,10 @@ try {
   assert.match(styles, /\.feedex-translation-bar \{[^}]*width: fit-content/, 'the translation notice is a small pill, not a full-width box');
   const { TranslationSetting } = await vite.ssrLoadModule('/src/components/TranslationSetting.tsx');
   const deeplSetting = renderToStaticMarkup(React.createElement(TranslationSetting, { initial: { canManage: true, provider: 'deepl', managed: false, usage: { used: 1234, limit: 500000 }, storage: true } }));
-  assert.match(deeplSetting, /DeepL/); assert.match(deeplSetting, /이번 달 1,234 \/ 500,000자 사용/); assert.match(deeplSetting, /키 지우기/);
+  assert.match(deeplSetting, /DeepL/); assert.match(deeplSetting, /<small>이번 달 1\.2천 \/ 50만자 · <button[^>]*>키 지우기<\/button><\/small>/, 'usage and key removal share one short line');
+  assert.match(deeplSetting, /title="DeepL 키가 저장돼 있어요\. 한도를 넘거나 키가 막히면 Workers AI로 번역해요\."/); assert.doesNotMatch(deeplSetting, /feedex-setting-message/, 'no paragraph under the row');
   const aiSetting = renderToStaticMarkup(React.createElement(TranslationSetting, { initial: { canManage: true, provider: 'workers-ai', managed: false, usage: null, storage: true } }));
-  assert.match(aiSetting, /type="password"[^>]*aria-label="DeepL API 키"/); assert.match(aiSetting, /DeepL 앱 구독과는 별개/);
+  assert.match(aiSetting, /type="password"[^>]*aria-label="DeepL API 키"/); assert.match(aiSetting, /앱 구독과는 별개/);
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(TranslationSetting, { initial: { canManage: false } })), /번역/, 'other people see nothing');
   // DeepL API 없이: 사용자의 DeepL 웹 번역기를 글이 채워진 채로 연다. auto는 글이 채워지지 않아 원문 언어를 짐작한다.
   const { guessSourceLanguage, htmlToText, deeplTranslatorUrl, DEEPL_LINK_LIMIT } = await vite.ssrLoadModule('/src/client/deeplWeb.ts');

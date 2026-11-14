@@ -22,7 +22,8 @@ export function ago(at: number, now: number): string {
 /** 미러 한 줄의 설명과, 확인이 필요한지. */
 export function mirrorLine(mirror: MirrorStatus, now: number): { text: string; alert: boolean } {
   switch (mirror.state) {
-    case 'ok': return { text: `정상 · ${ago(mirror.lastOkAt!, now)} 받음`, alert: false };
+    // 정상은 위의 '정상' 표시가 말해 주므로 받은 시각만 적는다.
+    case 'ok': return { text: `${ago(mirror.lastOkAt!, now)} 받음`, alert: false };
     case 'limited': return { text: `요청 한도로 쉬는 중 · ${ago(mirror.limitedUntil!, now)} 다시 시도`, alert: false };
     case 'failing': return { text: `${ago(mirror.failingSince!, now)}부터 실패 · ${mirror.lastFailure || '원인 모름'}`, alert: true };
     case 'stale': return { text: `${mirror.lastOkAt ? ago(mirror.lastOkAt, now) : '오래전'}에 마지막으로 받음`, alert: true };
@@ -67,13 +68,13 @@ export function XMirrorStatus({ initial, now: fixedNow }: { initial?: MirrorConf
   // 미러는 멀쩡해도 특정 계정만 계속 실패할 수 있다(이름 변경, 비공개 전환, 미러가 그 계정만 못 받음 등).
   const stale = config.staleAccounts ?? [], staleTotal = config.staleTotal ?? stale.length;
   const alert = mirrorAlert || staleTotal > 0;
+  // 문제가 있을 때만 설명 줄을 보인다. 정상일 때의 설명은 마우스를 올렸을 때만 보인다.
   const summary = mirrorAlert ? 'X 글이 늦게 들어올 수 있어요. 미러 주소가 바뀌었는지 확인해 주세요.'
-    : staleTotal ? `X 계정 ${staleTotal}개를 3시간 넘게 받지 못했어요.`
-    : '미러가 정상이고, 모든 X 계정을 3시간 안에 받았어요.';
+    : staleTotal ? `X 계정 ${staleTotal}개를 3시간 넘게 받지 못했어요.` : '';
   return <div className="feedex-x-mirrors">
     <span ref={probe} hidden />
-    <div className="feedex-auto-refresh-setting">
-      <span>X 수집<small>{summary}</small></span>
+    <div className="feedex-auto-refresh-setting" title={alert ? undefined : '미러가 정상이고, 모든 X 계정을 3시간 안에 받았어요.'}>
+      <span>X 수집{summary && <small>{summary}</small>}</span>
       <strong className="text-xs" data-alert={alert || undefined}>{alert ? '확인 필요' : '정상'}</strong>
     </div>
     <ul className="feedex-x-mirror-list">

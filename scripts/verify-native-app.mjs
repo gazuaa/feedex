@@ -87,7 +87,7 @@ try {
   const { NativeAppScaleSetting, NativeAppUpdateSetting } = await vite.ssrLoadModule('/src/components/ReadingSettings.tsx');
   assert.match(renderToStaticMarkup(React.createElement(NativeAppScaleSetting)), /앱 화면 작게/);
   const update = renderToStaticMarkup(React.createElement(NativeAppUpdateSetting));
-  assert.match(update, /업데이트 확인/); assert.match(update, /새 버전이 있으면 받아서 설치해요/, 'the update row explains itself like the other rows');
+  assert.match(update, /업데이트 확인/); assert.match(update, /title="새 버전이 있으면 받아서 설치해요"/, 'the update row explains itself on hover like the other rows'); assert.doesNotMatch(update, /<small>/, 'no description line under the name');
   // 알림: 스위치를 켜면 허용 창이 뜬다. 허용하지 않았을 때 다시 여는 방법은 설명 아래 링크로 둔다.
   globalThis.webkit.messageHandlers.feedexNotifications = { postMessage: async () => ({ permission: 'default' }) };
   const { LocalNotificationSetting } = await vite.ssrLoadModule('/src/components/LocalNotificationSetting.tsx');

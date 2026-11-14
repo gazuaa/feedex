@@ -704,7 +704,8 @@ try {
     const okMirrors = [{ provider: 'https://ruf.st', host: 'ruf.st', state: 'ok', lastOkAt: now - 60_000, failingSince: null, lastFailure: null, limitedUntil: null }];
     const view = (extra) => renderToStaticMarkup(React.createElement(XMirrorStatus, { initial: { canManage: true, mirrors: okMirrors, ...extra }, now }));
     const calm = view({ staleAccounts: [], staleTotal: 0 });
-    assert.match(calm, /X 수집/); assert.match(calm, /모든 X 계정을 3시간 안에 받았어요/); assert.match(calm, />정상<\/strong>/);
+    assert.match(calm, /X 수집/); assert.match(calm, /title="미러가 정상이고, 모든 X 계정을 3시간 안에 받았어요\."/); assert.match(calm, />정상<\/strong>/);
+    assert.doesNotMatch(calm, /X 수집<small>/, 'a healthy state needs no sentence under the name'); assert.match(calm, /<span>ruf\.st<\/span><small>1분 전 받음<\/small>/, 'a healthy mirror shows only when it last fetched');
     const worried = view({ staleAccounts: found.accounts, staleTotal: 23 });
     assert.match(worried, /data-alert="true">확인 필요<\/strong>/); assert.match(worried, /X 계정 23개를 3시간 넘게 받지 못했어요/);
     assert.match(worried, /@renamed<\/span><small>30시간 전 마지막으로 받음 · 4번째 실패: X 공개 게시물을 가져오지 못했습니다\.<\/small>/);

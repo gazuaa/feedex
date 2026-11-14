@@ -141,6 +141,10 @@ try {
   assert.match(header({ sort: 'newest' }), /<span>최신순<\/span>/);
   assert.ok(!header({ sort: 'newest', library: true }).includes('feedex-mobile-sort'), 'the library has no article order button');
   assert.match(list, /스크롤 시 읽음 처리/); assert.match(list, /자동 새로고침/);
+  // 이름만으로 알 수 있는 설정은 설명 줄 없이 한 줄로 두고, 읽기와 새 글 설정은 한 묶음에 둔다.
+  assert.match(list, /title="위로 지나간 글을 읽음으로 표시해요"><span>스크롤 시 읽음 처리<\/span><input/, 'the scroll setting explains itself only on hover');
+  assert.match(list, /title="바뀐 내용만 가볍게 확인해요"><span>자동 새로고침<\/span><select/, 'the refresh setting explains itself only on hover');
+  assert.doesNotMatch(list, /aria-label="새 글"/, 'reading and new-article settings share one group');
   const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const storage = new Map([['sfeed_font_scale', '1.2']]);
   try {

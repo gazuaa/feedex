@@ -49,7 +49,8 @@ export function NativeAppScaleSetting() {
 export function NativeAppUpdateSetting() {
   if (!inNativeApp()) return null;
   // 맥 앱은 Sparkle이, 윈도우 앱은 서명을 확인하는 자체 업데이트가 받아서 설치한다.
-  return <div className="feedex-auto-refresh-setting"><span>{nativeAppName()} 업데이트<small>새 버전이 있으면 받아서 설치해요</small></span><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></div>;
+  // 설정마다 붙던 설명 줄은 화면을 글자로 채워서, 이름만으로 알 수 있는 설정은 설명을 마우스를 올렸을 때만 보인다.
+  return <div className="feedex-auto-refresh-setting" title="새 버전이 있으면 받아서 설치해요"><span>{nativeAppName()} 업데이트</span><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></div>;
 }
 
 export function TextSizeSetting() {
@@ -57,7 +58,7 @@ export function TextSizeSetting() {
 }
 
 export function ScrollReadSetting({ markReadOnScroll, onChangeMarkReadOnScroll }: ScrollReadSettingsProps) {
-  return <label className="feedex-scroll-read-setting"><span>스크롤 시 읽음 처리<small>위로 지나간 글을 읽음으로 표시</small></span><input type="checkbox" role="switch" aria-label="스크롤 시 읽음 처리" checked={markReadOnScroll} onChange={(event) => onChangeMarkReadOnScroll(event.target.checked)} /></label>;
+  return <label className="feedex-scroll-read-setting" title="위로 지나간 글을 읽음으로 표시해요"><span>스크롤 시 읽음 처리</span><input type="checkbox" role="switch" aria-label="스크롤 시 읽음 처리" checked={markReadOnScroll} onChange={(event) => onChangeMarkReadOnScroll(event.target.checked)} /></label>;
 }
 
 export interface RefreshSettingsProps {
@@ -74,7 +75,7 @@ export function SortSetting({ sort, onChangeSort }: SortSettingProps) {
   return <SettingRow label="정렬"><div className="feedex-segmented" role="group" aria-label="정렬">{([{ id: 'newest', label: '최신순' }, { id: 'oldest', label: '오래된순' }] as const).map(({ id, label }) => <button key={id} type="button" aria-pressed={sort === id} onClick={() => onChangeSort(id)}>{label}</button>)}</div></SettingRow>;
 }
 export function AutoRefreshSetting({ autoRefreshMinutes, onChangeAutoRefreshMinutes }: RefreshSettingsProps) {
-  return <div><label className="feedex-auto-refresh-setting"><span>자동 새로고침<small>바뀐 내용만 가볍게 확인해요</small></span><select aria-label="자동 새로고침 주기" value={autoRefreshMinutes} onChange={(event) => onChangeAutoRefreshMinutes(Number(event.target.value))}>{AUTO_REFRESH_OPTIONS.map((minutes) => <option key={minutes} value={minutes}>{minutes ? `${minutes}분마다` : '수동'}</option>)}</select></label></div>;
+  return <div><label className="feedex-auto-refresh-setting" title="바뀐 내용만 가볍게 확인해요"><span>자동 새로고침</span><select aria-label="자동 새로고침 주기" value={autoRefreshMinutes} onChange={(event) => onChangeAutoRefreshMinutes(Number(event.target.value))}>{AUTO_REFRESH_OPTIONS.map((minutes) => <option key={minutes} value={minutes}>{minutes ? `${minutes}분마다` : '수동'}</option>)}</select></label></div>;
 }
 export interface DesktopSettingsProps extends ScrollReadSettingsProps, RefreshSettingsProps, LayoutSettingsProps { accountId?: string; onManageArticleBlocks?: () => void }
 export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefreshMinutes, layout, onChangeLayout, accountId, onManageArticleBlocks, ...props }: DesktopSettingsProps) {
@@ -85,8 +86,7 @@ export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefresh
     <summary aria-label="환경설정"><Settings2 size={17} /></summary>
     <div className="feedex-desktop-settings-panel">
       <SettingGroup title="보기"><NativeAppScaleSetting /><TextSizeSetting /><LayoutSetting layout={layout} onChangeLayout={onChangeLayout} /></SettingGroup>
-      <SettingGroup title="읽기"><ScrollReadSetting {...props} /></SettingGroup>
-      <SettingGroup title="새 글"><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
+      <SettingGroup title="읽기"><ScrollReadSetting {...props} /><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
       {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { if (ref.current) ref.current.open = false; onManageArticleBlocks(); }} /><TranslationSetting /><XMirrorStatus /></SettingGroup>}
       {accountId && <SettingGroup title="이 기기"><NativeAppUpdateSetting /><CacheSettings accountId={accountId} /></SettingGroup>}
     </div>
