@@ -11,6 +11,12 @@ export { isXStatusUrl as xStatusUrl } from '../shared/xFeed';
 // 글 페이지에 봇 확인을 거는 경로는 우회하지 않고 한동안 건너뛴다.
 const STATUS = /^https:\/\/x\.com\/([a-z\d_]{1,15})\/status\/(\d{1,20})$/i;
 const pageless = new Map<string, number>();
+// 글 페이지를 방금 주지 못한 미러(시간 초과·서버 오류·봇 확인). 잠시 그 미러를 뒤로 미뤄, 처음 여는 글이
+// 느린 미러에서 8초를 다 쓰고 실패하지 않게 한다. 이 기억은 Worker 인스턴스마다 따로라 짧게만 둔다.
+const pageMissed = new Map<string, number>();
+/** 봇 확인 화면을 준 미러의 글 페이지를 건너뛰는 시간, 실패한 미러를 뒤로 미루는 시간. */
+export const X_PAGELESS_MS = 10 * 60_000;
+export const X_PAGE_MISS_MS = 10 * 60_000;
 type Element = { querySelector(selector: string): Element | null; querySelectorAll(selector: string): Iterable<Element>; getAttribute(name: string): string | null; textContent: string | null; childNodes: Iterable<Node>; parentElement: Element | null; matches(selector: string): boolean };
 type Node = { nodeType: number; nodeName: string; textContent: string | null };
 
@@ -29,7 +35,7 @@ function feedQuoteMedia(feedHtml: string | null | undefined): string {
   for (const image of quote.querySelectorAll('img')) {
     const src = image.getAttribute('src') || '';
     if (!/^https:\/\/pbs\.twimg\.com\//i.test(src)) continue;
-    html += `<a class="photo" href="${escape(src)}"><img src="${escape(src)}" alt="" loading="lazy"></a>`;
+    html += `<a class="photo" href="${escape(src)}"><img src="${escape(src)}" alt=""></a>`;
   }
   return html ? `<div class="media">${html}</div>` : '';
 }
@@ -91,7 +97,7 @@ async function fetchXCardImage(url: string, db?: D1DatabaseLike): Promise<string
       const { document } = parseHTML(await readFeed(response, 3_000_000));
       const main = document.querySelector('.main-tweet .timeline-item') as unknown as Element | null;
       if (!main) {
-        if (!document.querySelector('.error-panel')) pageless.set(provider, Date.now() + 3_600_000);
+        if (!document.querySelector('.error-panel')) pageless.set(provider, Date.now() + X_PAGELESS_MS);
         continue;
       }
       const hosts = new Set([new URL(provider).hostname]);
@@ -122,32 +128,48 @@ export async function fetchXThread(url: string, feedHtml?: string | null, db?: D
   if (!match) throw new Error('X 글 주소가 아닙니다.');
   const [, username, id] = match;
   let partial: XThread | null = null;
-  for (const provider of providers) {
-    if (await restingUntil(provider, db) || (pageless.get(provider) || 0) > Date.now()) continue;
+  const now = Date.now(), missedAt = (provider: string) => {
+    const at = pageMissed.get(provider) || 0;
+    return now - at < X_PAGE_MISS_MS ? at : 0;
+  };
+  // 최근에 글 페이지를 주지 못한 미러는 뒤로 미룬다. 둘 다 그랬으면 더 오래전에 실패한 쪽부터 본다.
+  const order = [...providers].sort((a, b) => missedAt(a) - missedAt(b));
+  const failures: string[] = [];
+  const missed = (provider: string, reason: string) => { pageMissed.set(provider, Date.now()); failures.push(`${new URL(provider).host} ${reason}`); };
+  for (const provider of order) {
+    if (await restingUntil(provider, db)) { failures.push(`${new URL(provider).host} 요청 한도로 쉬는 중`); continue; }
+    if ((pageless.get(provider) || 0) > Date.now()) { failures.push(`${new URL(provider).host} 봇 확인으로 건너뜀`); continue; }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(`${provider}/${username}/status/${id}`, {
         headers: { Accept: 'text/html', 'User-Agent': 'FeedExRSS/1.0' }, redirect: 'manual', credentials: 'omit', signal: controller.signal,
       });
-      if (response.status === 429) { await response.body?.cancel(); await restProvider(provider, response.headers.get('Retry-After'), db); continue; }
-      if (!response.ok) { await response.body?.cancel(); continue; }
+      if (response.status === 429) { await response.body?.cancel(); await restProvider(provider, response.headers.get('Retry-After'), db); missed(provider, 'HTTP 429'); continue; }
+      if (!response.ok) { await response.body?.cancel(); missed(provider, `HTTP ${response.status}`); continue; }
       const { document } = parseHTML(await readFeed(response, 3_000_000));
       const main = document.querySelector('.main-tweet .timeline-item') as unknown as Element | null;
       if (!main) {
         // 지워진 글 같은 안내 화면은 이 글만의 문제다. 봇 확인처럼 글이 아예 없는 화면이면 이 경로의 글 페이지는 한 시간 쓰지 않는다.
-        if (!document.querySelector('.error-panel')) pageless.set(provider, Date.now() + 3_600_000);
+        if (document.querySelector('.error-panel')) failures.push(`${new URL(provider).host} 글 없음 안내`);
+        else { pageless.set(provider, Date.now() + X_PAGELESS_MS); missed(provider, '글 없는 화면(봇 확인)'); }
         continue;
       }
       const page = document as unknown as Element;
       const missing = missingParent(page, main, /^R to @[a-z\d_]{1,15}:/i.test(feedTitle || ''));
       const result = { html: threadDocument(page, main, provider, url, feedHtml, missing), url, thread: true as const };
       // 답글인데 원글이 없으면 그 미러가 대화를 불러오지 못한 것이다. 다른 미러를 한 번 더 보고, 그래도 없으면 원글 없이 보여 준다.
+      pageMissed.delete(provider);
       if (!missing) return result;
       partial ??= { ...result, partial: true };
-    } catch { /* 다음 경로를 쓴다. */ }
-    finally { clearTimeout(timer); }
+      failures.push(`${new URL(provider).host} 원글 없음`);
+    } catch (error) {
+      // 다음 경로를 쓴다.
+      missed(provider, error instanceof Error && error.name === 'AbortError' ? '응답 시간 초과' : '연결 오류');
+    } finally { clearTimeout(timer); }
   }
+  // 어느 미러에서 왜 받지 못했는지 Workers 로그에 남긴다. 처음 열 때 실패하고 다시 시도하면 되는 경우를 가려낸다.
+  console.warn(`X 글 페이지 ${partial ? '원글 없이 받음' : '실패'}: ${username}/${id} — ${failures.join(', ') || '쓸 수 있는 미러 없음'}`);
   if (partial) return partial;
   throw new Error('X 글 페이지를 받지 못했습니다.');
 }
@@ -228,14 +250,17 @@ function threadDocument(document: Element, main: Element, provider: string, stat
   };
   // 인용한 글 안의 요소가 아니라 이 글 자신의 요소를 찾는다.
   const own = (item: Element, selector: string) => [...item.querySelectorAll(selector)].find((node) => !node.matches('.quote *')) || null;
-  const media = (item: Element, href: string, container?: Element | null) => {
+  // 처음 화면에 보이는 원글·이어진 글의 그림은 바로 받는다. 늦게 받는 그림은 문서의 load를 기다리지 않아서,
+  // 앱이 미리보기를 걷어 낸 뒤에 아바타와 사진이 비었다가 채워지며 깜빡였다. 화면 아래 댓글의 그림만 늦게 받는다.
+  const lazy = (kind: string) => kind === 'reply' ? ' loading="lazy"' : '';
+  const media = (item: Element, href: string, kind: string, container?: Element | null) => {
     const box = container || own(item, '.attachments');
     if (!box) return '';
     let html = '';
     for (const image of box.querySelectorAll('img')) {
       const src = link(image.getAttribute('src')), rawFull = link(image.parentElement?.getAttribute('href') || null);
       const full = rawFull && /^https:\/\/pbs\.twimg\.com\//i.test(rawFull) ? rawFull : src;
-      if (src) html += `<a class="photo" href="${escape(full!)}"><img src="${escape(src)}" alt="" loading="lazy"></a>`;
+      if (src) html += `<a class="photo" href="${escape(full!)}"><img src="${escape(src)}" alt=""${lazy(kind)}></a>`;
     }
     for (const video of box.querySelectorAll('video')) {
       const poster = link(video.getAttribute('poster'));
@@ -244,13 +269,13 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     }
     return html ? `<div class="media">${html}</div>` : '';
   };
-  const card = (item: Element) => {
+  const card = (item: Element, kind: string) => {
     const box = own(item, '.card');
     const href = link(box?.querySelector('.card-container')?.getAttribute('href') || null);
     if (!box || !href) return '';
     const image = link(box.querySelector('.card-image img')?.getAttribute('src') || null);
     const text = (selector: string) => escape(box.querySelector(selector)?.textContent?.trim() || '');
-    return `<a class="card" href="${escape(href)}">${image ? `<img src="${escape(image)}" alt="" loading="lazy">` : ''}<span><strong>${text('.card-title')}</strong><small>${text('.card-description')}</small><em>${text('.card-destination')}</em></span></a>`;
+    return `<a class="card" href="${escape(href)}">${image ? `<img src="${escape(image)}" alt=""${lazy(kind)}>` : ''}<span><strong>${text('.card-title')}</strong><small>${text('.card-description')}</small><em>${text('.card-destination')}</em></span></a>`;
   };
   const quote = (item: Element, kind: string) => {
     const box = item.querySelector('.quote');
@@ -259,8 +284,8 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     const name = escape(box.querySelector('.fullname')?.textContent?.trim() || ''), user = escape(box.querySelector('.username')?.textContent?.trim() || '');
     const attachments = box.querySelector('.quote-media-container, .attachments');
     const avatar = link(box.querySelector('img.avatar')?.getAttribute('src') || null);
-    const quoteMedia = (attachments ? media(box, href || statusUrl, attachments) : '') || (kind === 'main' ? feedQuoteMedia(feedHtml) : '');
-    return `<div class="quote"><a class="quote-post" href="${escape(href || statusUrl)}"><span class="who">${avatar ? `<img class="mini" src="${escape(avatar)}" alt="" loading="lazy">` : ''}<b>${name}</b> <span>${user}</span></span><span class="text">${rich(box.querySelector('.quote-text'), true)}</span></a>${quoteMedia}</div>`;
+    const quoteMedia = (attachments ? media(box, href || statusUrl, kind, attachments) : '') || (kind === 'main' ? feedQuoteMedia(feedHtml) : '');
+    return `<div class="quote"><a class="quote-post" href="${escape(href || statusUrl)}"><span class="who">${avatar ? `<img class="mini" src="${escape(avatar)}" alt=""${lazy(kind)}>` : ''}<b>${name}</b> <span>${user}</span></span><span class="text">${rich(box.querySelector('.quote-text'), true)}</span></a>${quoteMedia}</div>`;
   };
   const stats = (item: Element) => {
     const labels: Record<string, string> = { 'icon-comment': '댓글', 'icon-retweet': '재게시', 'icon-quote': '인용', 'icon-heart': '좋아요', 'icon-views': '조회' };
@@ -292,10 +317,10 @@ function threadDocument(document: Element, main: Element, provider: string, stat
           : escape(feedQuote).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}">${u}</a>`).replace(/\n/g, '<br>');
       }
     }
-    return `<article class="post ${kind}">${avatar ? `<img class="avatar" src="${escape(avatar)}" alt="" loading="lazy">` : '<span class="avatar"></span>'}<div class="body">`
+    return `<article class="post ${kind}">${avatar ? `<img class="avatar" src="${escape(avatar)}" alt=""${lazy(kind)}>` : '<span class="avatar"></span>'}<div class="body">`
       + `<p class="who"><b>${name}</b> <span>${user}</span> · <a href="${escape(href)}" title="${escape(date?.getAttribute('title') || '')}">${when}</a></p>`
       + (replying ? `<p class="replying">${rich(replying)}</p>` : '')
-      + `<div class="text">${contentHtml}</div>${media(item, href)}${card(item)}${quote(item, kind)}${stats(item)}</div></article>`;
+      + `<div class="text">${contentHtml}</div>${media(item, href, kind)}${card(item, kind)}${quote(item, kind)}${stats(item)}</div></article>`;
   };
   // "이전 답글 더 보기" 같은 칸은 글이 아니므로 뺀다.
   const items = (selector: string, kind: string) => [...document.querySelectorAll(selector)].filter((item) => item.querySelector('.tweet-header')).map((item) => post(item, kind)).join('');

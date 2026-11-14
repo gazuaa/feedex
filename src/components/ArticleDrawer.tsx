@@ -94,7 +94,9 @@ const PEEK_MS = 4000;
 const FRAME_WAIT_MS = 4000;
 /** X 글 완성본이 다 그려지기를 기다리며 미리보기를 덮어 두는 최대 시간. 이미지가 멈춰도 이 뒤에는 완성본을 보여 준다. */
 const PREVIEW_HOLD_MS = 3000;
-const X_RETRY_MS = 1500;
+// X 대화를 처음에 받지 못하면 이 간격으로 다시 받는다. 공개 미러는 요청 한도로 30초쯤 쉬거나 몇 초 느릴 때가 많아서,
+// 한 번만 다시 보고 포기하면 '다시 시도'를 눌러야 열렸다. 그동안 미리보기에는 불러오는 중이라고 둔다.
+const X_RETRY_DELAYS = [1500, 4000, 8000];
 
 type WebCopyState = Partial<Omit<WebResult, 'html'>> & { articleId: string; html: string | null; error?: string; fitting?: boolean; retrying?: boolean };
 
@@ -511,15 +513,16 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       if (cached) { setFrame({ articleId: article.id, embeddable: false, url: cached.url }); setWebCopy({ articleId: article.id, ...cached }); return; }
       const loadCopy = () => resources ? resources.web(article) : apiRequest<WebResult>(`/api/articles/${article.id}/web-copy`);
       if (isXStatusUrl(article.url)) {
-        const loadThread = async (canRetry: boolean) => {
+        const loadThread = async (attempt: number) => {
           const copy = await loadCopy().catch(() => null);
           if (!active) return;
           if (copy?.thread && !copy.partial) { setWebCopy({ articleId: article.id, ...copy }); return; }
-          // 불완전한 응답과 일시적인 실패는 미리보기를 남겨 두고 한 번 더 확인한다.
-          setWebCopy(previous => ({ articleId: article.id, html: null, ...(previous?.articleId === article.id ? previous : {}), ...(copy?.thread ? copy : {}), retrying: canRetry }));
-          if (canRetry) xRetry = setTimeout(() => void loadThread(false), X_RETRY_MS);
+          // 불완전한 응답과 일시적인 실패는 미리보기를 남겨 두고 몇 번 더 확인한다.
+          const delay = X_RETRY_DELAYS[attempt];
+          setWebCopy(previous => ({ articleId: article.id, html: null, ...(previous?.articleId === article.id ? previous : {}), ...(copy?.thread ? copy : {}), retrying: delay !== undefined }));
+          if (delay !== undefined) xRetry = setTimeout(() => void loadThread(attempt + 1), delay);
         };
-        await loadThread(true);
+        await loadThread(0);
         return;
       }
       // 원문 프레임 안의 표는 직접 수정할 수 없으므로, 표가 있는 기사에만 사본을 우선 사용한다.

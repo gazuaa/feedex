@@ -171,6 +171,7 @@ try {
       if (pageMode === 'challenge' && url.hostname === 'nitter.mie.foundation') return new Response("<html><head><title>Making sure you're not a bot!</title></head><body><script>work()</script></body></html>");
       if (pageMode === 'missing') return new Response('<html><body><div class="error-panel"><span>Tweet not found</span></div></body></html>');
       if (pageMode === 'down') return new Response('', { status: 503 });
+      if (pageMode === 'mie-down' && url.hostname === 'nitter.mie.foundation') return new Response('', { status: 503 });
       // 답글 글 페이지: orphan은 두 미러 모두 원글을 못 불러오고, orphan-one은 첫 미러만 못 불러온다.
       if (pageMode === 'orphan' || pageMode === 'orphan-one') return new Response(replyPage(pageMode === 'orphan-one' && url.hostname === 'ruf.st'));
       if (pageMode === 'quote-no-media') return new Response(statusPage(url.pathname.split('/')[1]).replace(/<div class="quote-media-container">[\s\S]*?<\/div>/, ''));
@@ -304,6 +305,12 @@ try {
   assert.doesNotMatch(copyHtml, /<script|onclick|onerror|javascript:|\/pic\/|nitter|Preferences|#m"/i, '스크립트·이벤트·미러 주소·미러 화면 요소를 남기지 않는다.');
   assert.match(copyHtml, /<base href="https:\/\/x\.com\/nasa\/status\/2000000000000000001" target="_blank">/);
   assert.equal(copyHtml.match(/class="post reply"/g).length, 2);
+  // 처음 화면(원글)의 그림은 바로 받고 댓글 그림만 늦게 받는다. 늦게 받는 그림은 문서의 load를 기다리지 않아,
+  // 미리보기를 걷어 낸 뒤 아바타와 사진이 비었다가 채워지며 깜빡였다.
+  const mainPart = copyHtml.slice(copyHtml.indexOf('<article class="post main">'), copyHtml.indexOf('<section class="replies">'));
+  assert.match(mainPart, /<img class="avatar" src="[^"]+" alt="">/); assert.match(mainPart, /<a class="photo" [^>]+><img src="[^"]+" alt="">/);
+  assert.doesNotMatch(mainPart, /loading="lazy"/, 'the first screen does not wait to load its pictures');
+  assert.match(copyHtml.slice(copyHtml.indexOf('<section class="replies">')), /<article class="post reply"><img class="avatar" src="[^"]+" alt="" loading="lazy">/, 'reply pictures still load lazily');
   // 인용 글 상자 전체가 링크이므로, 그 안의 링크는 글자로 둔다. 링크가 겹치면 남은 글이 상자 밖으로 흘러나온다.
   assert.match(copyHtml, /<div class="quote"><a class="quote-post" href="https:\/\/x\.com\/quoted\/status\/1999">(?:(?!<a |<\/a>)[\s\S])*<span class="link">@HSBC<\/span>’s rest of quote<\/span><\/a><div class="media">/);
   assert.ok(copyHtml.includes('data-hls-src="https://video.twimg.com/amplify_video/99/pl/movie.m3u8?tag=1"'));
@@ -328,10 +335,20 @@ try {
   assert.deepEqual(rssCalls.slice(-1).map(({ url }) => url.hostname), ['ruf.st']);
   assert.equal(pageCalls(), pagesBefore + 1, '봇 확인을 건 경로의 글 페이지는 다시 부르지 않는다.');
   pageMode = 'missing';
-  await assert.rejects(fetchXThread('https://x.com/nasa/status/2000000000000000006'));
+  // 받지 못하면 미러마다 이유를 Workers 로그에 남긴다.
+  const warned = [], quietWarn = console.warn; console.warn = (message) => warned.push(String(message));
+  try { await assert.rejects(fetchXThread('https://x.com/nasa/status/2000000000000000006')); } finally { console.warn = quietWarn; }
+  assert.deepEqual(warned, ['X 글 페이지 실패: nasa/2000000000000000006 — ruf.st 글 없음 안내, nitter.mie.foundation 봇 확인으로 건너뜀']);
   pageMode = 'ok'; pagesBefore = pageCalls();
   await fetchXThread('https://x.com/nasa/status/2000000000000000007');
   assert.equal(pageCalls(), pagesBefore + 1, '지워진 글 안내는 그 경로를 쉬게 하지 않는다.');
+  // 봇 확인 화면을 준 경로도 10분 뒤에는 다시 본다. 이 기억은 Worker 인스턴스마다 따로라 오래 두면 인스턴스마다 결과가 갈린다.
+  const pagelessNow = Date.now; Date.now = () => pagelessNow() + 11 * 60_000;
+  try {
+    pagesBefore = pageCalls();
+    await fetchXThread('https://x.com/nasa/status/2000000000000000012');
+    assert.equal(pageCalls(), pagesBefore + 1); assert.deepEqual(rssCalls.slice(-1).map(({ url }) => url.hostname), ['nitter.mie.foundation'], 'the mirror is tried first again after ten minutes');
+  } finally { Date.now = pagelessNow; }
   await assert.rejects(fetchXThread('https://x.com/nasa'), /X 글 주소/);
   // 인용한 글의 글쓴이 사진도 넣는다.
   assert.match(copyHtml, /<span class="who"><img class="mini" src="https:\/\/pbs\.twimg\.com\/profile_images\/q\/quoted_mini\.jpg"/);
@@ -356,7 +373,25 @@ try {
     const refreshedThumb = await (await request(`/api/articles/${articleId}/thumbnail`, { refresh: true })).json();
     assert.equal(refreshedThumb.thumbnailUrl, 'https://pbs.twimg.com/card_img/2117762426506768385/JUwJy2wG?format=jpg&name=800x419');
     assert.match(refreshedThumb.contentHtml, /https:\/\/pbs\.twimg\.com\/card_img\/2117762426506768385\/JUwJy2wG\?format=jpg&amp;name=800x419/);
+    // 글 페이지를 주지 못한 미러는 잠시 뒤로 미뤄, 다음 글은 되는 미러에서 바로 받는다(느린 미러에 8초를 쓰지 않는다).
+    pageMode = 'mie-down'; pagesBefore = pageCalls();
+    assert.equal((await fetchXThread('https://x.com/nasa/status/2000000000000000013')).thread, true);
+    assert.equal(pageCalls(), pagesBefore + 2);
+    pagesBefore = pageCalls();
+    await fetchXThread('https://x.com/nasa/status/2000000000000000014');
+    assert.equal(pageCalls(), pagesBefore + 1, 'the mirror that just failed is not asked first');
+    assert.deepEqual(rssCalls.slice(-1).map(({ url }) => url.hostname), ['ruf.st']);
+    const missNow = Date.now; Date.now = () => missNow() + 11 * 60_000;
+    try {
+      pageMode = 'ok'; pagesBefore = pageCalls();
+      await fetchXThread('https://x.com/nasa/status/2000000000000000015');
+      assert.deepEqual(rssCalls.slice(-1).map(({ url }) => url.hostname), ['nitter.mie.foundation'], 'the usual order returns after ten minutes');
+    } finally { Date.now = missNow; }
   } finally { Date.now = parentNow; pageMode = 'ok'; }
+  // X 대화를 처음에 받지 못하면 한 번만 다시 보고 포기하지 않는다(그러면 '다시 시도'를 눌러야 열렸다).
+  const drawerSource = readFileSync('src/components/ArticleDrawer.tsx', 'utf8');
+  assert.match(drawerSource, /const X_RETRY_DELAYS = \[1500, 4000, 8000\];/);
+  assert.match(drawerSource, /const delay = X_RETRY_DELAYS\[attempt\];[\s\S]{0,400}if \(delay !== undefined\) xRetry = setTimeout\(\(\) => void loadThread\(attempt \+ 1\), delay\);[\s\S]{0,40}await loadThread\(0\);/, 'the thread is asked again several times while the preview stays');
   // X 타임라인: X 폴더 판단, 실제 미러 RSS 모양의 글 해석, 목록 그리기.
   const { DOMParser } = await import('linkedom');
   const { xFolderIds, parseXPost, xFeedAccount, xTime } = await vite.ssrLoadModule('/src/client/xTimeline.ts');
