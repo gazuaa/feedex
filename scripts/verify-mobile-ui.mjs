@@ -98,14 +98,16 @@ try {
   // 사본에는 사이트 스크립트가 없어 고정 머리말이 글 위에 붙어 따라온다. 고정 요소를 문서와 함께 스크롤되게 푼다.
   assert.ok(framedCopy('<p>bare</p>').includes(UNPIN_SCRIPT), 'every copy unpins fixed and sticky parts');
   {
-    const element = (position) => { const set = {}; return { position, set, style: { setProperty: (name, value, priority) => { set[name] = `${value}${priority ? ' !' + priority : ''}`; } } }; };
-    const header = element('fixed'), sideNav = element('sticky'), text = element('static'), card = element('relative');
+    const element = (position, overflowX = 'visible') => { const set = {}; return { position, overflowX, set, style: { setProperty: (name, value, priority) => { set[name] = `${value}${priority ? ' !' + priority : ''}`; } } }; };
+    const header = element('fixed'), menu = element('fixed', 'auto'), sideNav = element('sticky'), text = element('static'), card = element('relative');
     const listeners = [];
     const unpin = new Function('document', 'getComputedStyle', 'addEventListener', `${UNPIN_SCRIPT}return sfeedUnpin;`)(
-      { body: { getElementsByTagName: () => [header, sideNav, text, card] } }, (e) => ({ position: e.position }), (type) => listeners.push(type));
+      { body: { getElementsByTagName: () => [header, menu, sideNav, text, card] } }, (e) => ({ position: e.position, overflowX: e.overflowX }), (type) => listeners.push(type));
     assert.deepEqual(listeners, ['DOMContentLoaded', 'load'], 'unpinning runs once the page is read and again after it loads');
     unpin();
-    assert.deepEqual(header.set, { position: 'absolute !important' }, 'a fixed header stays at the top of the document and scrolls away');
+    // 고정 요소 안에서 화면 밖으로 삐져나온 장식이 문서를 넓히면 iOS가 사본을 좌우로 흔든다.
+    assert.deepEqual(header.set, { position: 'absolute !important', 'overflow-x': 'clip !important' }, 'a fixed header stays at the top of the document and scrolls away without widening it');
+    assert.deepEqual(menu.set, { position: 'absolute !important' }, 'a fixed part that scrolls sideways itself keeps scrolling');
     assert.deepEqual(sideNav.set, { position: 'relative !important', top: 'auto !important', bottom: 'auto !important' }, 'a sticky bar stays in its place in the page');
     assert.deepEqual(text.set, {}); assert.deepEqual(card.set, {}, 'other parts are left alone');
   }
