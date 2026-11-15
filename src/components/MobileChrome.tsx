@@ -1,8 +1,9 @@
 import { useLayoutEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { FeedExIcon, FeedExWordmark } from './BrandMark';
 import { createPortal } from 'react-dom';
 import type { SyncStatus } from '../client/syncStatus';
 import { SyncStatusNotice } from './SyncStatusNotice';
-import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, LayoutGrid, LayoutList, AlignJustify, Plus, Rss, Search, Settings2, Sun, Moon, X, FileCode2 } from 'lucide-react';
+import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, LayoutGrid, LayoutList, AlignJustify, Plus, Search, Settings2, Sun, Moon, X, FileCode2 } from 'lucide-react';
 import type { LayoutMode, ThemeMode } from '../client/api';
 import { InstallAppButton } from './PwaInstall';
 import { ScrollReadSetting, TextSizeSetting, LayoutSetting, AutoRefreshSetting, SettingGroup, SettingRow, type ScrollReadSettingsProps, type RefreshSettingsProps, type SortSettingProps } from './ReadingSettings';
@@ -71,8 +72,9 @@ export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLa
 export function MobileHeader({ title, library, hidden, search, onSearch, onCommitSearch, onBack, onAdd, sort, onChangeSort, syncStatus, ...settings }: MobileSettingsProps & { title: string; library?: boolean; hidden?: boolean; search: string; onSearch: (value: string) => void; onCommitSearch?: (value?: string) => void; onBack?: () => void; onAdd: () => void }) {
   return <header className="feedex-mobile-header" data-scroll-hidden={hidden || undefined} inert={hidden || undefined} aria-hidden={hidden || undefined}>
     <div className="feedex-mobile-heading">
-      {library ? <span className="feedex-mobile-brand-icon"><Rss size={19} strokeWidth={2.4} /></span> : <button className="feedex-mobile-icon" onClick={onBack} aria-label="내 피드로 돌아가기"><ArrowLeft size={20} /></button>}
-      <h1>{title}</h1>
+      {library ? <FeedExIcon className="feedex-mobile-brand-icon" /> : <button className="feedex-mobile-icon" onClick={onBack} aria-label="내 피드로 돌아가기"><ArrowLeft size={20} /></button>}
+      {/* 보관함 머리에는 이름 대신 글자 로고를 쓴다. */}
+      <h1>{library ? <FeedExWordmark height={19} title={title} /> : title}</h1>
       <div className="feedex-mobile-header-actions">{!library && sort && onChangeSort && <button type="button" className="feedex-mobile-sort" onClick={() => onChangeSort(sort === 'oldest' ? 'newest' : 'oldest')} aria-label={`정렬: ${sort === 'oldest' ? '오래된순, 최신순으로 전환' : '최신순, 오래된순으로 전환'}`}><ArrowDownUp size={14} aria-hidden="true" /><span>{sort === 'oldest' ? '오래된순' : '최신순'}</span></button>}<MobileSettings library={library} {...settings} /><button className="feedex-mobile-icon" onClick={onAdd} aria-label="피드 추가"><Plus size={21} /></button></div>
     </div>
     <label className="feedex-mobile-search"><Search size={16} aria-hidden="true" /><input type="search" aria-label={library ? '폴더 및 피드 검색' : '글 검색'} placeholder={library ? '폴더 또는 피드 검색' : '글 검색'} value={search} onChange={(event) => onSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onCommitSearch?.(search); }} autoComplete="off" />{search && <button aria-label="검색어 지우기" onClick={() => { onSearch(''); onCommitSearch?.(''); }}><X size={16} /></button>}</label>

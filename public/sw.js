@@ -1,7 +1,7 @@
 // Slap처럼 공개된 설치·오프라인 자원만 캐시한다. 계정 데이터와 앱 HTML은
 // 항상 네트워크에서 받으므로, 계정을 바꿔도 이전 사용자의 피드가 드러나지 않고
 // 배포 뒤에 예전 앱 껍데기가 남지 않는다.
-const CACHE = 'sfeed-public-v4';
+const CACHE = 'sfeed-public-v5';
 const OFFLINE = '/offline.html';
 const PUBLIC_ASSETS = [OFFLINE, '/offline.js', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png', '/icons/apple-touch-icon.png'];
 

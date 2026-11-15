@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { FeedExIcon, FeedExWordmark } from './BrandMark';
 import {
-  Rss,
   Sparkles,
   BookOpen,
   Layers,
@@ -220,13 +220,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
         <div className="relative z-10">
           {onChangeTheme && <div className="flex justify-end mb-4"><ThemeSwitch theme={theme} onChange={onChangeTheme} /></div>}
           <div className="inline-flex items-center gap-3 mb-5 lg:mb-10">
-            <div className="w-11 h-11 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-              <Rss className="w-6 h-6 text-slate-950 stroke-[2.5]" />
-            </div>
-            <div>
-              <span className="text-2xl font-bold tracking-tight text-white">
-                FeedEx
-              </span>
+            <FeedExIcon className="w-11 h-11 shrink-0 shadow-lg shadow-emerald-500/20 rounded-[10px]" />
+            <div className="flex items-center">
+              <FeedExWordmark height={24} className="text-white" />
               <span className="hidden sm:inline ml-2 whitespace-nowrap text-xs font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                 Cloudflare Edge RSS
               </span>

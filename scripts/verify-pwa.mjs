@@ -33,7 +33,7 @@ vm.runInNewContext(readFileSync('public/sw.js', 'utf8'), {
   URL, Response,
 });
 for (const name of ['install', 'activate']) { let work; handlers[name]({ waitUntil: (promise) => { work = promise; } }); await work; }
-assert.equal(skipped, 1); assert.equal(claimed, 1); assert.deepEqual(deleted, ['sfeed-public-v1', 'sfeed-public-v2', 'sfeed-public-v3']);
+assert.equal(skipped, 1); assert.equal(claimed, 1); assert.deepEqual(deleted, ['sfeed-public-v1', 'sfeed-public-v2', 'sfeed-public-v3', 'sfeed-public-v4'], 'the old cache with the previous app icons is dropped');
 assert.ok(!storage.has('/'), 'the authenticated app shell must not be cached');
 const runFetch = (path, mode = 'navigate', method = 'GET') => {
   let result;

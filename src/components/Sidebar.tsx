@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { FeedExIcon, FeedExWordmark } from './BrandMark';
 import { collapsedFoldersKey, readCollapsedFolders, writeCollapsedFolders } from '../client/folderState';
 import {
   Rss,
@@ -301,16 +302,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }}
             className="flex items-center gap-2.5 cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center shadow-sm shadow-emerald-500/30">
-              <Rss className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-            </div>
-            <span
-              className={`text-lg font-bold tracking-tight ${
-                isDark ? 'text-white' : 'text-slate-900'
-              }`}
-            >
-              FeedEx
-            </span>
+            <FeedExIcon className="w-8 h-8 shrink-0" />
+            <FeedExWordmark height={18} className={isDark ? 'text-white' : 'text-slate-900'} />
           </div>
 
           <button
