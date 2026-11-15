@@ -143,7 +143,8 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   closeBtn.style.cssText = `${btnStyle};width:36px;padding:0;font-size:16px`;
   closeBtn.textContent = '✕';
 
-  controls.append(zoomBtn, closeBtn);
+  // 휴대폰은 두 손가락으로 확대하므로 확대 단추를 두지 않는다.
+  if (mobile) controls.append(closeBtn); else controls.append(zoomBtn, closeBtn);
   header.append(counter, controls);
 
   const stage = document.createElement('div');
@@ -156,8 +157,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   img.referrerPolicy = 'no-referrer';
   stage.append(img);
   if (mobile) stage.style.overflow = 'hidden';
-  const updateZoomLabel = () => { zoomBtn.textContent = zoomedIn() ? '화면 맞춤' : '확대 보기'; };
-  const pinch = mobile ? bindPhotoZoom(stage, img, { edge: 32, onChange: updateZoomLabel }) : null;
+  const pinch = mobile ? bindPhotoZoom(stage, img, { edge: 32 }) : null;
   if (pinch) stage.style.touchAction = 'none';
   const zoomedIn = () => pinch ? pinch.zoomed() : zoomed;
 
@@ -184,7 +184,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
       ? 'width:min(94vw,1080px);max-width:none;max-height:none;height:auto;border-radius:8px;cursor:zoom-out;margin:0 auto;display:block'
       : 'max-width:min(92vw,1200px);max-height:calc(100dvh - 84px - env(safe-area-inset-top) - env(safe-area-inset-bottom));width:auto;height:auto;object-fit:contain;border-radius:8px;cursor:zoom-in;display:block';
     pinch?.reset();
-    updateZoomLabel();
+    zoomBtn.textContent = zoomed ? '화면 맞춤' : '확대 보기';
     if (urls.length > 1) {
       prevBtn.disabled = index === 0;
       nextBtn.disabled = index === urls.length - 1;
@@ -272,8 +272,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     stage.scrollLeft = 0;
     render();
   };
-  const toggleZoom = (at?: { x: number; y: number }) => {
-    if (pinch) { pinch.toggle(at); return; }
+  const toggleZoom = () => {
     zoomed = !zoomed;
     render();
   };
@@ -282,8 +281,8 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   zoomBtn.addEventListener('click', () => toggleZoom());
   img.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (pinch && !pinch.clickAllowed()) return;
-    toggleZoom(pinch ? { x: e.clientX, y: e.clientY } : undefined);
+    // 휴대폰에서 사진을 눌러도 크기를 바꾸지 않는다. 확대는 두 손가락으로만 한다.
+    if (!pinch) toggleZoom();
   });
   stage.addEventListener('click', (e) => {
     if (e.target !== stage || (pinch && !pinch.clickAllowed())) return;

@@ -1,7 +1,6 @@
 // 휴대폰 사진 보기의 두 손가락 확대와 한 손가락 이동.
 // 앱 전체를 확대하지 않고 사진만 키운다. 무대(stage)가 화면 자리를, 사진(img)이 변형을 맡는다.
 export const MAX_PHOTO_SCALE = 5;
-export const TAP_PHOTO_SCALE = 2.5;
 type Point = { x: number; y: number };
 type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
 
@@ -16,13 +15,13 @@ export function clampPhotoOffset(offset: number, center: number, size: number, s
   return Math.min(start - center + scaled / 2, Math.max(end - center - scaled / 2, offset));
 }
 
-/** `edge` 안쪽에서 시작한 끌기는 뒤로 가기 몫으로 남긴다. `onChange`는 확대 여부가 바뀔 때 부른다. */
-export function bindPhotoZoom(stage: HTMLElement, img: HTMLImageElement, options: { edge?: number; onChange?: (zoomed: boolean) => void } = {}) {
+/** `edge` 안쪽에서 시작한 끌기는 뒤로 가기 몫으로 남긴다. */
+export function bindPhotoZoom(stage: HTMLElement, img: HTMLImageElement, options: { edge?: number } = {}) {
   const view = stage.ownerDocument.defaultView!;
   let scale = 1, x = 0, y = 0;
   let pinch: { distance: number; scale: number; origin: Point; center: Point; from: { scale: number; x: number; y: number } } | null = null;
   let pan: { start: Point; x: number; y: number; moved: boolean; center: Point } | null = null;
-  let suppressClickUntil = 0, shown = false;
+  let suppressClickUntil = 0;
   const box = (element: Element): Box => element.getBoundingClientRect();
   // 확대·이동 전 사진 중심. 변형은 중심 기준이라 크기를 바꿔도 중심은 이동량만큼만 옮겨진다.
   const center = (): Point => { const rect = box(img); return { x: rect.left + rect.width / 2 - x, y: rect.top + rect.height / 2 - y }; };
@@ -30,8 +29,6 @@ export function bindPhotoZoom(stage: HTMLElement, img: HTMLImageElement, options
     img.style.transition = animate ? 'transform .2s ease-out' : 'none';
     img.style.transformOrigin = 'center center';
     img.style.transform = scale === 1 && x === 0 && y === 0 ? '' : `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
-    img.style.cursor = scale > 1 ? 'zoom-out' : 'zoom-in';
-    if (shown !== scale > 1.02) { shown = scale > 1.02; options.onChange?.(shown); }
   };
   const clampOffset = (base = center()) => {
     const area = box(stage), width = img.offsetWidth || box(img).width / scale, height = img.offsetHeight || box(img).height / scale;
@@ -50,13 +47,6 @@ export function bindPhotoZoom(stage: HTMLElement, img: HTMLImageElement, options
     if (scale <= 1.02) { reset(true); return; }
     const base = center();
     scale = Math.min(MAX_PHOTO_SCALE, scale);
-    clampOffset(base); apply(true);
-  };
-  /** 탭한 자리를 확대하거나, 확대한 사진을 원래대로 되돌린다. */
-  const toggle = (at?: Point) => {
-    if (scale > 1.02) { reset(true); return; }
-    const base = center(), focus = at ?? base;
-    zoomAround(TAP_PHOTO_SCALE, focus, focus, base, { scale: 1, x: 0, y: 0 });
     clampOffset(base); apply(true);
   };
   const start = (event: TouchEvent) => {
@@ -117,7 +107,6 @@ export function bindPhotoZoom(stage: HTMLElement, img: HTMLImageElement, options
     /** 끌거나 확대한 직후의 탭은 클릭으로 치지 않는다. */
     clickAllowed: () => Date.now() >= suppressClickUntil,
     gesturing: () => Boolean(pinch || pan),
-    toggle,
     reset,
     destroy: () => {
       stage.removeEventListener('touchstart', start); stage.removeEventListener('touchmove', move);
