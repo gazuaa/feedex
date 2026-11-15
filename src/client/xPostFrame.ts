@@ -36,40 +36,51 @@ main .card > img {
 </style>`;
 
 // 답글을 열면 선택한 글부터 보여 준다. 위쪽 사진이 늦게 그려져도 위치를 유지하다가 사용자가 조작하면 멈춘다.
+// 미리보기에서 이미 내려 읽었다면(sfeedXReading으로 알린 거리) 완성된 대화도 선택한 글에서 그만큼 내려간 자리에서 연다.
+// 앱은 사본이 sfeedReady를 보내면 그 거리를 sfeedXResume으로 돌려준다(useXReadingCarry).
 const X_THREAD_START_SCRIPT = `<script nonce="sfeed-scroll">
-addEventListener('DOMContentLoaded', () => {
-  const selected = document.querySelector('main > article.post.main');
-  if (!selected) return;
-  const earlier = [];
-  for (let post = selected.previousElementSibling; post; post = post.previousElementSibling) {
-    if (post.matches('article.post.before') && post.querySelector('.text')) earlier.push(post);
-  }
-  if (!earlier.length) return;
-
+{
   const root = document.documentElement;
-  const controller = new AbortController();
-  const options = { capture: true, passive: true, signal: controller.signal };
+  let selected = null, resume = 0, holding = null, touched = false;
+  const start = () => {
+    const inset = parseFloat(document.body?.style.paddingTop) || 0;
+    return window.scrollY + selected.getBoundingClientRect().top - inset - 8;
+  };
   const position = () => {
-    if (controller.signal.aborted) return;
-    const inset = parseFloat(document.body.style.paddingTop) || 0;
-    const top = window.scrollY + selected.getBoundingClientRect().top - inset - 8;
-    window.scrollTo({ top, behavior: 'instant' });
+    if (holding && !holding.signal.aborted) window.scrollTo({ top: start() + resume, behavior: 'instant' });
   };
-  const observer = new ResizeObserver(position);
-  const stop = () => {
-    controller.abort();
-    observer.disconnect();
-    delete root.dataset.sfeedXPositioning;
+  const release = () => { holding?.abort(); holding = null; delete root.dataset.sfeedXPositioning; };
+  const stop = () => { touched = true; release(); };
+  const hold = () => {
+    if (!selected || touched) return;
+    if (holding) { position(); return; }
+    holding = new AbortController();
+    const options = { capture: true, passive: true, signal: holding.signal };
+    const observer = new ResizeObserver(position);
+    holding.signal.addEventListener('abort', () => observer.disconnect());
+    for (const event of ['pointerdown', 'touchstart', 'wheel', 'keydown']) addEventListener(event, stop, options);
+    root.dataset.sfeedXPositioning = '';
+    for (let post = selected; post; post = post.previousElementSibling) observer.observe(post, { box: 'border-box' });
+    position();
+    setTimeout(release, 4000);
   };
-  for (const event of ['pointerdown', 'touchstart', 'wheel', 'keydown']) addEventListener(event, stop, options);
   addEventListener('message', event => {
-    if (event.source === parent && Array.isArray(event.data?.sfeedInset)) position();
-  }, options);
-  root.dataset.sfeedXPositioning = '';
-  for (const post of earlier) observer.observe(post, { box: 'border-box' });
-  position();
-  setTimeout(stop, 4000);
-}, { once: true });
+    if (event.source !== parent) return;
+    if (Array.isArray(event.data?.sfeedInset)) position();
+    const offset = event.data?.sfeedXResume;
+    if (typeof offset === 'number' && offset > 0 && !touched) { resume = offset; hold(); }
+  });
+  addEventListener('DOMContentLoaded', () => {
+    selected = document.querySelector('main > article.post.main');
+    if (!selected) return;
+    addEventListener('scroll', () => parent.postMessage({ sfeedXReading: Math.max(0, Math.round(window.scrollY - start())) }, '*'), { passive: true });
+    let earlier = false;
+    for (let post = selected.previousElementSibling; post; post = post.previousElementSibling) {
+      if (post.matches('article.post.before') && post.querySelector('.text')) earlier = true;
+    }
+    if (earlier || resume) hold();
+  }, { once: true });
+}
 </script>`;
 
 /** 영상 재생기는 X 사본과 YouTube 임베드 사본에서만 연결하고, 실제 코드는 재생할 때 불러온다. */
@@ -375,6 +386,31 @@ export function useXPostFrame(frame: RefObject<HTMLIFrameElement | null>, onOpen
     window.addEventListener('message', message);
     return () => { window.removeEventListener('message', message); closePhoto?.(); };
   }, [frame, resetKey]);
+}
+
+/**
+ * X 글은 미리보기를 먼저 보여 주고 완성된 대화로 바꾼다. 미리보기에서 내려 읽던 자리를 완성본에 넘겨,
+ * 바뀌는 순간 글 맨 위로 돌아가지 않게 한다. `waiting`은 `frame`이 지금 미리보기인지다.
+ */
+export function useXReadingCarry(frame: RefObject<HTMLIFrameElement | null>, waiting: boolean, key: string) {
+  const latest = useRef({ waiting, key }); latest.current = { waiting, key };
+  const reading = useRef<{ key: string; offset: number } | null>(null);
+  useEffect(() => {
+    reading.current = null;
+    const message = (event: MessageEvent) => {
+      const source = frame.current?.contentWindow;
+      if (!source || event.source !== source) return;
+      const { waiting, key } = latest.current;
+      const offset = event.data?.sfeedXReading;
+      if (waiting && typeof offset === 'number' && Number.isFinite(offset)) { reading.current = { key, offset }; return; }
+      if (!waiting && event.data?.sfeedReady && reading.current?.key === key) {
+        if (reading.current.offset > 0) source.postMessage({ sfeedXResume: reading.current.offset }, '*');
+        reading.current = null;
+      }
+    };
+    window.addEventListener('message', message);
+    return () => window.removeEventListener('message', message);
+  }, [frame, key]);
 }
 
 export interface ActiveYouTubeEmbed {

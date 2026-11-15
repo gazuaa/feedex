@@ -6,7 +6,7 @@ import { AiSummaryCard, WebPager } from './ArticleDrawer';
 import { framedCopy, useMobileViewport } from '../client/mobile';
 import { xThreadPreview } from '../client/xThreadPreview';
 import { useCopyTheme } from '../client/copyTheme';
-import { useXPostFrame } from '../client/xPostFrame';
+import { useXPostFrame, useXReadingCarry } from '../client/xPostFrame';
 import { X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
 import type { XPost } from '../client/xTimeline';
 
@@ -149,6 +149,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     } else void loadSummary();
   };
   const isReady = Boolean(activeCopy);
+  useXReadingCarry(frame, !isReady, url);
   const readyHtml = useMemo(() => {
     if (!activeCopy) return undefined;
     if (!showTranslation || !result) return framedCopy(enhanceCopyHtml(activeCopy.html, activeQuote));

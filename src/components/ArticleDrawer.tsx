@@ -53,7 +53,7 @@ import { publicCoinDeskArticle, publicDeviceArticle } from '../shared/publicWebP
 import { isXStatusUrl } from '../shared/xFeed';
 import { xThreadPreview } from '../client/xThreadPreview';
 import { retryChallenged } from '../client/publicWebCopy';
-import { useXPostFrame, useYouTubeCopyFrame, type XQuoteHint } from '../client/xPostFrame';
+import { useXPostFrame, useXReadingCarry, useYouTubeCopyFrame, type XQuoteHint } from '../client/xPostFrame';
 import { youtubeEmbedSrc } from '../shared/youtubeEmbed';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 import { shownThumbnail } from '../client/thumbnails';
@@ -373,6 +373,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const topRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), copyRef = useRef<HTMLIFrameElement>(null);
   useCopyTheme(copyRef, isDark);
   useXPostFrame(copyRef, onOpenXPost, `${article?.id || ''}:${mode}`);
+  useXReadingCarry(copyRef, xWaiting, `${article?.id || ''}:${mode}`);
   const { activeYouTube, ytOverlayRef, closeYouTube } = useYouTubeCopyFrame(copyRef, webZoom, `${article?.id}:${mode}:${Boolean(copyHtml)}`);
   // 프레임 안 사이트의 스크롤은 손이 닿지 않으므로, 피드·리더·웹 사본만 막대를 숨긴다.
   const showingCopy = siteShown && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
