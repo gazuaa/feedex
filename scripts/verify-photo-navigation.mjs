@@ -28,5 +28,9 @@ try{
   window.dispatchEvent(new window.Event('pagehide'));assert.equal(document.querySelector('dialog[data-sfeed-photo-viewer]'),null,'화면을 떠날 때도 모달을 정리한다');
   openPhotoViewer([photo]);document.querySelector('[data-photo-close]').click();assert.equal(document.querySelector('dialog[data-sfeed-photo-viewer]'),null,'기존 닫기 버튼도 유지한다');
   assert.ok(document.querySelector('#list'),'목록 자체는 보존한다');
-  console.log('통과: 사진 기본 닫기·뒤로가기·화면 종료·교체 후 모달 제거와 목록 보존.');
+  const {clampPhotoOffset}=await vite.ssrLoadModule('/src/client/photoZoom.ts');
+  assert.equal(clampPhotoOffset(500,195,359,3,0,390),343.5,'확대한 사진은 왼쪽 가장자리가 화면 안으로 들어오지 않는다');
+  assert.equal(clampPhotoOffset(-500,195,359,3,0,390),-343.5,'오른쪽 가장자리도 화면 끝에서 멈춘다');
+  assert.equal(clampPhotoOffset(80,195,100,2,0,390),0,'화면보다 작은 사진은 가운데에 둔다');
+  console.log('통과: 사진 기본 닫기·뒤로가기·화면 종료·교체 후 모달 제거와 목록 보존, 확대한 사진의 이동 범위.');
 }finally{for(const[key,value]of originals){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}await vite.close();}

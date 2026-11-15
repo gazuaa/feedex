@@ -4,6 +4,7 @@ import playerUrl from './xFramePlayer.js?url';
 import { isXStatusUrl } from '../shared/xFeed';
 import { X_THREAD_MARK } from '../shared/xThreadStyle';
 import { COMMIT_SHARE, isBackSwipe } from './swipeBack';
+import { bindPhotoZoom } from './photoZoom';
 
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const YT_FRAME_SCRIPT = `<script nonce="sfeed-scroll">{let y;const p=()=>{if(!y)return;const r=y.getBoundingClientRect();parent.postMessage({sfeedYouTubeRect:[r.left,r.top,r.width,r.height]},'*')};addEventListener('click',e=>{const a=e.target.closest('a[data-yt-id]');if(!a||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();y=a;const r=a.getBoundingClientRect();parent.postMessage({sfeedYouTube:{id:a.getAttribute('data-yt-id'),start:Number(a.getAttribute('data-yt-start'))||0,rect:[r.left,r.top,r.width,r.height]}},'*')});addEventListener('scroll',p,{passive:true});addEventListener('resize',p)}</script>`;
@@ -114,7 +115,8 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   dialog.setAttribute('aria-label', '사진 크게 보기');
   dialog.setAttribute('aria-modal', 'true');
   dialog.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;max-width:100vw;max-height:100vh;max-height:100dvh;margin:0;padding:0;border:0;background:rgba(2,6,23,0.92);backdrop-filter:blur(6px);color:#f8fafc;overflow:hidden;display:flex;flex-direction:column;user-select:none;z-index:9999';
-  dialog.style.touchAction = 'pan-y';
+  // 휴대폰에서는 화면 전체 대신 사진만 확대하므로 터치를 사진 보기가 모두 맡는다.
+  dialog.style.touchAction = mobile ? 'none' : 'pan-y';
 
   // 홈 화면 앱에서는 화면 위쪽 상태 표시줄·노치 아래로 닫기 단추를 내린다.
   const header = document.createElement('div');
@@ -153,6 +155,11 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   img.alt = '';
   img.referrerPolicy = 'no-referrer';
   stage.append(img);
+  if (mobile) stage.style.overflow = 'hidden';
+  const updateZoomLabel = () => { zoomBtn.textContent = zoomedIn() ? '화면 맞춤' : '확대 보기'; };
+  const pinch = mobile ? bindPhotoZoom(stage, img, { edge: 32, onChange: updateZoomLabel }) : null;
+  if (pinch) stage.style.touchAction = 'none';
+  const zoomedIn = () => pinch ? pinch.zoomed() : zoomed;
 
   const navBtnStyle = 'position:fixed;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:9999px;border:1px solid rgba(255,255,255,0.2);background:rgba(15,23,42,0.75);color:#fff;font-size:26px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;z-index:3';
   const prevBtn = document.createElement('button');
@@ -172,11 +179,12 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   const render = () => {
     img.src = urls[index];
     counter.textContent = urls.length > 1 ? `${index + 1} / ${urls.length}` : '';
-    zoomBtn.textContent = zoomed ? '화면 맞춤' : '확대 보기';
     stage.style.alignItems = zoomed ? 'flex-start' : 'center';
     img.style.cssText = zoomed
       ? 'width:min(94vw,1080px);max-width:none;max-height:none;height:auto;border-radius:8px;cursor:zoom-out;margin:0 auto;display:block'
       : 'max-width:min(92vw,1200px);max-height:calc(100dvh - 84px - env(safe-area-inset-top) - env(safe-area-inset-bottom));width:auto;height:auto;object-fit:contain;border-radius:8px;cursor:zoom-in;display:block';
+    pinch?.reset();
+    updateZoomLabel();
     if (urls.length > 1) {
       prevBtn.disabled = index === 0;
       nextBtn.disabled = index === urls.length - 1;
@@ -203,6 +211,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     animation?.cancel();
     if (typeof dialog.close === 'function' && dialog.open) dialog.close();
     dialog.remove();
+    pinch?.destroy();
     if (mobile && previousFocus instanceof window.HTMLElement && previousFocus.tagName !== 'IFRAME') previousFocus.focus({ preventScroll: true });
   };
   const discard = () => {
@@ -263,15 +272,24 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     stage.scrollLeft = 0;
     render();
   };
-  const toggleZoom = () => {
+  const toggleZoom = (at?: { x: number; y: number }) => {
+    if (pinch) { pinch.toggle(at); return; }
     zoomed = !zoomed;
     render();
   };
 
   closeBtn.addEventListener('click', close);
-  zoomBtn.addEventListener('click', toggleZoom);
-  img.addEventListener('click', (e) => { e.stopPropagation(); toggleZoom(); });
-  stage.addEventListener('click', (e) => { if (e.target === stage) close(); });
+  zoomBtn.addEventListener('click', () => toggleZoom());
+  img.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (pinch && !pinch.clickAllowed()) return;
+    toggleZoom(pinch ? { x: e.clientX, y: e.clientY } : undefined);
+  });
+  stage.addEventListener('click', (e) => {
+    if (e.target !== stage || (pinch && !pinch.clickAllowed())) return;
+    // 확대한 사진 바깥을 누르면 먼저 원래 크기로 돌아간다.
+    if (pinch?.zoomed()) pinch.reset(true); else close();
+  });
   header.addEventListener('click', (e) => { if (e.target === header) close(); });
   prevBtn.addEventListener('click', (e) => { e.stopPropagation(); step(-1); });
   nextBtn.addEventListener('click', (e) => { e.stopPropagation(); step(1); });
@@ -299,7 +317,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     const start = touchStart, touch = e.touches[0];
     if (!mobile || !start || !touch || e.touches.length !== 1 || !e.cancelable) return;
     const dx = touch.clientX - start.x;
-    if ((start.x <= 32 || (urls.length === 1 && !zoomed)) && dx > 12 && dx > Math.abs(touch.clientY - start.y) * 1.5) e.preventDefault();
+    if ((start.x <= 32 || (urls.length === 1 && !zoomedIn())) && dx > 12 && dx > Math.abs(touch.clientY - start.y) * 1.5) e.preventDefault();
   }, { passive: false });
   dialog.addEventListener('touchend', (e) => {
     const start = touchStart, touch = e.changedTouches[0];
@@ -307,12 +325,12 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
     if (!start || !touch || e.changedTouches.length !== 1) return;
     const dx = touch.clientX - start.x, dy = touch.clientY - start.y;
     const backSwipe = isBackSwipe(start, { x: touch.clientX, y: touch.clientY, time: e.timeStamp }) || (dx >= window.innerWidth * COMMIT_SHARE && dx > Math.abs(dy) * 1.8);
-    if (mobile && (start.x <= 32 || (urls.length === 1 && !zoomed)) && backSwipe) {
+    if (mobile && (start.x <= 32 || (urls.length === 1 && !zoomedIn())) && backSwipe) {
       if (e.cancelable) e.preventDefault();
       dismiss('slide', releaseHistory);
       return;
     }
-    if (zoomed || !stage.contains(e.target as Node)) return;
+    if (zoomedIn() || !stage.contains(e.target as Node)) return;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
     // 휴대폰에서는 사진을 아래로 끌어내려 닫는다.
     else if (dy > 90 && dy > Math.abs(dx) * 1.5) close();
