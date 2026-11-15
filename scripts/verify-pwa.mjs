@@ -3,9 +3,9 @@ import { readFileSync, existsSync } from 'node:fs';
 import vm from 'node:vm';
 import { createServer } from 'vite';
 
+const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'));
 assert.equal(manifest.short_name, 'feedex', 'the home screen name matches the lowercase wordmark');
 assert.ok(manifest.name.startsWith('feedex'));
-assert.ok(manifest.name.startsWith('FeedEx'));
 assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.start_url, '/');
 assert.equal(manifest.id, '/');
