@@ -3,17 +3,19 @@ import { createServer } from 'vite';
 import { parseHTML } from 'linkedom';
 const vite = await createServer({ configFile: false, server: { middlewareMode: true, ws: false }, appType: 'custom', logLevel: 'silent' });
 try {
-  const { rebuildScrollSurface, rebuildingScroll, bindMobileScrollRecovery, needsMobileScrollRecovery } = await vite.ssrLoadModule('/src/client/mobileScrollRecovery.ts');
+  const { rebuildScrollSurface, rebuildingScroll, bindMobileScrollRecovery, needsMobileScrollRecovery, releaseVelocity } = await vite.ssrLoadModule('/src/client/mobileScrollRecovery.ts');
   const fixture = () => {
     const { document, window } = parseHTML('<html><body><main><div><article data-article-id="x"><p>기존 X 글</p></article></div></main></body></html>');
     const root = document.querySelector('main'), content = root.firstElementChild;
     Object.defineProperty(Object.getPrototypeOf(root.style), 'getPropertyPriority', { configurable: true, value: () => '' });
     let id = 0; const frames = new Map();
     window.requestAnimationFrame = fn => { frames.set(++id, fn); return id; }; window.cancelAnimationFrame = key => frames.delete(key);
-    const paint = () => { for (const [key, fn] of [...frames]) { frames.delete(key); fn(); } };
+    let clock = 1000; window.performance = { now: () => clock };
+    const paint = () => { clock += 16; for (const [key, fn] of [...frames]) { frames.delete(key); fn(); } };
     Object.defineProperties(root, { scrollHeight: { value: 2000 }, clientHeight: { value: 500 } }); root.scrollTop = 300;
     const touch = (type, x, y, options = {}) => {
       const e = new window.Event(type, { bubbles: true, cancelable: true });
+      if (options.time) Object.defineProperty(e, 'timeStamp', { value: options.time });
       Object.defineProperties(e, { touches: { value: Array.from({ length: type === 'touchend' || type === 'touchcancel' ? 0 : options.fingers ?? 1 }, () => ({ clientX: x, clientY: y })) } });
       if (options.prevented) e.preventDefault(); content.dispatchEvent(e);
     };
@@ -51,7 +53,38 @@ try {
     for (let i = 0; i < 5; i++) s.paint(); assert.equal(rebuildingScroll(s.root), false); assert.equal(s.root.scrollTop, 300, '목록 전환 후 늦은 복구를 취소한다');
     const restore = rebuildScrollSurface(s.root); restore(); assert.equal(rebuildingScroll(s.root), false);
   }
+  {
+    // 막힌 손동작은 끄는 동안 손가락을 따라가고, 놓으면 관성으로 이어 간 뒤 멈춘 자리에서 계층을 다시 만든다.
+    const s = fixture(), cleanup = bindMobileScrollRecovery(s.root);
+    s.touch('touchstart', 100, 500, { time: 1000 }); s.touch('touchmove', 100, 480, { time: 1030 });
+    assert.equal(s.root.scrollTop, 300, '짧게 끈 동안은 네이티브 스크롤을 기다린다');
+    s.touch('touchmove', 100, 440, { time: 1070 }); assert.equal(s.root.scrollTop, 360, '막힌 스크롤은 손가락 위치로 따라온다');
+    s.touch('touchmove', 100, 400, { time: 1090 }); assert.equal(s.root.scrollTop, 400);
+    s.touch('touchend', 100, 400, { time: 1095 }); s.paint();
+    assert.ok(s.root.scrollTop > 400 && !rebuildingScroll(s.root), '놓은 뒤 관성으로 계속 움직인다');
+    let frames = 0; while (!rebuildingScroll(s.root) && frames++ < 400) s.paint();
+    assert.ok(rebuildingScroll(s.root), '관성이 멈추면 스크롤 계층을 다시 만든다');
+    const stopped = s.root.scrollTop; s.paint(); s.paint();
+    assert.equal(rebuildingScroll(s.root), false); assert.equal(s.root.scrollTop, stopped); assert.ok(stopped > 800 && stopped < 1100, `관성 거리는 iOS와 비슷하다: ${stopped}`); cleanup();
+  }
+  {
+    // 대신 끌던 중 네이티브 스크롤이 살아나면 더 건드리지 않는다.
+    const s = fixture(), cleanup = bindMobileScrollRecovery(s.root);
+    s.touch('touchstart', 100, 500, { time: 1000 }); s.touch('touchmove', 100, 440, { time: 1070 }); assert.equal(s.root.scrollTop, 360);
+    s.root.scrollTop = 420; s.touch('touchmove', 100, 400, { time: 1090 }); assert.equal(s.root.scrollTop, 420);
+    s.touch('touchend', 100, 400, { time: 1095 }); for (let i = 0; i < 5; i++) s.paint();
+    assert.equal(s.root.scrollTop, 420); assert.equal(rebuildingScroll(s.root), false); cleanup();
+  }
+  {
+    // 관성 중 다시 만지면 iOS처럼 그 자리에서 멈춘다.
+    const s = fixture(), cleanup = bindMobileScrollRecovery(s.root);
+    s.touch('touchstart', 100, 500, { time: 1000 }); s.touch('touchmove', 100, 440, { time: 1070 }); s.touch('touchmove', 100, 400, { time: 1090 }); s.touch('touchend', 100, 400, { time: 1095 });
+    s.paint(); s.paint(); const held = s.root.scrollTop; s.touch('touchstart', 100, 300, { time: 1200 }); s.paint(); s.paint();
+    assert.equal(s.root.scrollTop, held); assert.equal(rebuildingScroll(s.root), false); cleanup();
+  }
+  assert.equal(releaseVelocity([{ y: 500, t: 0 }, { y: 400, t: 50 }], 55), 2, '위로 밀면 아래로 스크롤한다');
+  assert.equal(releaseVelocity([{ y: 500, t: 0 }, { y: 400, t: 50 }], 200), 0, '손가락을 멈췄다 떼면 관성이 없다');
   assert.equal(needsMobileScrollRecovery('Mozilla iPhone', 1), true); assert.equal(needsMobileScrollRecovery('Mozilla Macintosh', 5), true);
   assert.equal(needsMobileScrollRecovery('Mozilla Macintosh', 0), false); assert.equal(needsMobileScrollRecovery('Mozilla Android', 5), false);
-  console.log('통과: iPhone·iPad만 스크롤 계층 재구성, DOM·위치 보존, 막힌 세로 입력 자동 복구와 정상 입력·취소 보호.');
+  console.log('통과: iPhone·iPad만 스크롤 계층 재구성, DOM·위치 보존, 막힌 세로 입력을 손가락·관성으로 복구, 정상 입력·취소 보호.');
 } finally { await vite.close(); }
