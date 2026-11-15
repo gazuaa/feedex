@@ -4,6 +4,7 @@ import { plainCopyStyles } from '../shared/copyStyles';
 import { dropSidebars } from '../shared/sidebars';
 import { dropConsentBanners } from '../shared/consentBanners';
 import { openPhotoViewer } from './xPostFrame';
+import { photoTap } from './photoTap';
 
 // 크기 변형을 뺀 그림 이름. photo_T1.jpg와 photo_P1.jpg,
 // photo-300x200.jpg와 photo.jpg는 같은 그림이다.
@@ -61,27 +62,15 @@ export function bindArticleImages(container: HTMLElement, base: string) {
     const img = event.target;
     if (img instanceof HTMLImageElement && (event.type === 'error' || (img.naturalWidth <= 2 && img.naturalHeight <= 2))) img.style.display = 'none';
   };
-  const isViewablePhoto = (img: HTMLImageElement) => {
-    const src = img.currentSrc || img.src;
-    if (!/^https?:\/\//i.test(src) || img.style.display === 'none') return false;
-    const link = img.closest('a[href]') as HTMLAnchorElement | null;
-    if (!link) return true;
-    return /^https:\/\/pbs\.twimg\.com\/media\//i.test(link.href) || /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i.test(link.href);
-  };
-  const photoUrlOf = (img: HTMLImageElement) => {
-    const link = img.closest('a[href]') as HTMLAnchorElement | null;
-    if (link && (/^https:\/\/pbs\.twimg\.com\/media\//i.test(link.href) || /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i.test(link.href))) return link.href;
-    return img.currentSrc || img.src;
-  };
   let closePhoto: (() => void) | undefined;
   const onClick = (event: MouseEvent) => {
     if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const target = event.target instanceof Element ? event.target.closest('img') : null;
-    if (!(target instanceof HTMLImageElement) || !isViewablePhoto(target)) return;
+    // 웹 사본과 같은 규칙으로 연다(photoTap).
+    const photos = event.target instanceof Element ? photoTap(event.target, container, container.clientWidth) : null;
+    if (!photos) return;
     event.preventDefault();
     event.stopPropagation();
-    const all = Array.from(container.querySelectorAll('img')).filter(isViewablePhoto);
-    closePhoto?.(); closePhoto = openPhotoViewer(all.map(photoUrlOf), Math.max(0, all.indexOf(target)));
+    closePhoto?.(); closePhoto = openPhotoViewer(photos.urls, photos.index);
   };
   container.addEventListener('error', hide, true);
   container.addEventListener('load', hide, true);

@@ -1,6 +1,8 @@
 import { rebuildingScroll } from './mobileScrollRecovery';
 import { COPY_THEME_MARKUP } from './copyTheme';
 import { xFrameTools } from './xPostFrame';
+import { COPY_PHOTO_SCRIPT } from './photoTap';
+import { X_THREAD_MARK } from '../shared/xThreadStyle';
 import { useEffect, useState, useSyncExternalStore, type RefObject } from 'react';
 import { ARTICLE_TABLE_STYLE, wrapArticleTables } from './articleTables';
 const query = '(max-width: 1023px)';
@@ -89,4 +91,4 @@ html, body { width: 100%; min-width: 0; max-width: 100%; margin-inline: 0; }
 </style>`;
 
 export const framedCopy = (html: string, fitCoinDesk = false) => html.replace(/^(\s*<!doctype[^>]*>)?(\s*<html[^>]*>)?/i,
-  (start) => start + COPY_PREAMBLE + COPY_THEME_MARKUP + xFrameTools(html) + (fitCoinDesk ? COINDESK_MOBILE_WIDTH : ''));
+  (start) => start + COPY_PREAMBLE + COPY_THEME_MARKUP + xFrameTools(html) + (html.includes(X_THREAD_MARK) ? '' : COPY_PHOTO_SCRIPT) + (fitCoinDesk ? COINDESK_MOBILE_WIDTH : ''));

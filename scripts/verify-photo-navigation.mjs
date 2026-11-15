@@ -32,5 +32,17 @@ try{
   assert.equal(clampPhotoOffset(500,195,359,3,0,390),343.5,'확대한 사진은 왼쪽 가장자리가 화면 안으로 들어오지 않는다');
   assert.equal(clampPhotoOffset(-500,195,359,3,0,390),-343.5,'오른쪽 가장자리도 화면 끝에서 멈춘다');
   assert.equal(clampPhotoOffset(80,195,100,2,0,390),0,'화면보다 작은 사진은 가운데에 둔다');
-  console.log('통과: 사진 기본 닫기·뒤로가기·화면 종료·교체 후 모달 제거와 목록 보존, 확대한 사진의 이동 범위.');
+  const {photoTap,COPY_PHOTO_SCRIPT}=await vite.ssrLoadModule('/src/client/photoTap.ts');
+  const page=parseHTML(`<main><img id="logo" src="https://e.test/logo.png" data-w="40" data-h="40"><img id="plain" src="https://e.test/a.jpg" data-w="358" data-h="200"><a href="https://e.test/big.jpg"><img id="file" src="https://e.test/b-thumb.jpg" data-w="180" data-h="120"></a><a href="https://e.test/story"><img id="hero" src="https://e.test/c.jpg" data-w="358" data-h="200"></a><a href="https://e.test/other"><img id="thumb" src="https://e.test/d.jpg" data-w="100" data-h="100"></a></main>`).document;
+  for(const img of page.querySelectorAll('img'))img.getBoundingClientRect=()=>({width:+img.dataset.w,height:+img.dataset.h});
+  const tap=id=>photoTap(page.getElementById(id),page,390);
+  assert.equal(tap('logo'),null,'작은 로고·아이콘은 열지 않는다');
+  assert.deepEqual(tap('plain'),{urls:['https://e.test/a.jpg','https://e.test/big.jpg','https://e.test/c.jpg'],index:0},'링크 없는 사진은 같은 글의 큰 사진들과 함께 연다');
+  assert.equal(tap('file').urls[tap('file').index],'https://e.test/big.jpg','그림 파일 링크는 그 큰 그림을 연다');
+  assert.equal(tap('hero').index,2,'다른 주소로 가는 링크라도 본문 폭의 큰 사진은 사진 보기로 연다');
+  assert.equal(tap('thumb'),null,'다른 글로 가는 작은 썸네일은 링크를 따른다');
+  const {framedCopy}=await vite.ssrLoadModule('/src/client/mobile.ts');const {X_THREAD_MARK}=await vite.ssrLoadModule('/src/shared/xThreadStyle.ts');
+  assert.ok(framedCopy('<p>글</p>').includes(COPY_PHOTO_SCRIPT),'모든 웹 사본은 그림을 앱의 사진 보기로 연다');
+  assert.ok(!framedCopy(X_THREAD_MARK+'<p>글</p>').includes(COPY_PHOTO_SCRIPT),'X 사본은 자기 사진 처리를 쓴다');
+  console.log('통과: 사진 기본 닫기·뒤로가기·화면 종료·교체 후 모달 제거와 목록 보존, 확대한 사진의 이동 범위, 본문·웹 사본 공통 사진 열기 규칙.');
 }finally{for(const[key,value]of originals){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}await vite.close();}
