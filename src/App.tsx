@@ -643,9 +643,23 @@ export const App: React.FC = () => {
     return () => { cancelled = true; clearTimeout(timer); document.removeEventListener('visibilitychange', start); };
   }, [warmLists, loadingBootstrap, loadingArticles, refreshingFeeds]);
 
+  // 되돌릴 위치를 아직 못 맞춘 사이에(목록을 받는 중 등) 사용자가 목록을 만지면 그 손길을 따른다.
+  // 늦게 옛 자리로 돌려보내면 넘기던 관성이 끊기고 화면이 튄다.
+  const listMounted = Boolean(user) && !authChecking;
+  useEffect(() => {
+    const list = articleListRef.current;
+    if (!listMounted || !list) return;
+    const drop = () => { pendingScroll.current = null; };
+    list.addEventListener('touchstart', drop, { passive: true });
+    list.addEventListener('wheel', drop, { passive: true });
+    return () => { list.removeEventListener('touchstart', drop); list.removeEventListener('wheel', drop); };
+  }, [listMounted]);
+
   useLayoutEffect(() => {
     if (pendingScroll.current === null || loadingArticles || mobileSidebarOpen || (selectedArticleId && pendingScroll.current !== 0) || articleQueryRef.current !== buildArticleQuery().toString()) return;
-    articleListRef.current?.scrollTo({ top: pendingScroll.current });
+    const list = articleListRef.current;
+    // 이미 그 자리면 쓰지 않는다. iOS는 관성 스크롤 중에 위치를 쓰면 그 자리에서 멈춘다.
+    if (list && Math.abs(list.scrollTop - pendingScroll.current) >= 1) list.scrollTo({ top: pendingScroll.current });
     pendingScroll.current = null;
   }, [articles, loadingArticles, mobileSidebarOpen, selectedArticleId, buildArticleQuery]);
 

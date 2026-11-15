@@ -21,7 +21,9 @@ export function useListAnchor(ref: RefObject<HTMLElement | null>, rows: unknown[
     if (previous?.scope === scope && !rebuildingScroll(root)) {
       const items = new Map([...root.querySelectorAll<HTMLElement>('[data-article-id]')].map((item) => [item.dataset.articleId, item]));
       const row = previous.ids.map((id) => items.get(id)).find(Boolean);
-      if (row) root.scrollTop += row.getBoundingClientRect().top - root.getBoundingClientRect().top - previous.offset;
+      // iOS는 관성 스크롤 중에 위치를 쓰면 그 자리에서 멈춘다. 읽음 표시처럼 행 자리가 그대로인 갱신에는 쓰지 않는다.
+      const shift = row ? row.getBoundingClientRect().top - root.getBoundingClientRect().top - previous.offset : 0;
+      if (Math.abs(shift) >= 1) root.scrollTop += shift;
     }
     if (!switched) remember();
     root.addEventListener('scroll', remember, { passive: true });

@@ -102,6 +102,10 @@ try {
   // 목록이 바뀐 첫 그리기에 남은 앞 목록의 행을 새 목록의 위치로 기억하면, 같은 글이 있는 새 목록이 그 글 자리로 열린다.
   assert.match(anchorSource, /const switched = shown\.current !== scope; shown\.current = scope;\s*if \(switched\) anchor\.current = null;/, 'switching lists drops the old anchor');
   assert.match(anchorSource, /if \(!switched\) remember\(\);/, 'the first paint of a new list does not remember the old rows');
+  // iOS는 관성 스크롤 중에 위치를 쓰면 멈춘다. 읽음 표시처럼 행 자리가 그대로인 갱신과 이미 맞는 복원은 위치를 쓰지 않는다.
+  assert.match(anchorSource, /if \(Math\.abs\(shift\) >= 1\) root\.scrollTop \+= shift;/, 'list updates that keep rows in place do not touch the scroll position');
+  assert.match(appSource, /if \(list && Math\.abs\(list\.scrollTop - pendingScroll\.current\) >= 1\) list\.scrollTo/, 'restoring a list position already in place does not touch the scroll position');
+  assert.match(appSource, /list\.addEventListener\('touchstart', drop, \{ passive: true \}\)/, 'touching the list cancels a late list position restore');
   // 목록을 고르면 같은 목록이라도 맨 위부터 보여 준다.
   const selectSource = appSource.slice(appSource.indexOf('const handleSelectScope = ('), appSource.indexOf('const handleSelectLibraryTab'));
   assert.match(selectSource, /pendingScroll\.current = null;\s*forgetListAnchor\(\);\s*articleListRef\.current\?\.scrollTo\(\{ top: 0 \}\);/, 'choosing a list starts at the top');

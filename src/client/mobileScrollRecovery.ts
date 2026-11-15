@@ -57,10 +57,10 @@ export function releaseVelocity(samples: Sample[], releasedAt: number) {
 export function bindMobileScrollRecovery(root: HTMLElement) {
   const doc = root.ownerDocument, view = doc.defaultView;
   if (!view) return () => {};
-  let frame = 0, glide = 0, restore: (() => void) | undefined;
-  let gesture: { x: number; y: number; lastY: number; top: number; at: number; prevented: boolean; driving: boolean; native: boolean; expected: number; samples: Sample[] } | null = null;
+  let frame = 0, glide = 0, check = 0, restore: (() => void) | undefined;
+  let gesture: { x: number; y: number; lastY: number; top: number; at: number; prevented: boolean; driving: boolean; native: boolean; stuck: boolean; checking: boolean; expected: number; samples: Sample[] } | null = null;
   const stopGlide = () => { view.cancelAnimationFrame(glide); glide = 0; };
-  const cancel = () => { gesture = null; view.cancelAnimationFrame(frame); };
+  const cancel = () => { gesture = null; view.cancelAnimationFrame(frame); view.cancelAnimationFrame(check); };
   const allowed = () => !rebuildingScroll(root) && !root.closest('[inert], [aria-hidden="true"]') && !doc.querySelector('dialog[open], [aria-modal="true"]') && (view.visualViewport?.scale ?? 1) <= 1.05;
   const max = () => root.scrollHeight - root.clientHeight;
   const rebuild = () => { restore?.(); restore = rebuildScrollSurface(root); };
@@ -86,7 +86,7 @@ export function bindMobileScrollRecovery(root: HTMLElement) {
     cancel(); stopGlide();
     if (event.touches.length !== 1 || !allowed() || (event.target as Element | null)?.closest('input,textarea,select,video,audio,[contenteditable="true"],[role="slider"]')) return;
     const touch = event.touches[0], at = stamp(event, view);
-    gesture = { x: touch.clientX, y: touch.clientY, lastY: touch.clientY, top: root.scrollTop, at, prevented: false, driving: false, native: false, expected: root.scrollTop, samples: [{ y: touch.clientY, t: at }] };
+    gesture = { x: touch.clientX, y: touch.clientY, lastY: touch.clientY, top: root.scrollTop, at, prevented: false, driving: false, native: false, stuck: false, checking: false, expected: root.scrollTop, samples: [{ y: touch.clientY, t: at }] };
   };
   const move = (event: TouchEvent) => {
     if (!gesture) return;
@@ -105,8 +105,20 @@ export function bindMobileScrollRecovery(root: HTMLElement) {
       return;
     }
     if (Math.abs(root.scrollTop - gesture.top) > 2) { gesture.native = true; return; }
-    // 정상 스크롤도 위치가 조금 늦게 도착할 수 있어, 충분히 끌고 시간이 지난 뒤에도 그대로일 때만 대신 끈다.
+    // 정상 스크롤도 위치가 늦게 도착할 수 있다. 글을 닫은 직후처럼 화면이 바쁘면 터치는 몰려 오고 위치는 뒤따른다.
+    // 충분히 끈 뒤 화면을 두 번 더 그릴 때까지도 그대로일 때만 막힌 것으로 보고 대신 끈다.
+    // 정상 스크롤을 잘못 대신 끌면 위치를 쓰는 순간 iOS가 관성을 끊어 스크롤이 멈춘다.
     if (dy < 24 || Math.abs(wanted - gesture.top) < 12 || at - gesture.at < DRIVE_AFTER_MS) return;
+    if (!gesture.stuck) {
+      if (!gesture.checking) {
+        const watched = gesture; watched.checking = true;
+        check = view.requestAnimationFrame(() => { check = view.requestAnimationFrame(() => {
+          if (gesture !== watched || watched.native) return;
+          if (Math.abs(root.scrollTop - watched.top) > 2) watched.native = true; else watched.stuck = true;
+        }); });
+      }
+      return;
+    }
     gesture.driving = true; root.scrollTop = wanted; gesture.expected = root.scrollTop;
   };
   const end = (event: TouchEvent) => {
@@ -127,13 +139,16 @@ export function bindMobileScrollRecovery(root: HTMLElement) {
       slide(speed);
     }); });
   };
+  // 스크롤 이벤트가 오면 네이티브 스크롤이 살아 있는 것이다. 대신 끄는 동안 우리가 옮긴 것은 빼고 본다.
+  const scrolled = () => { if (gesture && !gesture.driving && Math.abs(root.scrollTop - gesture.top) > 2) gesture.native = true; };
+  root.addEventListener('scroll', scrolled, { passive: true });
   root.addEventListener('touchstart', start, { passive: true });
   root.addEventListener('touchmove', move, { passive: true });
   root.addEventListener('touchend', end, { passive: true });
   root.addEventListener('touchcancel', cancel, { passive: true });
   return () => {
     cancel(); stopGlide(); restore?.();
-    root.removeEventListener('touchstart', start); root.removeEventListener('touchmove', move); root.removeEventListener('touchend', end); root.removeEventListener('touchcancel', cancel);
+    root.removeEventListener('scroll', scrolled); root.removeEventListener('touchstart', start); root.removeEventListener('touchmove', move); root.removeEventListener('touchend', end); root.removeEventListener('touchcancel', cancel);
   };
 }
 
