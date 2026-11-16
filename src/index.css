@@ -50,6 +50,11 @@ html.dark .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-va
 .feedex-filter-count { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; background: #94a3b81a; color: var(--feedex-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .feedex-filter-chip:is([data-active], [aria-pressed="true"]) .feedex-filter-count { background: #10b98122; color: #059669; }
 .feedex-block-bar .feedex-filter-manage { margin-left: auto; padding-inline: 8px; border-color: transparent; font-weight: 400; }
+.feedex-block-chip { position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.feedex-block-chip[data-pressing] { transform: scale(0.95); transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.feedex-block-chip .feedex-longpress-bar { position: absolute; inset: auto 0 0; height: 2px; background: #059669; transform: scaleX(0); transform-origin: left center; transition: transform 0s; pointer-events: none; }
+html.dark .feedex-block-chip .feedex-longpress-bar { background: #34d399; }
+.feedex-block-chip[data-pressing] .feedex-longpress-bar { transform: scaleX(1); transition: transform 0.5s linear; }
 .feedex-block-empty button { color: #059669; cursor: pointer; font-weight: 600; }
 html.dark .feedex-block-bar .feedex-filter-chip:is([data-active], [aria-pressed="true"]), html.dark .feedex-filter-chip:is([data-active], [aria-pressed="true"]) .feedex-filter-count { color: #34d399; }
 .feedex-block-bar button > svg { flex-shrink: 0; }
@@ -470,8 +475,13 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-view > .feedex-web-summary { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
   .feedex-web-view > .feedex-translation-feedback:first-child { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top) + 6px); }
   .feedex-web-view > :is([data-web-loading], .feedex-web-fill) { padding-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
-  .feedex-web-peek { position: absolute; z-index: 61; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; width: 64px; height: 26px; padding: 0; border: 1px solid var(--feedex-mobile-line); border-radius: 13px; background: var(--feedex-mobile-glass); color: var(--feedex-mobile-muted); box-shadow: 0 4px 16px #0002, inset 0 1px 0 #ffffff1a; backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5); cursor: pointer; transition: transform .2s ease, opacity .2s ease; }
-  .feedex-web-peek:active { transform: translateX(-50%) scale(0.95); }
+  .feedex-web-peek { position: absolute; z-index: 61; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; width: 64px; height: 26px; padding: 0; border: 1px solid var(--feedex-mobile-line); border-radius: 13px; background: var(--feedex-mobile-glass); color: var(--feedex-mobile-muted); box-shadow: 0 4px 16px #0002, inset 0 1px 0 #ffffff1a; backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5); cursor: pointer; animation: feedex-peek-in .25s cubic-bezier(0.2, 0.8, 0.2, 1); transition: transform .2s ease, opacity .2s ease; }
+  .feedex-web-peek:active { transform: translateX(-50%) scale(0.94); }
+  @keyframes feedex-peek-in {
+    0% { transform: translateX(-50%) scale(2.4); opacity: 0; }
+    60% { transform: translateX(-50%) scale(0.92); opacity: 1; }
+    100% { transform: translateX(-50%) scale(1); opacity: 1; }
+  }
   .feedex-web-peek-dots { display: flex; align-items: center; justify-content: center; gap: 5px; pointer-events: none; }
   .feedex-web-peek-dots > span { display: block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.65; }
   .feedex-web-pager { display: flex; flex: 1; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
