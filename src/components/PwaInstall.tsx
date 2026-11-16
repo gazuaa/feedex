@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Apple, Chrome, Compass, Copy, Download, Share2, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Apple, Chrome, Compass, Copy, Download, Share, SquarePlus, X } from 'lucide-react';
 import { installAddress, installPlatform, isIOSSafari, openInstallHelp, promptInstall, useInstallState } from '../client/pwa';
 import { inNativeApp } from '../client/nativeApp';
 import { launchDesktopApp, useKnownDesktopApp, type DesktopApp } from '../client/desktopApp';
@@ -20,9 +20,10 @@ function useInstallPrompt() {
   return {
     visible: state !== 'installed' && !hidden,
     nativePrompt,
-    title: ios ? '홈 화면에서 feedex 열기' : 'feedex를 앱으로 사용하세요',
-    text: ios ? 'Safari에서 홈 화면에 추가할 수 있어요.' : '홈 화면에서 바로 열고 편하게 읽으세요.',
-    action: needsSafari ? 'Safari로 열기' : nativePrompt ? '설치' : '설치 안내',
+    // MUUSED와 같은 문구. 사파리에서는 방법을 보여 주고, 설치가 안 되는 다른 아이폰 브라우저에서는 사파리로 넘겨 준다.
+    title: needsSafari ? '사파리로 열면 설치할 수 있어요' : ios ? '홈 화면에 앱 설치하기' : 'feedex를 앱으로 사용하세요',
+    text: needsSafari ? '누르면 주소를 복사하고 사파리를 열어요' : ios ? '' : '홈 화면에서 바로 열고 편하게 읽으세요.',
+    action: needsSafari ? '사파리로' : nativePrompt ? '설치' : ios ? '방법 보기' : '설치 안내',
     act: async () => { if (ios || !(await promptInstall())) openInstallHelp(); },
     dismiss: () => { setHidden(true); try { localStorage.setItem(SNOOZE_KEY, String(Date.now())); } catch {} },
   };
@@ -31,7 +32,7 @@ function useInstallPrompt() {
 function InstallPromptContent({ prompt }: { prompt: ReturnType<typeof useInstallPrompt> }) {
   return <>
     <img src="/icons/icon-192.png" alt="" width="40" height="40" />
-    <div className="min-w-0 flex-1"><strong className="block text-sm">{prompt.title}</strong><p className="text-xs text-slate-400 mt-1">{prompt.text}</p></div>
+    <div className="min-w-0 flex-1"><strong className="block text-sm">{prompt.title}</strong>{prompt.text && <p className="text-xs text-slate-400 mt-1">{prompt.text}</p>}</div>
     <button type="button" onClick={() => { void prompt.act(); }} className="shrink-0 min-h-[40px] bg-emerald-500 text-slate-950 rounded-xl px-3 py-2 text-xs font-bold cursor-pointer">{prompt.action}</button>
     <button type="button" aria-label="설치 안내 하루 동안 숨기기" onClick={prompt.dismiss} className="shrink-0 -mr-2 flex h-10 w-10 items-center justify-center text-slate-400 cursor-pointer"><X size={16} /></button>
   </>;
@@ -69,7 +70,7 @@ export const windowsAppOffered = (userAgent?: string, touchPoints?: number) => d
  */
 export function installEntry(state: ReturnType<typeof useInstallState>, target: ReturnType<typeof platform>, desktop: DesktopApp | null, iosSafari: boolean): string | null {
   if (state === 'installed') return desktop ? `${DESKTOP_APP_NAME[desktop]} 받기` : null;
-  return target === 'ios' ? iosSafari ? '홈 화면 추가 안내' : 'Safari로 열기' : '앱 설치';
+  return target === 'ios' ? iosSafari ? '홈 화면 추가 안내' : '사파리로 열기' : '앱 설치';
 }
 
 /** 앱이 열리지 않으면 설치 안내 창을 열고, 앱이 없는 것 같다고 알린다. */
@@ -157,6 +158,28 @@ function BrowserAppOption({ target, nativePrompt, onInstall }: { target: ReturnT
   </section>;
 }
 
+/**
+ * 아이폰 설치 안내. MUUSED와 같은 방식이다. 단계는 손이 할 일만 남기고 화면의 아이콘 모양을 같이 그려
+ * 눈으로 찾게 한다. 예외는 아래 한 줄로 뺀다. 이미 사파리라면 주소를 다시 열라고 하지 않는다.
+ * 다른 아이폰 브라우저는 사파리로 넘겨 주고, 넘어가지 못했을 때만 주소 칸을 보여 준다.
+ */
+function IOSInstallSteps({ needsSafari, address, addressInput, copyStatus, onCopy }: { needsSafari: boolean; address: string; addressInput: RefObject<HTMLInputElement | null>; copyStatus: string; onCopy: () => void }) {
+  const share = <Share size={15} aria-label="공유" className="inline-block align-[-2px] mx-0.5" />;
+  const addHome = <SquarePlus size={15} aria-label="홈 화면에 추가" className="inline-block align-[-2px] mx-0.5" />;
+  const steps = needsSafari
+    ? [<>아래 <strong>사파리로 열기</strong></>, <>사파리에서 공유 {share} → {addHome} <strong>홈 화면에 추가</strong></>, <>홈 화면의 <strong>feedex</strong> 열기</>]
+    : [<>아래 공유 단추 {share}</>, <>내려서 {addHome} <strong>홈 화면에 추가</strong></>, <><strong>추가</strong> 누르고 홈 화면의 <strong>feedex</strong> 열기</>];
+  return <>
+    <p className="text-sm font-bold leading-6 mb-3">아이폰은 홈 화면에 추가하면 앱처럼 열려요</p>
+    <ol className="space-y-2.5 text-sm leading-6">{steps.map((step, index) => <li key={index}>{index + 1}. {step}</li>)}</ol>
+    <p className="mt-4 text-xs leading-5 text-slate-400">{needsSafari
+      ? '누르면 주소를 복사해 두니, 사파리가 열리지 않으면 주소창에 붙여넣으세요.'
+      : <>'홈 화면에 추가'가 안 보이면 목록 맨 아래 <strong>동작 편집</strong>에서 켜세요. 주소창을 위에 두셨다면 공유 단추도 오른쪽 위에 있어요.</>} 홈 화면 앱에서는 로그인이 한 번 더 필요할 수 있어요.</p>
+    {needsSafari && <button type="button" onClick={openInstallHelp} className="mt-4 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-slate-950">사파리로 열기</button>}
+    {needsSafari && copyStatus && <div className="feedex-install-address mt-4"><label htmlFor="feedex-install-address">사파리에 붙여넣을 주소</label><div><input id="feedex-install-address" ref={addressInput} readOnly value={address} onFocus={(event) => event.target.select()} /><button type="button" onClick={onCopy}><Copy size={16} />주소 복사</button></div><p role="status">{copyStatus}</p></div>}
+  </>;
+}
+
 export function PwaInstall() {
   const state = useInstallState();
   const target = platform();
@@ -176,30 +199,24 @@ export function PwaInstall() {
   const closeButton = useRef<HTMLButtonElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
   const address = typeof window !== 'undefined' && window.location ? installAddress(window.location.href) : '';
-  useEffect(() => { const show = (event: Event) => { const status = (event as CustomEvent<{ safariFailed?: boolean; copied?: boolean; missingApp?: DesktopApp }>).detail; setMissing(status?.missingApp ?? null); setCopyStatus(status?.safariFailed ? status.copied ? '주소를 복사했습니다. Safari를 열어 주소창에 붙여넣어 주세요.' : 'Safari가 열리지 않으면 아래 주소를 복사해 Safari에서 열어 주세요.' : ''); setOpen(true); }; window.addEventListener('sfeed:install', show); return () => window.removeEventListener('sfeed:install', show); }, []);
+  useEffect(() => { const show = (event: Event) => { const status = (event as CustomEvent<{ safariFailed?: boolean; copied?: boolean; missingApp?: DesktopApp }>).detail; setMissing(status?.missingApp ?? null); setCopyStatus(status?.safariFailed ? status.copied ? '주소를 복사했어요 · 사파리에 붙여넣으세요' : '주소를 복사해 사파리에서 열어 주세요' : ''); setOpen(true); }; window.addEventListener('sfeed:install', show); return () => window.removeEventListener('sfeed:install', show); }, []);
   useEffect(() => { if (open) { dialog.current?.showModal(); closeButton.current?.focus(); } else dialog.current?.close(); }, [open]);
   useEffect(() => { if (state === 'installed' && !desktop) setOpen(false); }, [state, desktop]);
   const copyAddress = async () => {
-    try { await navigator.clipboard.writeText(address); setCopyStatus('주소를 복사했습니다. Safari 주소창에 붙여넣어 주세요.'); }
-    catch { addressInput.current?.focus(); addressInput.current?.select(); setCopyStatus('아래 주소를 길게 눌러 복사한 뒤 Safari에서 열어 주세요.'); }
+    try { await navigator.clipboard.writeText(address); setCopyStatus('주소를 복사했어요 · 사파리에 붙여넣으세요'); }
+    catch { addressInput.current?.focus(); addressInput.current?.select(); setCopyStatus('주소를 길게 눌러 복사한 뒤 사파리에서 열어 주세요'); }
   };
   return <>
     <dialog ref={dialog} aria-labelledby="install-title" className="feedex-install-dialog" onCancel={() => setOpen(false)} onClose={() => setOpen(false)} onClick={(event) => { if (event.target === dialog.current) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) setOpen(false); } }}>
-      <div className="flex items-center gap-3 mb-5"><img src="/icons/icon-192.png" alt="" width="44" height="44" /><h2 id="install-title" className="text-xl font-bold">{ios ? '홈 화면에 추가' : browserSteps || !desktop ? 'feedex 앱 설치' : `${DESKTOP_APP_NAME[desktop]} 받기`}</h2></div>
+      <div className="flex items-center gap-3 mb-5"><img src="/icons/icon-192.png" alt="" width="44" height="44" /><h2 id="install-title" className="text-xl font-bold">{ios ? '홈 화면에 추가하는 법' : browserSteps || !desktop ? 'feedex 앱 설치' : `${DESKTOP_APP_NAME[desktop]} 받기`}</h2></div>
       {missing && <p role="status" className="feedex-install-notice">{DESKTOP_APP_NAME[missing]}이 열리지 않았어요. 아직 설치하지 않았다면 아래에서 받아 설치해 주세요.</p>}
       {desktop === 'mac' && <MacAppOption known={known} onMissing={() => setMissing('mac')} />}
       {desktop === 'windows' && <WindowsAppOption known={known} onMissing={() => setMissing('windows')} />}
       {browserSteps && !mobile && <div className={desktop ? 'mt-3' : ''}><BrowserAppOption target={target} nativePrompt={prompt.nativePrompt} onInstall={() => { void prompt.act(); }} /></div>}
-      {browserSteps && mobile && <>
-      <p className="text-sm text-slate-400 leading-6 mb-5">{ios ? needsSafari ? 'Safari로 열기를 누르면 설치할 수 있는 브라우저로 이동합니다. 이동되지 않으면 아래 주소를 복사해 Safari에서 열어 주세요.' : 'Safari의 공유 메뉴에서 홈 화면에 추가할 수 있어요.' : '홈 화면에서 브라우저 주소창 없이 feedex를 열 수 있어요.'}</p>
-      {needsSafari && <button type="button" onClick={openInstallHelp} className="mb-4 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-slate-950">Safari로 열기</button>}
-      {ios && <div className="feedex-install-address"><label htmlFor="feedex-install-address">Safari에서 열 주소</label><div><input id="feedex-install-address" ref={addressInput} readOnly value={address} onFocus={(event) => event.target.select()} /><button type="button" onClick={() => { void copyAddress(); }}><Copy size={16} />주소 복사</button></div>{copyStatus && <p role="status">{copyStatus}</p>}</div>}
-      <ol className="list-decimal pl-5 space-y-3 text-sm leading-6">
-        {ios ? <><li>Safari에서 <strong>feedex 주소</strong>를 여세요.</li><li><Share2 size={16} className="inline-block align-text-bottom mr-1" /><strong>공유 → 홈 화면에 추가</strong>를 선택하세요. 공유 버튼이 없으면 주소창의 페이지 메뉴(⋯)를 먼저 누르세요.</li><li><strong>웹 앱으로 열기</strong>가 보이면 켠 뒤 <strong>추가</strong>를 누르세요.</li><li>홈 화면의 <strong>feedex 아이콘</strong>을 눌러 실행하세요.</li></> : <><li>브라우저 메뉴 <strong>⋮</strong>를 누르세요.</li><li><strong>앱 설치</strong> 또는 <strong>홈 화면에 추가</strong>를 선택하세요.</li><li>설치 버튼이 보이면 눌러 완료하세요.</li></>}
-      </ol>
-      {ios && <p className="mt-4 text-xs leading-5 text-slate-400">홈 화면에 추가가 없으면 공유 목록 아래의 <strong>동작 편집</strong>에서 추가하세요. <a href="https://support.apple.com/ko-kr/guide/iphone/iphea86e5236/ios" target="_blank" rel="noopener noreferrer" className="text-emerald-500 underline">Apple 설치 안내</a></p>}
-      {ios && <p className="mt-5 text-xs text-slate-400 leading-5">홈 화면 앱에서는 Google 로그인이 다시 필요할 수 있어요. 같은 계정으로 로그인하면 구독과 읽음 상태가 이어집니다.</p>}
-      </>}
+      {browserSteps && mobile && (ios ? <IOSInstallSteps needsSafari={needsSafari} address={address} addressInput={addressInput} copyStatus={copyStatus} onCopy={() => { void copyAddress(); }} /> : <>
+      <p className="text-sm text-slate-400 leading-6 mb-5">홈 화면에서 브라우저 주소창 없이 feedex를 열 수 있어요.</p>
+      <ol className="list-decimal pl-5 space-y-3 text-sm leading-6"><li>브라우저 메뉴 <strong>⋮</strong>를 누르세요.</li><li><strong>앱 설치</strong> 또는 <strong>홈 화면에 추가</strong>를 선택하세요.</li><li>설치 버튼이 보이면 눌러 완료하세요.</li></ol>
+      </>)}
       <div className="flex justify-end gap-2 mt-6">{mobile && prompt.nativePrompt && <button type="button" onClick={() => { void prompt.act(); }} className="rounded-xl border border-emerald-500 text-emerald-400 px-5 py-2.5 text-sm font-bold cursor-pointer">지금 설치</button>}<button ref={closeButton} type="button" onClick={() => setOpen(false)} className="rounded-xl bg-emerald-500 text-slate-950 px-5 py-2.5 text-sm font-bold cursor-pointer">닫기</button></div>
     </dialog>
   </>;

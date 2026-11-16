@@ -167,17 +167,24 @@ try {
   try {
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/144 Mobile/15E148 Safari/604.1' });
     const iosHelp = renderToStaticMarkup(createElement(PwaInstall));
-    assert.match(iosHelp, /홈 화면에 추가/);
-    assert.match(iosHelp, /웹 앱으로 열기/);
-    assert.match(iosHelp, /주소 복사/);
-    assert.match(iosHelp, /Safari에서 열 주소/);
+    assert.match(iosHelp, /홈 화면에 추가하는 법/);
+    assert.match(iosHelp, /사파리로 열기/, 'other iPhone browsers are handed to Safari');
+    assert.ok(!iosHelp.includes('주소 복사'), 'the address box only appears when the Safari hand-off did not leave the page');
     assert.ok(!iosHelp.includes('지금 설치'), 'iOS must show manual steps instead of a nonexistent native install prompt');
     assert.ok(!iosHelp.includes('이 브라우저에는'), 'modern iOS browsers must not be incorrectly told they cannot install');
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 Brave/1.86 Mobile/15E148 Safari/604.1' });
     const braveHelp = renderToStaticMarkup(createElement(PwaInstall));
-    assert.match(braveHelp, /Safari로 열기/);
-    assert.match(braveHelp, /Safari에서 열어 주세요/);
-    assert.match(renderToStaticMarkup(createElement(InstallAppButton)), /Safari로 열기/);
+    assert.match(braveHelp, /사파리로 열기/);
+    assert.match(braveHelp, /사파리에서 공유/);
+    assert.match(renderToStaticMarkup(createElement(InstallAppButton)), /사파리로 열기/);
+    // 이미 사파리라면 주소를 다시 열라고 하지 않고, 공유 단추부터 손이 할 일만 짧게 보여 준다(MUUSED와 같은 안내).
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 Version/26.0 Mobile/15E148 Safari/604.1' });
+    Object.defineProperty(navigator, 'standalone', { configurable: true, value: false });
+    const safariHelp = renderToStaticMarkup(createElement(PwaInstall));
+    assert.match(safariHelp, /아래 공유 단추/); assert.match(safariHelp, /내려서 .*홈 화면에 추가/); assert.match(safariHelp, /동작 편집/);
+    assert.ok(!/주소 복사|사파리로 열기|Safari에서 .*주소/.test(safariHelp), 'Safari is not told to open or copy its own address');
+    assert.ok(!/lucide-share-2/.test(safariHelp) && /lucide-share/.test(safariHelp), 'the step shows the iPhone share glyph, not the Android one');
+    delete navigator.standalone;
     assert.ok(!braveHelp.includes('Chrome·Edge의 주소창'), 'iOS Brave must not get desktop install instructions');
   } finally { if (previousAgent) Object.defineProperty(navigator, 'userAgent', previousAgent); else delete navigator.userAgent; }
   // 열어 둔 탭·홈 화면 앱은 다시 나타날 때 새 배포를 확인하고, 읽던 자리를 남긴 뒤 새로 고친다.
