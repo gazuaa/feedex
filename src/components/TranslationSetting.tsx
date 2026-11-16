@@ -53,15 +53,15 @@ export function TranslationSetting({ initial }: { initial?: TranslationConfig })
     finally { setBusy(false); }
   };
   const choose = (provider: 'deepl' | 'workers-ai') => run(() => apiRequest<TranslationConfig>('/api/translation/provider', { method: 'PUT', body: JSON.stringify({ provider }) }), provider === 'deepl' ? 'DeepL로 번역해요.' : 'Workers AI로 번역해요. 키는 그대로 저장돼 있어요.');
-  // 사용량은 키가 저장돼 있으면 보인다. 키가 막히면 Workers AI로 넘어간다는 설명은 마우스를 올렸을 때만 보인다.
+  // 사용량은 DeepL일 때 보인다. 키가 막히면 Workers AI로 넘어간다는 설명은 마우스를 올렸을 때만 보인다.
   const usage = keySaved ? config.problem ?? (config.usage ? `이번 달 ${count(config.usage.used)} / ${count(config.usage.limit)}자 사용` : '') : '';
-  const removable = keySaved && !config.managed;
+  const removable = deepl && keySaved && !config.managed;
   const hint = !keySaved ? 'DeepL API 키를 넣으면 DeepL로 번역해요'
     : config.managed ? 'DeepL API 키는 서버에서 관리 중이에요. 한도를 넘으면 Workers AI로 번역해요.'
     : 'DeepL 키가 저장돼 있어요. 한도를 넘거나 키가 막히면 Workers AI로 번역해요.';
   return <div className="feedex-translation-setting">
     <div className="feedex-auto-refresh-setting" title={hint}>
-      <SettingLabel icon={Languages}>번역{usage && <small>{usage}</small>}</SettingLabel>
+      <SettingLabel icon={Languages}>번역{deepl && usage && <small>{usage}</small>}</SettingLabel>
       <div className="feedex-cache-controls">
         {/* 키는 저장해 둔 채 서비스만 바꾼다. 키가 없을 때 DeepL을 고르면 키 입력칸으로 간다. */}
         <select aria-label="번역 서비스" value={deepl ? 'deepl' : 'workers-ai'} disabled={busy} onChange={(event) => {

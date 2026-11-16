@@ -17,7 +17,6 @@ import {
   Rss,
   ChevronDown,
   MoreHorizontal,
-  ChevronUp,
   Share2,
   Mail,
   MessageSquare,
@@ -1476,7 +1475,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>
         </div>
         )}
-        {framed && barsHidden && <button type="button" className="feedex-web-peek lg:hidden" aria-label="메뉴 보이기" onClick={() => setPeek(1)}><ChevronUp size={22} /></button>}
+        {framed && barsHidden && <button type="button" className="feedex-web-peek lg:hidden" aria-label="메뉴 보이기" onClick={() => setPeek(1)}><span className="feedex-web-peek-dots" aria-hidden="true"><span /><span /><span /><span /></span></button>}
         <nav aria-label="본문 조작" className="feedex-mobile-dock feedex-mobile-reader-dock lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
           <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
           <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>

@@ -1,4 +1,4 @@
-import { Eye, EyeOff, ListFilter, SlidersHorizontal } from 'lucide-react';
+import { Eye, EyeOff, Filter, ShieldBan } from 'lucide-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   apiRequest,
@@ -1754,13 +1754,13 @@ export const App: React.FC = () => {
       >
         {(filterAllFeeds || articleBlocks.some((rule) => rule.enabled)) && <div className="feedex-block-bar" role="group" aria-label="글 필터">
           {filterAllFeeds && <button type="button" className="feedex-filter-chip" data-active={excludedSubscriptionCount > 0 || undefined} onClick={() => setFeedExclusionsOpen(true)}>
-            <ListFilter size={15} aria-hidden="true" /><span>피드 제외</span>{excludedSubscriptionCount > 0 && <span className="feedex-filter-count" aria-label={`${excludedSubscriptionCount}개`}>{excludedSubscriptionCount}</span>}
+            <Filter size={15} aria-hidden="true" /><span>피드 제외</span>{excludedSubscriptionCount > 0 && <span className="feedex-filter-count" aria-label={`${excludedSubscriptionCount}개`}>{excludedSubscriptionCount}</span>}
           </button>}
           {articleBlocks.some(rule => rule.enabled) && <>
             <button type="button" className="feedex-filter-chip" aria-pressed={showBlockedArticles} onClick={() => setShowBlockedArticles(value => !value)}>
               {showBlockedArticles ? <EyeOff size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}<span>{showBlockedArticles ? '숨긴 글 숨기기' : '숨긴 글 보기'}</span><span className="feedex-filter-count" aria-label={`${blockedArticles.length}개`}>{blockedArticles.length}</span>
             </button>
-            <button type="button" className="feedex-filter-manage" aria-label="규칙 관리" title="규칙 관리" onClick={onManageArticleBlocks}><SlidersHorizontal size={14} aria-hidden="true" /><span>규칙 관리</span></button>
+            <button type="button" className="feedex-filter-manage" aria-label="기사 차단 규칙 관리" title="기사 차단 규칙 관리" onClick={onManageArticleBlocks}><ShieldBan size={15} aria-hidden="true" /><span>규칙 관리</span></button>
           </>}
         </div>}
         {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>표시할 글이 없습니다.</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>제외한 피드 변경</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap && !(hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3)) ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>숨긴 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>숨긴 글 보기 ({blockedArticles.length}개)</button></div> : (

@@ -351,8 +351,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   /* 열려 있지 않으면 닫혀 있다. 단, 목록으로 밀어서 돌아가는 동안에는 목록 아래에 드러난다. */
   .feedex-mobile-library-host:not([data-open]) { display: none; }
   html[data-sfeed-swipe="library"] .feedex-mobile-library-host { display: block; }
-  /* 목록에서 보관함으로 스와이프하는 동안에는 목록 하단바만 제자리에 남기고, 보관함 하단바는 숨겨 2개가 되지 않게 한다. */
-  html[data-sfeed-swipe="library"] .feedex-mobile-library .feedex-mobile-dock { display: none; }
+  /* 피드 목록에서 보관함으로 스와이프할 때 하단바를 숨겨 화면을 가리지 않게 한다. */
+  html[data-sfeed-swipe="library"] .feedex-mobile-dock { opacity: 0; visibility: hidden; pointer-events: none; }
   .feedex-mobile-library { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; height: auto; min-height: 0; background: var(--feedex-background); color: var(--feedex-text); }
   .feedex-mobile-library > .feedex-mobile-header { position: absolute; inset: 0 0 auto; }
   .feedex-mobile-library-scroll { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: calc(var(--feedex-mobile-header-height) + 4px) 14px calc(80px + env(safe-area-inset-bottom)); }
@@ -470,7 +470,10 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-view > .feedex-web-summary { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
   .feedex-web-view > .feedex-translation-feedback:first-child { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top) + 6px); }
   .feedex-web-view > :is([data-web-loading], .feedex-web-fill) { padding-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
-  .feedex-web-peek { position: absolute; z-index: 61; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--feedex-mobile-line); border-radius: 50%; background: var(--feedex-mobile-glass); color: var(--feedex-text); box-shadow: 0 4px 16px #0002; backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5); cursor: pointer; }
+  .feedex-web-peek { position: absolute; z-index: 61; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; width: 64px; height: 26px; padding: 0; border: 1px solid var(--feedex-mobile-line); border-radius: 13px; background: var(--feedex-mobile-glass); color: var(--feedex-mobile-muted); box-shadow: 0 4px 16px #0002, inset 0 1px 0 #ffffff1a; backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5); cursor: pointer; transition: transform .2s ease, opacity .2s ease; }
+  .feedex-web-peek:active { transform: translateX(-50%) scale(0.95); }
+  .feedex-web-peek-dots { display: flex; align-items: center; justify-content: center; gap: 5px; pointer-events: none; }
+  .feedex-web-peek-dots > span { display: block; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.65; }
   .feedex-web-pager { display: flex; flex: 1; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
   .feedex-web-pager::-webkit-scrollbar { display: none; }
   .feedex-web-pager > * { flex: 0 0 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
