@@ -361,8 +361,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   /* 열려 있지 않으면 닫혀 있다. 단, 목록으로 밀어서 돌아가는 동안에는 목록 아래에 드러난다. */
   .feedex-mobile-library-host:not([data-open]) { display: none; }
   html[data-sfeed-swipe="library"] .feedex-mobile-library-host { display: block; }
-  /* 피드 목록에서 보관함으로 스와이프할 때 하단바를 즉시 숨겨 잔상이 남지 않게 한다. */
-  html[data-sfeed-swipe="library"] .feedex-mobile-dock { display: none !important; }
+  /* 화면을 스와이프할 때 하단바를 즉시 숨겨 잔상이 남지 않게 한다. */
+  html[data-sfeed-swipe] .feedex-mobile-dock { display: none !important; }
   .feedex-mobile-library { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; height: auto; min-height: 0; background: var(--feedex-background); color: var(--feedex-text); }
   .feedex-mobile-library > .feedex-mobile-header { position: absolute; inset: 0 0 auto; }
   .feedex-mobile-library-scroll { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: calc(var(--feedex-mobile-header-height) + 4px) 14px calc(80px + env(safe-area-inset-bottom)); }
@@ -518,7 +518,26 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
     background: currentColor;
     opacity: 0.65;
   }
+  .feedex-dock-peek-btn {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    border-radius: inherit;
+    z-index: 2;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
   .feedex-mobile-reader-dock[data-collapsed] {
+    z-index: 70;
     width: 64px;
     height: 28px;
     min-height: 28px;
@@ -550,7 +569,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
    * 사이트는 자리를 지킨다. 사본은 위·아래 여백을 문서 안에 넣고(ArticleDrawer의 sfeedInset),
    * 원본 사이트는 안전 영역 아래에서 시작해 막대가 그 위를 덮는다.
    */
-  .feedex-web-view { --feedex-web-status-height: 28px; position: relative; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  .feedex-web-view { --feedex-web-status-height: 28px; position: relative; padding-top: env(safe-area-inset-top); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
   .feedex-web-status { position: absolute; z-index: 3; left: 0; right: 0; top: var(--feedex-reader-top-height, 58px); box-sizing: border-box; height: var(--feedex-web-status-height); background: var(--feedex-mobile-surface); transition: transform .2s ease; }
   .feedex-web-status > div { min-height: 27px; }
   .feedex-web-status > div > div > * { padding-block: 4px; }
@@ -560,10 +579,12 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-view > .feedex-translation-feedback:first-child { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top) + 6px); }
   .feedex-web-view > :is([data-web-loading], .feedex-web-fill) { padding-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
 
-  .feedex-web-pager { display: flex; flex: 1; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .feedex-web-pager { position: relative; display: flex; flex: 1; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
   .feedex-web-pager::-webkit-scrollbar { display: none; }
   .feedex-web-pager > * { flex: 0 0 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
   .feedex-web-pager-back { pointer-events: none; }
+  /* 오른쪽으로 슬라이드/바운스할 때 뒤의 목록이 비치지 않게 오른쪽 바깥을 불투명 배경으로 채운다 */
+  .feedex-web-pager::after { content: ''; position: absolute; inset: 0 auto 0 100%; width: 100vw; background: var(--feedex-mobile-surface); pointer-events: none; }
   .feedex-web-frame[data-wide-frame] { overflow-x: auto; overscroll-behavior-x: contain; }
   /* 프레임의 스크롤은 iOS가 먼저 그린다. 비어 있는 왼쪽 페이지 뒤로 목록이 바로 보이게 한다. */
   .feedex-article-reader:has(.feedex-web-pager), .feedex-reader:has(.feedex-web-pager) { background: transparent; }
@@ -573,7 +594,7 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-linked-post-header { background: var(--feedex-mobile-surface); }
   .feedex-web-pager > :not(.feedex-web-pager-back) { background: var(--feedex-mobile-surface); }
   .feedex-web-view:has(.feedex-web-pager)::after { content: ''; position: absolute; inset: auto 0 0; height: env(safe-area-inset-bottom); background: var(--feedex-mobile-surface); pointer-events: none; }
-  .feedex-article-reader:has(.feedex-web-pager[data-sliding]):not(:has(.feedex-linked-post-header)) :is(.feedex-web-peek, .feedex-web-status, .feedex-mobile-reader-top, .feedex-mobile-reader-dock) { visibility: hidden; transition: none; }
+  .feedex-article-reader:has(.feedex-web-pager[data-sliding]):not(:has(.feedex-linked-post-header)) :is(.feedex-web-status, .feedex-mobile-reader-top, .feedex-mobile-reader-dock) { display: none !important; }
   .feedex-mobile-settings-panel > button { min-height: 44px; }
 }
 

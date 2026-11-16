@@ -83,7 +83,7 @@ export function fixedLayoutFit(layoutWidth: number | undefined, paneWidth: numbe
 /** 휴대폰 웹 보기 위쪽의 상태 줄 높이. index.css의 --feedex-web-status-height와 같아야 한다. */
 const WEB_STATUS_HEIGHT = 28;
 /** 휴대폰 하단 막대가 사이트 아래쪽을 가리는 높이. 사본은 이만큼 끝에 여백을 둔다. */
-const WEB_DOCK_SPACE = 64;
+const WEB_DOCK_SPACE = 110;
 /** 원문에서 넓은 표의 끝 열까지 배치할 수 있도록 확보하는 최소 폭. */
 const ORIGINAL_TABLE_WIDTH = 600;
 /** 프레임 안 사이트 위로 꺼낸 막대가 다시 접히기 전까지 머무는 시간. */
@@ -1480,20 +1480,33 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           role={barsHidden ? 'button' : 'navigation'}
           className="feedex-mobile-dock feedex-mobile-reader-dock lg:hidden"
           data-collapsed={barsHidden || undefined}
-          onClick={(e) => {
-            if (barsHidden) {
-              e.preventDefault();
-              e.stopPropagation();
-              try { navigator.vibrate?.(10); } catch {}
-              setPeek(1);
-            }
-          }}
-          onPointerDown={keepPeeking}
+          onPointerDown={barsHidden ? undefined : keepPeeking}
         >
-          <span className="feedex-dock-peek-dots" aria-hidden="true">
-            <span /><span /><span /><span />
-          </span>
-          <div className="feedex-dock-actions" inert={barsHidden || undefined} aria-hidden={barsHidden || undefined}>
+          {barsHidden ? (
+            <button
+              type="button"
+              className="feedex-dock-peek-btn"
+              aria-label="메뉴 보이기"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                try { navigator.vibrate?.(10); } catch {}
+                setPeek(1);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPeek(1);
+              }}
+            >
+              <span className="feedex-dock-peek-dots" aria-hidden="true">
+                <span /><span /><span /><span />
+              </span>
+            </button>
+          ) : (
+            <span className="feedex-dock-peek-dots" aria-hidden="true">
+              <span /><span /><span /><span />
+            </span>
+          )}
+          <div className="feedex-dock-actions" aria-hidden={barsHidden || undefined}>
             <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
             <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
             <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>

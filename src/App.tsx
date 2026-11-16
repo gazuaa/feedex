@@ -292,6 +292,9 @@ export const App: React.FC = () => {
   const chromeHidden = useScrollChrome(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${searchQuery}`);
   const [textSize] = useTextSize();
   useEffect(() => { document.documentElement.style.setProperty('--feedex-text-scale', String(textSize)); }, [textSize]);
+  const replaceNavigation = useRef(false);
+  const shouldReplaceNav = replaceNavigation.current;
+  replaceNavigation.current = false;
   useMobileNavigation(isMobile && !authChecking ? user?.id ?? null : null, {
     scope: activeScope, folderId: activeFolderId, feedId: activeFeedId,
     search: searchQuery, unread: unreadOnly, saved: savedOnly, articleId: selectedArticleId, library: mobileSidebarOpen,
@@ -306,7 +309,7 @@ export const App: React.FC = () => {
     setSelectedArticleId(location.articleId);
     setMobileSidebarOpen(location.library);
     setDiscoverOpen(false);
-  }, () => articleListRef.current?.scrollTop ?? 0, startedAfterUpdate());
+  }, () => articleListRef.current?.scrollTop ?? 0, startedAfterUpdate(), shouldReplaceNav);
   const closeReader = useCallback(() => {
     setXPostTarget(null);
     setSelectedArticleId(null);
@@ -1472,7 +1475,10 @@ export const App: React.FC = () => {
   const handleNavigateRelative = useCallback(
     (direction: 'prev' | 'next') => {
       const next = articleNeighbors[direction];
-      if (next) handleSelectArticle(next);
+      if (next) {
+        replaceNavigation.current = true;
+        handleSelectArticle(next);
+      }
     },
     [articleNeighbors, handleSelectArticle]
   );

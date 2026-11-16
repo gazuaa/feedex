@@ -47,8 +47,8 @@ function findScene(document: Document, navigation: SwipeNavigation): SwipeScene 
 function present(document: Document, scene: SwipeScene) {
   const width = document.defaultView?.innerWidth || 1;
   const root = document.documentElement;
+  root.dataset.sfeedSwipe = scene.revealLibrary ? 'library' : 'reader';
   if (scene.revealLibrary) {
-    root.dataset.sfeedSwipe = 'library';
     // 보통은 보관함이 목록을 덮는다. 아래에 드러나 있는 동안에는 목록이 위에 남는다.
     scene.top[0].style.zIndex = '41';
   }

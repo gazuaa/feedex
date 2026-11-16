@@ -114,7 +114,14 @@ export class MobileNavigation {
   canGoBack() { return this.current.index > 0 && !this.restoring && !this.readerReturn; }
   /** 목록에서 뒤로 가면 보관함으로 가는지, 목록의 이전 상태로 가는지. */
   backTarget(): 'library' | 'other' { return this.current.library !== null && this.current.library === this.current.index - 1 ? 'library' : 'other'; }
-  back() { if (this.canGoBack()) this.history.go(-1); }
+  back() {
+    if (!this.canGoBack()) return;
+    if (this.current.location.articleId && this.current.list !== null && this.current.list < this.current.index) {
+      this.history.go(this.current.list - this.current.index);
+      return;
+    }
+    this.history.go(-1);
+  }
   canGoForward() { return this.current.index < this.furthest && !this.restoring && !this.readerReturn; }
   forward() { if (this.canGoForward()) this.history.go(1); }
   cancelReaderReturn() {
@@ -140,7 +147,7 @@ export class MobileNavigation {
     pending.timer = setTimeout(() => this.continueReaderReturn(-1), 120);
     this.history.go(delta);
   }
-  record(location: MobileLocation, scroll = 0) {
+  record(location: MobileLocation, scroll = 0, forceReplace = false) {
     this.observed = location;
     this.observedScroll = scroll;
     if (this.readerReturn) return;
@@ -169,7 +176,7 @@ export class MobileNavigation {
     // 아래 막대의 전체·안 읽음·저장 탭을 바꾸는 것도 같은 목록을 거르는 것이라 뒤로 가기 단계를 만들지 않는다.
     // 밀어서 뒤로 가면 이전 탭이 아니라 그 목록을 열기 전 화면(보관함 등)으로 간다.
     const tab = !typing && switchesTab(previous.location, location);
-    const replace = typing || tab;
+    const replace = forceReplace || typing || tab;
     const index = previous.index + (replace ? 0 : 1);
     this.write({ version: 1, account: this.account, index, location,
       list: location.articleId ? previous.location.articleId ? previous.list : previous.index : location.library ? null : index,
@@ -179,9 +186,9 @@ export class MobileNavigation {
   }
 }
 
-export function useMobileNavigation(account: string | null, location: MobileLocation, restore: (location: MobileLocation, scroll: number) => void, getScroll: () => number, startAtTop = false) {
-  const latest = useRef({ location, restore, getScroll, startAtTop });
-  latest.current = { location, restore, getScroll, startAtTop };
+export function useMobileNavigation(account: string | null, location: MobileLocation, restore: (location: MobileLocation, scroll: number) => void, getScroll: () => number, startAtTop = false, replace = false) {
+  const latest = useRef({ location, restore, getScroll, startAtTop, replace });
+  latest.current = { location, restore, getScroll, startAtTop, replace };
   const controller = useRef<MobileNavigation | null>(null);
   useLayoutEffect(() => {
     if (!account) return;
@@ -192,5 +199,5 @@ export function useMobileNavigation(account: string | null, location: MobileLoca
     const unbindSwipe = bindSwipeBack(document, navigation);
     return () => { navigation.cancelReaderReturn(); unbindSwipe(); window.removeEventListener('popstate', pop); controller.current = null; };
   }, [account]);
-  useLayoutEffect(() => { controller.current?.record(location, latest.current.getScroll()); });
+  useLayoutEffect(() => { controller.current?.record(location, latest.current.getScroll(), latest.current.replace); });
 }
