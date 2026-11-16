@@ -53,11 +53,12 @@ function present(document: Document, scene: SwipeScene) {
     scene.top[0].style.zIndex = '41';
   }
   for (const node of [...scene.top, ...scene.under]) { node.style.willChange = 'transform'; node.style.transition = 'none'; }
-  const place = (dx: number, animate: boolean) => {
+  /** `topDx`는 위 화면만 다른 자리에 둘 때 쓴다(원문 웹 보기 참고). 아래 화면은 늘 `dx`를 따른다. */
+  const place = (dx: number, animate: boolean, topDx = dx) => {
     const progress = Math.min(1, Math.max(0, dx / width));
     for (const node of [...scene.top, ...scene.under]) node.style.transition = animate ? `transform ${DURATION}ms ${EASING}` : 'none';
     for (const node of scene.top) {
-      node.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
+      node.style.transform = `translate3d(${Math.max(0, topDx)}px, 0, 0)`;
     }
     for (const node of scene.under) node.style.transform = `translate3d(${-(1 - progress) * PARALLAX * width}px, 0, 0)`;
   };

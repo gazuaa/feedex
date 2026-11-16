@@ -2,6 +2,9 @@ import { COMMIT_SHARE, DURATION, presentReaderSlide } from './swipeBack';
 
 // 프레임이 종료 알림을 놓쳐도 뒤로 가기 위치에서 오래 멈추지 않게 한다.
 const EDGE_IDLE_MS = 650;
+// 손가락을 왼쪽으로 되돌리는 동안 리더 가장자리를 사이트 페이지보다 이만큼 왼쪽에 둔다(scroll 참고).
+// 한 프레임에 손가락이 움직이는 거리보다 넉넉하게 잡는다.
+const READER_LEAD = 64;
 
 /** 웹뷰의 뒤로 가기 스크롤과 사본 안의 터치 종료를 확인한다. */
 // 닫히는 화면이 실제로 사라질 때까지 기다리는 최대 시간. 그 뒤에도 남아 있으면 닫기가 취소된 것으로 보고 제자리로 돌린다.
@@ -13,6 +16,8 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
   if (!view) return () => {};
   let gone = false, settling = false, timer = 0, frame = 0, touches = 0;
   let lastDx = 0, lastAt = 0, velocity = 0;
+  // 손가락을 왼쪽으로 되돌리는 중이라 리더를 READER_LEAD만큼 뒤에 두고 있는지.
+  let trailing = false;
   let touchTarget: EventTarget | null = null;
   const frameTouches = new Set<MessageEventSource>();
   const frames = () => Array.from(pager.querySelectorAll('iframe'), element => element.contentWindow);
@@ -32,6 +37,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
   const photoOpen = () => Boolean(pager.ownerDocument.querySelector('dialog[data-sfeed-photo-viewer][open]'));
   const rest = () => {
     settling = false;
+    trailing = false;
     slide?.clear();
     slide = null;
     pager.style.removeProperty('transform');
@@ -76,15 +82,26 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
     const width = pager.clientWidth || slide.width;
     const commit = dx >= width * COMMIT_SHARE || (velocity > 0.5 && dx >= 48 && now - lastAt <= 220);
     settling = true;
-    pager.style.removeProperty('transform');
-    page?.style.removeProperty('transform');
-    pager.scrollLeft = max();
-    slide.place(commit ? slide.width : 0, true);
-    timer = view.setTimeout(() => {
+    const current = slide;
+    const finish = () => {
       if (gone) return;
-      if (commit) finishLeave();
-      else { rest(); home(); }
-    }, DURATION);
+      pager.style.removeProperty('transform');
+      page?.style.removeProperty('transform');
+      pager.scrollLeft = max();
+      current.place(commit ? current.width : 0, true);
+      timer = view.setTimeout(() => {
+        if (gone) return;
+        if (commit) finishLeave();
+        else { rest(); home(); }
+      }, DURATION);
+    };
+    if (!trailing) { finish(); return; }
+    // 되돌리던 중이라 리더가 READER_LEAD만큼 뒤에 있었다. 그대로 마무리하면 페이지가 리더 자리로 옮겨지며 그만큼 뒤로 튀므로,
+    // 리더와 페이저를 페이지와 같은 자리로 먼저 옮겨 그린 뒤 마무리한다.
+    trailing = false;
+    current.place(dx, false);
+    pager.style.transform = `translate3d(${-dx}px, 0, 0)`;
+    frame = view.requestAnimationFrame(() => { frame = view.requestAnimationFrame(finish); });
   };
   const leave = () => {
     if (gone || settling || photoOpen()) return;
@@ -119,15 +136,24 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
     const dx = Math.max(0, max() - pager.scrollLeft);
     const now = view.performance?.now?.() ?? Date.now();
     if (lastAt && now > lastAt) velocity = (dx - lastDx) / (now - lastAt);
+    // 방향을 바꾸기 전 손가락이 멈추는 순간부터 뒤에 두어 되돌리는 첫 프레임도 깎이지 않게 한다.
+    // 손 떨림 정도의 작은 오른쪽 움직임으로는 되돌리기를 끝난 것으로 보지 않는다.
+    if (dx <= lastDx + 1) trailing = true;
+    else if (dx > lastDx + 4) trailing = false;
     lastDx = dx; lastAt = now;
     if (dx < 1) { cancelLeave(); velocity = 0; rest(); return; }
     pager.dataset.sliding = '';
     // 스냅 자식(page)에 변형을 걸면 WebKit이 변형된 위치를 스냅 지점으로 삼아 끌던 자리에 멈추므로,
     // 페이저 자체를 반대로 옮겨 화면 자리에 고정하고 스냅 지점은 원래 자리에 둔다.
+    // 사이트 페이지는 iOS 스크롤로 바로 움직이지만 리더와 페이저의 변형은 이 이벤트를 받아 한 프레임 늦게 바뀐다.
+    // 손가락을 왼쪽으로 되돌리는 동안 리더를 페이지와 같은 자리에 두면, 늦게 오는 리더 가장자리가 페이지를 깎아 경계가 떨린다.
+    // 그동안에는 리더를 READER_LEAD만큼 뒤에 두어 가장자리가 늘 페이지 왼쪽 바깥(투명한 빈 페이지 위)에 있게 한다.
+    // 오른쪽으로 갈 때는 늦게 오는 가장자리가 페이지보다 왼쪽에 있으므로 원래대로 페이지와 같은 자리에 둔다.
     slide ??= presentReaderSlide(pager.ownerDocument);
     if (slide) {
-      slide.place(dx, false);
-      pager.style.transform = `translate3d(${-dx}px, 0, 0)`;
+      const behind = trailing ? Math.max(0, dx - READER_LEAD) : dx;
+      slide.place(dx, false, behind);
+      pager.style.transform = `translate3d(${-behind}px, 0, 0)`;
     }
     settle();
   };
