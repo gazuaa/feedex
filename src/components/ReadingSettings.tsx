@@ -1,5 +1,6 @@
 import { useRef, type ReactNode } from 'react';
-import { Minus, Plus, Settings2, LayoutList, LayoutGrid, AlignJustify } from 'lucide-react';
+import { Minus, Plus, Settings2, LayoutList, LayoutGrid, AlignJustify, List, RefreshCw, ScrollText, Type, ArrowDownUp, type LucideIcon } from 'lucide-react';
+import { SettingLabel } from './SettingLabel';
 import type { LayoutMode } from '../client/api';
 import { LocalNotificationSetting } from './LocalNotificationSetting';
 import { CacheSettings } from './CacheSettings';
@@ -31,8 +32,8 @@ export function SettingGroup({ title, children }: { title: string; children: Rea
   return <section className="feedex-setting-group" aria-label={title}><p className="feedex-setting-group-title">{title}</p><div className="feedex-setting-items">{children}</div></section>;
 }
 /** 설정 하나: 왼쪽에 이름, 오른쪽에 조절기. */
-export function SettingRow({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="feedex-setting-row"><span>{label}</span>{children}</div>;
+export function SettingRow({ label, icon, children }: { label: string; icon?: LucideIcon; children: ReactNode }) {
+  return <div className="feedex-setting-row"><SettingLabel icon={icon}>{label}</SettingLabel>{children}</div>;
 }
 /** 데스크톱 앱의 전체 화면 크기. 기사 글자 크기와 구별하고 브라우저에서는 표시하지 않는다. */
 export function NativeAppScaleSetting() {
@@ -54,11 +55,11 @@ export function NativeAppUpdateSetting() {
 }
 
 export function TextSizeSetting() {
-  return <SettingRow label="글자 크기"><TextSizeControl /></SettingRow>;
+  return <SettingRow label="글자 크기" icon={Type}><TextSizeControl /></SettingRow>;
 }
 
 export function ScrollReadSetting({ markReadOnScroll, onChangeMarkReadOnScroll }: ScrollReadSettingsProps) {
-  return <label className="feedex-scroll-read-setting" title="위로 지나간 글을 읽음으로 표시해요"><span>스크롤 시 읽음 처리</span><input type="checkbox" role="switch" aria-label="스크롤 시 읽음 처리" checked={markReadOnScroll} onChange={(event) => onChangeMarkReadOnScroll(event.target.checked)} /></label>;
+  return <label className="feedex-scroll-read-setting" title="위로 지나간 글을 읽음으로 표시해요"><SettingLabel icon={ScrollText}>스크롤 시 읽음 처리</SettingLabel><input type="checkbox" role="switch" aria-label="스크롤 시 읽음 처리" checked={markReadOnScroll} onChange={(event) => onChangeMarkReadOnScroll(event.target.checked)} /></label>;
 }
 
 export interface RefreshSettingsProps {
@@ -67,15 +68,15 @@ export interface RefreshSettingsProps {
 }
 export interface LayoutSettingsProps { layout: LayoutMode; onChangeLayout: (layout: LayoutMode) => void }
 export function LayoutSetting({ layout, onChangeLayout }: LayoutSettingsProps) {
-  return <SettingRow label="목록 보기"><div className="feedex-segmented" role="group" aria-label="목록 보기">{([{ id: 'magazine', label: '매거진 뷰', Icon: LayoutList }, { id: 'cards', label: '카드 뷰', Icon: LayoutGrid }, { id: 'list', label: '리스트 뷰', Icon: AlignJustify }] as const).map(({ id, label, Icon }) => <button key={id} type="button" aria-label={label} title={label} aria-pressed={layout === id} onClick={() => onChangeLayout(id)}><Icon size={17} /></button>)}</div></SettingRow>;
+  return <SettingRow label="목록 보기" icon={List}><div className="feedex-segmented" role="group" aria-label="목록 보기">{([{ id: 'magazine', label: '매거진 뷰', Icon: LayoutList }, { id: 'cards', label: '카드 뷰', Icon: LayoutGrid }, { id: 'list', label: '리스트 뷰', Icon: AlignJustify }] as const).map(({ id, label, Icon }) => <button key={id} type="button" aria-label={label} title={label} aria-pressed={layout === id} onClick={() => onChangeLayout(id)}><Icon size={17} /></button>)}</div></SettingRow>;
 }
 export type ArticleSort = 'newest' | 'oldest';
 export interface SortSettingProps { sort: ArticleSort; onChangeSort: (sort: ArticleSort) => void }
 export function SortSetting({ sort, onChangeSort }: SortSettingProps) {
-  return <SettingRow label="정렬"><div className="feedex-segmented" role="group" aria-label="정렬">{([{ id: 'newest', label: '최신순' }, { id: 'oldest', label: '오래된순' }] as const).map(({ id, label }) => <button key={id} type="button" aria-pressed={sort === id} onClick={() => onChangeSort(id)}>{label}</button>)}</div></SettingRow>;
+  return <SettingRow label="정렬" icon={ArrowDownUp}><div className="feedex-segmented" role="group" aria-label="정렬">{([{ id: 'newest', label: '최신순' }, { id: 'oldest', label: '오래된순' }] as const).map(({ id, label }) => <button key={id} type="button" aria-pressed={sort === id} onClick={() => onChangeSort(id)}>{label}</button>)}</div></SettingRow>;
 }
 export function AutoRefreshSetting({ autoRefreshMinutes, onChangeAutoRefreshMinutes }: RefreshSettingsProps) {
-  return <div><label className="feedex-auto-refresh-setting" title="바뀐 내용만 가볍게 확인해요"><span>자동 새로고침</span><select aria-label="자동 새로고침 주기" value={autoRefreshMinutes} onChange={(event) => onChangeAutoRefreshMinutes(Number(event.target.value))}>{AUTO_REFRESH_OPTIONS.map((minutes) => <option key={minutes} value={minutes}>{minutes ? `${minutes}분마다` : '수동'}</option>)}</select></label></div>;
+  return <div><label className="feedex-auto-refresh-setting" title="바뀐 내용만 가볍게 확인해요"><SettingLabel icon={RefreshCw}>자동 새로고침</SettingLabel><select aria-label="자동 새로고침 주기" value={autoRefreshMinutes} onChange={(event) => onChangeAutoRefreshMinutes(Number(event.target.value))}>{AUTO_REFRESH_OPTIONS.map((minutes) => <option key={minutes} value={minutes}>{minutes ? `${minutes}분마다` : '수동'}</option>)}</select></label></div>;
 }
 export interface DesktopSettingsProps extends ScrollReadSettingsProps, RefreshSettingsProps, LayoutSettingsProps { accountId?: string; onManageArticleBlocks?: () => void }
 export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefreshMinutes, layout, onChangeLayout, accountId, onManageArticleBlocks, ...props }: DesktopSettingsProps) {

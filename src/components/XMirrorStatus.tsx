@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiRequest } from '../client/api';
+import { Radio } from 'lucide-react';
+import { SettingLabel } from './SettingLabel';
 
 export type MirrorState = 'ok' | 'limited' | 'failing' | 'stale' | 'unknown';
 export interface MirrorStatus {
@@ -74,7 +76,7 @@ export function XMirrorStatus({ initial, now: fixedNow }: { initial?: MirrorConf
   return <div className="feedex-x-mirrors">
     <span ref={probe} hidden />
     <div className="feedex-auto-refresh-setting" title={alert ? undefined : '미러가 정상이고, 모든 X 계정을 3시간 안에 받았어요.'}>
-      <span>X 수집{summary && <small>{summary}</small>}</span>
+      <SettingLabel icon={Radio}>X 수집{summary && <small>{summary}</small>}</SettingLabel>
       <strong className="feedex-status-pill" data-alert={alert || undefined}>{alert ? '확인 필요' : '정상'}</strong>
     </div>
     <ul className="feedex-x-mirror-list">

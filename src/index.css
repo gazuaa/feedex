@@ -177,6 +177,10 @@ html.dark .feedex-setting-link:not([data-quiet]) { color: #34d399; }
 .feedex-icon-danger { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; min-height: 34px; border-radius: 10px; color: #e11d48; cursor: pointer; }
 .feedex-icon-danger:hover { background: #e11d4814; }
 .feedex-icon-danger:disabled { opacity: .4; cursor: default; }
+/* 설정 이름 왼쪽의 목록별 아이콘 */
+.feedex-setting-label { display: flex; align-items: center; gap: 10px; }
+.feedex-setting-label > svg { flex-shrink: 0; color: var(--feedex-muted); }
+.feedex-setting-label > span { min-width: 0; }
 .feedex-desktop-settings-panel { max-height: calc(100dvh - 96px - env(safe-area-inset-top)); overflow-y: auto; }
 .feedex-text-size-control { display: inline-flex; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--feedex-border); border-radius: 12px; color: var(--feedex-text); }
 .feedex-text-size-control > button { display: flex; align-items: center; justify-content: center; min-width: 34px; min-height: 34px; padding: 4px 8px; border-radius: 9px; cursor: pointer; }
@@ -347,6 +351,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   /* 열려 있지 않으면 닫혀 있다. 단, 목록으로 밀어서 돌아가는 동안에는 목록 아래에 드러난다. */
   .feedex-mobile-library-host:not([data-open]) { display: none; }
   html[data-sfeed-swipe="library"] .feedex-mobile-library-host { display: block; }
+  /* 목록에서 보관함으로 스와이프하는 동안에는 목록 하단바만 제자리에 남기고, 보관함 하단바는 숨겨 2개가 되지 않게 한다. */
+  html[data-sfeed-swipe="library"] .feedex-mobile-library .feedex-mobile-dock { display: none; }
   .feedex-mobile-library { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; height: auto; min-height: 0; background: var(--feedex-background); color: var(--feedex-text); }
   .feedex-mobile-library > .feedex-mobile-header { position: absolute; inset: 0 0 auto; }
   .feedex-mobile-library-scroll { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: calc(var(--feedex-mobile-header-height) + 4px) 14px calc(80px + env(safe-area-inset-bottom)); }
@@ -473,9 +479,12 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   /* 프레임의 스크롤은 iOS가 먼저 그린다. 비어 있는 왼쪽 페이지 뒤로 목록이 바로 보이게 한다. */
   .feedex-article-reader:has(.feedex-web-pager), .feedex-reader:has(.feedex-web-pager) { background: transparent; }
   .feedex-article-reader:has(.feedex-web-pager) > .backdrop-blur-xs { display: none; }
+  /* X 글은 전용 리더 화면이므로 투명하게 뒤가 비치지 않게 불투명한 배경을 채운다. */
+  .feedex-article-reader:has(.feedex-linked-post-header) { background: var(--feedex-mobile-surface) !important; }
+  .feedex-linked-post-header { background: var(--feedex-mobile-surface); }
   .feedex-web-pager > :not(.feedex-web-pager-back) { background: var(--feedex-mobile-surface); }
-  .feedex-web-view:has(.feedex-web-pager):not(:has(.feedex-web-pager[data-sliding]))::after { content: ''; position: absolute; inset: auto 0 0; height: env(safe-area-inset-bottom); background: var(--feedex-mobile-surface); pointer-events: none; }
-  .feedex-article-reader:has(.feedex-web-pager[data-sliding]) :is(.feedex-web-peek, .feedex-web-status, .feedex-mobile-reader-top, .feedex-mobile-reader-dock, .feedex-linked-post-header) { visibility: hidden; transition: none; }
+  .feedex-web-view:has(.feedex-web-pager)::after { content: ''; position: absolute; inset: auto 0 0; height: env(safe-area-inset-bottom); background: var(--feedex-mobile-surface); pointer-events: none; }
+  .feedex-article-reader:has(.feedex-web-pager[data-sliding]):not(:has(.feedex-linked-post-header)) :is(.feedex-web-peek, .feedex-web-status, .feedex-mobile-reader-top, .feedex-mobile-reader-dock) { visibility: hidden; transition: none; }
   .feedex-mobile-settings-panel > button { min-height: 44px; }
 }
 

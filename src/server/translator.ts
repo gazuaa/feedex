@@ -46,10 +46,24 @@ export async function saveDeepLKey(env: Env, key: string) {
   const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(SETTING) }, await settingsKey(env), new TextEncoder().encode(key));
   await env.DB.prepare('INSERT INTO integration_settings(name,encrypted_value,updated_at) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET encrypted_value=excluded.encrypted_value,updated_at=excluded.updated_at')
     .bind(SETTING, `${encode(iv)}.${encode(new Uint8Array(encrypted))}`, new Date().toISOString()).run();
+  // 새 키를 넣으면 다시 DeepL을 쓴다.
+  await env.DB.prepare('DELETE FROM integration_settings WHERE name=?').bind(PREFERENCE).run();
 }
 
 export async function clearDeepLKey(env: Env) {
-  await env.DB.prepare('DELETE FROM integration_settings WHERE name=?').bind(SETTING).run();
+  await env.DB.prepare('DELETE FROM integration_settings WHERE name IN (?,?)').bind(SETTING, PREFERENCE).run();
+}
+
+// 키는 저장해 둔 채 어느 서비스로 번역할지만 고른다. 고른 적이 없으면 키가 있을 때 DeepL을 쓴다.
+const PREFERENCE = 'translation_provider';
+export async function readTranslationPreference(env: Env): Promise<TranslationProvider> {
+  if (!env.DB) return 'deepl';
+  const row = await env.DB.prepare('SELECT encrypted_value FROM integration_settings WHERE name=?').bind(PREFERENCE).first<{ encrypted_value: string }>().catch(() => null);
+  return row?.encrypted_value === 'workers-ai' ? 'workers-ai' : 'deepl';
+}
+export async function saveTranslationPreference(env: Env, provider: TranslationProvider) {
+  await env.DB.prepare('INSERT INTO integration_settings(name,encrypted_value,updated_at) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET encrypted_value=excluded.encrypted_value,updated_at=excluded.updated_at')
+    .bind(PREFERENCE, provider, new Date().toISOString()).run();
 }
 
 // ── DeepL ────────────────────────────────────────────────────────────────
@@ -214,7 +228,7 @@ export async function translateArticle(env: Env, input: { title: string; html: s
     ? mostlyKorean(input.title) && [...body.querySelectorAll('.text')].every(node => mostlyKorean(node.textContent || ''))
     : mostlyKorean(`${input.title} ${body.textContent || ''}`);
   if (alreadyKorean) return { title: input.title, html: input.html, provider: 'workers-ai', model: '', alreadyKorean: true };
-  const deepl = await readDeepLKey(env);
+  const deepl = await readTranslationPreference(env) === 'workers-ai' ? null : await readDeepLKey(env);
   if (deepl) {
     try { return await deeplTranslate(deepl.key, input.title, input.html, fetcher); }
     catch (error) {

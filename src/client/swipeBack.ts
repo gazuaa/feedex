@@ -40,9 +40,8 @@ function findScene(document: Document, navigation: SwipeNavigation): SwipeScene 
   if (reader) return reader;
   const workspace = document.querySelector<HTMLElement>('.feedex-workspace');
   if (!workspace || navigation.backTarget?.() !== 'library') return null;
-  const docks = Array.from(document.querySelectorAll<HTMLElement>('.feedex-mobile-dock')).filter((dock) => !dock.closest('.feedex-mobile-library') && !dock.classList.contains('feedex-mobile-reader-dock'));
   const library = document.querySelector<HTMLElement>('.feedex-mobile-library');
-  return { top: [workspace, ...docks], under: library ? [library] : [], revealLibrary: true };
+  return { top: [workspace], under: library ? [library] : [], revealLibrary: true };
 }
 
 function present(document: Document, scene: SwipeScene) {
@@ -58,9 +57,7 @@ function present(document: Document, scene: SwipeScene) {
     const progress = Math.min(1, Math.max(0, dx / width));
     for (const node of [...scene.top, ...scene.under]) node.style.transition = animate ? `transform ${DURATION}ms ${EASING}, box-shadow ${DURATION}ms ${EASING}` : 'none';
     for (const node of scene.top) {
-      // 하단바는 CSS로 가운데에 놓으려고 translateX(-50%)를 쓴다. 인라인 변형이 그것을 덮어쓰면
-      // 끌기 시작할 때 하단바가 절반 폭만큼 튀므로, 그 이동을 함께 유지한다.
-      node.style.transform = node.classList.contains('feedex-mobile-dock') ? `translate3d(calc(${Math.max(0, dx)}px - 50%), 0, 0)` : `translate3d(${Math.max(0, dx)}px, 0, 0)`;
+      node.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
       node.style.boxShadow = `-10px 0 30px rgba(15, 23, 42, ${0.18 * (1 - progress)})`;
     }
     for (const node of scene.under) node.style.transform = `translate3d(${-(1 - progress) * PARALLAX * width}px, 0, 0)`;

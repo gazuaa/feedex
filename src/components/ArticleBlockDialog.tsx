@@ -1,12 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, FilterX, Plus, X } from 'lucide-react';
+import { ChevronRight, FilterX, Plus, ShieldBan, X } from 'lucide-react';
+import { SettingLabel } from './SettingLabel';
 import { formatPublicationDate, type ArticleItem, type SubscriptionItem } from '../client/api';
 import { blockRuleError, compileArticleBlocks, parseBlockTerms, removeArticleBlock, saveArticleBlock, suggestArticleBlock, useArticleBlocks, type ArticleBlockRule } from '../client/articleBlocks';
 
 export function ArticleBlockSetting({ accountId, onManage }: { accountId: string; onManage: () => void }) {
   const rules = useArticleBlocks(accountId);
-  return <button type="button" className="feedex-block-setting" onClick={onManage}><span>기사 차단 규칙</span><span className="feedex-setting-value">{rules.filter((rule) => rule.enabled).length}개</span><ChevronRight size={16} aria-hidden="true" /></button>;
+  return <button type="button" className="feedex-block-setting" onClick={onManage}><SettingLabel icon={ShieldBan}>기사 차단 규칙</SettingLabel><span className="feedex-setting-value">{rules.filter((rule) => rule.enabled).length}개</span><ChevronRight size={16} aria-hidden="true" /></button>;
 }
 
 export function ArticleBlockDialog({ accountId, article, articles, subscriptions, onClose, onApplied }: {

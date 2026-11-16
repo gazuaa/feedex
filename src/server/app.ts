@@ -39,7 +39,7 @@ import { extractOriginalPublishedAt } from './publicationDate';
 import { resolveArticlePublication, type PublicationArticle } from './articlePublication';
 import { DEFAULT_SUMMARY_MODEL, summarizeArticleWithAI, summaryText } from './aiSummarizer';
 import { isCurrentSummary } from '../shared/aiSummary';
-import { clearDeepLKey, DeepLError, deeplProblem, deeplUsage, ensureTranslationTable, readDeepLKey, saveDeepLKey, sourceHash, translateArticle, TranslationError, validDeepLKey } from './translator';
+import { clearDeepLKey, DeepLError, deeplProblem, deeplUsage, ensureTranslationTable, readDeepLKey, readTranslationPreference, saveDeepLKey, saveTranslationPreference, sourceHash, translateArticle, TranslationError, validDeepLKey } from './translator';
 import { canManageX } from './xSettings';
 import {
   generateId,
@@ -1517,12 +1517,13 @@ app.post('/api/articles/:id/translate', async (c) => {
 async function translationConfig(env: Env, user: UserRecord) {
   if (!canManageX(env, user)) return { canManage: false };
   const deepl = await readDeepLKey(env).catch(() => null);
+  const chosen = deepl ? await readTranslationPreference(env).catch(() => 'deepl' as const) : 'workers-ai' as const;
   let usage: { used: number; limit: number } | null = null, problem: string | null = null;
   if (deepl) {
     try { usage = await deeplUsage(deepl.key); }
     catch (error) { problem = deeplProblem(error instanceof DeepLError ? error.status : 0); }
   }
-  return { canManage: true, provider: deepl ? 'deepl' : 'workers-ai', managed: Boolean(deepl?.managed), usage, problem, storage: Boolean(env.X_SETTINGS_SECRET && env.X_SETTINGS_SECRET.length >= 32) };
+  return { canManage: true, provider: chosen, keySaved: Boolean(deepl), managed: Boolean(deepl?.managed), usage, problem, storage: Boolean(env.X_SETTINGS_SECRET && env.X_SETTINGS_SECRET.length >= 32) };
 }
 // X 미러와 계정 수집 상태. 운영자에게만 보인다. 미러가 주소를 옮기거나 멈추거나, 특정 계정을 오래 받지 못하면 설정 화면에서 알 수 있다.
 app.get('/api/x-mirrors', async (c) => {
@@ -1546,6 +1547,15 @@ app.put('/api/translation/deepl', async (c) => {
   catch (error) { return c.json({ error: deeplProblem(error instanceof DeepLError ? error.status : 0) }, 400); }
   try { await saveDeepLKey(c.env, key); }
   catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : 'DeepL API 키를 저장하지 못했어요.' }, 503); }
+  return c.json(await translationConfig(c.env, c.get('user')));
+});
+app.put('/api/translation/provider', async (c) => {
+  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 feedex 운영자만 바꿀 수 있습니다.' }, 403);
+  const body = await c.req.json<{ provider?: unknown }>().catch(() => ({} as { provider?: unknown }));
+  if (body.provider !== 'deepl' && body.provider !== 'workers-ai') return c.json({ error: '번역 서비스를 확인해 주세요.' }, 400);
+  if (body.provider === 'deepl' && !(await readDeepLKey(c.env).catch(() => null))) return c.json({ error: 'DeepL API 키를 먼저 넣어 주세요.' }, 400);
+  try { await saveTranslationPreference(c.env, body.provider); }
+  catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : '저장하지 못했어요.' }, 503); }
   return c.json(await translationConfig(c.env, c.get('user')));
 });
 app.delete('/api/translation/deepl', async (c) => {

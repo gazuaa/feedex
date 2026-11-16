@@ -3,7 +3,7 @@ import { FeedExIcon, FeedExWordmark } from './BrandMark';
 import { createPortal } from 'react-dom';
 import type { SyncStatus } from '../client/syncStatus';
 import { SyncStatusNotice } from './SyncStatusNotice';
-import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, ChevronRight, LayoutGrid, LayoutList, AlignJustify, Plus, Search, Settings2, X, FileCode2 } from 'lucide-react';
+import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, ChevronRight, LayoutGrid, LayoutList, AlignJustify, Plus, Search, Settings2, X, FileCode2, SunMoon } from 'lucide-react';
 import type { LayoutMode, ThemePreference } from '../client/api';
 import { useThemeOptions } from './ThemeSwitch';
 import { InstallAppButton } from './PwaInstall';
@@ -56,7 +56,7 @@ export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLa
   const themeOptions = useThemeOptions();
   return <div className="feedex-mobile-settings-panel">
       <SettingGroup title="보기">
-        <SettingRow label="화면 모드"><div className="feedex-segmented" role="group" aria-label="화면 모드">{themeOptions.map(({ value, label, Icon }) => <button key={value} aria-label={label} title={label} aria-pressed={theme === value} onClick={() => onChangeTheme(value)}><Icon size={17} /></button>)}</div></SettingRow>
+        <SettingRow label="화면 모드" icon={SunMoon}><div className="feedex-segmented" role="group" aria-label="화면 모드">{themeOptions.map(({ value, label, Icon }) => <button key={value} aria-label={label} title={label} aria-pressed={theme === value} onClick={() => onChangeTheme(value)}><Icon size={17} /></button>)}</div></SettingRow>
         <TextSizeSetting />
         {!library && <LayoutSetting layout={layout} onChangeLayout={(value) => { onChangeLayout(value); close(); }} />}
       </SettingGroup>

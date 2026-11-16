@@ -175,7 +175,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   const translateAction = translating ? '번역 취소' : showTranslation ? '원문 보기' : '번역';
   const summaryAction = activeSummary?.pending ? '요약 취소' : activeSummary?.open ? '요약 닫기' : '요약';
   return <section aria-label="앱에서 X 글 보기" className={`feedex-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto flex h-full min-h-0 min-w-0 w-full flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
-    <header className={`feedex-linked-post-header flex items-center gap-2 border-b px-3 py-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+    <header className={`feedex-linked-post-header flex items-center gap-2 border-b px-3 py-3 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
       <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2" onClick={back}><ChevronLeft size={21} /><span>{trail.length > 1 ? '이전 글' : '원래 글'}</span></button>
       <span className="min-w-0 flex-1 truncate text-sm text-slate-500">@{url.split('/')[3]}</span>
       <button type="button" aria-label={translateAction} title={translateAction} aria-pressed={showTranslation} disabled={!isReady}
