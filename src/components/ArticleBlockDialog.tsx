@@ -6,7 +6,7 @@ import { blockRuleError, compileArticleBlocks, parseBlockTerms, removeArticleBlo
 
 export function ArticleBlockSetting({ accountId, onManage }: { accountId: string; onManage: () => void }) {
   const rules = useArticleBlocks(accountId);
-  return <button type="button" className="feedex-block-setting" onClick={onManage}><FilterX size={17} /><span>기사 차단 규칙</span><span>{rules.filter((rule) => rule.enabled).length}개</span><ChevronRight size={16} /></button>;
+  return <button type="button" className="feedex-block-setting" onClick={onManage}><span>기사 차단 규칙</span><span className="feedex-setting-value">{rules.filter((rule) => rule.enabled).length}개</span><ChevronRight size={16} aria-hidden="true" /></button>;
 }
 
 export function ArticleBlockDialog({ accountId, article, articles, subscriptions, onClose, onApplied }: {

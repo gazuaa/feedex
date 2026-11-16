@@ -659,7 +659,7 @@ try {
     const view = (mirrors) => renderToStaticMarkup(React.createElement(XMirrorStatus, { initial: { canManage: true, mirrors }, now }));
     const mirror = (host, state, extra = {}) => ({ provider: `https://${host}`, host, state, lastOkAt: null, failingSince: null, lastFailure: null, limitedUntil: null, ...extra });
     const healthy = view([mirror('nitter.mie.foundation', 'ok', { lastOkAt: now - 3 * 60_000 }), mirror('ruf.st', 'limited', { limitedUntil: now + 5 * 60_000 })]);
-    assert.match(healthy, />정상<\/strong>/); assert.match(healthy, /3분 전 받음/); assert.match(healthy, /요청 한도로 쉬는 중 · 5분 뒤 다시 시도/);
+    assert.match(healthy, />정상<\/strong>/); assert.match(healthy, /3분 전 받음/); assert.match(healthy, /잠시 쉬는 중 · 5분 뒤 다시 시도/);
     const broken = view([mirror('nitter.mie.foundation', 'ok', { lastOkAt: now - 60_000 }), mirror('ruf.st', 'failing', { failingSince: now - 2 * hour, lastFailure: 'HTTP 301 → new.example.test (주소 이동)' })]);
     assert.match(broken, /data-alert="true">확인 필요<\/strong>/); assert.match(broken, /2시간 전부터 실패 · HTTP 301 → new\.example\.test \(주소 이동\)/);
     assert.equal(renderToStaticMarkup(React.createElement(XMirrorStatus, { initial: { canManage: false }, now })), '<span hidden=""></span>', 'hidden for everyone but the operator');

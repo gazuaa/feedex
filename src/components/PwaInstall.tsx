@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Apple, Chrome, Compass, Copy, Download, Share, SquarePlus, X } from 'lucide-react';
+import { Apple, ChevronRight, Chrome, Compass, Copy, Download, Share, SquarePlus, X } from 'lucide-react';
 import { installAddress, installPlatform, isIOSSafari, openInstallHelp, promptInstall, useInstallState } from '../client/pwa';
 import { inNativeApp } from '../client/nativeApp';
 import { launchDesktopApp, useKnownDesktopApp, type DesktopApp } from '../client/desktopApp';
@@ -85,7 +85,7 @@ function OpenDesktopApp({ app, onMissing, className, size = 16 }: { app: Desktop
   return <a href={address} onClick={(event) => { event.preventDefault(); launchDesktopApp(app, address, onMissing); }} className={className}><DesktopAppIcon app={app} size={size} />{DESKTOP_APP_NAME[app]}으로 열기</a>;
 }
 
-export function InstallAppButton() {
+export function InstallAppButton({ row = false }: { row?: boolean }) {
   const state = useInstallState();
   const desktop = desktopAppOffered();
   // 이 브라우저에서 앱이 열린 적이 있을 때만 '앱으로 열기'를 앞에 둔다. 아직이면 설치 안내로 들어간다.
@@ -94,6 +94,8 @@ export function InstallAppButton() {
   if (!label) return null;
   const opener = desktop && known ? desktop : null;
   const name = opener && DESKTOP_APP_NAME[opener];
+  // 휴대폰 설정 안에서는 다른 설정 줄과 같은 모양으로 둔다.
+  if (row && !opener) return <button type="button" className="feedex-setting-action" onClick={() => openInstallHelp()}><Download size={17} aria-hidden="true" /><span>{label}</span><ChevronRight size={16} aria-hidden="true" /></button>;
   return <div className="flex items-center gap-1">
     {opener && <OpenDesktopApp app={opener} onMissing={() => showMissingApp(opener)} className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400" />}
     <button type="button" onClick={() => openInstallHelp()} aria-label={name ? `${name} 설치 안내` : label} title={name ? `${name} 설치 안내` : undefined} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-emerald-500 hover:bg-emerald-500/10 cursor-pointer"><Download size={16} aria-hidden="true" />{!name && label}</button>

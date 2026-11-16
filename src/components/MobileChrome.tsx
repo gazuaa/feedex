@@ -3,7 +3,7 @@ import { FeedExIcon, FeedExWordmark } from './BrandMark';
 import { createPortal } from 'react-dom';
 import type { SyncStatus } from '../client/syncStatus';
 import { SyncStatusNotice } from './SyncStatusNotice';
-import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, LayoutGrid, LayoutList, AlignJustify, Plus, Search, Settings2, X, FileCode2 } from 'lucide-react';
+import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, ChevronRight, LayoutGrid, LayoutList, AlignJustify, Plus, Search, Settings2, X, FileCode2 } from 'lucide-react';
 import type { LayoutMode, ThemePreference } from '../client/api';
 import { useThemeOptions } from './ThemeSwitch';
 import { InstallAppButton } from './PwaInstall';
@@ -56,16 +56,18 @@ export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLa
   const themeOptions = useThemeOptions();
   return <div className="feedex-mobile-settings-panel">
       <SettingGroup title="보기">
-        <SettingRow label="화면"><div className="feedex-segmented" role="group" aria-label="화면">{themeOptions.map(({ value, label, Icon }) => <button key={value} aria-label={label} title={label} aria-pressed={theme === value} onClick={() => onChangeTheme(value)}><Icon size={17} /></button>)}</div></SettingRow>
+        <SettingRow label="화면 모드"><div className="feedex-segmented" role="group" aria-label="화면 모드">{themeOptions.map(({ value, label, Icon }) => <button key={value} aria-label={label} title={label} aria-pressed={theme === value} onClick={() => onChangeTheme(value)}><Icon size={17} /></button>)}</div></SettingRow>
         <TextSizeSetting />
         {!library && <LayoutSetting layout={layout} onChangeLayout={(value) => { onChangeLayout(value); close(); }} />}
       </SettingGroup>
       <SettingGroup title="읽기">{!library && <ScrollReadSetting markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} />}<AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
-      {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} /><TranslationSetting /><XMirrorStatus /></SettingGroup>}
+      {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} /></SettingGroup>}
+      {/* 운영자만 보는 설정. 운영자가 아니면 두 설정 모두 비어 묶음째 숨는다(CSS). */}
+      {accountId && <SettingGroup title="관리"><TranslationSetting /><XMirrorStatus /></SettingGroup>}
       {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} active /></SettingGroup>}
       <SettingGroup title="기타">
-        <button type="button" onClick={() => { close(); onOpenOpml(); }}><FileCode2 size={17} />OPML 가져오기 / 내보내기</button>
-        <InstallAppButton />
+        <button type="button" className="feedex-setting-action" onClick={() => { close(); onOpenOpml(); }}><FileCode2 size={17} aria-hidden="true" /><span>OPML 가져오기 / 내보내기</span><ChevronRight size={16} aria-hidden="true" /></button>
+        <InstallAppButton row />
       </SettingGroup>
     </div>;
 }

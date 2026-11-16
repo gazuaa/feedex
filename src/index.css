@@ -39,8 +39,9 @@ html.dark .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-va
 }
 /* 오래 누르면 메뉴가 손가락 바로 아래에 뜬다. 메뉴 글자를 고를 수 있으면 iOS가 이어서 글자를 선택해 메뉴를 가린다. */
 .feedex-context-menu { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.feedex-block-setting { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 34px; font-size: 13px; cursor: pointer; text-align: left; }
-.feedex-block-setting > span:nth-of-type(2) { margin-left: auto; color: var(--feedex-muted); font-size: 12px; }
+.feedex-block-setting { display: flex; width: 100%; align-items: center; gap: 6px; min-height: 34px; font-size: 13px; color: var(--feedex-text); cursor: pointer; text-align: left; }
+.feedex-block-setting > .feedex-setting-value { margin-left: auto; }
+.feedex-block-setting > svg { flex-shrink: 0; color: var(--feedex-muted); }
 .feedex-block-bar { display: flex; align-items: center; flex-wrap: nowrap; min-width: 0; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--feedex-border); background: var(--feedex-panel); container: feed-filters / inline-size; }
 .feedex-block-bar button { min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--feedex-border); border-radius: 9px; color: var(--feedex-muted); background: transparent; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
 .feedex-block-bar button:hover { background: var(--feedex-background); color: var(--feedex-text); }
@@ -116,6 +117,19 @@ html[data-feedex-native-notice-above] .feedex-notice[data-native] { top: max(8px
 .feedex-feed-logo img { width: 44%; height: 44%; max-width: 64px; max-height: 64px; object-fit: contain; }
 /* 설정 패널: 제목 붙은 묶음 안에 줄이 있고, 줄마다 왼쪽에 이름, 오른쪽에 조절기가 있다. */
 .feedex-setting-group + .feedex-setting-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--feedex-border); }
+/* 운영자 설정처럼 안이 모두 비면 묶음째 숨긴다. */
+.feedex-setting-group:not(:has(.feedex-setting-items > :not([hidden]))) { display: none; }
+/* 오른쪽 값은 모두 흐린 보통 글자로 맞추고, 상태만 색 있는 작은 표시로 둔다. */
+.feedex-setting-value { flex-shrink: 0; color: var(--feedex-muted); font-size: 13px; font-weight: 500; }
+.feedex-status-pill { flex-shrink: 0; padding: 2px 9px; border-radius: 999px; background: #10b9811f; color: #047857; font-size: 12px; font-weight: 600; }
+.feedex-status-pill[data-alert] { background: #f59e0b24; color: #b45309; }
+html.dark .feedex-status-pill { color: #6ee7b7; }
+html.dark .feedex-status-pill[data-alert] { color: #fbbf24; }
+/* 설정 안의 이동 줄(OPML, 앱 설치): 그림, 이름, 오른쪽 화살표. */
+.feedex-setting-action { display: flex; width: 100%; align-items: center; gap: 10px; min-height: 34px; font-size: 13px; color: var(--feedex-text); text-align: left; cursor: pointer; }
+.feedex-setting-action > span { flex: 1; min-width: 0; }
+.feedex-setting-action > svg:first-child { flex-shrink: 0; color: #10b981; }
+.feedex-setting-action > svg:last-child { flex-shrink: 0; color: var(--feedex-muted); }
 .feedex-setting-group-title { margin: 0 0 8px; color: var(--feedex-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
 .feedex-setting-items { display: grid; gap: 12px; }
 .feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; margin: 0; padding: 0; border: 0; font-size: 13px; color: var(--feedex-text); }
@@ -142,15 +156,22 @@ html:not(.dark) :is(.feedex-cache-clear, .feedex-cache-actions button, .feedex-a
 .feedex-translation-key { display: flex; gap: 8px; margin-top: 8px; }
 .feedex-translation-key input { min-width: 0; flex: 1; min-height: 34px; padding: 0 10px; border: 1px solid var(--feedex-border); border-radius: 10px; background: var(--feedex-background); color: var(--feedex-text); font-size: 12px; }
 /* 운영자 설정의 X 미러 상태. 확인이 필요한 미러와 요약은 주황색으로 보인다. */
-.feedex-x-mirrors { margin-top: 8px; }
-.feedex-x-mirror-list { display: grid; gap: 4px; margin: 2px 0 0; padding: 0; list-style: none; }
-.feedex-x-mirror-list li { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--feedex-text); }
-.feedex-x-mirror-list small { min-width: 0; color: var(--feedex-muted); text-align: right; overflow-wrap: anywhere; }
-.feedex-x-mirrors [data-alert] small, .feedex-x-mirrors strong[data-alert] { color: #b45309; }
-html.dark .feedex-x-mirrors [data-alert] small, html.dark .feedex-x-mirrors strong[data-alert] { color: #fbbf24; }
+.feedex-x-mirror-list { display: grid; gap: 6px; margin: 6px 0 0; padding: 9px 12px; border-radius: 12px; background: var(--feedex-background); list-style: none; }
+/* 미러 한 줄: 상태 점, 주소, 오른쪽 상태. 주소와 상태를 같은 높이에 맞춘다. */
+.feedex-x-mirror-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12px; line-height: 1.45; color: var(--feedex-text); }
+.feedex-x-mirror-list li > span { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; overflow-wrap: anywhere; }
+.feedex-x-mirror-list li[data-state] > span::before { content: ''; flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: #10b981; transform: translateY(-1px); }
+.feedex-x-mirror-list li[data-state="limited"] > span::before, .feedex-x-mirror-list li[data-state="unknown"] > span::before { background: #94a3b8; }
+.feedex-x-mirror-list li[data-alert] > span::before { background: #f59e0b; }
+.feedex-x-mirror-list small { min-width: 0; color: var(--feedex-muted); font-size: 11.5px; text-align: right; overflow-wrap: anywhere; }
+.feedex-x-mirrors li[data-alert] small { color: #b45309; }
+html.dark .feedex-x-mirrors li[data-alert] small { color: #fbbf24; }
 .feedex-setting-link { margin-left: 2px; padding: 0; color: #059669; font-weight: 600; cursor: pointer; }
 .feedex-setting-link:hover { text-decoration: underline; }
-html.dark .feedex-setting-link { color: #34d399; }
+/* 조용한 글자 단추(키 지우기, 저장 공간 지우기): 흐린 글자에 밑줄만. */
+.feedex-setting-link[data-quiet] { color: var(--feedex-muted); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
+.feedex-cache-controls > .feedex-setting-link[data-quiet] { padding: 0 6px; font-size: 12px; }
+html.dark .feedex-setting-link:not([data-quiet]) { color: #34d399; }
 .feedex-cache-actions button[data-danger] { color: #e11d48; }
 .feedex-desktop-settings-panel { max-height: calc(100dvh - 96px - env(safe-area-inset-top)); overflow-y: auto; }
 .feedex-text-size-control { display: inline-flex; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--feedex-border); border-radius: 12px; color: var(--feedex-text); }
@@ -312,10 +333,13 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   html.dark .feedex-mobile-sync-status { color: #fbbf24; }
   /* 휴대폰 패널은 공용 설정 스타일에 휴대폰 색 구성을 쓴다. */
   .feedex-mobile-settings-panel { --feedex-border: var(--feedex-mobile-line); --feedex-muted: var(--feedex-mobile-muted); --feedex-background: var(--feedex-mobile-raised); --feedex-panel: var(--feedex-mobile-surface); }
-  .feedex-mobile-settings-panel :is(.feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting) { min-height: 44px; font-size: 14px; }
+  .feedex-mobile-settings-panel :is(.feedex-setting-row, .feedex-scroll-read-setting, .feedex-auto-refresh-setting, .feedex-block-setting, .feedex-setting-action) { min-height: 44px; font-size: 15px; }
+  .feedex-mobile-settings-panel .feedex-setting-group-title { font-size: 12px; margin-bottom: 4px; }
+  .feedex-mobile-settings-panel .feedex-setting-items { gap: 6px; }
+  .feedex-mobile-settings-panel .feedex-setting-value { font-size: 14px; }
+  .feedex-mobile-settings-panel :is(.feedex-scroll-read-setting, .feedex-auto-refresh-setting) small { font-size: 12.5px; }
   .feedex-mobile-settings-panel :is(.feedex-segmented, .feedex-setting-row > .feedex-text-size-control) button { min-height: 44px; }
-  .feedex-mobile-settings-panel .feedex-setting-items > button { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0; border-radius: 0; font-size: 14px; color: var(--feedex-text); background: none; }
-  .feedex-mobile-settings-panel .feedex-setting-items > button svg { color: #10b981; }
+
   /* 열려 있지 않으면 닫혀 있다. 단, 목록으로 밀어서 돌아가는 동안에는 목록 아래에 드러난다. */
   .feedex-mobile-library-host:not([data-open]) { display: none; }
   html[data-sfeed-swipe="library"] .feedex-mobile-library-host { display: block; }

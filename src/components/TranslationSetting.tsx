@@ -46,15 +46,15 @@ export function TranslationSetting({ initial }: { initial?: TranslationConfig })
     finally { setBusy(false); }
   };
   // 사용량과 키 지우기를 한 줄에 둔다. 키가 막히면 Workers AI로 넘어간다는 설명은 마우스를 올렸을 때만 보인다.
-  const usage = config.problem ?? (config.usage ? `이번 달 ${count(config.usage.used)} / ${count(config.usage.limit)}자` : '');
+  const usage = config.problem ?? (config.usage ? `이번 달 ${count(config.usage.used)} / ${count(config.usage.limit)}자 사용` : '');
   const removable = deepl && !config.managed;
   const hint = !deepl ? 'DeepL API 키를 넣으면 DeepL로 번역해요'
     : config.managed ? 'DeepL API 키는 서버에서 관리 중이에요. 한도를 넘으면 Workers AI로 번역해요.'
     : 'DeepL 키가 저장돼 있어요. 한도를 넘거나 키가 막히면 Workers AI로 번역해요.';
   return <div className="feedex-translation-setting">
     <div className="feedex-auto-refresh-setting" title={hint}>
-      <span>번역{deepl && (usage || removable) && <small>{usage}{usage && removable && ' · '}{removable && <button type="button" className="feedex-setting-link" disabled={busy} onClick={() => { void run(() => apiRequest<TranslationConfig>('/api/translation/deepl', { method: 'DELETE' }), 'DeepL 키를 지웠어요.'); }}>키 지우기</button>}</small>}</span>
-      <strong className="text-xs">{deepl ? 'DeepL' : 'Workers AI'}</strong>
+      <span>번역{deepl && (usage || removable) && <small>{usage}{usage && removable && ' · '}{removable && <button type="button" className="feedex-setting-link" data-quiet disabled={busy} onClick={() => { void run(() => apiRequest<TranslationConfig>('/api/translation/deepl', { method: 'DELETE' }), 'DeepL 키를 지웠어요.'); }}>키 지우기</button>}</small>}</span>
+      <span className="feedex-setting-value">{deepl ? 'DeepL' : 'Workers AI'}</span>
     </div>
     {!deepl && !config.managed && <form className="feedex-translation-key" autoComplete="off" onSubmit={(event) => { event.preventDefault(); if (key.trim()) void run(() => apiRequest<TranslationConfig>('/api/translation/deepl', { method: 'PUT', body: JSON.stringify({ key: key.trim() }) }), 'DeepL 키를 저장했어요.'); }}>
       <input type="password" aria-label="DeepL API 키" placeholder="DeepL API 키" value={key} maxLength={120} disabled={busy || config.storage === false} autoComplete="new-password" spellCheck={false} onChange={(event) => setKey(event.target.value)} />

@@ -24,7 +24,7 @@ export function mirrorLine(mirror: MirrorStatus, now: number): { text: string; a
   switch (mirror.state) {
     // 정상은 위의 '정상' 표시가 말해 주므로 받은 시각만 적는다.
     case 'ok': return { text: `${ago(mirror.lastOkAt!, now)} 받음`, alert: false };
-    case 'limited': return { text: `요청 한도로 쉬는 중 · ${ago(mirror.limitedUntil!, now)} 다시 시도`, alert: false };
+    case 'limited': return { text: `잠시 쉬는 중 · ${ago(mirror.limitedUntil!, now)} 다시 시도`, alert: false };
     case 'failing': return { text: `${ago(mirror.failingSince!, now)}부터 실패 · ${mirror.lastFailure || '원인 모름'}`, alert: true };
     case 'stale': return { text: `${mirror.lastOkAt ? ago(mirror.lastOkAt, now) : '오래전'}에 마지막으로 받음`, alert: true };
     default: return { text: '아직 받은 기록이 없어요', alert: false };
@@ -75,10 +75,10 @@ export function XMirrorStatus({ initial, now: fixedNow }: { initial?: MirrorConf
     <span ref={probe} hidden />
     <div className="feedex-auto-refresh-setting" title={alert ? undefined : '미러가 정상이고, 모든 X 계정을 3시간 안에 받았어요.'}>
       <span>X 수집{summary && <small>{summary}</small>}</span>
-      <strong className="text-xs" data-alert={alert || undefined}>{alert ? '확인 필요' : '정상'}</strong>
+      <strong className="feedex-status-pill" data-alert={alert || undefined}>{alert ? '확인 필요' : '정상'}</strong>
     </div>
     <ul className="feedex-x-mirror-list">
-      {lines.map(({ mirror, text, alert: bad }) => <li key={mirror.provider} data-alert={bad || undefined}><span>{mirror.host}</span><small>{text}</small></li>)}
+      {lines.map(({ mirror, text, alert: bad }) => <li key={mirror.provider} data-state={mirror.state} data-alert={bad || undefined}><span>{mirror.host}</span><small>{text}</small></li>)}
     </ul>
     {stale.length > 0 && <ul className="feedex-x-mirror-list" aria-label="오래 받지 못한 X 계정">
       {stale.map((account) => <li key={account.handle} data-alert><span title={account.title}>@{account.handle}</span><small>{accountLine(account, now)}</small></li>)}
