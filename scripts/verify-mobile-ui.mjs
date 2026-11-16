@@ -159,7 +159,8 @@ try {
   const drawer = readFileSync(new URL('../src/components/ArticleDrawer.tsx', import.meta.url), 'utf8');
   assert.match(drawer, /useLayoutEffect\(\(\) => \{ if \(framed\) setPeek\(\(value\) => value \+ 1\); \}, \[framed\]\);/, 'a loaded site keeps its bars for a moment before folding');
   assert.match(drawer, /setTimeout\(\(\) => setPeek\(0\), PEEK_MS\)/, 'the bars fold again once the peek ends');
-  assert.match(drawer, /const barsHidden = !mobileMenu && \(chromeHidden \|\| \(framed && !peek\)\)/, 'an open menu keeps the bars visible over a framed site');
+  assert.match(drawer, /const barsHidden = !mobileMenu && !peek && \(chromeHidden \|\| framed\)/, 'an open menu keeps the bars visible, and tapping the folded pill unfolds them however they folded');
+  assert.match(drawer, /if \(chromeHidden && !wasChromeHidden\.current && !framed\) setPeek\(0\);/, 'scrolling down again folds the unfolded bars back into the pill');
   // 위쪽 ... 메뉴의 첫 항목은 AI 요약이다.
   assert.match(drawer, /aria-label="본문 도구">\s*(?:\{\/\*[^]*?\*\/\}\s*)?<button aria-pressed=\{aiOpen\} onClick=\{\(\) => \{ closeMobileMenu\(\); toggleAiSummary\(\); \}\}>/, 'the top more menu offers the AI summary first');
   // 휴대폰 다듬기: 한국어 줄바꿈, 피드 제외 창의 키보드, 사진 보기의 안전 영역과 아래로 밀어 닫기, 번역 띠 한 줄.

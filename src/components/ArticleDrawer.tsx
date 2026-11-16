@@ -401,7 +401,16 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     return () => clearTimeout(timer);
   }, [peek, mobileMenu]);
   const keepPeeking = () => { if (peek) setPeek((value) => value + 1); };
-  const barsHidden = !mobileMenu && (chromeHidden || (framed && !peek));
+  const peekOpenedAt = useRef(0);
+  // 막대는 아래로 스크롤했거나(chromeHidden) 사이트를 띄웠을 때(framed) 접힌다. 접힌 알약을 누르면(peek)
+  // 어느 쪽으로 접혔든 펼친다. 예전에는 사이트 쪽만 풀어서, 스크롤로 접힌 알약은 눌러도 펼쳐지지 않았다.
+  const barsHidden = !mobileMenu && !peek && (chromeHidden || framed);
+  // 펼친 뒤 다시 아래로 스크롤해 접히면 알약 상태로 돌아간다.
+  const wasChromeHidden = useRef(chromeHidden);
+  useEffect(() => {
+    if (chromeHidden && !wasChromeHidden.current && !framed) setPeek(0);
+    wasChromeHidden.current = chromeHidden;
+  }, [chromeHidden, framed]);
   useEffect(() => {
     if (!mobileMenu || !isMobile) return;
     const escape = (event: KeyboardEvent) => {
@@ -1489,6 +1498,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               onPointerDown={(e) => {
                 e.stopPropagation();
                 try { navigator.vibrate?.(10); } catch {}
+                peekOpenedAt.current = Date.now();
                 setPeek(1);
               }}
               onClick={(e) => {
@@ -1506,7 +1516,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </span>
           )}
           {/* 접힌 알약 안의 버튼은 보이지 않으므로 눌리거나 초점을 받지 않게 한다. */}
-          <div className="feedex-dock-actions" aria-hidden={barsHidden || undefined} inert={barsHidden || undefined}>
+          {/* 알약을 누른 손을 떼며 생기는 클릭이 방금 펼쳐진 자리의 버튼(이전·다음 글 등)을 누르지 않게 잠깐 막는다. */}
+          <div className="feedex-dock-actions" aria-hidden={barsHidden || undefined} inert={barsHidden || undefined}
+            onClickCapture={(event) => { if (Date.now() - peekOpenedAt.current < 450) { event.preventDefault(); event.stopPropagation(); } }}>
             <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
             <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
             <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>
