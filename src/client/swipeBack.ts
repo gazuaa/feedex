@@ -55,10 +55,9 @@ function present(document: Document, scene: SwipeScene) {
   for (const node of [...scene.top, ...scene.under]) { node.style.willChange = 'transform'; node.style.transition = 'none'; }
   const place = (dx: number, animate: boolean) => {
     const progress = Math.min(1, Math.max(0, dx / width));
-    for (const node of [...scene.top, ...scene.under]) node.style.transition = animate ? `transform ${DURATION}ms ${EASING}, box-shadow ${DURATION}ms ${EASING}` : 'none';
+    for (const node of [...scene.top, ...scene.under]) node.style.transition = animate ? `transform ${DURATION}ms ${EASING}` : 'none';
     for (const node of scene.top) {
       node.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
-      node.style.boxShadow = `-10px 0 30px rgba(15, 23, 42, ${0.18 * (1 - progress)})`;
     }
     for (const node of scene.under) node.style.transform = `translate3d(${-(1 - progress) * PARALLAX * width}px, 0, 0)`;
   };
