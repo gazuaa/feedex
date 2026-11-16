@@ -219,7 +219,8 @@ html.dark .feedex-setting-link:not([data-quiet]) { color: #34d399; }
 .feedex-list-controls { flex: 1 1 100%; }
 .feedex-global-controls { margin-left: auto; }
 .feedex-header-divider { display: none; }
-.feedex-reader-content { scrollbar-gutter: stable; }
+/* 세로 스크롤만 켜 두면 가로도 auto가 되어, 본문이 조금 넘칠 때 뒤로 밀기 중 손가락을 되돌리면 iOS가 내용만 가로로 밀어 경계가 떨린다. 넓은 표는 .feedex-table-scroll 안에서 따로 넘긴다. */
+.feedex-reader-content { scrollbar-gutter: stable; overflow-x: hidden; }
 .feedex-reader-content .feedex-table-scroll { display: block; width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .feedex-reader-content .feedex-table-scroll > table { max-width: none; }
 /* 번역해서 보여 주는 중이라는 띠. */
