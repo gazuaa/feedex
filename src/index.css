@@ -237,8 +237,15 @@ html.dark .feedex-translation-bar { background: #10b98124; color: #6ee7b7; }
 .feedex-reader { container-type: inline-size; }
 .feedex-reader-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border-width: 1px; border-radius: 8px; transition: color .15s, background-color .15s; cursor: pointer; }
 @container (max-width: 600px) {
-  .feedex-reader-control-label { display: none; }
   .feedex-reader-toolbar { padding-inline: 12px; gap: 6px; }
+}
+/*
+ * 도구 막대는 버튼을 다 펼치면 900px쯤 필요하다(윈도 글꼴은 더 넓다). 그보다 좁으면 '요약'과 '피드·리더·웹' 글자를 먼저 숨겨
+ * 아이콘만 남기고, 그래도 모자랄 때만 줄을 바꾼다. 리더 칸 폭이 아니라 막대 자기 폭을 기준으로 삼는다.
+ */
+.feedex-reader-toolbar { container: reader-toolbar / inline-size; }
+@container reader-toolbar (max-width: 900px) {
+  .feedex-reader-control-label { display: none; }
 }
 .feedex-reader-content:focus-visible { outline: 2px solid #10b981; outline-offset: -2px; }
 .feedex-article-cards { grid-template-columns: minmax(0, 1fr); }
