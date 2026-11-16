@@ -5,6 +5,10 @@ const EDGE_IDLE_MS = 650;
 // 손가락을 왼쪽으로 되돌리는 동안 리더 가장자리를 사이트 페이지보다 이만큼 왼쪽에 둔다(scroll 참고).
 // 한 프레임에 손가락이 움직이는 거리보다 넉넉하게 잡는다.
 const READER_LEAD = 64;
+// scrollend를 아는 브라우저(iOS Safari 포함)는 손가락이 닿아 있는 동안 scrollend를 보내지 않으므로 그것을 손을 뗀 신호로 쓴다.
+// 다른 도메인 원문은 손가락이 닿아 있는지 알려 주지 않아, 스크롤이 잠깐 멈춘 것만으로 손을 뗐다고 보면 끄는 도중에 닫히거나 되돌아간다.
+// 이 시간은 scrollend를 놓쳤을 때를 대비한 여유다.
+const SCROLLEND_GRACE_MS = 1500;
 
 /** 웹뷰의 뒤로 가기 스크롤과 사본 안의 터치 종료를 확인한다. */
 // 닫히는 화면이 실제로 사라질 때까지 기다리는 최대 시간. 그 뒤에도 남아 있으면 닫기가 취소된 것으로 보고 제자리로 돌린다.
@@ -18,6 +22,9 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
   let lastDx = 0, lastAt = 0, velocity = 0;
   // 손가락을 왼쪽으로 되돌리는 중이라 리더를 READER_LEAD만큼 뒤에 두고 있는지.
   let trailing = false;
+  // 리더 배경이 투명해 뒤에 두어도 드러나지 않는지(원문 웹 보기). 불투명한 X 글 화면에서는 그만큼 리더 배경이 띠처럼 드러난다.
+  let canTrail = false;
+  const hasScrollEnd = 'onscrollend' in view;
   let touchTarget: EventTarget | null = null;
   const frameTouches = new Set<MessageEventSource>();
   const frames = () => Array.from(pager.querySelectorAll('iframe'), element => element.contentWindow);
@@ -95,7 +102,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
         else { rest(); home(); }
       }, DURATION);
     };
-    if (!trailing) { finish(); return; }
+    if (!trailing || !canTrail) { finish(); return; }
     // 되돌리던 중이라 리더가 READER_LEAD만큼 뒤에 있었다. 그대로 마무리하면 페이지가 리더 자리로 옮겨지며 그만큼 뒤로 튀므로,
     // 리더와 페이저를 페이지와 같은 자리로 먼저 옮겨 그린 뒤 마무리한다.
     trailing = false;
@@ -127,8 +134,9 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
       }, EDGE_IDLE_MS);
       return;
     }
-    if (pager.scrollLeft <= 1) timer = view.setTimeout(leave, 160);
-    else if (pager.scrollLeft < max() - 1) timer = view.setTimeout(snap, 140);
+    const grace = hasScrollEnd ? SCROLLEND_GRACE_MS : 0;
+    if (pager.scrollLeft <= 1) timer = view.setTimeout(leave, 160 + grace);
+    else if (pager.scrollLeft < max() - 1) timer = view.setTimeout(snap, 140 + grace);
   };
   const scroll = () => {
     if (gone || settling) return;
@@ -149,9 +157,14 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
     // 손가락을 왼쪽으로 되돌리는 동안 리더를 페이지와 같은 자리에 두면, 늦게 오는 리더 가장자리가 페이지를 깎아 경계가 떨린다.
     // 그동안에는 리더를 READER_LEAD만큼 뒤에 두어 가장자리가 늘 페이지 왼쪽 바깥(투명한 빈 페이지 위)에 있게 한다.
     // 오른쪽으로 갈 때는 늦게 오는 가장자리가 페이지보다 왼쪽에 있으므로 원래대로 페이지와 같은 자리에 둔다.
-    slide ??= presentReaderSlide(pager.ownerDocument);
+    if (!slide) {
+      slide = presentReaderSlide(pager.ownerDocument);
+      const reader = pager.closest<HTMLElement>('.feedex-article-reader');
+      const background = reader ? view.getComputedStyle(reader).backgroundColor : '';
+      canTrail = background === 'transparent' || /^rgba\(.*,\s*0\)$/.test(background);
+    }
     if (slide) {
-      const behind = trailing ? Math.max(0, dx - READER_LEAD) : dx;
+      const behind = trailing && canTrail ? Math.max(0, dx - READER_LEAD) : dx;
       slide.place(dx, false, behind);
       pager.style.transform = `translate3d(${-behind}px, 0, 0)`;
     }
