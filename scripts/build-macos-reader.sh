@@ -17,7 +17,8 @@ mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents
 ditto --norsrc --noextattr --noacl "$sparkle/Sparkle.framework" "$bundle/Contents/Frameworks/Sparkle.framework"
 cp "$root/native/macos/Info.plist" "$bundle/Contents/Info.plist"
 cp "$sparkle/LICENSE" "$bundle/Contents/Resources/Sparkle-LICENSE.txt"
-sips -s format icns "$root/public/icons/icon-512.png" --out "$bundle/Contents/Resources/FeedExReader.icns" >/dev/null
+# 맥은 아이콘 모서리를 직접 둥글리지 않으므로, 웹 아이콘(꽉 찬 사각형)이 아닌 둥근 맥 전용 아이콘을 쓴다.
+sips -s format icns "$root/native/macos/AppIcon.png" --out "$bundle/Contents/Resources/FeedExReader.icns" >/dev/null
 for arch in arm64 x86_64; do
   xcrun swiftc -O -parse-as-library -module-cache-path "$temp/module-cache" -target "$arch-apple-macos12.0" "$root"/native/macos/*.swift -F "$sparkle" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -o "$temp/reader-$arch"
 done

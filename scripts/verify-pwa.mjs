@@ -9,6 +9,9 @@ assert.ok(manifest.name.startsWith('feedex'));
 assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.start_url, '/');
 assert.equal(manifest.id, '/');
+// 모든 PNG 아이콘은 모서리까지 꽉 찬 불투명 사각형이다. 아이폰은 둥글린 투명 아이콘을 한 번 더 둥글려 테두리가 지저분해진다.
+for (const icon of manifest.icons) assert.equal(readFileSync('public' + icon.src)[25], 2, `${icon.src} is an opaque full-bleed square`);
+assert.match(readFileSync('index.html', 'utf8'), /rel="apple-touch-icon" sizes="1024x1024" href="\/icons\/icon-1024.png"/, 'large home screen icons stay sharp');
 for (const icon of [...manifest.icons, { src: '/icons/apple-touch-icon.png', sizes: '180x180' }]) {
   const bytes = readFileSync('public' + icon.src);
   assert.equal(bytes.subarray(1, 4).toString(), 'PNG');
@@ -28,12 +31,12 @@ const cache = { addAll: async (paths) => { for (const path of paths) { assert.ok
 let offline = false, skipped = 0, claimed = 0;
 vm.runInNewContext(readFileSync('public/sw.js', 'utf8'), {
   self: { location: { origin: 'https://sfeed.test' }, addEventListener: (key, handler) => { handlers[key] = handler; }, skipWaiting: async () => { skipped++; }, clients: { claim: async () => { claimed++; }, matchAll: async () => clientWindows, openWindow: async (url) => opened.push(url) } },
-  caches: { open: async () => cache, keys: async () => ['sfeed-public-v1', 'sfeed-public-v2', 'sfeed-public-v3', 'sfeed-public-v4', 'another-app-cache'], delete: async (key) => { deleted.push(key); } },
+  caches: { open: async () => cache, keys: async () => ['sfeed-public-v1', 'sfeed-public-v2', 'sfeed-public-v3', 'sfeed-public-v4', 'sfeed-public-v5', 'another-app-cache'], delete: async (key) => { deleted.push(key); } },
   fetch: async (request) => { fetched.push(request.url); if (offline) throw new Error('offline'); return new Response('fresh network page'); },
   URL, Response,
 });
 for (const name of ['install', 'activate']) { let work; handlers[name]({ waitUntil: (promise) => { work = promise; } }); await work; }
-assert.equal(skipped, 1); assert.equal(claimed, 1); assert.deepEqual(deleted, ['sfeed-public-v1', 'sfeed-public-v2', 'sfeed-public-v3', 'sfeed-public-v4'], 'the old cache with the previous app icons is dropped');
+assert.equal(skipped, 1); assert.equal(claimed, 1); assert.deepEqual(deleted, ['sfeed-public-v1', 'sfeed-public-v2', 'sfeed-public-v3', 'sfeed-public-v4', 'sfeed-public-v5'], 'the old cache with the previous app icons is dropped');
 assert.ok(!storage.has('/'), 'the authenticated app shell must not be cached');
 const runFetch = (path, mode = 'navigate', method = 'GET') => {
   let result;
@@ -41,7 +44,7 @@ const runFetch = (path, mode = 'navigate', method = 'GET') => {
   return result;
 };
 assert.equal(await (await runFetch('/?session_token=private')).text(), 'fresh network page');
-assert.equal(storage.size, 7, 'navigation must not write to the public cache');
+assert.equal(storage.size, 8, 'navigation must not write to the public cache');
 for (const path of ['/api/articles', '/api/auth/google/credential', '/auth/callback', 'https://accounts.google.com/gsi/client']) assert.equal(runFetch(path), undefined, 'auth/API/cross-origin requests must not be intercepted');
 assert.equal(runFetch('/anything', 'navigate', 'POST'), undefined);
 assert.equal(runFetch('/assets/app.js', 'cors'), undefined, 'do not hold an old app bundle in a service worker');
