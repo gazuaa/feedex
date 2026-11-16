@@ -86,9 +86,11 @@ try {
     // Slap에 공유: 먼저 같은 이메일 앞으로 Slap에 맡기고, 기기에 맞게 연다.
     const slapFlow = drawerSource.slice(drawerSource.indexOf('const shareToSlap = async'), drawerSource.indexOf('const shareOptions = (close'));
     assert.match(slapFlow, /apiRequest<\{ ok: boolean \}>\(`\/api\/articles\/\$\{article\.id\}\/slap`/, 'the article is left in Slap first');
-    assert.ok(slapFlow.indexOf('/slap`') < slapFlow.indexOf('nativeBridge()'), 'it is left before anything opens');
+    assert.ok(slapFlow.indexOf('/slap`') < slapFlow.indexOf('bridge.postMessage'), 'desktop apps open Slap only after the article is left');
     assert.match(slapFlow, /nativeFeatures\(\)\.includes\('openSlap'\) \? \{ type: 'openSlap', url: app, fallback: web \} : \{ type: 'openExternal', url: web \}/, 'new desktop apps open the Slap app, older ones the browser');
-    assert.match(slapFlow, /isAppleTouch\(navigator\.userAgent, navigator\.maxTouchPoints\)\) \{\s*onNotice\(left \? 'Slap에 보냈어요\. 홈 화면의 Slap 앱을 열면/, 'iPhone and iPad are told to open the home-screen app');
+    // 아이폰·아이패드는 누른 순간 링크 그대로 사파리에서 Slap 공유 창을 연다(기다린 뒤 열면 막힌다).
+    assert.match(slapFlow, /const appleTouch = !bridge && isAppleTouch\(navigator\.userAgent, navigator\.maxTouchPoints\);\s*if \(!appleTouch\) linkEvent\.preventDefault\(\);/, 'iPhone and iPad follow the Slap link to Safari right away');
+    assert.match(slapFlow, /if \(appleTouch\) return;/, 'iPhone and iPad still leave the article for the home-screen app');
     assert.match(slapFlow, /openSlapApp\(app, \(\) => onNotice\(/, 'desktop browsers open the installed app through web+slap:');
     assert.match(options, /onClick=\{\(event\) => void shareToSlap\(close, event\)\}/);
   }
