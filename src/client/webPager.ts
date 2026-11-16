@@ -4,7 +4,11 @@ import { COMMIT_SHARE, DURATION, presentReaderSlide } from './swipeBack';
 const EDGE_IDLE_MS = 650;
 
 /** 웹뷰의 뒤로 가기 스크롤과 사본 안의 터치 종료를 확인한다. */
-export function bindWebPager(pager: HTMLElement, onBack: () => void) {
+// 닫히는 화면이 실제로 사라질 때까지 기다리는 최대 시간. 그 뒤에도 남아 있으면 닫기가 취소된 것으로 보고 제자리로 돌린다.
+const CLOSE_WAIT_MS = 1500;
+
+/** `closes`는 이번 뒤로 가기로 이 화면이 닫히는지다(X 글 패널의 이전 글로 가기는 닫히지 않는다). */
+export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () => boolean = () => true) {
   const view = pager.ownerDocument.defaultView;
   if (!view) return () => {};
   let gone = false, settling = false, timer = 0, frame = 0, touches = 0;
@@ -49,10 +53,14 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void) {
     slide?.clearUnder();
     pager.style.removeProperty('transform');
     page?.style.removeProperty('transform');
+    const closing = closes();
     onBack();
+    const restoreHere = () => { rest(); if (pager.isConnected) { gone = false; home(); } };
+    // 닫히는 화면은 사라질 때까지 오른쪽 바깥에 둔다. 목록까지 기록을 여러 칸 돌아가면 닫히는 데 시간이 더 걸리는데,
+    // 그 전에 제자리로 돌려 놓으면 목록 아래에 깔린 사이트가 목록이 덜 들어온 가장자리로 비쳐 잔상이 남는다.
     timer = view.setTimeout(() => {
-      rest();
-      if (pager.isConnected) { gone = false; home(); }
+      if (closing && pager.isConnected) { timer = view.setTimeout(restoreHere, CLOSE_WAIT_MS - DURATION - 40); return; }
+      restoreHere();
     }, DURATION + 40);
   };
   // 스크롤이나 프레임 교체로 화면 중간에 멈췄을 때도 그 자리에 얼어붙지 않게 끝까지 닫거나 제자리로 되돌린다.

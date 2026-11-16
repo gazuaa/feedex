@@ -160,13 +160,13 @@ export function WebLoading({ overlay = false }: { overlay?: boolean }) {
  * 이 페이저로 넘어온다. 사이트가 밀리면 투명한 왼쪽 페이지를 통해 아래 목록이 바로 보인다.
  * 평소에는 밀기가 끝난 뒤 닫고, 웹뷰가 종료 알림을 놓쳐도 뒤로 가기 위치에 오래 머무르지 않는다.
  */
-export function WebPager({ enabled, onBack, children }: { enabled: boolean; onBack: () => void; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null), back = useRef(onBack);
-  back.current = onBack;
+export function WebPager({ enabled, onBack, closes = true, children }: { enabled: boolean; onBack: () => void; closes?: boolean; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null), back = useRef(onBack), closing = useRef(closes);
+  back.current = onBack; closing.current = closes;
   useLayoutEffect(() => {
     const pager = ref.current;
     if (!enabled || !pager) return;
-    return bindWebPager(pager, () => back.current());
+    return bindWebPager(pager, () => back.current(), () => closing.current);
   }, [enabled]);
   if (!enabled) return <>{children}</>;
   return <div ref={ref} className="feedex-web-pager">

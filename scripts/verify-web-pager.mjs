@@ -9,7 +9,7 @@ globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 try {
   const { bindWebPager } = await vite.ssrLoadModule('/src/client/webPager.ts');
   const { bindSwipeBack } = await vite.ssrLoadModule('/src/client/swipeBack.ts');
-  const setup = () => {
+  const setup = (closes = true) => {
     const { window, document } = parseHTML('<html><body><header class="feedex-workspace-header"></header><main class="feedex-feed-list"></main><section class="feedex-article-reader"><div class="feedex-reader"><div class="feedex-reader-content"><p>본문</p></div><div class="feedex-web-pager"><div></div><div><iframe></iframe></div></div></div></section></body></html>');
     document.getSelection = () => null; window.innerWidth = 393; window.matchMedia = () => ({ matches: false }); window.getComputedStyle = () => ({ position: 'fixed', overflowX: 'visible' });
     let id = 0, now = 0;
@@ -24,18 +24,25 @@ try {
     Object.defineProperties(pager, { scrollWidth: { value: 786 }, clientWidth: { value: 393 } });
     Object.defineProperty(document.querySelector('iframe'), 'contentWindow', { value: source });
     let backs = 0;
-    const cleanup = bindWebPager(pager, () => backs++);
+    const cleanup = bindWebPager(pager, () => backs++, () => closes);
     const message = (count, sender = source) => { const e = new window.Event('message'); Object.assign(e, { source: sender, data: { sfeedTouchCount: count } }); window.dispatchEvent(e); };
     const touch = (type, count) => { const e = new window.Event(type); Object.assign(e, { touches: Array.from({ length: count }) }); pager.dispatchEvent(e); };
     const edge = () => { pager.scrollLeft = 0; pager.dispatchEvent(new window.Event('scroll')); pager.dispatchEvent(new window.Event('scrollend')); };
     return { window, document, pager, tick, render, cleanup, message, touch, edge, backs: () => backs };
   };
   {
+    const s = setup(false); s.message(0); s.edge(); s.tick(200); s.render(); assert.equal(s.backs(), 1);
+    s.tick(300); assert.equal(s.document.querySelector('.feedex-article-reader').style.transform || '', '', '닫히지 않는 뒤로 가기(이전 X 글)는 바로 제자리로 돌아온다'); s.cleanup();
+  }
+  {
     const s = setup(); s.message(1); s.edge(); s.tick(300); s.render();
     assert.equal(s.backs(), 0, '사본 안에서 손가락을 누르고 멈춰도 리더를 지우지 않는다');
     s.message(0); s.tick(200); s.render(); assert.equal(s.backs(), 1);
     assert.equal(s.document.querySelector('.feedex-feed-list').style.transform || '', '', '돌아오기 전에 목록의 변형을 정리한다');
     assert.equal(s.document.querySelector('.feedex-article-reader').style.transform, 'translate3d(393px, 0, 0)', '닫히는 리더는 언마운트될 때까지 화면 밖에 두어 다시 번쩍 나타나지 않게 한다');
+    // 목록까지 여러 기록을 돌아가 닫히는 데 오래 걸려도 그사이 제자리로 돌아와 목록 아래에 비치지 않는다.
+    s.tick(600); assert.equal(s.document.querySelector('.feedex-article-reader').style.transform, 'translate3d(393px, 0, 0)', '닫히는 동안은 늦게 지워져도 화면 밖에 남는다');
+    s.tick(1300); assert.equal(s.document.querySelector('.feedex-article-reader').style.transform || '', '', '끝내 닫히지 않으면 제자리로 돌아온다');
     s.cleanup();
   }
   {

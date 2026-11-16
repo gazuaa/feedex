@@ -198,7 +198,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       <AiSummaryCard isDark={isDark} summarizing={activeSummary.pending} summary={activeSummary.text} error={activeSummary.error || ''}
         loadingLabel="X 글을 요약하는 중…" onRegenerate={loadSummary} onClose={toggleSummary} />
     </div>}
-    <WebPager enabled={isMobile} onBack={back}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
+    <WebPager enabled={isMobile} onBack={back} closes={trail.length <= 1}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
       {isReady && (
         <iframe
           key={`${url}:ready`}
