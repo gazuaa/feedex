@@ -570,7 +570,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
    * 사이트는 자리를 지킨다. 사본은 위·아래 여백을 문서 안에 넣고(ArticleDrawer의 sfeedInset),
    * 원본 사이트는 안전 영역 아래에서 시작해 막대가 그 위를 덮는다.
    */
-  .feedex-web-view { --feedex-web-status-height: 28px; position: relative; padding-top: env(safe-area-inset-top); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  /* 아래 여백은 접힌 하단 알약이 사이트 끝을 가리지 않게 둔 자리다. 아래 ::after가 같은 높이를 칠한다. */
+  .feedex-web-view { --feedex-web-status-height: 28px; --feedex-web-bottom-space: calc(24px + env(safe-area-inset-bottom)); position: relative; padding-top: env(safe-area-inset-top); padding-bottom: var(--feedex-web-bottom-space); }
   .feedex-web-status { position: absolute; z-index: 3; left: 0; right: 0; top: var(--feedex-reader-top-height, 58px); box-sizing: border-box; height: var(--feedex-web-status-height); background: var(--feedex-mobile-surface); transition: transform .2s ease; }
   .feedex-web-status > div { min-height: 27px; }
   .feedex-web-status > div > div > * { padding-block: 4px; }
@@ -592,7 +593,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-article-reader:has(.feedex-linked-post-header) { background: var(--feedex-mobile-surface) !important; }
   .feedex-linked-post-header { background: var(--feedex-mobile-surface); }
   .feedex-web-pager > :not(.feedex-web-pager-back) { background: var(--feedex-mobile-surface); }
-  .feedex-web-view:has(.feedex-web-pager)::after { content: ''; position: absolute; inset: auto 0 0; height: env(safe-area-inset-bottom); background: var(--feedex-mobile-surface); pointer-events: none; }
+  /* 웹 보기는 밀어서 뒤로 갈 때 목록이 보이도록 투명하다. 아래 여백 전체를 칠해 평소에 목록이 띠처럼 비치지 않게 한다. */
+  .feedex-web-view:has(.feedex-web-pager)::after { content: ''; position: absolute; inset: auto 0 0; height: var(--feedex-web-bottom-space); background: var(--feedex-mobile-surface); pointer-events: none; }
   .feedex-article-reader:has(.feedex-web-pager[data-sliding]):not(:has(.feedex-linked-post-header)) :is(.feedex-web-status, .feedex-mobile-reader-top, .feedex-mobile-reader-dock) { display: none !important; }
   .feedex-mobile-settings-panel > button { min-height: 44px; }
 }
