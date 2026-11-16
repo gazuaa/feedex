@@ -240,13 +240,33 @@ html.dark .feedex-translation-bar { background: #10b98124; color: #6ee7b7; }
   .feedex-reader-toolbar { padding-inline: 12px; gap: 6px; }
 }
 /*
- * 도구 막대는 버튼을 다 펼치면 900px쯤 필요하다(윈도 글꼴은 더 넓다). 그보다 좁으면 '요약'과 '피드·리더·웹' 글자를 먼저 숨겨
- * 아이콘만 남기고, 그래도 모자랄 때만 줄을 바꾼다. 리더 칸 폭이 아니라 막대 자기 폭을 기준으로 삼는다.
+ * 데스크톱 위쪽 도구 막대의 단계(ArticleDrawer가 실제로 한 줄에 들어가는지 재서 고른다).
+ * 0: 글자까지 모두 · 1: '요약'과 '피드·리더·웹' 글자를 숨기고 아이콘만 · 2: 덜 쓰는 버튼을 더보기(⋯) 메뉴로
+ * 3: 간격과 버튼 여백까지 줄인다(목록 칸을 넓혀 리더 칸이 아주 좁아졌을 때).
  */
-.feedex-reader-toolbar { container: reader-toolbar / inline-size; }
-@container reader-toolbar (max-width: 900px) {
-  .feedex-reader-control-label { display: none; }
-}
+.feedex-reader-toolbar[data-measuring], .feedex-reader-toolbar[data-measuring] > * { flex-wrap: nowrap !important; }
+.feedex-reader-toolbar:is([data-density="1"], [data-density="2"], [data-density="3"]) .feedex-reader-control-label { display: none; }
+.feedex-reader-toolbar:is([data-density="2"], [data-density="3"]) .feedex-reader-secondary { display: none; }
+.feedex-reader-more { position: relative; display: none; }
+.feedex-reader-toolbar:is([data-density="2"], [data-density="3"]) .feedex-reader-more { display: block; }
+.feedex-reader-toolbar[data-density="3"] { padding-inline: 8px; gap: 4px; }
+.feedex-reader-toolbar[data-density="3"] > * { gap: 2px; }
+.feedex-reader-toolbar[data-density="3"] .feedex-reader-tools { padding-left: 4px; }
+.feedex-reader-toolbar[data-density="3"] .feedex-reader-view-option { padding-inline: 6px; }
+.feedex-reader-toolbar[data-density="3"] .feedex-reader-zoom > button { padding-inline: 6px; }
+.feedex-reader-toolbar[data-density="3"] .feedex-reader-zoom-value { min-width: 2.25rem; padding-inline: 0; }
+.feedex-reader-more > summary::-webkit-details-marker { display: none; }
+.feedex-reader-more-menu { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; display: grid; min-width: 190px; padding: 6px; border: 1px solid var(--feedex-border); border-radius: 12px; background: var(--feedex-panel); color: var(--feedex-text); box-shadow: 0 10px 30px #0f172a26; }
+.feedex-reader-more-menu > :is(button, a) { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 0 10px; border-radius: 8px; font-size: 13px; text-align: left; white-space: nowrap; cursor: pointer; }
+.feedex-reader-more-menu > :is(button, a):hover { background: var(--feedex-background); }
+.feedex-reader-more-menu > button:disabled { opacity: .4; cursor: default; }
+.feedex-reader-more-menu > button[aria-pressed="true"] { color: #059669; }
+html.dark .feedex-reader-more-menu > button[aria-pressed="true"] { color: #34d399; }
+/* 도구 막대 안의 글자 크기 조절은 다른 아이콘 버튼과 같은 32px 높이로 맞춘다. */
+.feedex-reader-toolbar .feedex-reader-text-size { height: 32px; gap: 0; padding: 0 2px; border-radius: 8px; background: var(--feedex-panel); }
+.feedex-reader-toolbar .feedex-reader-text-size > button { min-width: 28px; min-height: 28px; height: 28px; padding: 0 6px; border-radius: 6px; font-size: 13px; }
+.feedex-reader-toolbar .feedex-reader-text-size svg { width: 15px; height: 15px; }
+
 .feedex-reader-content:focus-visible { outline: 2px solid #10b981; outline-offset: -2px; }
 .feedex-article-cards { grid-template-columns: minmax(0, 1fr); }
 @container (min-width: 640px) {

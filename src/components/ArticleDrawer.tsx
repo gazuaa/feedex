@@ -48,6 +48,7 @@ import { readFeedPreference, saveFeedPreference } from '../client/devicePreferen
 import { WebLabel, WebStatusBar } from './WebStatusBar';
 import { htmlToText, openInDeepL } from '../client/deeplWeb';
 import { TextSizeControl } from './ReadingSettings';
+import { useOutsideDismiss } from '../client/outsideDismiss';
 import { publicCoinDeskArticle, publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
 import { xThreadPreview } from '../client/xThreadPreview';
@@ -370,6 +371,41 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     else setShareDialogOpen(true);
   };
   const topRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), copyRef = useRef<HTMLIFrameElement>(null);
+  // 데스크톱 위쪽 도구 막대는 폭에 맞춰 단계적으로 줄어든다. 0: 글자까지 모두, 1: 아이콘만, 2: 덜 쓰는 버튼은 더보기 메뉴로, 3: 간격까지 줄인다.
+  // 정해진 폭 기준 대신 실제로 한 줄에 들어가는 첫 단계를 재서 고른다(글꼴·화면 배율마다 필요한 폭이 달라서).
+  const toolbarRef = useRef<HTMLDivElement>(null), toolbarMoreRef = useRef<HTMLDetailsElement>(null);
+  const [toolbarDensity, setToolbarDensity] = useState(0);
+  const closeToolbarMore = () => { if (toolbarMoreRef.current) toolbarMoreRef.current.open = false; };
+  useOutsideDismiss(toolbarMoreRef);
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar || typeof ResizeObserver === 'undefined') return;
+    // 줄바꿈을 막은 채로 묶음들이 안쪽 여백 안에 들어오는지 본다.
+    // 넘친 폭이 오른쪽 여백에 묻히면 scrollWidth가 늘지 않으므로 자식의 끝 위치로 잰다.
+    const fits = () => {
+      const limit = toolbar.getBoundingClientRect().right - (parseFloat(getComputedStyle(toolbar).paddingRight) || 0) + 1;
+      return Array.from(toolbar.children).every(child => {
+        const rect = child.getBoundingClientRect();
+        return !rect.width || (rect.right <= limit && child.scrollWidth <= child.clientWidth + 1);
+      });
+    };
+    const fit = () => {
+      toolbar.dataset.measuring = '';
+      let chosen = 3;
+      for (const level of [0, 1, 2, 3]) {
+        toolbar.dataset.density = String(level);
+        if (fits()) { chosen = level; break; }
+      }
+      delete toolbar.dataset.measuring;
+      toolbar.dataset.density = String(chosen);
+      setToolbarDensity(chosen);
+      if (chosen < 2) closeToolbarMore();
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, [mode, article?.id, aiOpen]);
   useCopyTheme(copyRef, isDark);
   useXPostFrame(copyRef, onOpenXPost, `${article?.id || ''}:${mode}`);
   useXReadingCarry(copyRef, xWaiting, `${article?.id || ''}:${mode}`);
@@ -876,6 +912,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         </div>
         {/* 상단 동작 막대 */}
         <div
+          ref={toolbarRef}
+          data-density={toolbarDensity}
           className={`feedex-reader-toolbar px-4 sm:px-6 py-3 border-b flex flex-wrap items-center gap-2 shrink-0 ${
             isDark
               ? 'bg-slate-900/90 border-slate-800'
@@ -942,7 +980,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               disabled={refreshing}
               aria-label="기사 새로고침"
               title="기사 새로고침"
-              className={`feedex-reader-icon disabled:cursor-default ${
+              className={`feedex-reader-secondary feedex-reader-icon disabled:cursor-default ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -976,14 +1014,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </button>
 
             {/* 글자 크기 (피드·리더 보기) */}
-            {mode !== 'web' && <TextSizeControl />}
+            {mode !== 'web' && <TextSizeControl className="feedex-reader-text-size" />}
 
             {/* 웹 보기 배율 */}
             {mode === 'web' && (
               <div
                 role="group"
                 aria-label="사이트 확대·축소"
-                className={`flex items-center rounded-xl border ${
+                className={`feedex-reader-zoom flex items-center rounded-xl border ${
                   isDark
                     ? 'bg-slate-900 border-slate-800 text-slate-300'
                     : 'bg-white border-slate-200 text-slate-700'
@@ -1006,7 +1044,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                   onClick={() => changeWebZoom(0)}
                   title="100%로 되돌리기"
                   aria-label={`현재 ${Math.round(webZoom * 100)}%, 100%로 되돌리기`}
-                  className={`min-w-[3rem] py-2 text-xs font-medium tabular-nums transition cursor-pointer ${
+                  className={`feedex-reader-zoom-value min-w-[3rem] py-2 text-xs font-medium tabular-nums transition cursor-pointer ${
                     isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
                   }`}
                 >
@@ -1033,7 +1071,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               onClick={() => onCopyLink(article)}
               aria-label="링크 복사"
               title="링크 복사 (C)"
-              className={`feedex-reader-icon ${
+              className={`feedex-reader-secondary feedex-reader-icon ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -1054,7 +1092,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               rel="noopener noreferrer"
               aria-label="원문 사이트 새 탭에서 열기"
               title="원문 사이트 새 탭에서 열기 (O)"
-              className={`feedex-reader-icon ${
+              className={`feedex-reader-secondary feedex-reader-icon ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -1070,13 +1108,23 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               aria-label={translateAction}
               aria-pressed={showTranslation}
               title={translateAction}
-              className={`feedex-reader-icon ${showTranslation
+              className={`feedex-reader-secondary feedex-reader-icon ${showTranslation
                 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
                 : isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
             >
               {translating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Languages className="w-4 h-4" />}
             </button>
 
+            {/* 좁을 때만 보이는 더보기. 숨긴 버튼(새로고침, 링크 복사, 원문 열기, 번역)을 여기서 쓴다. */}
+            <details ref={toolbarMoreRef} className="feedex-reader-more">
+              <summary aria-label="더 보기" title="더 보기" className={`feedex-reader-icon list-none ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}><MoreHorizontal className="w-4 h-4" /></summary>
+              <div className="feedex-reader-more-menu" role="menu">
+                <button type="button" role="menuitem" disabled={refreshing} onClick={() => { closeToolbarMore(); void refreshArticle(); }}><RotateCw className="w-4 h-4" aria-hidden="true" />기사 새로고침</button>
+                <button type="button" role="menuitem" onClick={() => { closeToolbarMore(); onCopyLink(article); }}><Link2 className="w-4 h-4" aria-hidden="true" />링크 복사</button>
+                <a role="menuitem" href={article.url} target="_blank" rel="noopener noreferrer" onClick={closeToolbarMore}><ExternalLink className="w-4 h-4" aria-hidden="true" />원문 새 탭에서 열기</a>
+                <button type="button" role="menuitem" aria-pressed={showTranslation} onClick={() => { closeToolbarMore(); toggleTranslation(); }}>{translating ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Languages className="w-4 h-4" aria-hidden="true" />}{translateAction}</button>
+              </div>
+            </details>
             {/* AI 요약 버튼 */}
             <button
               type="button"
@@ -1118,7 +1166,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                   aria-checked={selected}
                   title={title}
                   onClick={() => chooseViewMode(id)}
-                  className={`h-7 px-2 rounded-lg text-xs font-medium inline-flex items-center justify-center gap-1 transition cursor-pointer ${
+                  className={`feedex-reader-view-option h-7 px-2 rounded-lg text-xs font-medium inline-flex items-center justify-center gap-1 transition cursor-pointer ${
                     selected
                       ? isDark
                         ? 'bg-slate-700 text-white'
