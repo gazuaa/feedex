@@ -616,6 +616,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-frame[data-wide-frame] { overflow-x: auto; overscroll-behavior-x: contain; }
   /* 프레임의 스크롤은 iOS가 먼저 그린다. 비어 있는 왼쪽 페이지 뒤로 목록이 바로 보이게 한다. */
   .feedex-article-reader:has(.feedex-web-pager), .feedex-reader:has(.feedex-web-pager) { background: transparent; }
+  /* 리더의 그림자는 뒤로 밀 때 목록 위에 그늘로 드러나고, 되돌리는 동안 리더가 페이지보다 뒤에 있으면 페이지에서 떨어진 회색 띠가 된다. */
+  .feedex-reader:has(.feedex-web-pager) { box-shadow: none; }
   .feedex-article-reader:has(.feedex-web-pager) > .backdrop-blur-xs { display: none; }
   /* X 글은 전용 리더 화면이므로 투명하게 뒤가 비치지 않게 불투명한 배경을 채운다. */
   .feedex-article-reader:has(.feedex-linked-post-header) { background: var(--feedex-mobile-surface) !important; }
