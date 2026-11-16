@@ -351,8 +351,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   /* 열려 있지 않으면 닫혀 있다. 단, 목록으로 밀어서 돌아가는 동안에는 목록 아래에 드러난다. */
   .feedex-mobile-library-host:not([data-open]) { display: none; }
   html[data-sfeed-swipe="library"] .feedex-mobile-library-host { display: block; }
-  /* 피드 목록에서 보관함으로 스와이프할 때 하단바를 숨겨 화면을 가리지 않게 한다. */
-  html[data-sfeed-swipe="library"] .feedex-mobile-dock { opacity: 0; visibility: hidden; pointer-events: none; }
+  /* 피드 목록에서 보관함으로 스와이프할 때 하단바를 즉시 숨겨 잔상이 남지 않게 한다. */
+  html[data-sfeed-swipe="library"] .feedex-mobile-dock { display: none !important; }
   .feedex-mobile-library { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; height: auto; min-height: 0; background: var(--feedex-background); color: var(--feedex-text); }
   .feedex-mobile-library > .feedex-mobile-header { position: absolute; inset: 0 0 auto; }
   .feedex-mobile-library-scroll { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: calc(var(--feedex-mobile-header-height) + 4px) 14px calc(80px + env(safe-area-inset-bottom)); }
