@@ -85,7 +85,7 @@ function parsePreferences(jsonStr: string | null | undefined): UserPreferences {
       layout: ['magazine', 'cards', 'list'].includes(parsed.layout)
         ? parsed.layout
         : 'magazine',
-      theme: parsed.theme === 'light' ? 'light' : 'dark',
+      theme: parsed.theme === 'light' || parsed.theme === 'system' ? parsed.theme : 'dark',
       unreadOnly: Boolean(parsed.unreadOnly),
       markReadOnScroll: parsed.markReadOnScroll === true,
       autoRefreshMinutes: validAutoRefresh(parsed.autoRefreshMinutes) ? parsed.autoRefreshMinutes : DEFAULT_AUTO_REFRESH_MINUTES,
@@ -398,7 +398,7 @@ app.put('/api/user/preferences', async (c) => {
       body.layout && ['magazine', 'cards', 'list'].includes(body.layout)
         ? body.layout
         : current.layout,
-    theme: body.theme === 'light' || body.theme === 'dark' ? body.theme : current.theme,
+    theme: body.theme === 'light' || body.theme === 'dark' || body.theme === 'system' ? body.theme : current.theme,
     unreadOnly:
       typeof body.unreadOnly === 'boolean' ? body.unreadOnly : current.unreadOnly,
     markReadOnScroll: typeof body.markReadOnScroll === 'boolean' ? body.markReadOnScroll : current.markReadOnScroll,

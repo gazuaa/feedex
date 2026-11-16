@@ -1,11 +1,13 @@
 import type { ReaderSyncCursor } from '../shared/readerSync';
 export type LayoutMode = 'magazine' | 'cards' | 'list';
 export type ThemeMode = 'dark' | 'light';
+/** 사용자가 고른 화면 모드. system이면 기기의 밝은·어두운 모드를 따른다. */
+export type ThemePreference = ThemeMode | 'system';
 export type ScopeType = 'all' | 'today' | 'saved' | 'folder' | 'feed';
 
 export interface UserPreferences {
   layout: LayoutMode;
-  theme: ThemeMode;
+  theme: ThemePreference;
   unreadOnly: boolean;
   markReadOnScroll: boolean;
   autoRefreshMinutes: number;

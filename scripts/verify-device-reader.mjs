@@ -12,6 +12,16 @@ try {
   prefs.saveDevicePreferences('owner', { theme: 'dark', autoRefreshMinutes: 30 }, 'mobile');
   assert.equal(prefs.readDevicePreferences('owner', 'desktop', { theme: 'dark' }).theme, 'light');
   assert.equal(prefs.readDevicePreferences('owner', 'mobile').autoRefreshMinutes, 30);
+  // 화면 모드는 낮·밤 말고 시스템 설정 따르기도 저장한다. 시스템이면 기기 모드에 따라 실제 색이 정해진다.
+  prefs.saveDevicePreferences('system-owner', { theme: 'system' }, 'mobile');
+  assert.equal(prefs.readDevicePreferences('system-owner', 'mobile').theme, 'system');
+  const theme = await vite.ssrLoadModule('/src/client/theme.ts');
+  assert.equal(theme.parseThemePreference('system'), 'system'); assert.equal(theme.parseThemePreference('nonsense'), 'dark');
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'window'); let dark = true;
+  Object.defineProperty(globalThis, 'window', { configurable: true, writable: true, value: { matchMedia: () => ({ matches: dark, addEventListener() {}, removeEventListener() {} }) } });
+  assert.equal(theme.resolveTheme('system'), 'dark'); dark = false; assert.equal(theme.resolveTheme('system'), 'light', 'system mode follows the device');
+  assert.equal(theme.resolveTheme('dark'), 'dark', 'a chosen mode ignores the device');
+  if (previous) Object.defineProperty(globalThis, 'window', previous); else delete globalThis.window;
   prefs.saveFeedPreference('owner', 'one', { zoom: 0.75, view: 'web' }, 'desktop');
   prefs.saveFeedPreference('owner', 'one', { zoom: 1, view: 'reader' }, 'mobile');
   prefs.saveFeedPreference('owner', 'two', { zoom: 1.25 }, 'desktop');

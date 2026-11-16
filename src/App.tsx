@@ -16,6 +16,7 @@ import {
   type ScopeType,
   type SubscriptionItem,
   type ThemeMode,
+  type ThemePreference,
   type UserProfile,
 } from './client/api';
 import { LoginView } from './components/LoginView';
@@ -30,7 +31,7 @@ import { DiscoverModal } from './components/DiscoverModal';
 import { MarkAllReadDialog } from './components/MarkAllReadDialog';
 import { MoveFeedDialog } from './components/MoveFeedDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
-import { applyTheme, readStoredTheme } from './client/theme';
+import { applyTheme, readStoredTheme, useResolvedTheme } from './client/theme';
 import { emptiesUnreadList, useMobileViewport, useScrollChrome } from './client/mobile';
 import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
@@ -143,7 +144,9 @@ export const App: React.FC = () => {
 
   // 사용자 설정
   const [layout, setLayout] = useState<LayoutMode>('magazine');
-  const [theme, setTheme] = useState<ThemeMode>(readStoredTheme);
+  // themePreference는 고른 모드(낮·밤·시스템), theme은 지금 실제로 그리는 색이다.
+  const [themePreference, setThemePreference] = useState<ThemePreference>(readStoredTheme);
+  const theme: ThemeMode = useResolvedTheme(themePreference);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [desktopLibraryTab, setDesktopLibraryTab] = useState<LibraryTab>('all');
   const [markReadOnScroll, setMarkReadOnScroll] = useState(false);
@@ -323,8 +326,8 @@ export const App: React.FC = () => {
 
   // HTML 루트 클래스를 테마와 맞춘다
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyTheme(theme, themePreference);
+  }, [theme, themePreference]);
 
   const openNotificationLink = (account: string) => {
     const params = new URLSearchParams(window.location.search), id = params.get('article_id');
@@ -333,7 +336,7 @@ export const App: React.FC = () => {
   const applyUser = (profile: UserProfile) => {
     const prefs = readDevicePreferences(profile.id, isMobile ? 'mobile' : 'desktop', profile.preferences);
     saveDevicePreferences(profile.id, prefs, isMobile ? 'mobile' : 'desktop');
-    setUser(profile); setLayout(prefs.layout); setTheme(prefs.theme); setUnreadOnly(prefs.unreadOnly);
+    setUser(profile); setLayout(prefs.layout); setThemePreference(prefs.theme); setUnreadOnly(prefs.unreadOnly);
     setDesktopLibraryTab(prefs.unreadOnly ? 'unread' : 'all'); setMarkReadOnScroll(prefs.markReadOnScroll); setAutoRefreshMinutes(prefs.autoRefreshMinutes);
   };
   useEffect(() => {
@@ -784,7 +787,7 @@ export const App: React.FC = () => {
 
   const savePreferences = async (next: Partial<{
     layout: LayoutMode;
-    theme: ThemeMode;
+    theme: ThemePreference;
     unreadOnly: boolean;
     markReadOnScroll: boolean;
     autoRefreshMinutes: number;
@@ -797,8 +800,8 @@ export const App: React.FC = () => {
     savePreferences({ layout: nextLayout });
   };
 
-  const handleChangeTheme = (nextTheme: ThemeMode) => {
-    setTheme(nextTheme);
+  const handleChangeTheme = (nextTheme: ThemePreference) => {
+    setThemePreference(nextTheme);
     savePreferences({ theme: nextTheme });
   };
 
@@ -1543,7 +1546,7 @@ export const App: React.FC = () => {
   if (!user) {
     return (
       <LoginView
-        theme={theme}
+        theme={themePreference}
         onChangeTheme={handleChangeTheme}
         onLoginSuccess={(loggedInUser) => {
           authenticatedToken.current = getStoredToken();
@@ -1579,7 +1582,7 @@ export const App: React.FC = () => {
     else selectMobileTab(tab);
   };
   const onManageArticleBlocks = () => setBlockDialog({ accountId: user.id, article: null });
-  const mobileSettings = { syncStatus, theme, onChangeTheme: handleChangeTheme, layout, onChangeLayout: handleChangeLayout, onOpenOpml: () => openMobileDiscover('opml'), sort: articleSort, onChangeSort: setArticleSort, markReadOnScroll, onChangeMarkReadOnScroll: handleChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes: handleChangeAutoRefreshMinutes, accountId: user.id, onManageArticleBlocks };
+  const mobileSettings = { syncStatus, theme: themePreference, onChangeTheme: handleChangeTheme, layout, onChangeLayout: handleChangeLayout, onOpenOpml: () => openMobileDiscover('opml'), sort: articleSort, onChangeSort: setArticleSort, markReadOnScroll, onChangeMarkReadOnScroll: handleChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes: handleChangeAutoRefreshMinutes, accountId: user.id, onManageArticleBlocks };
 
   const contextActions = (target: AppContextTarget): AppContextAction[] => {
     const items: AppContextAction[] = [];
@@ -1671,7 +1674,7 @@ export const App: React.FC = () => {
             onCommitSearch={commitSearch}
             layout={layout}
             onChangeLayout={handleChangeLayout}
-            theme={theme}
+            theme={themePreference}
             onChangeTheme={handleChangeTheme}
             onRefresh={handleRefreshFeeds}
             refreshing={refreshingFeeds}

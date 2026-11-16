@@ -3,8 +3,9 @@ import { FeedExIcon, FeedExWordmark } from './BrandMark';
 import { createPortal } from 'react-dom';
 import type { SyncStatus } from '../client/syncStatus';
 import { SyncStatusNotice } from './SyncStatusNotice';
-import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, LayoutGrid, LayoutList, AlignJustify, Plus, Search, Settings2, Sun, Moon, X, FileCode2 } from 'lucide-react';
-import type { LayoutMode, ThemeMode } from '../client/api';
+import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, LayoutGrid, LayoutList, AlignJustify, Plus, Search, Settings2, X, FileCode2 } from 'lucide-react';
+import type { LayoutMode, ThemePreference } from '../client/api';
+import { THEME_OPTIONS } from './ThemeSwitch';
 import { InstallAppButton } from './PwaInstall';
 import { ScrollReadSetting, TextSizeSetting, LayoutSetting, AutoRefreshSetting, SettingGroup, SettingRow, type ScrollReadSettingsProps, type RefreshSettingsProps, type SortSettingProps } from './ReadingSettings';
 import { LocalNotificationSetting } from './LocalNotificationSetting';
@@ -19,8 +20,8 @@ export interface MobileSettingsProps extends ScrollReadSettingsProps, RefreshSet
   syncStatus?: SyncStatus;
   accountId?: string;
   onManageArticleBlocks?: () => void;
-  theme: ThemeMode;
-  onChangeTheme: (theme: ThemeMode) => void;
+  theme: ThemePreference;
+  onChangeTheme: (theme: ThemePreference) => void;
   layout: LayoutMode;
   onChangeLayout: (layout: LayoutMode) => void;
   onOpenOpml: () => void;
@@ -54,7 +55,7 @@ export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLa
   const close = () => onDismiss?.();
   return <div className="feedex-mobile-settings-panel">
       <SettingGroup title="보기">
-        <SettingRow label="화면"><div className="feedex-segmented" role="group" aria-label="화면">{(['light', 'dark'] as const).map((value) => { const Icon = value === 'light' ? Sun : Moon; return <button key={value} aria-label={value === 'light' ? '낮 모드' : '밤 모드'} aria-pressed={theme === value} onClick={() => onChangeTheme(value)}><Icon size={17} /></button>; })}</div></SettingRow>
+        <SettingRow label="화면"><div className="feedex-segmented" role="group" aria-label="화면">{THEME_OPTIONS.map(({ value, label, Icon }) => <button key={value} aria-label={label} title={label} aria-pressed={theme === value} onClick={() => onChangeTheme(value)}><Icon size={17} /></button>)}</div></SettingRow>
         <TextSizeSetting />
         {!library && <LayoutSetting layout={layout} onChangeLayout={(value) => { onChangeLayout(value); close(); }} />}
       </SettingGroup>

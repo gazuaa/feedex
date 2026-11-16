@@ -9,15 +9,15 @@ import {
   CheckCircle2,
   ShieldCheck,
 } from 'lucide-react';
-import { apiRequest, setStoredToken, type UserProfile, type ThemeMode } from '../client/api';
+import { apiRequest, setStoredToken, type UserProfile, type ThemePreference } from '../client/api';
 import { inNativeApp, inNativeSignInWindow, nativeAppName, nativeBridge, nativePlatform, nativeSignInPlatform } from '../client/nativeApp';
 import { InstallAppButton } from './PwaInstall';
 import { ThemeSwitch } from './ThemeSwitch';
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserProfile) => void;
-  theme?: ThemeMode;
-  onChangeTheme?: (theme: ThemeMode) => void;
+  theme?: ThemePreference;
+  onChangeTheme?: (theme: ThemePreference) => void;
 }
 
 declare global {

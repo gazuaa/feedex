@@ -8,7 +8,7 @@ export function readDevicePreferences(account: string, kind = deviceKind(), lega
   let saved: Partial<UserPreferences> = {};
   try { saved = JSON.parse(localStorage.getItem(key(account, kind)) || 'null') || legacy; } catch { saved = legacy; }
   return { layout: ['magazine', 'cards', 'list'].includes(saved.layout!) ? saved.layout! : defaults.layout,
-    theme: saved.theme === 'light' ? 'light' : 'dark', unreadOnly: saved.unreadOnly === true,
+    theme: saved.theme === 'light' || saved.theme === 'system' ? saved.theme : 'dark', unreadOnly: saved.unreadOnly === true,
     markReadOnScroll: saved.markReadOnScroll === true, autoRefreshMinutes: validAutoRefresh(saved.autoRefreshMinutes) ? saved.autoRefreshMinutes : defaults.autoRefreshMinutes };
 }
 export function saveDevicePreferences(account: string, next: Partial<UserPreferences>, kind = deviceKind()) {

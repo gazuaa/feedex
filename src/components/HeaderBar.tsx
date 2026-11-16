@@ -6,7 +6,8 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-import type { LayoutMode, ThemeMode } from '../client/api';
+import type { LayoutMode, ThemePreference } from '../client/api';
+import { useResolvedTheme } from '../client/theme';
 import { InstallAppButton } from './PwaInstall';
 import { ThemeSwitch } from './ThemeSwitch';
 import { RefreshIcon } from './RefreshIcon';
@@ -20,8 +21,8 @@ interface HeaderBarProps extends DesktopSettingsProps {
   onCommitSearch?: (q?: string) => void;
   layout: LayoutMode;
   onChangeLayout: (layout: LayoutMode) => void;
-  theme: ThemeMode;
-  onChangeTheme: (theme: ThemeMode) => void;
+  theme: ThemePreference;
+  onChangeTheme: (theme: ThemePreference) => void;
   onRefresh: () => void;
   refreshing: boolean;
   /** 백그라운드 동기화 중에는 아이콘이 돌지만 버튼은 계속 누를 수 있다. */
@@ -52,7 +53,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   autoRefreshMinutes,
   onChangeAutoRefreshMinutes,
 }) => {
-  const isDark = theme === 'dark';
+  const isDark = useResolvedTheme(theme) === 'dark';
 
   return (
     <header
