@@ -5,7 +5,7 @@ import type { SyncStatus } from '../client/syncStatus';
 import { SyncStatusNotice } from './SyncStatusNotice';
 import { Archive, ArrowDownUp, ArrowLeft, Bookmark, CheckCheck, LayoutGrid, LayoutList, AlignJustify, Plus, Search, Settings2, X, FileCode2 } from 'lucide-react';
 import type { LayoutMode, ThemePreference } from '../client/api';
-import { THEME_OPTIONS } from './ThemeSwitch';
+import { useThemeOptions } from './ThemeSwitch';
 import { InstallAppButton } from './PwaInstall';
 import { ScrollReadSetting, TextSizeSetting, LayoutSetting, AutoRefreshSetting, SettingGroup, SettingRow, type ScrollReadSettingsProps, type RefreshSettingsProps, type SortSettingProps } from './ReadingSettings';
 import { LocalNotificationSetting } from './LocalNotificationSetting';
@@ -53,9 +53,10 @@ export function MobileSettings(props: MobileSettingsProps & { library?: boolean 
 
 export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLayout, onOpenOpml, library, markReadOnScroll, onChangeMarkReadOnScroll, autoRefreshMinutes, onChangeAutoRefreshMinutes, accountId, onManageArticleBlocks, onDismiss }: MobileSettingsProps & { library?: boolean; onDismiss?: () => void }) {
   const close = () => onDismiss?.();
+  const themeOptions = useThemeOptions();
   return <div className="feedex-mobile-settings-panel">
       <SettingGroup title="보기">
-        <SettingRow label="화면"><div className="feedex-segmented" role="group" aria-label="화면">{THEME_OPTIONS.map(({ value, label, Icon }) => <button key={value} aria-label={label} title={label} aria-pressed={theme === value} onClick={() => onChangeTheme(value)}><Icon size={17} /></button>)}</div></SettingRow>
+        <SettingRow label="화면"><div className="feedex-segmented" role="group" aria-label="화면">{themeOptions.map(({ value, label, Icon }) => <button key={value} aria-label={label} title={label} aria-pressed={theme === value} onClick={() => onChangeTheme(value)}><Icon size={17} /></button>)}</div></SettingRow>
         <TextSizeSetting />
         {!library && <LayoutSetting layout={layout} onChangeLayout={(value) => { onChangeLayout(value); close(); }} />}
       </SettingGroup>
