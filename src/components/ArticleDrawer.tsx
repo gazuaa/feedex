@@ -1476,8 +1476,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         </div>
         )}
         <nav
-          aria-label={barsHidden ? '메뉴 보이기' : '본문 조작'}
-          role={barsHidden ? 'button' : 'navigation'}
+          aria-label="본문 조작"
           className="feedex-mobile-dock feedex-mobile-reader-dock lg:hidden"
           data-collapsed={barsHidden || undefined}
           onPointerDown={barsHidden ? undefined : keepPeeking}
@@ -1506,7 +1505,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <span /><span /><span /><span />
             </span>
           )}
-          <div className="feedex-dock-actions" aria-hidden={barsHidden || undefined}>
+          {/* 접힌 알약 안의 버튼은 보이지 않으므로 눌리거나 초점을 받지 않게 한다. */}
+          <div className="feedex-dock-actions" aria-hidden={barsHidden || undefined} inert={barsHidden || undefined}>
             <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
             <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
             <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>

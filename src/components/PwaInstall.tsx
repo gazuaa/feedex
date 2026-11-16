@@ -95,7 +95,7 @@ export function InstallAppButton({ row = false }: { row?: boolean }) {
   const opener = desktop && known ? desktop : null;
   const name = opener && DESKTOP_APP_NAME[opener];
   // 휴대폰 설정 안에서는 다른 설정 줄과 같은 모양으로 둔다.
-  if (row && !opener) return <button type="button" className="feedex-setting-action" onClick={() => openInstallHelp()}><Download size={17} aria-hidden="true" /><span>{label}</span><ChevronRight size={16} aria-hidden="true" /></button>;
+  if (row && !opener) return <button type="button" className="feedex-setting-action" onClick={() => openInstallHelp()}><Download size={18} aria-hidden="true" /><span>{label}</span><ChevronRight size={16} aria-hidden="true" /></button>;
   return <div className="flex items-center gap-1">
     {opener && <OpenDesktopApp app={opener} onMissing={() => showMissingApp(opener)} className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400" />}
     <button type="button" onClick={() => openInstallHelp()} aria-label={name ? `${name} 설치 안내` : label} title={name ? `${name} 설치 안내` : undefined} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-emerald-500 hover:bg-emerald-500/10 cursor-pointer"><Download size={16} aria-hidden="true" />{!name && label}</button>

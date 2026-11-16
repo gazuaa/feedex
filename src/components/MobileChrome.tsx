@@ -66,7 +66,7 @@ export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLa
       {accountId && <SettingGroup title="관리"><TranslationSetting /><XMirrorStatus /></SettingGroup>}
       {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} active /></SettingGroup>}
       <SettingGroup title="기타">
-        <button type="button" className="feedex-setting-action" onClick={() => { close(); onOpenOpml(); }}><FileCode2 size={17} aria-hidden="true" /><span>OPML 가져오기 / 내보내기</span><ChevronRight size={16} aria-hidden="true" /></button>
+        <button type="button" className="feedex-setting-action" onClick={() => { close(); onOpenOpml(); }}><FileCode2 size={18} aria-hidden="true" /><span>OPML 가져오기 / 내보내기</span><ChevronRight size={16} aria-hidden="true" /></button>
         <InstallAppButton row />
       </SettingGroup>
     </div>;

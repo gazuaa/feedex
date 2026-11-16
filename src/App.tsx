@@ -92,7 +92,6 @@ function BlockedArticlesChip({ showBlockedArticles, blockedCount, onToggle, onMa
   const start = () => {
     firedRef.current = false;
     setPressing(true);
-    try { navigator.vibrate?.(15); } catch {}
     timerRef.current = setTimeout(() => {
       firedRef.current = true;
       setPressing(false);
@@ -134,6 +133,8 @@ function BlockedArticlesChip({ showBlockedArticles, blockedCount, onToggle, onMa
       onPointerCancel={cancel}
       onPointerLeave={cancel}
       onClick={handleClick}
+      // 길게 누르는 동안 휴대폰의 길게 누르기 메뉴(안드로이드 메뉴, 아이폰 글자 선택)가 뜨지 않게 한다.
+      onContextMenu={(e) => e.preventDefault()}
     >
       <span className="feedex-shield-progress" aria-hidden="true">
         <ShieldBan size={15} className="feedex-shield-base" />

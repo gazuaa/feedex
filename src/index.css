@@ -50,7 +50,7 @@ html.dark .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-va
 .feedex-filter-count { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; background: #94a3b81a; color: var(--feedex-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .feedex-filter-chip:is([data-active], [aria-pressed="true"]) .feedex-filter-count { background: #10b98122; color: #059669; }
 .feedex-block-bar .feedex-filter-manage { margin-left: auto; padding-inline: 8px; border-color: transparent; font-weight: 400; }
-.feedex-block-chip { position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.feedex-block-chip { position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
 .feedex-block-chip[data-pressing] { transform: scale(0.96); transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .feedex-shield-progress { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; flex-shrink: 0; transition: transform 0.15s ease; }
 .feedex-shield-progress svg { position: absolute; inset: 0; width: 15px; height: 15px; }
@@ -138,7 +138,7 @@ html.dark .feedex-status-pill[data-alert] { color: #fbbf24; }
 /* 설정 안의 이동 줄(OPML, 앱 설치): 그림, 이름, 오른쪽 화살표. */
 .feedex-setting-action { display: flex; width: 100%; align-items: center; gap: 10px; min-height: 34px; font-size: 13px; color: var(--feedex-text); text-align: left; cursor: pointer; }
 .feedex-setting-action > span { flex: 1; min-width: 0; }
-.feedex-setting-action > svg:first-child { flex-shrink: 0; color: #10b981; }
+.feedex-setting-action > svg:first-child { flex-shrink: 0; color: var(--feedex-muted); }
 .feedex-setting-action > svg:last-child { flex-shrink: 0; color: var(--feedex-muted); }
 .feedex-setting-group-title { margin: 0 0 8px; color: var(--feedex-muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
 .feedex-setting-items { display: grid; gap: 12px; }
@@ -166,7 +166,7 @@ html:not(.dark) :is(.feedex-cache-clear, .feedex-cache-actions button, .feedex-a
 .feedex-translation-key { display: flex; gap: 8px; margin-top: 8px; }
 .feedex-translation-key input { min-width: 0; flex: 1; min-height: 34px; padding: 0 10px; border: 1px solid var(--feedex-border); border-radius: 10px; background: var(--feedex-background); color: var(--feedex-text); font-size: 12px; }
 /* 운영자 설정의 X 미러 상태. 확인이 필요한 미러와 요약은 주황색으로 보인다. */
-.feedex-x-mirror-list { display: grid; gap: 6px; margin: 6px 0 0; padding: 9px 12px; border-radius: 12px; background: var(--feedex-background); list-style: none; }
+.feedex-x-mirror-list { display: grid; gap: 6px; margin: 6px 0 0 28px; padding: 9px 12px; border-radius: 12px; background: var(--feedex-background); list-style: none; }
 /* 미러 한 줄: 상태 점, 주소, 오른쪽 상태. 주소와 상태를 같은 높이에 맞춘다. */
 .feedex-x-mirror-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12px; line-height: 1.45; color: var(--feedex-text); }
 .feedex-x-mirror-list li > span { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; overflow-wrap: anywhere; }
@@ -184,8 +184,9 @@ html.dark .feedex-x-mirrors li[data-alert] small { color: #fbbf24; }
 html.dark .feedex-setting-link:not([data-quiet]) { color: #34d399; }
 .feedex-cache-actions button[data-danger] { color: #e11d48; }
 /* 설정 줄 오른쪽의 빨간 휴지통 버튼. 누르면 먼저 확인을 받는다. */
-.feedex-icon-danger { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; min-height: 34px; border-radius: 10px; color: #e11d48; cursor: pointer; }
-.feedex-icon-danger:hover { background: #e11d4814; }
+.feedex-icon-danger { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; min-height: 34px; border-radius: 10px; color: var(--feedex-muted); cursor: pointer; }
+/* 지우기는 확인 창을 한 번 더 거치므로 평소에는 다른 아이콘처럼 차분하게 두고, 손을 댈 때만 빨갛게 한다. */
+.feedex-icon-danger:is(:hover, :active, :focus-visible) { background: #e11d4814; color: #e11d48; }
 .feedex-icon-danger:disabled { opacity: .4; cursor: default; }
 /* 설정 이름 왼쪽의 목록별 아이콘 */
 .feedex-setting-label { display: flex; align-items: center; gap: 10px; }
