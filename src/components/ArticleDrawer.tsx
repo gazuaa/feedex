@@ -466,7 +466,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   useLayoutEffect(() => {
     const top = topRef.current;
     if (!top) return;
-    const measure = () => { top.parentElement?.style.setProperty('--feedex-reader-top-height', `${top.offsetHeight}px`); insetCopy.current(); };
+    // 막대가 잠시 그려지지 않을 때(높이 0)는 재지 않는다. 사이트 자리가 바뀌면 밀던 웹 보기가 제자리로 돌아간다.
+    const measure = () => { if (!top.offsetHeight) return; top.parentElement?.style.setProperty('--feedex-reader-top-height', `${top.offsetHeight}px`); insetCopy.current(); };
     const observer = new ResizeObserver(measure);
     observer.observe(top); measure();
     return () => observer.disconnect();

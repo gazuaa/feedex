@@ -595,7 +595,12 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-pager > :not(.feedex-web-pager-back) { background: var(--feedex-mobile-surface); }
   /* 웹 보기는 밀어서 뒤로 갈 때 목록이 보이도록 투명하다. 아래 여백 전체를 칠해 평소에 목록이 띠처럼 비치지 않게 한다. */
   .feedex-web-view:has(.feedex-web-pager)::after { content: ''; position: absolute; inset: auto 0 0; height: var(--feedex-web-bottom-space); background: var(--feedex-mobile-surface); pointer-events: none; }
-  .feedex-article-reader:has(.feedex-web-pager[data-sliding]):not(:has(.feedex-linked-post-header)) :is(.feedex-web-status, .feedex-mobile-reader-top, .feedex-mobile-reader-dock) { display: none !important; }
+  /*
+   * 밀어서 뒤로 가는 동안 막대는 보이지 않게만 한다. display:none으로 없애면 위쪽 막대 높이가 0으로 재어져
+   * 사이트 자리가 바뀌고, 그 크기 변화에 웹 보기가 제자리로 돌아가 원본 사이트에서는 뒤로 가기가 끊긴다
+   * (다른 도메인 사이트는 손가락이 닿아 있는지 알려 주지 않아 앱이 손을 뗀 것으로 본다).
+   */
+  .feedex-article-reader:has(.feedex-web-pager[data-sliding]):not(:has(.feedex-linked-post-header)) :is(.feedex-web-status, .feedex-mobile-reader-top, .feedex-mobile-reader-dock) { visibility: hidden !important; transition: none !important; }
   .feedex-mobile-settings-panel > button { min-height: 44px; }
 }
 
