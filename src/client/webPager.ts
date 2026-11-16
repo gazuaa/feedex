@@ -25,6 +25,8 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
   // 리더 배경이 투명해 뒤에 두어도 드러나지 않는지(원문 웹 보기). 불투명한 X 글 화면에서는 그만큼 리더 배경이 띠처럼 드러난다.
   let canTrail = false;
   const hasScrollEnd = 'onscrollend' in view;
+  // 이번 밀기에서 손가락 신호를 받았는지(사본 프레임과 페이저 자신). 받았다면 손을 뗀 때를 알므로 scrollend를 더 기다리지 않는다.
+  let touchKnown = false;
   let touchTarget: EventTarget | null = null;
   const frameTouches = new Set<MessageEventSource>();
   const frames = () => Array.from(pager.querySelectorAll('iframe'), element => element.contentWindow);
@@ -45,6 +47,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
   const rest = () => {
     settling = false;
     trailing = false;
+    touchKnown = false;
     slide?.clear();
     slide = null;
     pager.style.removeProperty('transform');
@@ -134,7 +137,7 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
       }, EDGE_IDLE_MS);
       return;
     }
-    const grace = hasScrollEnd ? SCROLLEND_GRACE_MS : 0;
+    const grace = hasScrollEnd && !touchKnown ? SCROLLEND_GRACE_MS : 0;
     if (pager.scrollLeft <= 1) timer = view.setTimeout(leave, 160 + grace);
     else if (pager.scrollLeft < max() - 1) timer = view.setTimeout(snap, 140 + grace);
   };
@@ -172,12 +175,14 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
   };
   const touch = (event: TouchEvent) => {
     touches = event.touches.length;
+    touchKnown = true;
     touchTarget = touches ? event.target : null;
     settle();
   };
   const message = (event: MessageEvent) => {
     const count = event.data?.sfeedTouchCount;
     if (!Number.isInteger(count) || count < 0 || count > 10 || !event.source) return;
+    touchKnown = true;
     // 손가락을 뗐다는 알림은 이미 지워진 프레임에서 와도 받는다(프레임은 사라지기 직전에 알린다).
     if (count === 0 && frameTouches.delete(event.source)) { settle(); return; }
     if (!frames().includes(event.source as Window)) return;
