@@ -23,7 +23,7 @@ export function LocalNotificationSetting({ accountId }: { accountId?: string }) 
   }} /></label>
     {needsUpdate && <p className="feedex-setting-message">{system} 알림을 쓰려면 앱을 업데이트해 주세요. <button type="button" className="feedex-setting-link" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>업데이트 확인</button></p>}
     {askNative
-      ? <p className="feedex-setting-message" role="status">{message || (permission === 'denied' ? `${system} 알림 설정에서 FeedEx를 허용해야 알림이 와요.` : `켜면 ${system} 허용 창이 떠요.`)} <button type="button" className="feedex-setting-link" disabled={pending} onClick={() => { void allow(); }}>{permission === 'denied' ? `${system} 알림 설정 열기` : '알림 허용 창 열기'}</button></p>
+      ? <p className="feedex-setting-message" role="status">{message || (permission === 'denied' ? `${system} 알림 설정에서 feedex를 허용해야 알림이 와요.` : `켜면 ${system} 허용 창이 떠요.`)} <button type="button" className="feedex-setting-link" disabled={pending} onClick={() => { void allow(); }}>{permission === 'denied' ? `${system} 알림 설정 열기` : '알림 허용 창 열기'}</button></p>
       : message && <p className="feedex-setting-message" role="status">{message}</p>}
   </div>;
 }

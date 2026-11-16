@@ -28,7 +28,7 @@ namespace FeedEx
 
         public NativeNotifications(Icon appIcon)
         {
-            icon = new NotifyIcon { Icon = appIcon, Text = "FeedEx", Visible = false };
+            icon = new NotifyIcon { Icon = appIcon, Text = "feedex", Visible = false };
             icon.BalloonTipClicked += (sender, args) =>
             {
                 pending = shown;
@@ -63,7 +63,7 @@ namespace FeedEx
                     shown = next;
                     icon.Visible = true;
                     // 윈도우가 받는 길이에 맞춘다. 제목은 63자, 본문은 255자까지다.
-                    icon.ShowBalloonTip(10000, Trim(title.Length > 0 ? title : "FeedEx", 63), Trim(text.Length > 0 ? text : "새 글", 255), ToolTipIcon.None);
+                    icon.ShowBalloonTip(10000, Trim(title.Length > 0 ? title : "feedex", 63), Trim(text.Length > 0 ? text : "새 글", 255), ToolTipIcon.None);
                     return new Dictionary<string, object>();
                 default:
                     throw new NotificationException("지원하지 않는 알림 요청입니다.");

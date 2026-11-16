@@ -15,7 +15,7 @@ namespace FeedEx
 
         PopupWindow(Icon icon)
         {
-            Text = "FeedEx";
+            Text = "feedex";
             Icon = icon;
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoScaleDimensions = new SizeF(96F, 96F);
@@ -40,7 +40,7 @@ namespace FeedEx
                 core.Settings.IsWebMessageEnabled = false;
                 core.Settings.AreHostObjectsAllowed = false;
                 core.WindowCloseRequested += (sender, args) => popup.Close();
-                core.DocumentTitleChanged += (sender, args) => popup.Text = string.IsNullOrWhiteSpace(core.DocumentTitle) ? "FeedEx" : core.DocumentTitle;
+                core.DocumentTitleChanged += (sender, args) => popup.Text = string.IsNullOrWhiteSpace(core.DocumentTitle) ? "feedex" : core.DocumentTitle;
                 core.NewWindowRequested += (sender, args) => Open(environment, args, popup);
                 request.NewWindow = core;
                 request.Handled = true;

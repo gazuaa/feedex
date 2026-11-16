@@ -594,7 +594,7 @@ export function generateOpml(
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<opml version="2.0">',
     '  <head>',
-    `    <title>FeedEx Subscriptions - ${escapeXmlAttr(userName)}</title>`,
+    `    <title>feedex Subscriptions - ${escapeXmlAttr(userName)}</title>`,
     `    <dateCreated>${new Date().toUTCString()}</dateCreated>`,
     '  </head>',
     '  <body>',

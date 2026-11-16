@@ -32,7 +32,7 @@ export async function enableLocalNotifications(account: string): Promise<string>
     if (!nativeNotificationBridge()) return `${nativeAppName()} 업데이트 후 알림을 켤 수 있어요.`;
     const permission = await requestNativeNotificationPermission();
     setLocalNotifications(account, true);
-    return permission === 'granted' ? '' : `${nativeSystemName()} 알림 설정에서 FeedEx를 허용해 주세요. 허용하면 자동으로 켜집니다.`;
+    return permission === 'granted' ? '' : `${nativeSystemName()} 알림 설정에서 feedex를 허용해 주세요. 허용하면 자동으로 켜집니다.`;
   }
   if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) return '이 브라우저에서는 알림을 지원하지 않습니다. 아이폰은 홈 화면에 설치한 앱에서 확인해 주세요.';
   const permission = await Notification.requestPermission();
@@ -67,7 +67,7 @@ export async function notifyNewArticles(account: string, articles: ArticleItem[]
       if (seen.has(article.id)) continue;
       seen.add(article.id);
       try { localStorage.setItem(seenKey(account), JSON.stringify([...seen].slice(-1000))); } catch { /* 알림 태그로도 중복을 거른다 */ }
-      const feed = article.feed_title?.trim() || 'FeedEx';
+      const feed = article.feed_title?.trim() || 'feedex';
       // macOS는 제목과 본문 사이에 브라우저 출처 부제를 넣는다. 글 내용은 모두 그 위에 둔다.
       // iPad의 데스크톱 UA도 여전히 모바일이다.
       const mac = !native && /Macintosh|Mac OS X/.test(navigator.userAgent || '') && !/iPhone|iPad|iPod/.test(navigator.userAgent || '') && !(navigator.maxTouchPoints > 1);

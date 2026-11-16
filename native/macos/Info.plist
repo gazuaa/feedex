@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key><string>dev.jyk.feedex.reader</string>
-  <key>CFBundleName</key><string>FeedEx</string>
-  <key>CFBundleDisplayName</key><string>FeedEx</string>
+  <key>CFBundleName</key><string>feedex</string>
+  <key>CFBundleDisplayName</key><string>feedex</string>
   <key>CFBundleExecutable</key><string>FeedExReader</string>
   <key>CFBundleIconFile</key><string>FeedExReader</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>2.5</string>
-  <key>CFBundleVersion</key><string>7</string>
+  <key>CFBundleShortVersionString</key><string>2.6</string>
+  <key>CFBundleVersion</key><string>8</string>
   <key>SUFeedURL</key><string>https://feedex.jyk.workers.dev/downloads/appcast.xml</string>
   <key>SUPublicEDKey</key><string>MZip/8+mlgYmeq08A3fDqyLWgEjmzLuxLQLsl3kh6Zc=</string>
   <key>SUEnableAutomaticChecks</key><true/>

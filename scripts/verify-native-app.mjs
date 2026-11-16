@@ -136,7 +136,7 @@ try {
     assert.deepEqual(nativeFeatures({}), [], 'older apps announce nothing and keep opening the browser');
     assert.deepEqual(nativeFeatures({ feedexAppFeatures: 'openSlap' }), []);
   }
-  assert.match(swift, /FEEDEX_DEBUG_DIR/); assert.match(readFileSync('native/macos/Info.plist', 'utf8'), /<key>CFBundleName<\/key><string>FeedEx<\/string>/, 'the Mac app is called FeedEx');
+  assert.match(swift, /FEEDEX_DEBUG_DIR/); assert.match(readFileSync('native/macos/Info.plist', 'utf8'), /<key>CFBundleName<\/key><string>feedex<\/string>/, 'the Mac app is called feedex');
   if (process.platform === 'darwin') {
     const directory = mkdtempSync(join(tmpdir(), 'feedex-launch-test-'));
     try {

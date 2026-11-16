@@ -2,17 +2,17 @@
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
 --><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
-    <title>FeedEx for Mac</title>
+    <title>feedex for Mac</title>
     <link>https://feedex.jyk.workers.dev/</link>
     <item>
-      <title>FeedEx 2.5</title>
-      <sparkle:version>7</sparkle:version>
-      <sparkle:shortVersionString>2.5</sparkle:shortVersionString>
+      <title>feedex 2.6</title>
+      <sparkle:version>8</sparkle:version>
+      <sparkle:shortVersionString>2.6</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>
-      <enclosure url="https://feedex.jyk.workers.dev/downloads/FeedEx-for-Mac-2.5.zip" length="1219979" type="application/octet-stream" sparkle:edSignature="u1aZtVBfX8WUsQCk7mj6Ph2StOVcue1N3xoi8lwCxCxE9B3kpACTXi/azcN1rw1qgQOwdZ4RbUTyC91jZU3yBw=="></enclosure>
+      <enclosure url="https://feedex.jyk.workers.dev/downloads/FeedEx-for-Mac-2.6.zip" length="1219369" type="application/octet-stream" sparkle:edSignature="VWg6l5+kFF6/9k+aUuj2NCex/Xz0279PORtAaMxW9h1ZTjZvYfNY3pAw3OGsRsPZ6XfEeq6Zwau1qV9T1DIkCA=="></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: BMG11cNuRH5VFYGCNaSYwQBFkAyIiGuByeppQhHVPeNWlpcJlnOWVLX7KDKTs74F8c/UxkpZqd0QrcDqDruXDg==
+edSignature: KpdPzajcsaj0ix1uHRqktQSHK6uzXLV1NhL7uCGpMHZY0KiYxKQHen5DkyV4ZZ0sFjYIjJbJq8Qdd5yR5bklBg==
 length: 990
 -->

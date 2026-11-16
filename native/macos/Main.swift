@@ -60,9 +60,9 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
             top.submenu = sub
             menu.addItem(top)
         }
-        item("FeedEx", [
+        item("feedex", [
             ("업데이트 확인…", #selector(SPUStandardUpdaterController.checkForUpdates(_:)), "", updater),
-            ("FeedEx 종료", #selector(NSApplication.terminate(_:)), "q", nil)
+            ("feedex 종료", #selector(NSApplication.terminate(_:)), "q", nil)
         ])
         item("편집", [
             ("실행 취소", Selector(("undo:")), "z", nil), ("다시 실행", Selector(("redo:")), "Z", nil),
@@ -70,7 +70,7 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
             ("붙여넣기", #selector(NSText.paste(_:)), "v", nil), ("모두 선택", #selector(NSText.selectAll(_:)), "a", nil)
         ])
         item("보기", [
-            ("FeedEx 새로고침", #selector(reloadMain), "r", self),
+            ("feedex 새로고침", #selector(reloadMain), "r", self),
             ("앱 화면 확대", #selector(enlargeApp), "+", self),
             ("앱 화면 축소", #selector(shrinkApp), "-", self),
             ("앱 화면 기본 크기", #selector(resetAppScale), "0", self),
@@ -78,7 +78,7 @@ final class FeedExApplication: NSObject, NSApplicationDelegate {
             ("원문 앞으로", #selector(articleForward), "]", self)
         ])
         item("창", [
-            ("FeedEx 창 보기", #selector(showMainFromMenu), "1", self),
+            ("feedex 창 보기", #selector(showMainFromMenu), "1", self),
             ("창 닫기", #selector(NSWindow.performClose(_:)), "w", nil)
         ])
         return menu

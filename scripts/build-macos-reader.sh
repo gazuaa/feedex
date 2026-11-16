@@ -44,10 +44,10 @@ cat > "$output/appcast.xml" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
-    <title>FeedEx for Mac</title>
+    <title>feedex for Mac</title>
     <link>https://feedex.jyk.workers.dev/</link>
     <item>
-      <title>FeedEx $version</title>
+      <title>feedex $version</title>
       <sparkle:version>$build</sparkle:version>
       <sparkle:shortVersionString>$version</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>

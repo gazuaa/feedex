@@ -90,7 +90,7 @@ try {
   delete globalThis.chrome; delete globalThis.feedexWindowsApp;
   const { NativeHandoff } = await vite.ssrLoadModule('/src/components/NativeHandoff.tsx');
   const handoff = renderToStaticMarkup(React.createElement(NativeHandoff, { email: 'win-owner@example.test', isDark: false, onUseAnother() {} }));
-  assert.match(handoff, /FeedEx 윈도우 앱에 로그인/); assert.match(handoff, /윈도우 앱으로 로그인/); assert.doesNotMatch(handoff, /맥 앱/);
+  assert.match(handoff, /feedex 윈도우 앱에 로그인/); assert.match(handoff, /윈도우 앱으로 로그인/); assert.doesNotMatch(handoff, /맥 앱/);
   const handoffLogin = renderToStaticMarkup(React.createElement(LoginView, { onLoginSuccess() {} }));
   assert.match(handoffLogin, /윈도우 앱에서 쓸 계정으로 로그인하세요/);
   setGlobal('location', { search: '?native-sign-in=1' });
@@ -159,7 +159,7 @@ try {
   for (const removed of ['설치 메뉴가 없으면', '브라우저 앱으로 설치', 'Google 로그인이 다시', '지금 설치', '알겠어요', 'FeedEx 설치</strong>'])
     assert.ok(!help.includes(removed), `the long browser install text is gone: ${removed}`);
   assert.match(entry, /href="feedex-reader:\/\/launch"/); assert.match(entry, /윈도우 앱으로 열기/); assert.match(entry, /aria-label="윈도우 앱 설치 안내"/);
-  assert.match(plain, /FeedEx 앱 설치/); assert.match(plain, /aria-label="브라우저 앱"/);
+  assert.match(plain, /feedex 앱 설치/); assert.match(plain, /aria-label="브라우저 앱"/);
   assert.doesNotMatch(plain, /윈도우 앱|맥 앱/, 'other desktops get no native app');
 
   // 받는 파일: 작고, 버전·지문·업데이트 정보가 맞고, 앱이 쓰는 파일만 들어 있다.

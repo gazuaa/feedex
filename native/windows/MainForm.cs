@@ -48,7 +48,7 @@ namespace FeedEx
             this.settings = settings;
             this.instance = instance;
             appScale = AppScale.Restored(settings.Scale);
-            Text = "FeedEx";
+            Text = "feedex";
             Icon = Shell.AppIcon();
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoScaleDimensions = new SizeF(96F, 96F);
@@ -137,14 +137,14 @@ namespace FeedEx
             }
             catch (WebView2RuntimeNotFoundException)
             {
-                var answer = MessageBox.Show(this, "FeedEx를 열려면 Microsoft Edge WebView2 런타임이 필요해요. 설치 페이지를 열까요?", "FeedEx", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                var answer = MessageBox.Show(this, "feedex를 열려면 Microsoft Edge WebView2 런타임이 필요해요. 설치 페이지를 열까요?", "feedex", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                 if (answer == DialogResult.Yes) Shell.Open("https://developer.microsoft.com/microsoft-edge/webview2/");
                 Close();
                 return;
             }
             catch (Exception error)
             {
-                MessageBox.Show(this, "FeedEx 화면을 열지 못했어요.\n\n" + error.Message, "FeedEx", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, "feedex 화면을 열지 못했어요.\n\n" + error.Message, "feedex", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 Close();
                 return;
             }
@@ -475,7 +475,7 @@ namespace FeedEx
             }
             catch (Exception)
             {
-                MessageBox.Show(this, "업데이트를 설치했어요. FeedEx를 다시 열어 주세요.", "FeedEx 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "업데이트를 설치했어요. feedex를 다시 열어 주세요.", "feedex 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             Close();
         }

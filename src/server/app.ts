@@ -1536,7 +1536,7 @@ app.get('/api/translation/config', async (c) => {
   return c.json(await translationConfig(c.env, c.get('user')));
 });
 app.put('/api/translation/deepl', async (c) => {
-  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 FeedEx 운영자만 바꿀 수 있습니다.' }, 403);
+  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 feedex 운영자만 바꿀 수 있습니다.' }, 403);
   if (c.env.DEEPL_API_KEY?.trim()) return c.json({ error: '이 키는 서버에서 관리 중입니다.' }, 400);
   const body = await c.req.json<{ key?: unknown }>().catch(() => ({} as { key?: unknown }));
   const key = typeof body.key === 'string' ? body.key.trim() : '';
@@ -1549,7 +1549,7 @@ app.put('/api/translation/deepl', async (c) => {
   return c.json(await translationConfig(c.env, c.get('user')));
 });
 app.delete('/api/translation/deepl', async (c) => {
-  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 FeedEx 운영자만 바꿀 수 있습니다.' }, 403);
+  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 feedex 운영자만 바꿀 수 있습니다.' }, 403);
   if (c.env.DEEPL_API_KEY?.trim()) return c.json({ error: '이 키는 서버에서 관리 중입니다.' }, 400);
   await clearDeepLKey(c.env);
   return c.json(await translationConfig(c.env, c.get('user')));

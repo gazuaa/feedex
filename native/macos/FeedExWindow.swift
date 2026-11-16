@@ -93,7 +93,7 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
             backing: .buffered, defer: false
         )
         super.init(window: window)
-        window.title = "FeedEx"
+        window.title = "feedex"
         window.minSize = NSSize(width: 420, height: 480)
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -180,7 +180,7 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
         guard message.webView === app, message.frameInfo.isMainFrame,
               sameOrigin(message.frameInfo.request.url, home), let body = message.body as? [String: Any] else {
-            replyHandler(nil, "FeedEx 화면에서만 알림을 사용할 수 있습니다."); return
+            replyHandler(nil, "feedex 화면에서만 알림을 사용할 수 있습니다."); return
         }
         notifications.handle(body, reply: replyHandler)
     }

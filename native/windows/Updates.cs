@@ -79,11 +79,11 @@ namespace FeedEx
                 if (!Versions.Newer(latest, Current))
                 {
                     context.Log("current");
-                    if (!quiet) Tell(context, "최신 버전을 쓰고 있어요. (FeedEx " + Current + ")", MessageBoxIcon.Information);
+                    if (!quiet) Tell(context, "최신 버전을 쓰고 있어요. (feedex " + Current + ")", MessageBoxIcon.Information);
                     return;
                 }
                 if (quiet && context.Settings.SkippedVersion == latest) return;
-                if (!Ask(context, "새 버전(" + latest + ")을 설치할까요?\n\nFeedEx가 잠깐 닫혔다가 다시 열려요."))
+                if (!Ask(context, "새 버전(" + latest + ")을 설치할까요?\n\nfeedex가 잠깐 닫혔다가 다시 열려요."))
                 {
                     // 다음에 켤 때 같은 버전을 다시 묻지 않는다. 설정의 '업데이트 확인'으로는 언제든 설치할 수 있다.
                     context.Settings.SkippedVersion = latest;
@@ -125,10 +125,10 @@ namespace FeedEx
         static void Tell(UpdateContext context, string text, MessageBoxIcon icon)
         {
             if (context.AutoAccept) { context.Log("message: " + text); return; }
-            MessageBox.Show(context.Owner, text, "FeedEx 업데이트", MessageBoxButtons.OK, icon);
+            MessageBox.Show(context.Owner, text, "feedex 업데이트", MessageBoxButtons.OK, icon);
         }
 
         static bool Ask(UpdateContext context, string text) =>
-            context.AutoAccept || MessageBox.Show(context.Owner, text, "FeedEx 업데이트", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes;
+            context.AutoAccept || MessageBox.Show(context.Owner, text, "feedex 업데이트", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes;
     }
 }

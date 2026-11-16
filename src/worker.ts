@@ -52,7 +52,7 @@ export default {
       return assetResponse;
     }
 
-    return new Response('FeedEx Worker API is running.', { status: 200 });
+    return new Response('feedex Worker API is running.', { status: 200 });
   },
 
   async scheduled(event: { scheduledTime?: number }, env: Env, _ctx: unknown): Promise<void> {

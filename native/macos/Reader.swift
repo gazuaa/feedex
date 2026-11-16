@@ -39,7 +39,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
             backing: .buffered, defer: false
         )
         super.init(window: window)
-        window.title = "FeedEx 읽기"
+        window.title = "feedex 읽기"
         window.minSize = NSSize(width: 480, height: 360)
         window.center()
         window.delegate = self
@@ -78,7 +78,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
         browser.setContentHuggingPriority(.defaultLow, for: .vertical)
         window.contentView = content
         window.initialFirstResponder = address
-        status.stringValue = "FeedEx에서 기사를 열거나 주소를 입력하세요."
+        status.stringValue = "feedex에서 기사를 열거나 주소를 입력하세요."
 
         // 같은 기사 안에서 사이트가 이동할 때도 주소와 탐색 상태를 표시한다.
         observers = [
@@ -157,7 +157,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         updateControls()
         status.stringValue = webView.url?.host ?? ""
-        window?.title = webView.title.map { "FeedEx 읽기 · \($0)" } ?? "FeedEx 읽기"
+        window?.title = webView.title.map { "feedex 읽기 · \($0)" } ?? "feedex 읽기"
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
