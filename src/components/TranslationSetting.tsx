@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { apiRequest } from '../client/api';
 
 export interface TranslationConfig {
@@ -21,7 +22,8 @@ const count = (value: number) => COMPACT.format(value);
 export function TranslationSetting({ initial }: { initial?: TranslationConfig }) {
   const [config, setConfig] = useState<TranslationConfig | null>(initial ?? null);
   const [key, setKey] = useState('');
-  const [busy, setBusy] = useState(false), [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [confirm, setConfirm] = useState(false);
+  const keyInput = useRef<HTMLInputElement>(null);
   const probe = useRef<HTMLSpanElement>(null);
   // 설정 창을 처음 열 때 한 번만 읽는다. 운영자면 DeepL 사용량도 함께 묻기 때문이다.
   useEffect(() => {
@@ -53,11 +55,22 @@ export function TranslationSetting({ initial }: { initial?: TranslationConfig })
     : 'DeepL 키가 저장돼 있어요. 한도를 넘거나 키가 막히면 Workers AI로 번역해요.';
   return <div className="feedex-translation-setting">
     <div className="feedex-auto-refresh-setting" title={hint}>
-      <span>번역{deepl && (usage || removable) && <small>{usage}{usage && removable && ' · '}{removable && <button type="button" className="feedex-setting-link" data-quiet disabled={busy} onClick={() => { void run(() => apiRequest<TranslationConfig>('/api/translation/deepl', { method: 'DELETE' }), 'DeepL 키를 지웠어요.'); }}>키 지우기</button>}</small>}</span>
-      <span className="feedex-setting-value">{deepl ? 'DeepL' : 'Workers AI'}</span>
+      <span>번역{deepl && usage && <small>{usage}</small>}</span>
+      <div className="feedex-cache-controls">
+        {/* DeepL을 고르면 키 입력칸으로 가고, Workers AI를 고르면(저장된 키가 있을 때) 키 삭제를 확인한다. */}
+        <select aria-label="번역 서비스" value={deepl ? 'deepl' : 'workers-ai'} disabled={busy || Boolean(config.managed)} onChange={(event) => {
+          if (event.target.value === 'deepl') keyInput.current?.focus();
+          else if (removable) setConfirm(true);
+        }}>
+          <option value="deepl">DeepL</option>
+          <option value="workers-ai">Workers AI</option>
+        </select>
+        {removable && <button type="button" className="feedex-icon-danger" aria-label="DeepL 키 지우기" disabled={busy || confirm} onClick={() => setConfirm(true)}><Trash2 size={16} /></button>}
+      </div>
     </div>
+    {confirm && <div className="feedex-cache-confirm"><p>저장된 DeepL API 키를 지울까요? 지우면 Workers AI로 번역해요.</p><div className="feedex-cache-actions"><button disabled={busy} onClick={() => setConfirm(false)}>취소</button><button data-danger disabled={busy} onClick={() => { setConfirm(false); void run(() => apiRequest<TranslationConfig>('/api/translation/deepl', { method: 'DELETE' }), 'DeepL 키를 지웠어요.'); }}>지우기</button></div></div>}
     {!deepl && !config.managed && <form className="feedex-translation-key" autoComplete="off" onSubmit={(event) => { event.preventDefault(); if (key.trim()) void run(() => apiRequest<TranslationConfig>('/api/translation/deepl', { method: 'PUT', body: JSON.stringify({ key: key.trim() }) }), 'DeepL 키를 저장했어요.'); }}>
-      <input type="password" aria-label="DeepL API 키" placeholder="DeepL API 키" value={key} maxLength={120} disabled={busy || config.storage === false} autoComplete="new-password" spellCheck={false} onChange={(event) => setKey(event.target.value)} />
+      <input ref={keyInput} type="password" aria-label="DeepL API 키" placeholder="DeepL API 키" value={key} maxLength={120} disabled={busy || config.storage === false} autoComplete="new-password" spellCheck={false} onChange={(event) => setKey(event.target.value)} />
       <button type="submit" className="feedex-cache-clear" disabled={busy || !key.trim() || config.storage === false}>저장</button>
     </form>}
     {!deepl && !config.managed && <p className="feedex-setting-message">{config.storage === false ? '서버에 키 저장 준비가 안 돼 있어요.' : 'DeepL 계정의 API Keys에서 복사해요. 앱 구독과는 별개예요.'}</p>}

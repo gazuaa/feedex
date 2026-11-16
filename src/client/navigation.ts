@@ -50,11 +50,14 @@ export class MobileNavigation {
   private observed: MobileLocation;
   private observedScroll = 0;
   private readerReturn: ReaderReturn | null = null;
+  /** 이번 방문에서 도달한 가장 뒤쪽 기록 번호. 이보다 앞이면 앞으로 갈 수 있다. */
+  private furthest = 0;
   constructor(private history: Pick<History, 'length' | 'state' | 'pushState' | 'replaceState' | 'go'>, private account: string, initial: MobileLocation, private restore: (location: MobileLocation, scroll: number) => void, startAtTop = false) {
     this.observed = initial;
     const saved = this.read(history.state);
     // 새 버전으로 바꾸느라 새로 고쳤으면 보던 목록과 글은 되살리되 목록은 맨 위에서 보여 준다.
     this.current = saved ? (startAtTop ? { ...saved, scroll: 0 } : saved) : { version: 1, account, index: 0, location: root(initial), list: null, library: null, scroll: 0 };
+    this.furthest = this.current.index;
     this.write(this.current, false);
     if (!equal(this.current.location, initial)) this.apply(this.current);
   }
@@ -68,6 +71,9 @@ export class MobileNavigation {
   private write(entry: Entry, push: boolean) {
     this.history[push ? 'pushState' : 'replaceState']({ ...this.history.state, [key]: entry }, '');
     this.current = entry;
+    // 새 기록을 쌓으면 그 뒤의 앞으로 가기 기록은 브라우저가 지운다.
+    if (push) this.furthest = entry.index;
+    else this.furthest = Math.max(this.furthest, entry.index);
   }
   private apply(entry: Entry) {
     this.current = entry;
@@ -109,6 +115,8 @@ export class MobileNavigation {
   /** 목록에서 뒤로 가면 보관함으로 가는지, 목록의 이전 상태로 가는지. */
   backTarget(): 'library' | 'other' { return this.current.library !== null && this.current.library === this.current.index - 1 ? 'library' : 'other'; }
   back() { if (this.canGoBack()) this.history.go(-1); }
+  canGoForward() { return this.current.index < this.furthest && !this.restoring && !this.readerReturn; }
+  forward() { if (this.canGoForward()) this.history.go(1); }
   cancelReaderReturn() {
     clearTimeout(this.readerReturn?.timer);
     this.readerReturn = null;

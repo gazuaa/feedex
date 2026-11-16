@@ -13,6 +13,9 @@ const EASING = 'cubic-bezier(.2, .8, .2, 1)';
 export interface SwipeNavigation {
   canGoBack(): boolean;
   back(): void;
+  /** 뒤로 갔던 화면으로 다시 가는 왼쪽 밀기. 지원하지 않으면 생략한다. */
+  canGoForward?(): boolean;
+  forward?(): void;
   /** 목록에서 뒤로 가는 곳: 보관함 또는 목록의 이전 상태. */
   backTarget?(): 'library' | 'other';
 }
@@ -55,7 +58,9 @@ function present(document: Document, scene: SwipeScene) {
     const progress = Math.min(1, Math.max(0, dx / width));
     for (const node of [...scene.top, ...scene.under]) node.style.transition = animate ? `transform ${DURATION}ms ${EASING}, box-shadow ${DURATION}ms ${EASING}` : 'none';
     for (const node of scene.top) {
-      node.style.transform = `translate3d(${Math.max(0, dx)}px, 0, 0)`;
+      // 하단바는 CSS로 가운데에 놓으려고 translateX(-50%)를 쓴다. 인라인 변형이 그것을 덮어쓰면
+      // 끌기 시작할 때 하단바가 절반 폭만큼 튀므로, 그 이동을 함께 유지한다.
+      node.style.transform = node.classList.contains('feedex-mobile-dock') ? `translate3d(calc(${Math.max(0, dx)}px - 50%), 0, 0)` : `translate3d(${Math.max(0, dx)}px, 0, 0)`;
       node.style.boxShadow = `-10px 0 30px rgba(15, 23, 42, ${0.18 * (1 - progress)})`;
     }
     for (const node of scene.under) node.style.transform = `translate3d(${-(1 - progress) * PARALLAX * width}px, 0, 0)`;
@@ -91,9 +96,11 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
   let start: Point | null = null;
   let last: Point | null = null;
   let claimed = false;
+  // 왼쪽으로 미는 앞으로 가기 동작. 화면은 끌지 않고 놓을 때 이동한다.
+  let forwardClaimed = false;
   let stage: ReturnType<typeof present> | null = null;
   let settling = false;
-  const cancel = () => { start = null; last = null; claimed = false; };
+  const cancel = () => { start = null; last = null; claimed = false; forwardClaimed = false; };
   const point = (touch: Touch, time: number): Point => ({ x: touch.clientX, y: touch.clientY, time });
   // 끌던 화면을 제자리로 되돌리고, 끝나면 인라인 스타일을 지운다.
   const restore = () => {
@@ -129,7 +136,7 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
   };
   const begin = (event: TouchEvent) => {
     cancel();
-    if (settling || event.touches.length !== 1 || !navigation.canGoBack() || (view.visualViewport?.scale ?? 1) > 1.05 || document.querySelector('dialog[open], [aria-modal="true"]') || document.getSelection()?.isCollapsed === false) return;
+    if (settling || event.touches.length !== 1 || !(navigation.canGoBack() || navigation.canGoForward?.()) || (view.visualViewport?.scale ?? 1) > 1.05 || document.querySelector('dialog[open], [aria-modal="true"]') || document.getSelection()?.isCollapsed === false) return;
     const target = event.target as HTMLElement | null;
     const container = target?.closest('.feedex-feed-list, .feedex-mobile-library-scroll, .feedex-reader-content');
     if (!container || target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"], video, audio, iframe, summary, button:not(.feedex-mobile-library-row)')) return;
@@ -147,30 +154,49 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
     if (event.touches.length !== 1) { cancel(); restore(); return; }
     const current = point(event.touches[0], event.timeStamp);
     const dx = current.x - start.x, dy = Math.abs(current.y - start.y);
-    if (!claimed && (dy > 12 && dy > Math.abs(dx) || dx < -12)) { cancel(); return; }
-    if (!claimed && dx > 12 && dx > dy * 1.8) {
+    if (!claimed && !forwardClaimed && dy > 12 && dy > Math.abs(dx)) { cancel(); return; }
+    if (!claimed && !forwardClaimed && dx < -12) {
+      if (!navigation.canGoForward?.() || -dx <= dy * 1.8) { cancel(); return; }
+      forwardClaimed = true;
+    }
+    if (forwardClaimed) {
+      if (event.cancelable) event.preventDefault();
+      last = current;
+      return;
+    }
+    if (!claimed && dx > 12 && dx > dy * 1.8 && navigation.canGoBack()) {
       claimed = true;
       const scene = findScene(document, navigation);
       if (scene) stage = present(document, scene);
     }
     if (claimed) {
-      if (event.cancelable) {
-        event.preventDefault();
-        stage?.place(dx, false);
-      } else { cancel(); restore(); } // 브라우저가 이미 이 동작을 가져갔다
+      // 이미 끌기 시작했다면 브라우저가 스크롤을 가져가 이벤트를 취소할 수 없게 되어도
+      // 손가락을 잡고 있는 동안에는 화면을 계속 따라가게 두고, 놓을 때 정한다.
+      if (event.cancelable) event.preventDefault();
+      stage?.place(dx, false);
     }
     last = current;
   };
   const end = (event: TouchEvent) => {
     const initial = start, previous = last, touch = event.changedTouches[0];
+    const forwarding = forwardClaimed;
     cancel();
-    if (!initial || !touch || !event.cancelable || !navigation.canGoBack()) { restore(); return; }
+    if (forwarding && initial && touch) {
+      const fx = touch.clientX - initial.x, fy = Math.abs(touch.clientY - initial.y);
+      const fast = -fx >= 64 && -fx > fy * 1.8 && event.timeStamp - initial.time <= 900;
+      if ((fast || (-fx >= view.innerWidth * COMMIT_SHARE && -fx > fy)) && navigation.canGoForward?.()) {
+        if (event.cancelable) event.preventDefault();
+        navigation.forward?.();
+      }
+      return;
+    }
+    if (!initial || !touch || !navigation.canGoBack()) { restore(); return; }
     const final = point(touch, event.timeStamp);
     const dx = final.x - initial.x, dy = Math.abs(final.y - initial.y);
     // 튕기듯 밀면 짧은 거리로도 뒤로 가고, 느리게 끌면 화면을 가로질러야 한다.
     const flick = isBackSwipe(initial, final) || Boolean(previous && previous !== initial && final.time > previous.time && (final.x - previous.x) / (final.time - previous.time) > 0.6 && dx >= 64);
     if (!(flick || (stage && dx >= view.innerWidth * COMMIT_SHARE && dx > dy))) { restore(); return; }
-    event.preventDefault();
+    if (event.cancelable) event.preventDefault();
     commit();
   };
   const abort = () => { cancel(); restore(); };

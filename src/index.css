@@ -173,6 +173,10 @@ html.dark .feedex-x-mirrors li[data-alert] small { color: #fbbf24; }
 .feedex-cache-controls > .feedex-setting-link[data-quiet] { padding: 0 6px; font-size: 12px; }
 html.dark .feedex-setting-link:not([data-quiet]) { color: #34d399; }
 .feedex-cache-actions button[data-danger] { color: #e11d48; }
+/* 설정 줄 오른쪽의 빨간 휴지통 버튼. 누르면 먼저 확인을 받는다. */
+.feedex-icon-danger { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; min-height: 34px; border-radius: 10px; color: #e11d48; cursor: pointer; }
+.feedex-icon-danger:hover { background: #e11d4814; }
+.feedex-icon-danger:disabled { opacity: .4; cursor: default; }
 .feedex-desktop-settings-panel { max-height: calc(100dvh - 96px - env(safe-area-inset-top)); overflow-y: auto; }
 .feedex-text-size-control { display: inline-flex; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--feedex-border); border-radius: 12px; color: var(--feedex-text); }
 .feedex-text-size-control > button { display: flex; align-items: center; justify-content: center; min-width: 34px; min-height: 34px; padding: 4px 8px; border-radius: 9px; cursor: pointer; }
@@ -438,6 +442,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-zoom { display: flex; justify-content: space-evenly; }
   .feedex-mobile-zoom button { min-width: 48px; min-height: 44px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
   .feedex-reader-content { padding: calc(24px + var(--feedex-reader-top-height, 58px)) 22px calc(90px + env(safe-area-inset-bottom)); scrollbar-gutter: auto; }
+  /* 가로 밀기를 브라우저가 가져가 손가락을 잡고 있는데도 끌기가 풀리는 일이 없게, 세로 스크롤과 확대만 브라우저에 맡긴다. */
+  .feedex-feed-list, .feedex-mobile-library-scroll, .feedex-reader-content { touch-action: pan-y pinch-zoom; }
   .feedex-reader-content h1 { font-size: 27px; line-height: 1.3; letter-spacing: -.7px; }
   :root { --feedex-article-font: 17px; }
   .feedex-article-content { line-height: 1.85; word-break: normal; overflow-wrap: anywhere; }

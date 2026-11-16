@@ -285,7 +285,7 @@ try {
   assert.match(styles, /\.feedex-translation-bar \{[^}]*width: fit-content/, 'the translation notice is a small pill, not a full-width box');
   const { TranslationSetting } = await vite.ssrLoadModule('/src/components/TranslationSetting.tsx');
   const deeplSetting = renderToStaticMarkup(React.createElement(TranslationSetting, { initial: { canManage: true, provider: 'deepl', managed: false, usage: { used: 1234, limit: 500000 }, storage: true } }));
-  assert.match(deeplSetting, /DeepL/); assert.match(deeplSetting, /<small>이번 달 1\.2천 \/ 50만자 사용 · <button[^>]*>키 지우기<\/button><\/small>/, 'usage and key removal share one short line');
+  assert.match(deeplSetting, /DeepL/); assert.match(deeplSetting, /<small>이번 달 1\.2천 \/ 50만자 사용<\/small>/); assert.match(deeplSetting, /<select[^>]*aria-label="번역 서비스"/, "DeepL is picked from a button-style select"); assert.match(deeplSetting, /<button[^>]*feedex-icon-danger[^>]*aria-label="DeepL 키 지우기"/, "a red trash icon removes the key");
   assert.match(deeplSetting, /title="DeepL 키가 저장돼 있어요\. 한도를 넘거나 키가 막히면 Workers AI로 번역해요\."/); assert.doesNotMatch(deeplSetting, /feedex-setting-message/, 'no paragraph under the row');
   const aiSetting = renderToStaticMarkup(React.createElement(TranslationSetting, { initial: { canManage: true, provider: 'workers-ai', managed: false, usage: null, storage: true } }));
   assert.match(aiSetting, /type="password"[^>]*aria-label="DeepL API 키"/); assert.match(aiSetting, /앱 구독과는 별개/);

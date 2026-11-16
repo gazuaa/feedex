@@ -148,8 +148,10 @@ try {
   assert.equal(vertical.move.defaultPrevented, false); assert.equal(backs, 1);
   for (const gesture of [[10, 300, 200, 300], [95, 300, 125, 300], [95, 300, 240, 500], [240, 300, 95, 300]]) swipe(...gesture);
   swipe(95, 300, 240, 300, 1200); swipe(95, 300, 240, 300, 240, { fingers: 2 });
-  swipe(95, 300, 240, 300, 240, { cancelable: false });
-  assert.equal(backs, 1, 'edge, short, diagonal, leftward, long, pinch and browser-owned gestures do not navigate');
+  // 브라우저가 이벤트를 취소할 수 없게 만든 뒤에도, 손가락을 잡고 있던 가로 밀기는 놓을 때 뒤로 간다.
+  swipe(95, 300, 240, 300, 240, { cancelable: false }); assert.equal(backs, 2);
+  backs = 1;
+  assert.equal(backs, 1, 'edge, short, diagonal, leftward, long and pinch gestures do not navigate');
   target.control = true; swipe(95, 300, 240, 300); target.control = false;
   target.horizontal = true; target.scrollWidth = 500; swipe(95, 300, 240, 300); target.horizontal = false;
   view.visualViewport.scale = 1.5; swipe(95, 300, 240, 300); view.visualViewport.scale = 1;
@@ -157,6 +159,14 @@ try {
   touch('touchstart', 95, 300, 0); view.dispatchEvent(new Event('popstate')); touch('touchend', 240, 300, 240);
   assert.equal(backs, 1, 'controls, horizontal content, zoom, root and a native history traversal are preserved');
   unbind(); swipe(95, 300, 240, 300); assert.equal(backs, 1, 'listeners are removed after logout or switching to desktop');
+  // 왼쪽으로 밀면 뒤로 갔던 화면으로 다시 간다.
+  let forwards = 0, canForward = true;
+  const unbindForward = bindSwipeBack(doc, { canGoBack: () => false, back: () => backs++, canGoForward: () => canForward, forward: () => forwards++ });
+  swipe(240, 300, 95, 305); assert.equal(forwards, 1, 'a leftward swipe goes forward');
+  swipe(240, 300, 215, 300); swipe(240, 300, 95, 500); swipe(95, 300, 240, 300);
+  canForward = false; swipe(240, 300, 95, 300);
+  assert.equal(forwards, 1, 'short, diagonal, rightward swipes and a missing forward entry do not go forward');
+  unbindForward();
 
   const { app } = await vite.ssrLoadModule('/src/server/app.ts');
   const { LocalD1Database } = await vite.ssrLoadModule('/src/server/localD1.ts');

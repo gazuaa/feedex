@@ -10,9 +10,9 @@ import { useResolvedTheme } from '../client/theme';
 export function useThemeOptions() {
   const mobile = useMobileViewport();
   return [
+    { value: 'system', label: '시스템 설정 따르기', Icon: mobile ? Smartphone : Monitor },
     { value: 'light', label: '낮 모드', Icon: Sun },
     { value: 'dark', label: '밤 모드', Icon: Moon },
-    { value: 'system', label: '시스템 설정 따르기', Icon: mobile ? Smartphone : Monitor },
   ] as const;
 }
 

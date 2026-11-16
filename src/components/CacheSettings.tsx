@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { maintainDeviceCache } from '../client/deviceContent';
 import { retentionDays, RETENTION_OPTIONS, setRetentionDays } from '../client/cachePolicy';
 
@@ -26,7 +27,7 @@ export function CacheSettings({ accountId, active: visible = false }: { accountI
         <select aria-label="기기 데이터 보관 기간" value={days} onChange={(event) => {
           const value = Number(event.target.value); setRetentionDays(accountId, value); setDays(value); void maintainDeviceCache(accountId).then((stats) => setBytes(stats.bytes));
         }}>{RETENTION_OPTIONS.map((value) => <option key={value} value={value}>{value}일 보관</option>)}</select>
-        <button type="button" className="feedex-setting-link" data-quiet aria-label="캐시 지우기" disabled={confirm} onClick={() => setConfirm(true)}>지우기</button>
+        <button type="button" className="feedex-icon-danger" aria-label="캐시 지우기" disabled={confirm} onClick={() => setConfirm(true)}><Trash2 size={16} /></button>
       </div>
     </div>
     {confirm && <div className="feedex-cache-confirm"><p>이 계정의 기기 캐시를 지울까요? 구독과 저장한 글은 그대로예요.</p><div className="feedex-cache-actions"><button disabled={busy} onClick={() => setConfirm(false)}>취소</button><button data-danger disabled={busy} onClick={() => void clear()}>{busy ? '지우는 중…' : '지우기'}</button></div></div>}
