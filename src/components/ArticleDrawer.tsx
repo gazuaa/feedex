@@ -1475,14 +1475,32 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>
         </div>
         )}
-        {framed && barsHidden && <button type="button" className="feedex-web-peek lg:hidden" aria-label="메뉴 보이기" onClick={() => setPeek(1)}><span className="feedex-web-peek-dots" aria-hidden="true"><span /><span /><span /><span /></span></button>}
-        <nav aria-label="본문 조작" className="feedex-mobile-dock feedex-mobile-reader-dock lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
-          <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
-          <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
-          <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>
-          <button aria-label="다음 아티클" disabled={!hasNext} onClick={() => onNavigateRelative('next')}><ChevronRight size={21} /></button>
-          <button aria-label="글 공유" aria-expanded={shareDialogOpen || mobileMenu === 'share'} onClick={openShare}><Share2 size={18} /></button>
-          <button aria-label="번역 및 AI 요약" aria-expanded={mobileMenu === 'assist'} onClick={() => setMobileMenu('assist')}>{translating || summarizing ? <Loader2 size={19} className="animate-spin" /> : <Sparkles size={19} />}</button>
+        <nav
+          aria-label={barsHidden ? '메뉴 보이기' : '본문 조작'}
+          role={barsHidden ? 'button' : 'navigation'}
+          className="feedex-mobile-dock feedex-mobile-reader-dock lg:hidden"
+          data-collapsed={barsHidden || undefined}
+          onClick={(e) => {
+            if (barsHidden) {
+              e.preventDefault();
+              e.stopPropagation();
+              try { navigator.vibrate?.(10); } catch {}
+              setPeek(1);
+            }
+          }}
+          onPointerDown={keepPeeking}
+        >
+          <span className="feedex-dock-peek-dots" aria-hidden="true">
+            <span /><span /><span /><span />
+          </span>
+          <div className="feedex-dock-actions" inert={barsHidden || undefined} aria-hidden={barsHidden || undefined}>
+            <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
+            <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
+            <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>
+            <button aria-label="다음 아티클" disabled={!hasNext} onClick={() => onNavigateRelative('next')}><ChevronRight size={21} /></button>
+            <button aria-label="글 공유" aria-expanded={shareDialogOpen || mobileMenu === 'share'} onClick={openShare}><Share2 size={18} /></button>
+            <button aria-label="번역 및 AI 요약" aria-expanded={mobileMenu === 'assist'} onClick={() => setMobileMenu('assist')}>{translating || summarizing ? <Loader2 size={19} className="animate-spin" /> : <Sparkles size={19} />}</button>
+          </div>
         </nav>
         {shareDialogOpen && <dialog ref={shareDialogRef} aria-label="공유 방법" onCancel={(event) => { event.preventDefault(); closeShareDialog(); }}
           onClick={(event) => { if (event.target === event.currentTarget) closeShareDialog(); }}

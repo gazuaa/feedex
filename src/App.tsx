@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Filter, ShieldBan } from 'lucide-react';
+import { Filter, ShieldBan } from 'lucide-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   apiRequest,
@@ -92,10 +92,11 @@ function BlockedArticlesChip({ showBlockedArticles, blockedCount, onToggle, onMa
   const start = () => {
     firedRef.current = false;
     setPressing(true);
+    try { navigator.vibrate?.(15); } catch {}
     timerRef.current = setTimeout(() => {
       firedRef.current = true;
       setPressing(false);
-      try { navigator.vibrate?.(40); } catch {}
+      try { navigator.vibrate?.([30, 40, 40]); } catch {}
       onManage();
     }, 500);
   };
@@ -134,10 +135,14 @@ function BlockedArticlesChip({ showBlockedArticles, blockedCount, onToggle, onMa
       onPointerLeave={cancel}
       onClick={handleClick}
     >
-      {showBlockedArticles ? <EyeOff size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
+      <span className="feedex-shield-progress" aria-hidden="true">
+        <ShieldBan size={15} className="feedex-shield-base" />
+        <span className="feedex-shield-fill-wrap">
+          <ShieldBan size={15} className="feedex-shield-fill" />
+        </span>
+      </span>
       <span>{showBlockedArticles ? '차단 글 숨기기' : '차단 글 보기'}</span>
       <span className="feedex-filter-count" aria-label={`${blockedCount}개`}>{blockedCount}</span>
-      <span className="feedex-longpress-bar" aria-hidden="true" />
     </button>
   );
 }
