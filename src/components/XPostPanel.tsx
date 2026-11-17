@@ -100,6 +100,8 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   }, [accountId, source.id, url, retry]);
   useEffect(() => () => { summaryRequest.current?.abort(); summaryRequest.current = null; }, [accountId, source.id, url, retry]);
   const snapshot = activeCopy?.translationProof && !activeCopy.partial ? { html: activeCopy.html, proof: activeCopy.translationProof } : undefined;
+  // 번역은 원글 없이 받은 대화도 보이는 그대로 한다. 요약은 결과를 저장하므로 완성본만 보낸다.
+  const translationSnapshot = activeCopy?.translationProof ? { html: activeCopy.html, proof: activeCopy.translationProof } : undefined;
   const toggleTranslation = async () => {
     if (translationRequest.current) {
       translationRequest.current.abort(); translationRequest.current = null; setTranslating(false);
@@ -113,7 +115,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     setTranslating(true); setTranslationError('');
     try {
       const response = await apiRequest<Translation>(`/api/articles/${encodeURIComponent(source.id)}/translate`, {
-        method: 'POST', body: JSON.stringify({ source: 'full', xUrl: url, xThread: snapshot }), signal: controller.signal,
+        method: 'POST', body: JSON.stringify({ source: 'full', xUrl: url, xThread: translationSnapshot }), signal: controller.signal,
       });
       if (translationRequest.current !== controller) return;
       setTranslation({ copy: activeCopy, result: response }); setTranslated(true);

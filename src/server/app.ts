@@ -1477,14 +1477,19 @@ app.post('/api/articles/:id/translate', async (c) => {
   const threadUrl = linkedUrl ?? article.url;
   const linkedThread = threadUrl !== article.url;
   let full: string | null = null;
+  let xNotice: string | undefined;
   if (needsXThread) {
-    let html = verifiedXThread(c.env, threadUrl, body.xThread);
+    // 답글의 원글을 미러가 주지 못한 사본도 화면에 보인 그대로 번역한다. 원글이 빠졌다고 번역까지 막으면 보이는 글도 번역할 수 없다.
+    let html = verifiedXThread(c.env, threadUrl, body.xThread, true);
     if (!html) {
       const copy = await fetchXThread(threadUrl, article.content_html, c.env.DB, linkedThread ? undefined : article.title).catch(() => null);
-      if (copy && !copy.partial) html = copy.html;
+      if (copy) html = copy.html;
     }
     full = html ? xThreadTranslationBody(html) : null;
-    if (!full) return c.json({ error: 'X 원글과 댓글을 가져오지 못했어요. 대화를 다시 불러온 뒤 번역해 주세요.' }, 422);
+    if (full && html?.includes('class="empty parent-missing"')) xNotice = '공개 미러가 원글을 주지 않아 화면에 보이는 대화만 번역했어요.';
+    // 미러에서 대화를 아예 받지 못했어도 피드에 온 그 글은 번역할 수 있다. 글 안에서 연 다른 X 글은 피드 본문이 없다.
+    if (!full && (linkedThread || !article.content_html?.trim())) return c.json({ error: 'X 글을 가져오지 못했어요. 대화를 다시 불러온 뒤 번역해 주세요.' }, 422);
+    if (!full) xNotice = '공개 미러에서 대화를 받지 못해 피드에 온 글만 번역했어요.';
   } else if (source === 'full') {
     full = await readerBodyForArticleTools(c.env, article, body.phone === true);
     if (!full) return c.json({ error: '기사 전체 본문을 가져오지 못했어요. 다시 시도하거나 원문에서 읽어 주세요.' }, 422);
@@ -1505,12 +1510,13 @@ app.post('/api/articles/:id/translate', async (c) => {
   let result;
   try { result = await translateArticle(c.env, { title, html, mixedLanguages: needsXThread }); }
   catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : '번역하지 못했어요. 잠시 후 다시 시도해 주세요.' }, error instanceof TranslationError ? error.status as 502 : 502); }
-  if (!result.alreadyKorean) {
+  // 원글이 빠진 대화나 피드 글만 번역한 결과는 저장하지 않는다. 저장하면 완성된 대화의 번역을 덮어쓴다.
+  if (!result.alreadyKorean && !xNotice) {
     await c.env.DB.prepare(`INSERT INTO article_translations(article_id,target_lang,source_kind,source_hash,title,content_html,provider,model,created_at) VALUES(?,?,?,?,?,?,?,?,?)
       ON CONFLICT(article_id,target_lang,source_kind) DO UPDATE SET source_hash=excluded.source_hash,title=excluded.title,content_html=excluded.content_html,provider=excluded.provider,model=excluded.model,created_at=excluded.created_at`)
       .bind(article.id, 'KO', cacheSource, hash, result.title, result.html, result.provider, result.model, new Date().toISOString()).run();
   }
-  return c.json({ title: result.title, html: result.html, provider: result.provider, model: result.model, bodySource, notice: result.notice, alreadyKorean: Boolean(result.alreadyKorean), cached: false });
+  return c.json({ title: result.title, html: result.html, provider: result.provider, model: result.model, bodySource, notice: xNotice || result.notice, alreadyKorean: Boolean(result.alreadyKorean), cached: false });
 });
 
 // 번역 설정. DeepL API 키는 운영자만 넣고 지운다. 키는 응답에 돌려주지 않는다.

@@ -178,23 +178,27 @@ export async function fetchXThread(url: string, feedHtml?: string | null, db?: D
 const missingParent = (document: Element, main: Element, feedReply: boolean) => (feedReply || [...main.querySelectorAll('.replying-to')].some((node) => !node.matches('.quote *')))
   && !document.querySelector('.main-thread .before-tweet .timeline-item .tweet-header');
 
-// 화면에 보인 완성본을 번역에서 그대로 쓰되, 서버가 만들지 않은 HTML은 번역기에 보내지 않는다.
-function threadProof(env: Env, url: string, html: string) {
+// 화면에 보인 사본을 번역에서 그대로 쓰되, 서버가 만들지 않은 HTML은 번역기에 보내지 않는다.
+// 원글 없이 받은 사본은 증표를 따로 만들어, 그런 사본을 받아도 되는 곳(번역)에서만 쓰게 한다.
+function threadProof(env: Env, url: string, html: string, partial = false) {
   const key = env.X_SETTINGS_SECRET || env.JWT_SECRET;
   if (!key || key.length < 32 || html.length > 1_000_000) return;
-  return createHmac('sha256', key).update(`feedex-x-translation-v1\n${url}\n${html}`).digest('base64url');
+  return createHmac('sha256', key).update(`feedex-x-translation-v1${partial ? '-partial' : ''}\n${url}\n${html}`).digest('base64url');
 }
 
 export function xThreadWithProof(env: Env, copy: XThread) {
-  return copy.partial ? copy : { ...copy, translationProof: threadProof(env, copy.url, copy.html) };
+  return { ...copy, translationProof: threadProof(env, copy.url, copy.html, Boolean(copy.partial)) };
 }
 
-export function verifiedXThread(env: Env, url: string, snapshot: unknown): string | undefined {
+/** `allowPartial`이면 원글 없이 받은 사본도 받는다. 요약처럼 결과를 저장해 두는 곳은 완성본만 받는다. */
+export function verifiedXThread(env: Env, url: string, snapshot: unknown, allowPartial = false): string | undefined {
   if (!snapshot || typeof snapshot !== 'object' || !('html' in snapshot) || !('proof' in snapshot)) return;
   const { html, proof } = snapshot;
   if (typeof html !== 'string' || typeof proof !== 'string' || !/^[\w-]{43}$/.test(proof) || !html.includes(X_THREAD_MARK)) return;
-  const expected = threadProof(env, url, html);
-  if (expected && timingSafeEqual(Buffer.from(expected), Buffer.from(proof))) return html;
+  for (const partial of allowPartial ? [false, true] : [false]) {
+    const expected = threadProof(env, url, html, partial);
+    if (expected && timingSafeEqual(Buffer.from(expected), Buffer.from(proof))) return html;
+  }
 }
 
 export function xThreadTranslationBody(html: string): string {

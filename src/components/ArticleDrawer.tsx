@@ -717,7 +717,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         thread = await resources.web(article).then(copy => ({ articleId: article.id, ...copy })).catch(() => null);
       }
       if (!current()) return;
-      const xThread = xPost && source === 'full' && thread?.thread && !thread.partial && thread.html && thread.translationProof
+      // 원글 없이 받은 대화도 보이는 그대로 번역한다(서버가 증표로 구분한다).
+      const xThread = xPost && source === 'full' && thread?.thread && thread.html && thread.translationProof
         ? { html: thread.html, proof: thread.translationProof } : undefined;
       const res = await apiRequest<{ title: string; html: string; provider: string; bodySource?: 'full' | 'feed'; notice?: string; alreadyKorean?: boolean }>(`/api/articles/${article.id}/translate`, {
         method: 'POST', body: JSON.stringify({ source, phone: isMobile, xThread }), signal: controller.signal,

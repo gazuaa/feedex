@@ -187,7 +187,12 @@ try {
   assert.doesNotMatch(xFull.html, /Only the RSS reply|<style>|<base/);
   assert.equal(mirrorCalls, 1, '번역은 이미 표시한 사본을 쓰고 미러에 다시 묻지 않는다.');
   const tampered = await xTranslate({ source: 'full', xThread: { ...snapshot, html: snapshot.html.replace('Original parent message', 'Forged text') } });
-  assert.equal(tampered.status, 422, '검증에 실패하고 원글도 없으면 댓글만 번역하지 않는다.');
+  // 검증에 실패하면 미러에서 다시 받는다. 원글이 빠진 대화여도 화면에 보이는 만큼 번역하고, 원글이 빠졌다고 알린다.
+  assert.equal(tampered.status, 200, '원글을 받지 못해도 보이는 대화는 번역한다.');
+  const partialTranslation = await tampered.json();
+  assert.match(partialTranslation.html, /Selected reply/);
+  assert.doesNotMatch(partialTranslation.html, /Forged text|Original parent message/);
+  assert.match(partialTranslation.notice, /원글/);
   const xFeed = await (await xTranslate({ source: 'feed' })).json();
   assert.equal(xFeed.html, '번역:<p>Only the RSS reply</p>');
 
