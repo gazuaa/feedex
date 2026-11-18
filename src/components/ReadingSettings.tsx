@@ -1,9 +1,9 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Minus, Plus, Settings2, LayoutList, LayoutGrid, AlignJustify, List, RefreshCw, ScrollText, Type, ArrowDownUp, Languages, type LucideIcon } from 'lucide-react';
 import { SettingLabel } from './SettingLabel';
-import { useLanguageOptions } from './LanguageSwitch';
-import { changeLanguage, languagePreference, type LanguagePreference } from '../client/language';
-import { t } from '../shared/i18n';
+import { LANGUAGE_OPTIONS } from './LanguageSwitch';
+import { changeLanguage, resolvedLang } from '../client/language';
+import { t, type Lang } from '../shared/i18n';
 import type { LayoutMode } from '../client/api';
 import { LocalNotificationSetting } from './LocalNotificationSetting';
 import { CacheSettings } from './CacheSettings';
@@ -57,11 +57,10 @@ export function NativeAppUpdateSetting() {
   return <div className="feedex-auto-refresh-setting" title={t('새 버전이 있으면 받아서 설치해요', 'Downloads and installs a new version if there is one')}><span>{t(`${nativeAppName()} 업데이트`, `${nativeAppName()} updates`)}</span><button type="button" className="feedex-cache-clear" onClick={() => nativeBridge()?.postMessage({ type: 'checkForUpdates' })}>{t('업데이트 확인', 'Check for updates')}</button></div>;
 }
 
-/** 화면 언어: 시스템 언어 따르기, 한국어, 영어. 바꾸면 화면을 새로 불러온다. */
+/** 화면 언어: 한국어, 영어. 고른 적이 없으면 시스템 언어를 따른다. 바꾸면 화면을 새로 불러온다. */
 export function LanguageSetting() {
-  const [preference, setPreference] = useState<LanguagePreference>(languagePreference);
-  const options = useLanguageOptions();
-  return <SettingRow label={t('언어', 'Language')} icon={Languages}><div className="feedex-segmented" role="group" aria-label={t('언어', 'Language')}>{options.map(({ value, label, text, Icon }) => <button key={value} type="button" aria-label={label} title={label} aria-pressed={preference === value} onClick={() => { if (preference === value) return; setPreference(value); changeLanguage(value); }}>{Icon ? <Icon size={17} /> : text}</button>)}</div></SettingRow>;
+  const [language, setLanguage] = useState<Lang>(() => resolvedLang());
+  return <SettingRow label={t('언어', 'Language')} icon={Languages}><div className="feedex-segmented" role="group" aria-label={t('언어', 'Language')}>{LANGUAGE_OPTIONS.map(({ value, label, text }) => <button key={value} type="button" aria-label={label} title={label} aria-pressed={language === value} onClick={() => { if (language === value) return; setLanguage(value); changeLanguage(value); }}>{text}</button>)}</div></SettingRow>;
 }
 export function TextSizeSetting() {
   return <SettingRow label={t('글자 크기', 'Text size')} icon={Type}><TextSizeControl /></SettingRow>;
