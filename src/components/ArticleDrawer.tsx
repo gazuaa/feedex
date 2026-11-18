@@ -36,7 +36,7 @@ import {
 import { useCopyTheme } from '../client/copyTheme';
 import { useTextSize } from '../client/textSize';
 import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile';
-import { dropSiteClasses, X_THREAD_CLASSES } from '../shared/siteClasses';
+import { sanitizeReaderMarkup } from '../client/articleMarkup';
 import { isCurrentSummary } from '../shared/aiSummary';
 import { isAppleTouch, openSlapApp, shareLinks, slapAppLink } from '../client/share';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
@@ -115,8 +115,9 @@ function ArticleBody({ html, base, title, className, style, onOpenXPost, xThread
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (!ref.current) return;
-    // 서버에서 클래스와 페이지 자체 머리글을 빼기 전에 저장된 본문. X 대화 번역은 우리가 만든 구조 이름만 남긴다.
-    dropSiteClasses(ref.current, xThread ? X_THREAD_CLASSES : undefined);
+    // 저장된 예전 본문도 검사한 노드만 붙인다. 외부 HTML 문자열을 화면에서 다시 해석하지 않는다.
+    const content = sanitizeReaderMarkup(html, base, xThread);
+    ref.current.replaceChildren(...(content ? [content] : []));
     if (title) dropArticleChrome(ref.current, [titleKey(title)]);
     wrapArticleTables(ref.current);
     return bindArticleImages(ref.current, base);
@@ -142,7 +143,7 @@ function ArticleBody({ html, base, title, className, style, onOpenXPost, xThread
         onOpenXPost(normalized, text ? { text } : undefined);
       }
     }
-  }} dangerouslySetInnerHTML={{ __html: html }} />;
+  }} />;
 }
 
 /**

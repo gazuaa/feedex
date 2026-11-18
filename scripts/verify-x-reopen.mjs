@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict';
 import React, {act} from 'react';
-import {parseHTML} from 'linkedom';
+import {JSDOM} from 'jsdom';
 import {createServer} from 'vite';
 
 const vite=await createServer({configFile:false,server:{middlewareMode:true,ws:false},appType:'custom',logLevel:'silent'});
-const {window}=parseHTML('<!doctype html><html><body><div id="root"></div></body></html>');
+const {window}=new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'https://feedex.example.test/' });
+// 실제로 탐색하지 않는 jsdom의 자동 load는 막고, 테스트가 사본 로딩 시점을 정한다.
+window.document.addEventListener('load', event => {
+  if (event.isTrusted && event.target instanceof window.HTMLIFrameElement) event.stopImmediatePropagation();
+}, true);
 const values=new Map(), media={matches:false,addEventListener(){},removeEventListener(){}};
 window.matchMedia=()=>media;
-const globals={window,document:window.document,HTMLElement:window.HTMLElement,Element:window.Element,ResizeObserver:class{observe(){}disconnect(){}},localStorage:{getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)},IS_REACT_ACT_ENVIRONMENT:true};
+const globals={window,document:window.document,HTMLElement:window.HTMLElement,Element:window.Element,getComputedStyle:()=>({paddingRight:'0'}),ResizeObserver:class{observe(){}disconnect(){}},localStorage:{getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)},IS_REACT_ACT_ENVIRONMENT:true};
 const originals=new Map(Object.keys(globals).map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
 for(const [key,value]of Object.entries(globals))Object.defineProperty(globalThis,key,{configurable:true,value});
 let root;
@@ -117,6 +121,7 @@ try{
   console.log('PASS: real reader preview-to-ready frame replacement that keeps the same preview frame until the saved copy loads, cached A/B/A reopening and no duplicate copy requests.');
 }finally{
   if(root)await act(async()=>root.unmount());
+  window.close();
   for(const[key,descriptor]of originals)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];
   await vite.close();
 }

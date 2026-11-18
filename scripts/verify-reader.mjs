@@ -9,6 +9,7 @@ try {
   const { app } = await vite.ssrLoadModule('/src/server/app.ts');
   const { LocalD1Database } = await vite.ssrLoadModule('/src/server/localD1.ts');
   const { upsertFeedAndArticles } = await vite.ssrLoadModule('/src/server/seedService.ts');
+  const { sanitizeContentHtml } = await vite.ssrLoadModule('/src/server/rssParser.ts');
   const url = 'https://reader.example.test/post';
   const body = '<p>A public article with meaningful text and a source link. '.repeat(8) + '<a href="/reference">Reference</a></p>';
   const html = `<html><head><title>Public article</title><meta property="article:published_time" content="2026-10-21T10:00:00+09:00"><meta property="og:image" content="https://reader.example.test/cover.jpg"></head><body><nav>Navigation</nav><main><article><section>${body}<img src="/inline.jpg" onerror=alert(1)><a href="javascript:alert(1)">Unsafe</a><script>alert(1)</script><iframe src="https://other.example.test"></iframe><div hidden>Hidden content</div></section></article></main><footer>Footer links</footer></body></html>`;
@@ -18,6 +19,16 @@ try {
   assert.match(result.fullContentHtml, /https:\/\/reader.example.test\/reference/);
   assert.match(result.fullContentHtml, /https:\/\/reader.example.test\/inline.jpg/);
   assert.doesNotMatch(result.fullContentHtml, /onerror|javascript:|<script|<iframe|Navigation|Footer links|Hidden content/i);
+  const safeFeed = sanitizeContentHtml(`<p style="color:red">피드 글 <a href="/article" target="custom">원문</a></p>
+    <picture><source srcset="/small.jpg 640w, /large.jpg 1280w"><img src="/image.jpg" alt="사진" onload=""></picture>
+    <table><tr><th scope="col">항목</th><td colspan="2">값</td></tr></table>
+    <form><input name="field"></form><iframe src="https://elsewhere.example.test/video"></iframe>
+    <iframe src="https://www.youtube.com/embed/Bk6YI1qcGiQ?start=5" title="영상" srcdoc="preview"></iframe>`, url);
+  assert.match(safeFeed, /href="https:\/\/reader.example.test\/article" target="_blank" rel="noopener noreferrer"/);
+  assert.match(safeFeed, /srcset="https:\/\/reader.example.test\/small.jpg 640w, https:\/\/reader.example.test\/large.jpg 1280w"/);
+  assert.match(safeFeed, /<th scope="col">항목<\/th><td colspan="2">값<\/td>/);
+  assert.match(safeFeed, /https:\/\/www.youtube.com\/embed\/Bk6YI1qcGiQ\?start=5&amp;rel=0/);
+  assert.doesNotMatch(safeFeed, /style=|onload|<form|<input|elsewhere.example|srcdoc/);
   assert.equal(extractReaderContent('<title>Vercel Security Checkpoint</title><main>' + body + '</main>', url, null), null);
   assert.equal(extractReaderContent('<title>Sign in</title><main>' + body + '</main>', url, null), null);
   assert.equal(extractReaderContent('<title>Premium</title><script type="application/ld+json">{"isAccessibleForFree":false}</script><article>' + body + '</article>', url, null), null);

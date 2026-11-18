@@ -3,7 +3,7 @@ import type { OpmlFeed } from '../shared/opml';
 import { CURATED_FEEDS } from './curatedFeeds';
 import { extractOriginalPublishedAt, extractSummaryPublishedAt, parsePublicationDate } from './publicationDate';
 import { xProfile } from '../shared/xFeed';
-import { sanitizeYouTubeIframesInHtml } from '../shared/youtubeEmbed';
+import { sanitizeArticleMarkup } from './articleMarkup';
 import { fetchXFeed, type XOlderPage } from './xFeed';
 import { retryAfterMs } from './retryAfter';
 import type { D1DatabaseLike } from './types';
@@ -94,40 +94,7 @@ export function stripHtmlToSummary(html: string, maxLength = 260): string {
 }
 
 export function sanitizeContentHtml(html: string, baseUrl?: string): string {
-  if (!html) return '';
-  let result = sanitizeYouTubeIframesInHtml(
-    html
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, ''),
-    baseUrl
-  )
-    .replace(/\son\w+="[^"]*"/gi, '')
-    .replace(/\son\w+='[^']*'/gi, '');
-
-  if (baseUrl) {
-    try {
-      const base = new URL(baseUrl);
-      result = result.replace(/(<img[^>]+src=["'])([^"']+)(["'])/gi, (full, p1, src, p3) => {
-        try {
-          if (src.startsWith('data:')) return full;
-          return `${p1}${new URL(src, base).href}${p3}`;
-        } catch {
-          return full;
-        }
-      });
-      result = result.replace(/(<a[^>]+href=["'])([^"']+)(["'])/gi, (full, p1, href, p3) => {
-        try {
-          if (href.startsWith('#') || href.startsWith('mailto:')) return full;
-          return `${p1}${new URL(href, base).href}${p3}`;
-        } catch {
-          return full;
-        }
-      });
-    } catch {
-      // 잘못된 baseUrl은 무시한다
-    }
-  }
-  return result.trim();
+  return html ? sanitizeArticleMarkup(html, baseUrl) : '';
 }
 
 function extractThumbnail(item: Record<string, unknown>, htmlContent: string, baseUrl?: string): string | null {

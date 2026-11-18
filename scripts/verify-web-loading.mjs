@@ -85,7 +85,7 @@ try {
   const db = new LocalD1Database(':memory:', 'migrations/0001_schema.sql');
   const date = new Date().toISOString(), url = 'https://reader.example.test/story';
   let modelCalls = 0;
-  const env = { DB: db, ALLOW_QUICK_LOGIN: 'true', AI: { async run(_model, input) {
+  const env = { DB: db, ALLOW_QUICK_LOGIN: 'true', OWNER_EMAIL: 'summary@example.test', AI: { async run(_model, input) {
     modelCalls++;
     const { article } = JSON.parse(input.messages[1].content);
     assert.match(article, /The final condition applies only until November 30/);
