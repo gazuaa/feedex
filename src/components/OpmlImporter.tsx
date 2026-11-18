@@ -4,6 +4,7 @@ import { apiRequest } from '../client/api';
 import type { OpmlFeed, OpmlImportFailure, OpmlImportResult } from '../shared/opml';
 import { SavedOpmlFailures } from './SavedOpmlFailures';
 import { importPause, importWithinLimits, useSecondsLeft } from '../client/importLimits';
+import { t } from '../shared/i18n';
 
 interface QueueItem { item: OpmlFeed; previousUrl?: string }
 
@@ -44,7 +45,7 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
       setSavedFailures(result.failures);
       setSavedError(null);
     } catch {
-      setSavedError('저장된 실패 목록을 불러오지 못했습니다. 목록 새로고침을 눌러 주세요.');
+      setSavedError(t('저장된 실패 목록을 불러오지 못했습니다. 목록 새로고침을 눌러 주세요.', 'Could not load saved failures. Tap Refresh list.'));
     }
   }, []);
 
@@ -63,7 +64,7 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
     try {
       changeText(await file.text());
     } catch {
-      setError('파일을 읽지 못했습니다. 다시 선택해 주세요.');
+      setError(t('파일을 읽지 못했습니다. 다시 선택해 주세요.', 'Could not read the file. Choose it again.'));
     }
     event.target.value = '';
   };
@@ -105,19 +106,19 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
               method: 'POST', body: JSON.stringify({ item, previousUrl }),
             });
           } catch (err) {
-            return { status: 'failed', foldersCreated: 0, error: err instanceof Error ? err.message : '가져오기에 실패했습니다.' };
+            return { status: 'failed', foldersCreated: 0, error: err instanceof Error ? err.message : t('가져오기에 실패했습니다.', 'Import failed.') };
           }
         }, { pause: pause.current, stopped: () => stopRequested.current, onWait: setWaitUntil });
         // 기다려도 한도가 풀리지 않으면 이 항목부터 남겨 두고 멈춘다. 이어서 가져오기로 다시 받을 수 있다.
         if (limited) {
-          if (!stopRequested.current) setError(`${result.error || '피드 제공 경로의 요청 한도에 도달했습니다.'} 남은 항목은 잠시 뒤 이어서 가져와 주세요.`);
+          if (!stopRequested.current) setError(`${result.error || t('피드 제공 경로의 요청 한도에 도달했습니다.', 'The feed source hit its request limit.')} ${t('남은 항목은 잠시 뒤 이어서 가져와 주세요.', 'Import the rest a little later.')}`);
           break;
         }
         let saved = result.failureSaved === true;
         if (result.status === 'failed' && !saved) {
           try {
             await apiRequest('/api/opml/failures', {
-              method: 'POST', body: JSON.stringify({ item, error: result.error || '가져오기에 실패했습니다.' }),
+              method: 'POST', body: JSON.stringify({ item, error: result.error || t('가져오기에 실패했습니다.', 'Import failed.') }),
             });
             saved = true;
           } catch { /* 이 화면에는 저장하지 않은 상태라는 표시를 분명히 남긴다. */ }
@@ -129,14 +130,14 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
           existing: current.existing + (result.status === 'existing' ? 1 : 0),
           foldersCreated: current.foldersCreated + result.foldersCreated,
           failures: result.status === 'failed'
-            ? [...current.failures, { item, error: result.error || '가져오기에 실패했습니다.', saved }]
+            ? [...current.failures, { item, error: result.error || t('가져오기에 실패했습니다.', 'Import failed.'), saved }]
             : current.failures,
         };
         setReport(current);
       }
       setPending(queue.slice(index));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'OPML 가져오기에 실패했습니다.');
+      setError(err instanceof Error ? err.message : t('OPML 가져오기에 실패했습니다.', 'OPML import failed.'));
     } finally {
       // 피드를 하나 가져올 때마다가 아니라 한 번만 작업 공간을 새로고침한다.
       try { await onSubscribed(); } catch { /* 다음 새로고침 때 작업 공간을 다시 불러온다. */ }
@@ -153,19 +154,19 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
     <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-bold">OPML 파일 가져오기 (Feedly / Inoreader 마이그레이션)</h3>
-          <p className="mt-1 text-xs text-slate-400">피드 개수 제한 없이 전체 목록을 순서대로 가져옵니다. 기존 구독은 유지됩니다.</p>
+          <h3 className="text-sm font-bold">{t('OPML 파일 가져오기 (Feedly / Inoreader 마이그레이션)', 'Import an OPML file (move from Feedly / Inoreader)')}</h3>
+          <p className="mt-1 text-xs text-slate-400">{t('피드 개수 제한 없이 전체 목록을 순서대로 가져옵니다. 기존 구독은 유지됩니다.', 'Imports the whole list in order with no limit on feeds. Existing subscriptions stay.')}</p>
         </div>
         <label className={`px-3.5 py-2 rounded-xl bg-slate-800 text-slate-200 text-xs font-medium inline-flex items-center gap-1.5 ${running ? 'opacity-40' : 'hover:bg-slate-700 cursor-pointer'}`}>
-          <Upload className="w-3.5 h-3.5 text-emerald-400" /> 파일 선택
+          <Upload className="w-3.5 h-3.5 text-emerald-400" /> {t('파일 선택', 'Choose file')}
           <input type="file" accept=".opml,.xml,text/xml" disabled={running} onChange={handleFile} className="hidden" />
         </label>
       </div>
 
       <textarea
-        aria-label="OPML 파일 내용"
+        aria-label={t('OPML 파일 내용', 'OPML file content')}
         rows={6}
-        placeholder=".opml 또는 .xml 파일을 선택하거나 OPML 내용을 붙여넣으세요."
+        placeholder={t('.opml 또는 .xml 파일을 선택하거나 OPML 내용을 붙여넣으세요.', 'Choose a .opml or .xml file, or paste OPML here.')}
         value={text}
         disabled={running}
         onChange={(event) => changeText(event.target.value)}
@@ -177,15 +178,15 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
       {report && (
         <div role="status" className="space-y-2 text-xs">
           <div className="flex justify-between gap-2 font-semibold">
-            <span>{running ? '피드 가져오는 중' : pending.length > 0 ? '가져오기 일시 중단' : '가져오기 완료'}</span>
-            <span>{report.processed} / {report.total}개</span>
+            <span>{running ? t('피드 가져오는 중', 'Importing feeds') : pending.length > 0 ? t('가져오기 일시 중단', 'Import paused') : t('가져오기 완료', 'Import complete')}</span>
+            <span>{report.processed} / {report.total}</span>
           </div>
-          <progress aria-label="피드 가져오기 진행률" className="block w-full h-2 accent-emerald-500" max={report.total} value={report.processed} />
+          <progress aria-label={t('피드 가져오기 진행률', 'Import progress')} className="block w-full h-2 accent-emerald-500" max={report.total} value={report.processed} />
           <p className="text-slate-400 leading-relaxed">
-            신규 구독 {report.imported}개 · 기존 구독 {report.existing}개 · 실패 {report.failures.length}개 · 신규 폴더 {report.foldersCreated}개
+            {t(`신규 구독 ${report.imported}개 · 기존 구독 ${report.existing}개 · 실패 ${report.failures.length}개 · 신규 폴더 ${report.foldersCreated}개`, `${report.imported} new · ${report.existing} existing · ${report.failures.length} failed · ${report.foldersCreated} new folders`)}
           </p>
-          {waitUntil && <p className="text-amber-500">피드 제공 경로의 요청 한도에 걸려 잠시 기다립니다. {secondsLeft}초 뒤 같은 항목부터 이어서 가져옵니다.</p>}
-          {running && <p className="text-slate-400">가져오는 동안 이 화면을 유지해 주세요. 중단하면 남은 항목부터 이어서 가져올 수 있습니다.</p>}
+          {waitUntil && <p className="text-amber-500">{t(`피드 제공 경로의 요청 한도에 걸려 잠시 기다립니다. ${secondsLeft}초 뒤 같은 항목부터 이어서 가져옵니다.`, `The feed source hit its request limit. Resuming from the same item in ${secondsLeft} s.`)}</p>}
+          {running && <p className="text-slate-400">{t('가져오는 동안 이 화면을 유지해 주세요. 중단하면 남은 항목부터 이어서 가져올 수 있습니다.', 'Keep this screen open while importing. If you stop, you can continue with the remaining items.')}</p>}
         </div>
       )}
 
@@ -197,7 +198,7 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
           className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
         >
           {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          {pending.length > 0 ? '이어서 가져오기' : 'OPML 구독 일괄 등록하기'}
+          {pending.length > 0 ? t('이어서 가져오기', 'Continue import') : t('OPML 구독 일괄 등록하기', 'Subscribe to everything in the OPML')}
         </button>
         {running && (
           <button
@@ -206,7 +207,7 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
             onClick={() => { stopRequested.current = true; setStopping(true); pause.current.cancel(); }}
             className="px-3 py-2 rounded-xl border border-slate-500 text-xs cursor-pointer disabled:opacity-50"
           >
-            {stopping ? '현재 항목 처리 후 중단…' : '일시 중단'}
+            {stopping ? t('현재 항목 처리 후 중단…', 'Stopping after this item…') : t('일시 중단', 'Pause')}
           </button>
         )}
         {!running && pending.length === 0 && report && report.failures.length > 0 && (
@@ -215,21 +216,21 @@ export const OpmlImporter: React.FC<OpmlImporterProps> = ({ isDark, onBusyChange
             onClick={() => startImport(report.failures.map((failure) => ({ item: failure.item })), true)}
             className="px-3 py-2 rounded-xl border border-emerald-500/40 text-emerald-500 text-xs cursor-pointer"
           >
-            실패한 피드 {report.failures.length}개 다시 시도
+            {t(`실패한 피드 ${report.failures.length}개 다시 시도`, `Retry ${report.failures.length} failed feeds`)}
           </button>
         )}
       </div>
 
       {report && report.failures.length > 0 && (
         <details className="text-xs">
-          <summary className="text-rose-400 cursor-pointer">가져오지 못한 피드 {report.failures.length}개 확인</summary>
+          <summary className="text-rose-400 cursor-pointer">{t(`가져오지 못한 피드 ${report.failures.length}개 확인`, `Show ${report.failures.length} feeds that failed`)}</summary>
           <ul className="mt-3 space-y-3">
             {report.failures.map(({ item, error: reason, saved }, index) => (
               <li key={`${item.xmlUrl}-${index}`}>
                 <p className="font-semibold break-words">{item.title}</p>
                 <p className="text-slate-400 break-all">{item.xmlUrl}</p>
                 <p className="mt-1 text-rose-400">{reason}</p>
-                <p className={saved ? 'text-slate-400' : 'text-amber-500'}>{saved ? '계정에 저장됨' : '실패 기록을 저장하지 못했습니다. 화면을 닫기 전에 주소를 복사해 주세요.'}</p>
+                <p className={saved ? 'text-slate-400' : 'text-amber-500'}>{saved ? t('계정에 저장됨', 'Saved to your account') : t('실패 기록을 저장하지 못했습니다. 화면을 닫기 전에 주소를 복사해 주세요.', 'Could not save the failure. Copy the address before closing this screen.')}</p>
               </li>
             ))}
           </ul>

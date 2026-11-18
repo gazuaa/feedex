@@ -14,7 +14,7 @@ import type {
   ArticleItem,
 } from './types';
 import { parseExcludedFeeds, scopedExcludedFeeds } from '../shared/feedExclusions';
-import { CURATED_FEEDS } from './curatedFeeds';
+import { CURATED_FEEDS, localizedCuratedFeeds } from './curatedFeeds';
 import type { OpmlFeed } from '../shared/opml';
 import { normalizeFeedUrl } from '../shared/feedDiscovery';
 import { xRoutes } from './xConnection';
@@ -25,6 +25,9 @@ import { inheritXView, saveXView } from './xViews';
 import { fetchXThread, refreshXCardImages, verifiedXThread, xStatusUrl, xThreadSummaryPosts, xThreadTranslationBody, xThreadWithProof } from './xThread';
 import { isXProfileFeed } from '../shared/xFeed';
 import { importOpmlFeed, OpmlSourceError } from './opmlImporter';
+import { requestLang, runWithLang } from './requestLang';
+import { lang, t } from '../shared/i18n';
+import { articleSummary, articleSummaryColumn, saveArticleSummary } from './articleSummaries';
 import { clearOpmlFailure, listOpmlFailures, recordOpmlFailure } from './opmlFailures';
 import { fetchAndParseFeed, parseOpml, generateOpml, type ParsedFeed } from './rssParser';
 import { READER_FALLBACK_MARK, readerBodyNeedsRefresh, realFullContent, scrapeFullArticle } from './readerScraper';
@@ -58,6 +61,8 @@ type Variables = {
 export const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('/api/*', cors());
+// 오류·안내 문구와 AI 결과를 요청한 화면의 언어로 돌려준다.
+app.use('/api/*', (c, next) => runWithLang(requestLang(c.req.raw), next));
 
 const DEFAULT_PREFS: UserPreferences = {
   layout: 'magazine',
@@ -195,12 +200,12 @@ app.get('/api/auth/config', (c) => {
 app.post('/api/auth/google/credential', async (c) => {
   const body = await c.req.json<{ credential?: string }>();
   if (!body.credential) {
-    return c.json({ error: 'Google credential 토큰이 필요합니다.' }, 400);
+    return c.json({ error: t('Google credential 토큰이 필요합니다.', "A Google sign-in credential is required.") }, 400);
   }
 
   const payload = await verifyGoogleToken(body.credential, c.env.GOOGLE_CLIENT_ID);
   if (!payload) {
-    return c.json({ error: '구글 로그인이 만료되었거나 올바르지 않습니다.' }, 401);
+    return c.json({ error: t('구글 로그인이 만료되었거나 올바르지 않습니다.', "Your Google sign-in expired or is invalid.") }, 401);
   }
 
   const user = await findOrCreateGoogleUser(c.env.DB, {
@@ -226,7 +231,7 @@ app.post('/api/auth/google/credential', async (c) => {
 // 빠른 Google 계정 로그인 (로컬 개발 전용 — 신원 확인 없음)
 app.post('/api/auth/google/quick', async (c) => {
   if (!isQuickLoginEnabled(c.env)) {
-    return c.json({ error: '빠른 로그인은 로컬 개발 환경에서만 사용할 수 있습니다.' }, 403);
+    return c.json({ error: t('빠른 로그인은 로컬 개발 환경에서만 사용할 수 있습니다.', "Quick sign-in is only available in local development.") }, 403);
   }
 
   const body = await c.req.json<{
@@ -237,7 +242,7 @@ app.post('/api/auth/google/quick', async (c) => {
 
   const email = (body.email || 'demo@gmail.com').trim().toLowerCase();
   if (!email.includes('@')) {
-    return c.json({ error: '올바른 이메일 주소를 입력해 주세요.' }, 400);
+    return c.json({ error: t('올바른 이메일 주소를 입력해 주세요.', "Enter a valid email address.") }, 400);
   }
 
   const name = (body.name || email.split('@')[0]).trim();
@@ -271,14 +276,14 @@ const nativeCodePattern = /^sfeed_code_[0-9a-f]{64}$/;
 app.post('/api/auth/native-code/redeem', async (c) => {
   const body = await c.req.json<{ code?: unknown }>().catch(() => ({} as { code?: unknown }));
   const code = typeof body.code === 'string' ? body.code : '';
-  if (!nativeCodePattern.test(code)) return c.json({ error: '로그인 코드가 올바르지 않습니다.' }, 400);
+  if (!nativeCodePattern.test(code)) return c.json({ error: t('로그인 코드가 올바르지 않습니다.', "The sign-in code is invalid.") }, 400);
   const now = new Date().toISOString();
   const row = await c.env.DB.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?').bind(code, now).first<{ user_id: string }>();
   // 지우는 쪽이 한 번만 성공하므로 같은 코드를 두 번 바꿀 수 없다.
   const removed = row ? await c.env.DB.prepare('DELETE FROM sessions WHERE token = ? AND expires_at > ?').bind(code, now).run() : null;
-  if (!row || Number(removed?.meta?.changes ?? 0) !== 1) return c.json({ error: '로그인 코드가 만료되었거나 이미 쓰였습니다. 다시 로그인해 주세요.' }, 401);
+  if (!row || Number(removed?.meta?.changes ?? 0) !== 1) return c.json({ error: t('로그인 코드가 만료되었거나 이미 쓰였습니다. 다시 로그인해 주세요.', "The sign-in code expired or was already used. Please sign in again.") }, 401);
   const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(row.user_id).first<UserRecord>();
-  if (!user) return c.json({ error: '계정을 찾지 못했습니다.' }, 401);
+  if (!user) return c.json({ error: t('계정을 찾지 못했습니다.', "Account not found.") }, 401);
   const token = await createSessionForUser(c.env.DB, user.id);
   return c.json({
     token,
@@ -303,7 +308,7 @@ app.use('/api/*', async (c, next) => {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
 
   if (!token || token.startsWith(NATIVE_CODE_PREFIX)) {
-    return c.json({ error: '인증이 필요합니다.' }, 401);
+    return c.json({ error: t('인증이 필요합니다.', "Please sign in.") }, 401);
   }
 
   const sessionRow = await c.env.DB.prepare(
@@ -316,7 +321,7 @@ app.use('/api/*', async (c, next) => {
     .first<UserRecord & { session_expires_at: string }>();
 
   if (!sessionRow) {
-    return c.json({ error: '세션이 만료되었거나 유효하지 않습니다.' }, 401);
+    return c.json({ error: t('세션이 만료되었거나 유효하지 않습니다.', "Your session expired or is invalid.") }, 401);
   }
 
   // 활성 세션은 최대 6개월에 한 번만 연장한다. 기존 30일 세션은 다음 인증 요청 때
@@ -356,14 +361,14 @@ app.get('/api/user/article-blocks', (c) => {
 });
 app.put('/api/user/article-blocks', async (c) => {
   c.header('Cache-Control', 'no-store');
-  if (Number(c.req.header('Content-Length')) > 400_000) return c.json({ error: '규칙 요청이 너무 큽니다.' }, 413);
+  if (Number(c.req.header('Content-Length')) > 400_000) return c.json({ error: t('규칙 요청이 너무 큽니다.', "The rules request is too large.") }, 413);
   try {
     const text = await c.req.text();
-    if (text.length > 400_000) return c.json({ error: '규칙 요청이 너무 큽니다.' }, 413);
+    if (text.length > 400_000) return c.json({ error: t('규칙 요청이 너무 큽니다.', "The rules request is too large.") }, 413);
     const { rules, revision } = await changeArticleBlocks(c.env.DB, c.get('user').id, JSON.parse(text));
     return c.json({ rules, revision });
   } catch (error) {
-    if (error instanceof SyntaxError || error instanceof ArticleBlockError) return c.json({ error: error instanceof ArticleBlockError ? error.message : '규칙 요청을 확인해 주세요.' }, 400);
+    if (error instanceof SyntaxError || error instanceof ArticleBlockError) return c.json({ error: error instanceof ArticleBlockError ? error.message : t('규칙 요청을 확인해 주세요.', "Check your rules request.") }, 400);
     throw error;
   }
 });
@@ -378,10 +383,10 @@ app.get('/api/user/feed-exclusions', (c) => {
 app.put('/api/user/feed-exclusions', async (c) => {
   c.header('Cache-Control', 'no-store');
   const text = await c.req.text();
-  if (text.length > 220_000) return c.json({ error: '피드 목록이 너무 큽니다.' }, 413);
+  if (text.length > 220_000) return c.json({ error: t('피드 목록이 너무 큽니다.', "The feed list is too large.") }, 413);
   let value: unknown;
-  try { value = JSON.parse(text).feedIds; } catch { return c.json({ error: '피드 목록을 확인해 주세요.' }, 400); }
-  if (!Array.isArray(value)) return c.json({ error: '피드 목록을 확인해 주세요.' }, 400);
+  try { value = JSON.parse(text).feedIds; } catch { return c.json({ error: t('피드 목록을 확인해 주세요.', "Check your feed list.") }, 400); }
+  if (!Array.isArray(value)) return c.json({ error: t('피드 목록을 확인해 주세요.', "Check your feed list.") }, 400);
   const feedIds = parseExcludedFeeds(value);
   await c.env.DB.prepare(`UPDATE users SET preferences_json = json_set(CASE WHEN json_valid(preferences_json) THEN preferences_json ELSE '{}' END, '$.excludedFeedIds', json(?)) WHERE id = ?`)
     .bind(JSON.stringify(feedIds), c.get('user').id).run();
@@ -517,7 +522,7 @@ app.get('/api/bootstrap', async (c) => {
       todayCount: Number(todayRow?.unread || 0),
       todayTotal: Number(todayRow?.cnt || 0),
     },
-    curatedFeeds: CURATED_FEEDS,
+    curatedFeeds: localizedCuratedFeeds(),
   });
 });
 
@@ -539,29 +544,29 @@ function feedPreviewResponse(parsed: ParsedFeed) {
 app.post('/api/discover/preview', async (c) => {
   const body = await c.req.json<{ url?: unknown }>().catch(() => null);
   const url = typeof body?.url === 'string' ? normalizeFeedUrl(body.url) : null;
-  if (!url) return c.json({ error: '올바른 RSS 또는 웹사이트 주소를 입력해 주세요.' }, 400);
+  if (!url) return c.json({ error: t('올바른 RSS 또는 웹사이트 주소를 입력해 주세요.', "Enter a valid RSS or website URL.") }, 400);
   try {
     return c.json(feedPreviewResponse(await fetchAndParseFeed(url, c.env.DB)));
   } catch (error) {
     if (error instanceof XFeedError) return c.json({ error: error.message }, 502);
-    return c.json({ error: '피드를 찾지 못했습니다. RSS 주소와 연결 상태를 확인한 뒤 다시 시도해 주세요.' }, 502);
+    return c.json({ error: t('피드를 찾지 못했습니다. RSS 주소와 연결 상태를 확인한 뒤 다시 시도해 주세요.', "Could not find a feed. Check the RSS address and connection, then try again.") }, 502);
   }
 });
 
 app.post('/api/rss-builder/analyse', async (c) => {
   const body = await c.req.json<{ url?: string }>().catch(() => null);
-  if (typeof body?.url !== 'string') return c.json({ error: '웹사이트 주소를 입력해 주세요.' }, 400);
+  if (typeof body?.url !== 'string') return c.json({ error: t('웹사이트 주소를 입력해 주세요.', "Enter a website URL.") }, 400);
   try { publicPageUrl(body.url); } catch (error) { return c.json({ error: (error as Error).message }, 400); }
   try {
     const analysis = await analyseBuilderPage(body.url, c.env, undefined, pageAssetProxy(c.env, new URL(c.req.url).origin));
-    if (!analysis.groups.length && !analysis.snapshot) return c.json({ error: '반복되는 글 목록을 찾지 못했습니다. 개별 글이 아닌 블로그·뉴스 목록 주소를 입력해 주세요.' }, 422);
+    if (!analysis.groups.length && !analysis.snapshot) return c.json({ error: t('반복되는 글 목록을 찾지 못했습니다. 개별 글이 아닌 블로그·뉴스 목록 주소를 입력해 주세요.', "Could not find a recurring list of articles. Enter a blog or news listing URL rather than an individual article.") }, 422);
     return c.json(analysis);
-  } catch (error) { return c.json({ error: error instanceof Error ? error.message : '글 목록을 분석하지 못했습니다.' }, 502); }
+  } catch (error) { return c.json({ error: error instanceof Error ? error.message : t('글 목록을 분석하지 못했습니다.', "Could not analyze the article list.") }, 502); }
 });
 
 app.post('/api/rss-builder/site', async (c) => {
   const body = await c.req.json<{ url?: string }>().catch(() => null);
-  if (typeof body?.url !== 'string') return c.json({ error: '웹사이트 주소를 입력해 주세요.' }, 400);
+  if (typeof body?.url !== 'string') return c.json({ error: t('웹사이트 주소를 입력해 주세요.', "Enter a website URL.") }, 400);
   try { publicPageUrl(body.url); } catch (error) { return c.json({ error: (error as Error).message }, 400); }
   return c.json(await builderSiteInfo(body.url));
 });
@@ -569,10 +574,10 @@ app.post('/api/rss-builder/site', async (c) => {
 app.post('/api/rss-builder', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{ url?: string; selector?: string; title?: string; folderId?: string; folderName?: string }>().catch(() => null);
-  if (typeof body?.url !== 'string' || typeof body.selector !== 'string' || !body.selector.trim() || body.selector.length > 2000 || (body.title != null && typeof body.title !== 'string') || (body.folderName != null && typeof body.folderName !== 'string') || (body.folderId != null && typeof body.folderId !== 'string')) return c.json({ error: '웹사이트 주소와 수집할 글 목록을 선택해 주세요.' }, 400);
+  if (typeof body?.url !== 'string' || typeof body.selector !== 'string' || !body.selector.trim() || body.selector.length > 2000 || (body.title != null && typeof body.title !== 'string') || (body.folderName != null && typeof body.folderName !== 'string') || (body.folderId != null && typeof body.folderId !== 'string')) return c.json({ error: t('웹사이트 주소와 수집할 글 목록을 선택해 주세요.', "Enter the website URL and select an article list.") }, 400);
   try { publicPageUrl(body.url); } catch (error) { return c.json({ error: (error as Error).message }, 400); }
   let folderId = body.folderId || null;
-  if (folderId && !await c.env.DB.prepare('SELECT id FROM folders WHERE id=? AND user_id=?').bind(folderId, user.id).first()) return c.json({ error: '폴더를 찾을 수 없습니다.' }, 404);
+  if (folderId && !await c.env.DB.prepare('SELECT id FROM folders WHERE id=? AND user_id=?').bind(folderId, user.id).first()) return c.json({ error: t('폴더를 찾을 수 없습니다.', "Folder not found.") }, 404);
   try {
     const analysis = await analyseBuilderPage(body.url, c.env, body.selector);
     const existing = await c.env.DB.prepare('SELECT b.id,f.xml_url FROM rss_builders b JOIN feeds f ON f.id=b.feed_id WHERE b.created_by=? AND b.source_url=? AND b.selector=?').bind(user.id, analysis.sourceUrl, body.selector).first<{ id: string; xml_url: string }>();
@@ -592,22 +597,22 @@ app.post('/api/rss-builder', async (c) => {
     }
     await c.env.DB.prepare('INSERT INTO subscriptions(id,user_id,feed_id,folder_id,custom_title,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,feed_id) DO UPDATE SET folder_id=COALESCE(excluded.folder_id,subscriptions.folder_id),custom_title=excluded.custom_title').bind(generateId('sub'), user.id, feedId, folderId, title, new Date().toISOString()).run();
     return c.json({ rssUrl, feedId, title, insertedCount });
-  } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'RSS 피드를 만들지 못했습니다.' }, 502); }
+  } catch (error) { return c.json({ error: error instanceof Error ? error.message : t('RSS 피드를 만들지 못했습니다.', "Could not create the RSS feed.") }, 502); }
 });
 
 // RSS 빌더로 만든 피드를 다시 열어 고친다. 만든 사람만 바꿀 수 있고, 피드 주소와 받은 글은 그대로 둔다.
 app.get('/api/rss-builder/:id', async (c) => {
   const row = await c.env.DB.prepare('SELECT id,source_url,selector,title FROM rss_builders WHERE id=? AND created_by=?').bind(c.req.param('id'), c.get('user').id).first<{ id: string; source_url: string; selector: string; title: string }>();
-  return row ? c.json({ id: row.id, sourceUrl: row.source_url, selector: row.selector, title: row.title }) : c.json({ error: '고칠 수 있는 RSS 빌더 피드가 아닙니다.' }, 404);
+  return row ? c.json({ id: row.id, sourceUrl: row.source_url, selector: row.selector, title: row.title }) : c.json({ error: t('고칠 수 있는 RSS 빌더 피드가 아닙니다.', "This RSS Builder feed cannot be edited.") }, 404);
 });
 
 app.put('/api/rss-builder/:id', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{ url?: string; selector?: string; title?: string }>().catch(() => null);
-  if (typeof body?.url !== 'string' || typeof body.selector !== 'string' || !body.selector.trim() || body.selector.length > 2000 || (body.title != null && typeof body.title !== 'string')) return c.json({ error: '웹사이트 주소와 수집할 글 목록을 선택해 주세요.' }, 400);
+  if (typeof body?.url !== 'string' || typeof body.selector !== 'string' || !body.selector.trim() || body.selector.length > 2000 || (body.title != null && typeof body.title !== 'string')) return c.json({ error: t('웹사이트 주소와 수집할 글 목록을 선택해 주세요.', "Enter the website URL and select an article list.") }, 400);
   try { publicPageUrl(body.url); } catch (error) { return c.json({ error: (error as Error).message }, 400); }
   const builder = await c.env.DB.prepare('SELECT b.id,b.feed_id,f.xml_url FROM rss_builders b JOIN feeds f ON f.id=b.feed_id WHERE b.id=? AND b.created_by=?').bind(c.req.param('id'), user.id).first<{ id: string; feed_id: string; xml_url: string }>();
-  if (!builder) return c.json({ error: '고칠 수 있는 RSS 빌더 피드가 아닙니다.' }, 404);
+  if (!builder) return c.json({ error: t('고칠 수 있는 RSS 빌더 피드가 아닙니다.', "This RSS Builder feed cannot be edited.") }, 404);
   try {
     const analysis = await analyseBuilderPage(body.url, c.env, body.selector);
     const title = body.title?.trim().slice(0, 200) || analysis.title;
@@ -618,18 +623,18 @@ app.put('/api/rss-builder/:id', async (c) => {
     const { insertedCount } = await upsertFeedAndArticles(c.env.DB, parsed);
     await c.env.DB.prepare('UPDATE subscriptions SET custom_title=? WHERE user_id=? AND feed_id=?').bind(title, user.id, builder.feed_id).run();
     return c.json({ rssUrl: builder.xml_url, feedId: builder.feed_id, title, insertedCount });
-  } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'RSS 피드를 고치지 못했습니다.' }, 502); }
+  } catch (error) { return c.json({ error: error instanceof Error ? error.message : t('RSS 피드를 고치지 못했습니다.', "Could not update the RSS feed.") }, 502); }
 });
 
 app.get('/api/discover/feeds/:id/preview', async (c) => {
   const feed = CURATED_FEEDS.find((item) => item.id === c.req.param('id'));
-  if (!feed) return c.json({ error: '추천 피드를 찾을 수 없습니다.' }, 404);
+  if (!feed) return c.json({ error: t('추천 피드를 찾을 수 없습니다.', "Recommended feed not found.") }, 404);
 
   try {
     const parsed = await fetchAndParseFeed(feed.xmlUrl, c.env.DB);
     return c.json(feedPreviewResponse(parsed));
   } catch {
-    return c.json({ error: '최근 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' }, 502);
+    return c.json({ error: t('최근 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', "Could not load recent articles. Try again in a moment.") }, 502);
   }
 });
 
@@ -639,7 +644,7 @@ app.post('/api/folders', async (c) => {
   const body = await c.req.json<{ name?: string; color?: string }>();
   const name = (body.name || '').trim();
   if (!name) {
-    return c.json({ error: '폴더 이름을 입력해 주세요.' }, 400);
+    return c.json({ error: t('폴더 이름을 입력해 주세요.', "Enter a folder name.") }, 400);
   }
 
   const existing = await c.env.DB.prepare(
@@ -677,7 +682,7 @@ app.put('/api/folders/:id', async (c) => {
 
   const name = (body.name || '').trim();
   if (!name) {
-    return c.json({ error: '폴더 이름을 입력해 주세요.' }, 400);
+    return c.json({ error: t('폴더 이름을 입력해 주세요.', "Enter a folder name.") }, 400);
   }
 
   await c.env.DB.prepare(
@@ -718,7 +723,7 @@ app.post('/api/subscriptions', async (c) => {
 
   const rawUrl = (body.url || '').trim();
   if (!rawUrl) {
-    return c.json({ error: '구독할 RSS URL 또는 웹사이트 주소를 입력해 주세요.' }, 400);
+    return c.json({ error: t('구독할 RSS URL 또는 웹사이트 주소를 입력해 주세요.', "Enter an RSS or website URL to subscribe.") }, 400);
   }
 
   let parsed;
@@ -804,15 +809,15 @@ app.put('/api/subscriptions/:id', async (c) => {
   const user = c.get('user');
   const subId = c.req.param('id');
   const subscription = await c.env.DB.prepare('SELECT f.title FROM subscriptions s JOIN feeds f ON f.id=s.feed_id WHERE s.id=? AND s.user_id=?').bind(subId, user.id).first<{ title: string }>();
-  if (!subscription) return c.json({ error: '구독을 찾을 수 없습니다.' }, 404);
+  if (!subscription) return c.json({ error: t('구독을 찾을 수 없습니다.', "Subscription not found.") }, 404);
   const body = await c.req.json().catch(() => null);
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ error: '수정할 내용을 확인해 주세요.' }, 400);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return c.json({ error: t('수정할 내용을 확인해 주세요.', "Check the changes and try again.") }, 400);
   const hasFolder = Object.hasOwn(body, 'folderId'), hasTitle = Object.hasOwn(body, 'customTitle');
-  if (!hasFolder && !hasTitle) return c.json({ error: '수정할 내용을 확인해 주세요.' }, 400);
-  if (hasFolder && body.folderId !== null && (typeof body.folderId !== 'string' || !body.folderId)) return c.json({ error: '폴더를 확인해 주세요.' }, 400);
-  if (hasTitle && body.customTitle !== null && (typeof body.customTitle !== 'string' || !body.customTitle.trim() || body.customTitle.trim().length > 200 || /[\u0000-\u001f\u007f]/.test(body.customTitle))) return c.json({ error: '피드 이름은 1~200자로 입력해 주세요.' }, 400);
+  if (!hasFolder && !hasTitle) return c.json({ error: t('수정할 내용을 확인해 주세요.', "Check the changes and try again.") }, 400);
+  if (hasFolder && body.folderId !== null && (typeof body.folderId !== 'string' || !body.folderId)) return c.json({ error: t('폴더를 확인해 주세요.', "Check the selected folder.") }, 400);
+  if (hasTitle && body.customTitle !== null && (typeof body.customTitle !== 'string' || !body.customTitle.trim() || body.customTitle.trim().length > 200 || /[\u0000-\u001f\u007f]/.test(body.customTitle))) return c.json({ error: t('피드 이름은 1~200자로 입력해 주세요.', "Enter a feed name between 1 and 200 characters.") }, 400);
   // 생략한 값은 유지한다. 이름만 고칠 때 기존 폴더가 미분류로 바뀌면 안 된다.
-  if (hasFolder && body.folderId && !(await c.env.DB.prepare('SELECT 1 FROM folders WHERE id=? AND user_id=?').bind(body.folderId, user.id).first())) return c.json({ error: '폴더를 찾을 수 없습니다.' }, 404);
+  if (hasFolder && body.folderId && !(await c.env.DB.prepare('SELECT 1 FROM folders WHERE id=? AND user_id=?').bind(body.folderId, user.id).first())) return c.json({ error: t('폴더를 찾을 수 없습니다.', "Folder not found.") }, 404);
   const title = hasTitle && body.customTitle !== null ? body.customTitle.trim() : null;
   await c.env.DB.prepare(`UPDATE subscriptions SET folder_id=CASE WHEN ? THEN ? ELSE folder_id END, custom_title=CASE WHEN ? THEN ? ELSE custom_title END WHERE id=? AND user_id=?`).bind(Number(hasFolder), body.folderId ?? null, Number(hasTitle), title, subId, user.id).run();
   return c.json({ success: true, ...(hasTitle ? { customTitle: title, title: title || subscription.title } : {}) });
@@ -835,12 +840,12 @@ app.delete('/api/subscriptions/:id', async (c) => {
 app.post('/api/subscriptions/:id/updates', async (c) => {
   const user = c.get('user');
   const body = await c.req.json<{ paused?: unknown }>().catch(() => ({ paused: undefined }));
-  if (typeof body.paused !== 'boolean') return c.json({ error: '업데이트를 멈출지 다시 받을지 지정해 주세요.' }, 400);
-  if (!(await pauseSupported(c.env.DB))) return c.json({ error: '서버 업데이트가 끝나면 사용할 수 있습니다.' }, 503);
+  if (typeof body.paused !== 'boolean') return c.json({ error: t('업데이트를 멈출지 다시 받을지 지정해 주세요.', "Choose whether to pause or resume updates.") }, 400);
+  if (!(await pauseSupported(c.env.DB))) return c.json({ error: t('서버 업데이트가 끝나면 사용할 수 있습니다.', "This will be available after the server update.") }, 503);
   const sub = await c.env.DB.prepare('SELECT id, feed_id, paused_at FROM subscriptions WHERE id = ? AND user_id = ?')
     .bind(c.req.param('id'), user.id)
     .first<{ id: string; feed_id: string; paused_at: string | null }>();
-  if (!sub) return c.json({ error: '구독을 찾을 수 없습니다.' }, 404);
+  if (!sub) return c.json({ error: t('구독을 찾을 수 없습니다.', "Subscription not found.") }, 404);
   if (body.paused === Boolean(sub.paused_at)) return c.json({ pausedAt: sub.paused_at });
   const now = new Date().toISOString();
   const statements = body.paused
@@ -1024,6 +1029,7 @@ app.get('/api/articles', async (c) => {
   // 통계에 맡기면 구독부터 읽고 글 전체를 정렬해 한 번에 100만 행 넘게 읽을 수 있다.
   const scoped = (scope === 'folder' && folderId) || (scope === 'feed' && feedId);
   const articlesFirst = exact || (!scoped && !savedFirst && Number((await c.env.DB.prepare('SELECT COUNT(*) AS n FROM subscriptions WHERE user_id = ?').bind(user.id).first<{ n: number }>())?.n) >= ARTICLES_FIRST_SUBSCRIPTIONS);
+  const summaryColumn = await articleSummaryColumn(c.env.DB, lang());
   const source = savedFirst ? `article_states st
     CROSS JOIN articles a ON a.id = st.article_id
     CROSS JOIN subscriptions s ON s.feed_id = a.feed_id AND s.user_id = st.user_id
@@ -1050,7 +1056,7 @@ app.get('/api/articles', async (c) => {
       a.summary,
       a.content_html,
       a.full_content_html,
-      ${canManageX(c.env, user) ? 'a.ai_summary' : 'NULL'} AS ai_summary,
+      ${canManageX(c.env, user) ? summaryColumn : 'NULL'} AS ai_summary,
       a.thumbnail_url,
       a.published_at,
       COALESCE(dc.source, 'feed') AS date_source,
@@ -1099,7 +1105,7 @@ app.get('/api/articles', async (c) => {
 app.post('/api/articles/mark-read', async (c) => {
   const body = await c.req.json<{ articleIds?: unknown }>();
   if (!Array.isArray(body.articleIds) || body.articleIds.length > 50 || !body.articleIds.length || body.articleIds.some((id) => typeof id !== 'string' || !id || id.length > 200)) {
-    return c.json({ error: '읽음 처리할 글을 1~50개 지정해 주세요.' }, 400);
+    return c.json({ error: t('읽음 처리할 글을 1~50개 지정해 주세요.', "Select 1 to 50 articles to mark as read.") }, 400);
   }
   const ids = [...new Set(body.articleIds as string[])];
   const userId = c.get('user').id;
@@ -1217,7 +1223,7 @@ app.post('/api/articles/mark-all-read', async (c) => {
     const anchor = await c.env.DB.prepare('SELECT a.published_at FROM articles a WHERE a.id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)')
       .bind(edge, user.id)
       .first<{ published_at: string }>();
-    if (!anchor) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+    if (!anchor) return c.json({ error: t('아티클을 찾을 수 없습니다.', "Article not found.") }, 404);
     const side = body.olderThan ? '<' : '>';
     conditions.push(`(a.published_at ${side} ? OR (a.published_at = ? AND a.id ${side} ?))`);
     params.push(anchor.published_at, anchor.published_at, edge);
@@ -1247,7 +1253,7 @@ app.post('/api/articles/mark-all-read', async (c) => {
 // 여러 번 열면 다시 받지 않고 저장한 결과를 쓴다.
 app.post('/api/articles/:id/publication-date', async (c) => {
   const article = await c.env.DB.prepare(`SELECT a.id,a.url,a.title,a.summary,a.content_html,a.full_content_html,a.published_at,d.source AS date_source,d.checked_at FROM articles a LEFT JOIN article_date_checks d ON d.article_id=a.id WHERE a.id=? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=a.feed_id AND s.user_id=?)`).bind(c.req.param('id'), c.get('user').id).first<PublicationArticle>();
-  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  if (!article) return c.json({ error: t('아티클을 찾을 수 없습니다.', "Article not found.") }, 404);
   return c.json(await resolveArticlePublication(c.env.DB, article));
 });
 
@@ -1260,12 +1266,12 @@ app.put('/api/feeds/:feedId/view-mode', async (c) => {
     .json<{ viewMode?: string; onlyIfUnset?: boolean }>()
     .catch(() => ({ viewMode: undefined, onlyIfUnset: false }));
   if (viewMode !== 'feed' && viewMode !== 'reader' && viewMode !== 'web') {
-    return c.json({ error: '보기 방식은 feed, reader, web 중 하나여야 합니다.' }, 400);
+    return c.json({ error: t('보기 방식은 feed, reader, web 중 하나여야 합니다.', "Choose Feed, Reader or Web view.") }, 400);
   }
   const subscribed = await c.env.DB.prepare('SELECT f.xml_url FROM subscriptions s JOIN feeds f ON f.id = s.feed_id WHERE s.user_id = ? AND s.feed_id = ?')
     .bind(user.id, feedId)
     .first<{ xml_url: string }>();
-  if (!subscribed) return c.json({ error: '구독 중인 피드가 아닙니다.' }, 404);
+  if (!subscribed) return c.json({ error: t('구독 중인 피드가 아닙니다.', "You are not subscribed to this feed.") }, 404);
   // X 계정은 하나에서 고른 보기를 구독 중인 모든 X 계정이 함께 쓴다.
   if (onlyIfUnset !== true && isXProfileFeed(subscribed.xml_url)) {
     return c.json({ viewMode, feedIds: await saveXView(c.env.DB, user.id, viewMode) });
@@ -1290,7 +1296,7 @@ app.post('/api/articles/:id/thumbnail', async (c) => {
   const article = await c.env.DB.prepare('SELECT id, url, thumbnail_url, content_html FROM articles a WHERE id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)')
     .bind(c.req.param('id'), c.get('user').id)
     .first<{ id: string; url: string; thumbnail_url: string | null; content_html: string | null }>();
-  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  if (!article) return c.json({ error: t('아티클을 찾을 수 없습니다.', "Article not found.") }, 404);
   if (body.refresh && xStatusUrl(article.url)) {
     const refreshed = await refreshXCardImages(article.url, article.content_html, c.env.DB);
     if (!refreshed) return c.json({ thumbnailUrl: null });
@@ -1318,20 +1324,20 @@ app.get('/api/articles/:id/embeddable', async (c) => {
     AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)`)
     .bind(c.req.param('id'), c.get('user').id)
     .first<{ url: string }>();
-  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  if (!article) return c.json({ error: t('아티클을 찾을 수 없습니다.', "Article not found.") }, 404);
   return c.json(await checkEmbeddable(article.url, new URL(c.req.url).origin));
 });
 
 // 인용 글과 댓글은 구독을 추가하지 않고 현재 본문 영역에서 연다.
 app.get('/api/articles/:id/x-post', async (c) => {
   const url = c.req.query('url') || '';
-  if (!xStatusUrl(url)) return c.json({ error: 'X 글 주소를 확인해 주세요.' }, 400);
+  if (!xStatusUrl(url)) return c.json({ error: t('X 글 주소를 확인해 주세요.', "Check the X post URL.") }, 400);
   const source = await c.env.DB.prepare('SELECT a.url, a.content_html FROM articles a WHERE a.id=? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id=a.feed_id AND s.user_id=?)')
     .bind(c.req.param('id'), c.get('user').id).first<{ url: string; content_html: string | null }>();
-  if (!source || !xStatusUrl(source.url)) return c.json({ error: 'X 글을 찾을 수 없습니다.' }, 404);
+  if (!source || !xStatusUrl(source.url)) return c.json({ error: t('X 글을 찾을 수 없습니다.', "X post not found.") }, 404);
   c.header('Cache-Control', 'no-store');
   try { return c.json(xThreadWithProof(c.env, await fetchXThread(url, source.content_html, c.env.DB))); }
-  catch { return c.json({ error: 'X 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' }, 502); }
+  catch { return c.json({ error: t('X 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', "Could not load the X post. Try again in a moment.") }, 502); }
 });
 
 // 프레임을 거부하는 사이트의 웹 보기: 스크립트 없는 페이지 사본.
@@ -1343,16 +1349,16 @@ app.get('/api/articles/:id/web-copy', async (c) => {
   )
     .bind(c.req.param('id'), c.get('user').id)
     .first<{ url: string; title: string; content_html: string | null }>();
-  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  if (!article) return c.json({ error: t('아티클을 찾을 수 없습니다.', "Article not found.") }, 404);
   // 공개 미러에서 못 받은 대화는 빈 x.com 사본으로 저장하지 않는다.
   if (xStatusUrl(article.url)) {
     try { return c.json(xThreadWithProof(c.env, await fetchXThread(article.url, article.content_html, c.env.DB, article.title))); }
-    catch { return c.json({ error: 'X 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.' }, 502); }
+    catch { return c.json({ error: t('X 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.', "Could not load the X conversation. Try again in a moment.") }, 502); }
   }
   try {
     return c.json(await fetchWebView(article.url, c.env, c.req.query('layout') === 'phone', pageAssetProxy(c.env, new URL(c.req.url).origin)));
   } catch {
-    return c.json({ error: '원문 페이지를 불러오지 못했습니다.' }, 502);
+    return c.json({ error: t('원문 페이지를 불러오지 못했습니다.', "Could not load the original page.") }, 502);
   }
 });
 
@@ -1378,7 +1384,7 @@ app.post('/api/articles/:id/reader-view', async (c) => {
     }>();
 
   if (!article) {
-    return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+    return c.json({ error: t('아티클을 찾을 수 없습니다.', "Article not found.") }, 404);
   }
 
   if (realFullContent(article.full_content_html) && !body.force) {
@@ -1411,7 +1417,7 @@ app.post('/api/articles/:id/reader-view', async (c) => {
     )
       .bind(READER_FALLBACK_MARK, scraped.originalPublishedAt, article.id)
       .run();
-    return c.json({ error: '원문 본문을 불러오지 못했습니다. 사이트가 자동 접근을 막고 있을 수 있습니다.' }, 502);
+    return c.json({ error: t('원문 본문을 불러오지 못했습니다. 사이트가 자동 접근을 막고 있을 수 있습니다.', "Could not load the original article. The site may block automated access.") }, 502);
   }
 
   await c.env.DB.prepare(
@@ -1450,15 +1456,15 @@ app.post('/api/articles/:id/slap', async (c) => {
   const article = await c.env.DB.prepare(
     `SELECT id, title, url FROM articles WHERE id=? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
   ).bind(c.req.param('id'), user.id).first<{ id: string; title: string; url: string }>();
-  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
-  if (!c.env.SLAP) return c.json({ error: 'Slap에 연결되어 있지 않아요.' }, 503);
+  if (!article) return c.json({ error: t('아티클을 찾을 수 없습니다.', "Article not found.") }, 404);
+  if (!c.env.SLAP) return c.json({ error: t('Slap에 연결되어 있지 않아요.', "Slap is not connected.") }, 503);
   // X 글 제목의 'RT by @…:'·'R to @…:' 표시는 공유할 글에 필요 없다.
   const title = article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, '').slice(0, 300);
   try {
-    if (!await c.env.SLAP.leave(user.email.toLowerCase(), { url: article.url, title })) return c.json({ error: 'Slap에 보내지 못했어요.' }, 502);
+    if (!await c.env.SLAP.leave(user.email.toLowerCase(), { url: article.url, title })) return c.json({ error: t('Slap에 보내지 못했어요.', "Could not send to Slap.") }, 502);
   } catch (error) {
     console.error('Slap 공유 맡기기 실패:', error instanceof Error ? error.message : error);
-    return c.json({ error: 'Slap에 보내지 못했어요.' }, 502);
+    return c.json({ error: t('Slap에 보내지 못했어요.', "Could not send to Slap.") }, 502);
   }
   return c.json({ ok: true });
 });
@@ -1468,20 +1474,22 @@ app.post('/api/articles/:id/translate', async (c) => {
   const user = c.get('user');
   type Request = { source?: unknown; force?: unknown; phone?: unknown; xThread?: unknown; xUrl?: unknown };
   const body: Request = await c.req.json<Request>().catch(() => ({}));
+  const target = lang();
+  const cacheLanguage = target === 'en' ? 'EN' : 'KO';
   const source = body.source === 'feed' ? 'feed' : 'full';
   const article = await c.env.DB.prepare(
     `SELECT id, title, url, summary, content_html, full_content_html
      FROM articles WHERE id = ? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
   ).bind(c.req.param('id'), c.get('user').id).first<{ id: string; title: string; url: string; summary: string | null; content_html: string | null; full_content_html: string | null }>();
-  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  if (!article) return c.json({ error: t('아티클을 찾을 수 없습니다.', "Article not found.") }, 404);
   const personal = canManageX(c.env, user) ? undefined : await readPersonalTools(c.env, user.id);
-  if (personal && !personal.deepl && !personal.ai) return c.json({ error: '환경설정 → 번역·요약에서 내 DeepL 또는 Workers AI 계정을 연결해 주세요.', code: 'article_tool_account_required' }, 412);
+  if (personal && !personal.deepl && !personal.ai) return c.json({ error: t('환경설정 → 번역·요약에서 내 DeepL 또는 Workers AI 계정을 연결해 주세요.', 'Connect your own DeepL or Workers AI account in Settings → Translation & summary.'), code: 'article_tool_account_required' }, 412);
   // 일반 사용자의 실행 환경에는 서버 API 키와 Workers AI 바인딩을 넣지 않는다.
   const toolEnv: Env = personal ? { DB: c.env.DB, AI_MODEL: c.env.AI_MODEL, AI: personal.ai ? personalWorkersAI(personal.ai) : undefined } : c.env;
   const needsXThread = source === 'full' && xStatusUrl(article.url);
   const linkedUrl = body.xUrl;
   if (linkedUrl !== undefined && (!needsXThread || typeof linkedUrl !== 'string' || !xStatusUrl(linkedUrl))) {
-    return c.json({ error: '번역할 X 글 주소를 확인해 주세요.' }, 400);
+    return c.json({ error: t('번역할 X 글 주소를 확인해 주세요.', "Check the URL of the X post to translate.") }, 400);
   }
   const threadUrl = linkedUrl ?? article.url;
   const linkedThread = threadUrl !== article.url;
@@ -1495,40 +1503,42 @@ app.post('/api/articles/:id/translate', async (c) => {
       if (copy) html = copy.html;
     }
     full = html ? xThreadTranslationBody(html) : null;
-    if (full && html?.includes('class="empty parent-missing"')) xNotice = '공개 미러가 원글을 주지 않아 화면에 보이는 대화만 번역했어요.';
+    if (full && html?.includes('class="empty parent-missing"')) xNotice = t('공개 미러가 원글을 주지 않아 화면에 보이는 대화만 번역했어요.', 'The mirror did not include the original post. Only the visible conversation was translated.');
     // 미러에서 대화를 아예 받지 못했어도 피드에 온 그 글은 번역할 수 있다. 글 안에서 연 다른 X 글은 피드 본문이 없다.
-    if (!full && (linkedThread || !article.content_html?.trim())) return c.json({ error: 'X 글을 가져오지 못했어요. 대화를 다시 불러온 뒤 번역해 주세요.' }, 422);
-    if (!full) xNotice = '공개 미러에서 대화를 받지 못해 피드에 온 글만 번역했어요.';
+    if (!full && (linkedThread || !article.content_html?.trim())) return c.json({ error: t('X 글을 가져오지 못했어요. 대화를 다시 불러온 뒤 번역해 주세요.', "Could not load the X post. Reload the conversation before translating.") }, 422);
+    if (!full) xNotice = t('공개 미러에서 대화를 받지 못해 피드에 온 글만 번역했어요.', 'The mirror did not return the conversation. Only the post from your feed was translated.');
   } else if (source === 'full') {
     full = await readerBodyForArticleTools(c.env, article, body.phone === true);
-    if (!full) return c.json({ error: '기사 전체 본문을 가져오지 못했어요. 다시 시도하거나 원문에서 읽어 주세요.' }, 422);
+    if (!full) return c.json({ error: t('기사 전체 본문을 가져오지 못했어요. 다시 시도하거나 원문에서 읽어 주세요.', "Could not load the full article. Try again or read the original.") }, 422);
   }
   const bodySource = full ? 'full' : 'feed';
   const cacheSource = linkedThread ? `x:${threadUrl.split('/').at(-1)}` : bodySource;
   const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const html = full || article.content_html || (article.summary ? `<p>${escaped(article.summary)}</p>` : '');
-  if (!html.trim() && !article.title.trim()) return c.json({ error: '번역할 본문이 없어요.' }, 422);
+  if (!html.trim() && !article.title.trim()) return c.json({ error: t('번역할 본문이 없어요.', "There is no text to translate.") }, 422);
   if (!personal) await ensureTranslationTable(c.env);
-  const title = linkedThread ? 'X 게시물' : needsXThread ? article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, '') : article.title;
+  const title = linkedThread ? t('X 게시물', 'X post') : needsXThread ? article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, '') : article.title;
   const hash = await sourceHash(title, html);
-  if (body.force !== true) {
+  // 개인 결과도 번역 언어별로 따로 둔다.
+  const personalVariant = `translate:${cacheLanguage}:${cacheSource}`;
+  if (body.force !== true && !xNotice) {
     const saved = personal
-      ? await readPersonalToolResult<{ hash: string; title: string; content_html: string; provider: string; model: string }>(c.env.DB, user.id, article.id, `translate:KO:${cacheSource}`).then(row => row?.hash === hash ? row : null)
+      ? await readPersonalToolResult<{ hash: string; title: string; content_html: string; provider: string; model: string }>(c.env.DB, user.id, article.id, personalVariant).then(row => row?.hash === hash ? row : null)
       : await c.env.DB.prepare('SELECT title, content_html, provider, model FROM article_translations WHERE article_id=? AND target_lang=? AND source_kind=? AND source_hash=?')
-        .bind(article.id, 'KO', cacheSource, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
+        .bind(article.id, cacheLanguage, cacheSource, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
     if (saved) return c.json({ title: saved.title, html: saved.content_html, provider: saved.provider, model: saved.model, bodySource, cached: true });
   }
   let result: TranslatedArticle;
-  try { result = await translateArticle(toolEnv, { title, html, mixedLanguages: needsXThread }, undefined, personal); }
-  catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : '번역하지 못했어요. 잠시 후 다시 시도해 주세요.' }, error instanceof TranslationError ? error.status as 502 : 502); }
+  try { result = await translateArticle(toolEnv, { title, html, mixedLanguages: Boolean(needsXThread), target }, undefined, personal); }
+  catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : t('번역하지 못했어요. 잠시 후 다시 시도해 주세요.', "Could not translate this article. Try again in a moment.") }, error instanceof TranslationError ? error.status as 502 : 502); }
   // 원글이 빠진 대화나 피드 글만 번역한 결과는 저장하지 않는다. 저장하면 완성된 대화의 번역을 덮어쓴다.
-  if (!result.alreadyKorean && !xNotice) {
-    if (personal) await savePersonalToolResult(c.env.DB, user.id, article.id, `translate:KO:${cacheSource}`, { hash, title: result.title, content_html: result.html, provider: result.provider, model: result.model });
+  if (!result.alreadyTargetLanguage && !xNotice) {
+    if (personal) await savePersonalToolResult(c.env.DB, user.id, article.id, personalVariant, { hash, title: result.title, content_html: result.html, provider: result.provider, model: result.model });
     else await c.env.DB.prepare(`INSERT INTO article_translations(article_id,target_lang,source_kind,source_hash,title,content_html,provider,model,created_at) VALUES(?,?,?,?,?,?,?,?,?)
       ON CONFLICT(article_id,target_lang,source_kind) DO UPDATE SET source_hash=excluded.source_hash,title=excluded.title,content_html=excluded.content_html,provider=excluded.provider,model=excluded.model,created_at=excluded.created_at`)
-      .bind(article.id, 'KO', cacheSource, hash, result.title, result.html, result.provider, result.model, new Date().toISOString()).run();
+      .bind(article.id, cacheLanguage, cacheSource, hash, result.title, result.html, result.provider, result.model, new Date().toISOString()).run();
   }
-  return c.json({ title: result.title, html: result.html, provider: result.provider, model: result.model, bodySource, notice: xNotice || result.notice, alreadyKorean: Boolean(result.alreadyKorean), cached: false });
+  return c.json({ title: result.title, html: result.html, provider: result.provider, model: result.model, bodySource, notice: xNotice || result.notice, alreadyTargetLanguage: Boolean(result.alreadyTargetLanguage), alreadyKorean: Boolean(result.alreadyKorean), cached: false });
 });
 
 // 번역 설정. DeepL API 키는 운영자만 넣고 지운다. 키는 응답에 돌려주지 않는다.
@@ -1560,18 +1570,18 @@ app.get('/api/translation/config', async (c) => {
 app.put('/api/translation/account/:service', async (c) => {
   c.header('Cache-Control', 'private, no-store');
   const user = c.get('user'), service = c.req.param('service');
-  if (canManageX(c.env, user) || (service !== 'deepl' && service !== 'workers-ai')) return c.json({ error: '지원하지 않는 개인 연결입니다.' }, 404);
-  if (!personalToolStorage(c.env)) return c.json({ error: '서버에 개인 API 키를 저장할 준비가 되지 않았어요.' }, 503);
+  if (canManageX(c.env, user) || (service !== 'deepl' && service !== 'workers-ai')) return c.json({ error: t('지원하지 않는 개인 연결입니다.', 'Unsupported personal connection.') }, 404);
+  if (!personalToolStorage(c.env)) return c.json({ error: t('서버에 개인 API 키를 저장할 준비가 되지 않았어요.', 'The server is not set up to store personal API keys.') }, 503);
   const body = await c.req.json<{ key?: unknown; accountId?: unknown; token?: unknown }>().catch(() => null);
   if (service === 'deepl') {
     const key = typeof body?.key === 'string' ? body.key.trim() : '';
-    if (!validDeepLKey(key)) return c.json({ error: 'DeepL 계정에서 발급받은 API 키를 입력해 주세요.' }, 400);
+    if (!validDeepLKey(key)) return c.json({ error: t('DeepL 계정에서 발급받은 API 키를 입력해 주세요.', 'Enter the API key issued by your DeepL account.') }, 400);
     try { await deeplUsage(key); }
     catch (error) { return c.json({ error: deeplProblem(error instanceof DeepLError ? error.status : 0) }, 400); }
     await savePersonalTool(c.env, user.id, service, key);
   } else {
     const data = { accountId: typeof body?.accountId === 'string' ? body.accountId.trim() : '', token: typeof body?.token === 'string' ? body.token.trim() : '' };
-    if (!validPersonalAI(data)) return c.json({ error: 'Cloudflare 계정 ID와 Workers AI API 토큰을 확인해 주세요.' }, 400);
+    if (!validPersonalAI(data)) return c.json({ error: t('Cloudflare 계정 ID와 Workers AI API 토큰을 확인해 주세요.', 'Check the Cloudflare account ID and Workers AI API token.') }, 400);
     await savePersonalTool(c.env, user.id, service, data);
   }
   return c.json(await translationConfig(c.env, user));
@@ -1579,35 +1589,35 @@ app.put('/api/translation/account/:service', async (c) => {
 app.delete('/api/translation/account/:service', async (c) => {
   c.header('Cache-Control', 'private, no-store');
   const user = c.get('user'), service = c.req.param('service');
-  if (canManageX(c.env, user) || (service !== 'deepl' && service !== 'workers-ai')) return c.json({ error: '지원하지 않는 개인 연결입니다.' }, 404);
+  if (canManageX(c.env, user) || (service !== 'deepl' && service !== 'workers-ai')) return c.json({ error: t('지원하지 않는 개인 연결입니다.', 'Unsupported personal connection.') }, 404);
   if (personalToolStorage(c.env)) await clearPersonalTool(c.env, user.id, service);
   return c.json(await translationConfig(c.env, user));
 });
 app.put('/api/translation/deepl', async (c) => {
-  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 feedex 운영자만 바꿀 수 있습니다.' }, 403);
-  if (c.env.DEEPL_API_KEY?.trim()) return c.json({ error: '이 키는 서버에서 관리 중입니다.' }, 400);
+  if (!canManageX(c.env, c.get('user'))) return c.json({ error: t('번역 설정은 feedex 운영자만 바꿀 수 있습니다.', "Only the FeedEx owner can change translation settings.") }, 403);
+  if (c.env.DEEPL_API_KEY?.trim()) return c.json({ error: t('이 키는 서버에서 관리 중입니다.', "This key is managed by the server.") }, 400);
   const body = await c.req.json<{ key?: unknown }>().catch(() => ({} as { key?: unknown }));
   const key = typeof body.key === 'string' ? body.key.trim() : '';
-  if (!validDeepLKey(key)) return c.json({ error: 'DeepL API 키 모양이 아니에요. DeepL 계정의 API Keys에서 복사해 주세요.' }, 400);
+  if (!validDeepLKey(key)) return c.json({ error: t('DeepL API 키 모양이 아니에요. DeepL 계정의 API Keys에서 복사해 주세요.', "This is not a valid DeepL API key. Copy it from API Keys in your DeepL account.") }, 400);
   // 저장하기 전에 키가 실제로 되는지 DeepL에 사용량을 물어 확인한다.
   try { await deeplUsage(key); }
   catch (error) { return c.json({ error: deeplProblem(error instanceof DeepLError ? error.status : 0) }, 400); }
   try { await saveDeepLKey(c.env, key); }
-  catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : 'DeepL API 키를 저장하지 못했어요.' }, 503); }
+  catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : t('DeepL API 키를 저장하지 못했어요.', "Could not save the DeepL API key.") }, 503); }
   return c.json(await translationConfig(c.env, c.get('user')));
 });
 app.put('/api/translation/provider', async (c) => {
-  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 feedex 운영자만 바꿀 수 있습니다.' }, 403);
+  if (!canManageX(c.env, c.get('user'))) return c.json({ error: t('번역 설정은 feedex 운영자만 바꿀 수 있습니다.', "Only the FeedEx owner can change translation settings.") }, 403);
   const body = await c.req.json<{ provider?: unknown }>().catch(() => ({} as { provider?: unknown }));
-  if (body.provider !== 'deepl' && body.provider !== 'workers-ai') return c.json({ error: '번역 서비스를 확인해 주세요.' }, 400);
-  if (body.provider === 'deepl' && !(await readDeepLKey(c.env).catch(() => null))) return c.json({ error: 'DeepL API 키를 먼저 넣어 주세요.' }, 400);
+  if (body.provider !== 'deepl' && body.provider !== 'workers-ai') return c.json({ error: t('번역 서비스를 확인해 주세요.', "Check the selected translation provider.") }, 400);
+  if (body.provider === 'deepl' && !(await readDeepLKey(c.env).catch(() => null))) return c.json({ error: t('DeepL API 키를 먼저 넣어 주세요.', "Enter a DeepL API key first.") }, 400);
   try { await saveTranslationPreference(c.env, body.provider); }
-  catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : '저장하지 못했어요.' }, 503); }
+  catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : t('저장하지 못했어요.', "Could not save your changes.") }, 503); }
   return c.json(await translationConfig(c.env, c.get('user')));
 });
 app.delete('/api/translation/deepl', async (c) => {
-  if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 feedex 운영자만 바꿀 수 있습니다.' }, 403);
-  if (c.env.DEEPL_API_KEY?.trim()) return c.json({ error: '이 키는 서버에서 관리 중입니다.' }, 400);
+  if (!canManageX(c.env, c.get('user'))) return c.json({ error: t('번역 설정은 feedex 운영자만 바꿀 수 있습니다.', "Only the FeedEx owner can change translation settings.") }, 403);
+  if (c.env.DEEPL_API_KEY?.trim()) return c.json({ error: t('이 키는 서버에서 관리 중입니다.', "This key is managed by the server.") }, 400);
   await clearDeepLKey(c.env);
   return c.json(await translationConfig(c.env, c.get('user')));
 });
@@ -1618,6 +1628,7 @@ app.post('/api/articles/:id/summarize', async (c) => {
   const user = c.get('user');
   type SummaryRequest = { force?: boolean; phone?: boolean; xUrl?: unknown; xThread?: unknown };
   const body: SummaryRequest = await c.req.json<SummaryRequest>().catch(() => ({}));
+  const language = lang();
   const article = await c.env.DB.prepare(
     `SELECT id, title, url, summary, content_html, full_content_html, ai_summary
      FROM articles WHERE id=? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
@@ -1625,26 +1636,27 @@ app.post('/api/articles/:id/summarize', async (c) => {
     id: string; title: string; url: string; summary: string | null; content_html: string | null;
     full_content_html: string | null; ai_summary: string | null;
   }>();
-  if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  if (!article) return c.json({ error: t('아티클을 찾을 수 없습니다.', "Article not found.") }, 404);
   const owner = canManageX(c.env, user);
   const personal = owner ? null : (await readPersonalTools(c.env, user.id, true)).ai;
-  if (!owner && !personal) return c.json({ error: '환경설정 → 번역·요약에서 내 Workers AI 계정을 연결해 주세요.', code: 'article_tool_account_required' }, 412);
+  if (!owner && !personal) return c.json({ error: t('환경설정 → 번역·요약에서 내 Workers AI 계정을 연결해 주세요.', 'Connect your own Workers AI account in Settings → Translation & summary.'), code: 'article_tool_account_required' }, 412);
   const toolEnv: Env = personal ? { DB: c.env.DB, AI_MODEL: c.env.AI_MODEL, AI: personalWorkersAI(personal) } : c.env;
-  const ownSummary = (variant: string) => owner ? Promise.resolve(article.ai_summary)
+  // 운영자는 글에 언어별 요약을 저장하고, 다른 사용자는 자기 결과만 언어별로 따로 저장한다.
+  const ownSummary = (variant: string) => owner ? articleSummary(c.env.DB, article, language)
     : readPersonalToolResult<string>(c.env.DB, user.id, article.id, variant);
   const saveSummary = (variant: string, result: string) => owner
-    ? c.env.DB.prepare('UPDATE articles SET ai_summary=? WHERE id=?').bind(result, article.id).run()
+    ? saveArticleSummary(c.env.DB, article.id, language, result)
     : savePersonalToolResult(c.env.DB, user.id, article.id, variant, result);
-  const summaryProblem = (message: string) => personal ? '요약하지 못했어요. 연결한 Workers AI 토큰의 권한과 사용량을 확인해 주세요.' : message;
+  const summaryProblem = (message: string) => personal ? t('요약하지 못했어요. 연결한 Workers AI 토큰의 권한과 사용량을 확인해 주세요.', 'Could not summarize. Check the permissions and usage of your Workers AI token.') : message;
   if (body.xUrl !== undefined || xStatusUrl(article.url)) {
     const url = body.xUrl === undefined ? article.url : body.xUrl;
     if (typeof url !== 'string' || !xStatusUrl(url) || !xStatusUrl(article.url)) {
-      return c.json({ error: '요약할 X 글 주소를 확인해 주세요.' }, 400);
+      return c.json({ error: t('요약할 X 글 주소를 확인해 주세요.', "Check the URL of the X post to summarize.") }, 400);
     }
     const samePost = url === article.url;
-    const variant = `summary:ko:x:${new URL(url).pathname.split('/')[3]}`;
+    const variant = `summary:${language}:x:${new URL(url).pathname.split('/')[3]}`;
     const cached = !body.force && (samePost || !owner) ? await ownSummary(variant) : null;
-    if (isCurrentSummary(cached, 'x')) {
+    if (isCurrentSummary(cached, 'x', language)) {
       return c.json({ aiSummary: cached, cached: true });
     }
     let html = verifiedXThread(c.env, url, body.xThread);
@@ -1653,21 +1665,21 @@ app.post('/api/articles/:id/summarize', async (c) => {
       if (copy && !copy.partial) html = copy.html;
     }
     const posts = html ? xThreadSummaryPosts(html) : [];
-    const labels = { before: '앞선 게시물', selected: '선택한 게시물', after: '이어지는 게시물' } as const;
+    const labels = { before: t('앞선 게시물', 'Earlier post'), selected: t('선택한 게시물', 'Selected post'), after: t('이어지는 게시물', 'Subsequent post') };
     const parts = posts.flatMap(post => {
       const text = summaryText(post.body), quote = summaryText(post.quote);
       if (!text && !quote) return [];
       const label = `${labels[post.kind]}${post.author ? ` (${post.author})` : ''}`;
-      const quoteLabel = `인용된 게시물${post.quoteAuthor ? ` (${post.quoteAuthor})` : ''}`;
+      const quoteLabel = `${t('인용된 게시물', 'Quoted post')}${post.quoteAuthor ? ` (${post.quoteAuthor})` : ''}`;
       return [[`${label}:\n${text}`, quote ? `${quoteLabel}:\n${quote}` : ''].filter(Boolean).join('\n')];
     });
-    if (!parts.length) return c.json({ error: '요약할 X 대화를 가져오지 못했어요. 대화를 다시 불러온 뒤 요약해 주세요.' }, 422);
+    if (!parts.length) return c.json({ error: t('요약할 X 대화를 가져오지 못했어요. 대화를 다시 불러온 뒤 요약해 주세요.', "Could not load the X conversation. Reload it before summarizing.") }, 422);
     const selected = posts.find(post => post.kind === 'selected');
     const author = selected?.author;
     const includeSelectedReply = posts.some(post => post.kind === 'before') && Boolean(summaryText(selected?.body || ''));
-    const title = author ? `X 대화 (${author})` : 'X 대화';
+    const title = `${t('X 대화', 'X conversation')}${author ? ` (${author})` : ''}`;
     const result = await summarizeArticleWithAI(toolEnv, { title, text: parts.join('\n\n'), source: 'x', includeSelectedReply });
-    if (!result) return c.json({ error: summaryProblem('X 글 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.') }, 502);
+    if (!result) return c.json({ error: summaryProblem(t('X 글 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.', "Could not summarize the X post. Try again in a moment.")) }, 502);
     if (samePost || !owner) await saveSummary(variant, result.summary);
     return c.json({ aiSummary: result.summary, cached: false });
   }
@@ -1676,15 +1688,15 @@ app.post('/api/articles/:id/summarize', async (c) => {
   const source = fullText ? 'full' : 'feed';
   const text = fullText || summaryText(article.content_html || '') || summaryText(article.summary || '');
   if (text.length < 65) {
-    return c.json({ error: '요약할 기사 본문을 충분히 가져오지 못했어요. 원문을 확인해 주세요.' }, 422);
+    return c.json({ error: t('요약할 기사 본문을 충분히 가져오지 못했어요. 원문을 확인해 주세요.', "Could not load enough of the article to summarize it. Check the original.") }, 422);
   }
-  const variant = `summary:ko:${source}`;
+  const variant = `summary:${language}:${source}`;
   const cached = body.force ? null : await ownSummary(variant);
-  if (isCurrentSummary(cached, source)) {
+  if (isCurrentSummary(cached, source, language)) {
     return c.json({ aiSummary: cached, cached: true });
   }
   const result = await summarizeArticleWithAI(toolEnv, { title: article.title, text, source });
-  if (!result) return c.json({ error: summaryProblem('기사 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.') }, 502);
+  if (!result) return c.json({ error: summaryProblem(t('기사 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.', "Could not summarize the article. Try again in a moment.")) }, 502);
   await saveSummary(variant, result.summary);
   return c.json({ aiSummary: result.summary, cached: false });
 });
@@ -1693,16 +1705,16 @@ app.post('/api/articles/:id/summarize', async (c) => {
 app.post('/api/opml/parse', async (c) => {
   const body = await c.req.json<{ opmlXml?: string }>();
   if (typeof body.opmlXml !== 'string' || !body.opmlXml.trim()) {
-    return c.json({ error: 'OPML XML 내용이 비어 있습니다.' }, 400);
+    return c.json({ error: t('OPML XML 내용이 비어 있습니다.', "The OPML file is empty.") }, 400);
   }
   try {
     const items = parseOpml(body.opmlXml);
     if (items.length === 0) {
-      return c.json({ error: 'OPML 파일에서 RSS 피드 항목을 찾지 못했습니다.' }, 400);
+      return c.json({ error: t('OPML 파일에서 RSS 피드 항목을 찾지 못했습니다.', "No RSS feeds were found in the OPML file.") }, 400);
     }
     return c.json({ items, totalFound: items.length });
   } catch (err) {
-    return c.json({ error: err instanceof Error ? err.message : 'OPML 파일을 읽지 못했습니다.' }, 400);
+    return c.json({ error: err instanceof Error ? err.message : t('OPML 파일을 읽지 못했습니다.', "Could not read the OPML file.") }, 400);
   }
 });
 
@@ -1727,7 +1739,7 @@ app.post('/api/opml/check', async (c) => {
     url = new URL(body.url.trim());
     if (!['http:', 'https:'].includes(url.protocol)) throw new Error();
   } catch {
-    return c.json({ error: '올바른 HTTP 또는 HTTPS RSS 주소가 아닙니다.' }, 400);
+    return c.json({ error: t('올바른 HTTP 또는 HTTPS RSS 주소가 아닙니다.', "Enter a valid HTTP or HTTPS RSS URL.") }, 400);
   }
   try {
     const parsed = await fetchAndParseFeed(url.href, c.env.DB);
@@ -1742,7 +1754,7 @@ app.post('/api/opml/check', async (c) => {
 app.post('/api/opml/failures', async (c) => {
   const body = await c.req.json<{ item?: OpmlFeed; error?: string }>();
   if (!validOpmlItem(body.item) || typeof body.error !== 'string' || !body.error.trim()) {
-    return c.json({ error: '저장할 실패 항목을 확인해 주세요.' }, 400);
+    return c.json({ error: t('저장할 실패 항목을 확인해 주세요.', "Check the failed items you want to save.") }, 400);
   }
   await recordOpmlFailure(c.env.DB, c.get('user').id, body.item, body.error);
   return c.json({ saved: true });
@@ -1753,7 +1765,7 @@ app.post('/api/opml/import', async (c) => {
   const body = await c.req.json<{ item?: OpmlFeed; previousUrl?: string }>();
   const item = body.item;
   if (!validOpmlItem(item) || (body.previousUrl != null && typeof body.previousUrl !== 'string')) {
-    return c.json({ error: '가져오기 화면을 새로고침한 뒤 OPML 파일을 다시 선택해 주세요.' }, 400);
+    return c.json({ error: t('가져오기 화면을 새로고침한 뒤 OPML 파일을 다시 선택해 주세요.', "Refresh the import screen and select the OPML file again.") }, 400);
   }
   let xmlUrl: string;
   try {
@@ -1761,7 +1773,7 @@ app.post('/api/opml/import', async (c) => {
     if (!['http:', 'https:'].includes(url.protocol)) throw new Error();
     xmlUrl = url.href;
   } catch {
-    const error = '올바른 HTTP 또는 HTTPS RSS 주소가 아닙니다.';
+    const error = t('올바른 HTTP 또는 HTTPS RSS 주소가 아닙니다.', "Enter a valid HTTP or HTTPS RSS URL.");
     await recordOpmlFailure(c.env.DB, c.get('user').id, item, error);
     if (body.previousUrl && body.previousUrl !== item.xmlUrl) {
       await clearOpmlFailure(c.env.DB, c.get('user').id, body.previousUrl);
@@ -1783,7 +1795,7 @@ app.post('/api/opml/import', async (c) => {
     });
     const message = sourceError
       ? error.message
-      : '구독 정보를 조회하거나 저장하는 중 오류가 발생했습니다. 서버 오류 기록을 확인해야 합니다.';
+      : t('구독 정보를 조회하거나 저장하는 중 오류가 발생했습니다. 서버 오류 기록을 확인해야 합니다.', "Could not load or save subscription details. Check the server logs.");
     let failureSaved = false;
     try {
       await recordOpmlFailure(c.env.DB, c.get('user').id, { ...item, xmlUrl }, message);

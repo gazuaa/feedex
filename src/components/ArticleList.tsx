@@ -22,6 +22,7 @@ import { parseXPost } from '../client/xTimeline';
 import { useXAvatars } from '../client/xAvatars';
 import { isXStatusUrl } from '../shared/xFeed';
 import { isCurrentSummary } from '../shared/aiSummary';
+import { t } from '../shared/i18n';
 // 가까운 글의 이미지를 찾는 동안에는 사이트 로고를 보여 준다.
 export function FeedLogo({ article }: { article: ArticleItem }) {
   const [failed, setFailed] = useState(0);
@@ -29,7 +30,7 @@ export function FeedLogo({ article }: { article: ArticleItem }) {
   try { origin = new URL(article.feed_html_url || article.url).origin; } catch {}
   const candidates = [...new Set([article.feed_favicon, origin ? `${origin}/favicon.ico` : null].filter(Boolean))] as string[];
   const logo = candidates[failed];
-  return <div className="feedex-feed-logo" aria-label={`${article.feed_title} 로고`}>{logo ? <img src={logo} alt="" loading="lazy" onError={() => setFailed((value) => value + 1)} /> : <span>{(article.feed_title || 'RSS').slice(0, 2)}</span>}</div>;
+  return <div className="feedex-feed-logo" aria-label={t(`${article.feed_title} 로고`, `${article.feed_title} logo`)}>{logo ? <img src={logo} alt="" loading="lazy" onError={() => setFailed((value) => value + 1)} /> : <span>{(article.feed_title || 'RSS').slice(0, 2)}</span>}</div>;
 }
 function Thumbnail({ article, accountId, onUpdateArticleFields, card = false, isDark = false }: { article: ArticleItem; accountId: string; onUpdateArticleFields?: ArticleListProps['onUpdateArticleFields']; card?: boolean; isDark?: boolean }) {
   const [broken, setBroken] = useState<string | null>(null);
@@ -155,12 +156,12 @@ export const ArticleList: React.FC<ArticleListProps> = ({
             isDark ? 'text-white' : 'text-slate-900'
           }`}
         >
-          {hasSubscriptions ? '표시할 아티클이 없습니다' : '관심 있는 피드로 시작하세요'}
+          {hasSubscriptions ? t('표시할 아티클이 없습니다', 'No articles to show') : t('관심 있는 피드로 시작하세요', 'Start with feeds you care about')}
         </h3>
         <p className="text-xs text-slate-400 leading-relaxed mb-6">
           {hasSubscriptions
-            ? '모든 아티클을 다 읽었거나 검색 조건에 맞는 글이 없습니다. 새로운 RSS 피드를 추가하거나 안읽음 필터를 해제해 보세요.'
-            : '아직 구독 중인 피드가 없습니다. 추천 목록에서 원하는 피드를 골라 구독해 보세요. 선택한 피드만 내 목록에 추가됩니다.'}
+            ? t('모든 아티클을 다 읽었거나 검색 조건에 맞는 글이 없습니다. 새로운 RSS 피드를 추가하거나 안읽음 필터를 해제해 보세요.', 'You have read everything, or nothing matches your search. Add a new RSS feed or turn off the unread filter.')
+            : t('아직 구독 중인 피드가 없습니다. 추천 목록에서 원하는 피드를 골라 구독해 보세요. 선택한 피드만 내 목록에 추가됩니다.', 'You have no subscriptions yet. Pick feeds from the suggestions; only the ones you choose are added.')}
         </p>
         <button
           type="button"
@@ -168,7 +169,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
           className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer transition"
         >
           <Plus className="w-4 h-4" />
-          <span>추천 피드 추가하기</span>
+          <span>{t('추천 피드 추가하기', 'Add suggested feeds')}</span>
         </button>
       </div>
     );
@@ -207,7 +208,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                   <button
                     type="button"
                     onClick={(e) => onToggleRead(article, e)}
-                    title={article.is_read ? '안읽음으로 표시' : '읽음으로 표시'}
+                    title={article.is_read ? t('안읽음으로 표시', 'Mark as unread') : t('읽음으로 표시', 'Mark as read')}
                     className="shrink-0 text-slate-400 hover:text-emerald-400 cursor-pointer"
                   >
                     {article.is_read ? (
@@ -251,7 +252,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                     {/* 예전 형식 요약은 글을 열 때 다시 만들므로 요약됨으로 표시하지 않는다. */}
                     {isCurrentSummary(article.ai_summary) && (
                       <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-400">
-                        <Sparkles className="w-2.5 h-2.5" /> AI 요약됨
+                        <Sparkles className="w-2.5 h-2.5" /> {t('AI 요약됨', 'AI summary')}
                       </span>
                     )}
                     {article.summary && (
@@ -272,7 +273,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                   <button
                     type="button"
                     onClick={(e) => onToggleSaved(article, e)}
-                    title="나중에 읽기(북마크)"
+                    title={t('나중에 읽기(북마크)', 'Read later (bookmark)')}
                     className={`p-1 rounded transition cursor-pointer ${
                       article.is_saved
                         ? 'text-indigo-400'
@@ -291,7 +292,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    title="원문 새 창 열기"
+                    title={t('원문 새 창 열기', 'Open original in a new window')}
                     className="p-1 rounded text-slate-500 opacity-0 group-hover:opacity-100 hover:text-emerald-400 transition"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -337,7 +338,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
 
                   {isCurrentSummary(article.ai_summary) && (
                     <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-950/85 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 backdrop-blur-xs">
-                      <Sparkles className="w-3 h-3" /> AI 요약
+                      <Sparkles className="w-3 h-3" /> {t('AI 요약', 'AI summary')}
                     </span>
                   )}
                 </div>
@@ -392,14 +393,14 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                 }`}
               >
                 <span className="text-slate-500 truncate max-w-[160px]">
-                  {article.author || article.folder_name || 'RSS 아티클'}
+                  {article.author || article.folder_name || t('RSS 아티클', 'RSS article')}
                 </span>
 
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={(e) => onToggleRead(article, e)}
-                    title={article.is_read ? '안읽음으로 표시' : '읽음으로 표시'}
+                    title={article.is_read ? t('안읽음으로 표시', 'Mark as unread') : t('읽음으로 표시', 'Mark as read')}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800/40 transition cursor-pointer"
                   >
                     {article.is_read ? (
@@ -412,7 +413,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                   <button
                     type="button"
                     onClick={(e) => onToggleSaved(article, e)}
-                    title="나중에 읽기(북마크)"
+                    title={t('나중에 읽기(북마크)', 'Read later (bookmark)')}
                     className={`p-1.5 rounded-lg transition cursor-pointer ${
                       article.is_saved
                         ? 'text-indigo-400 bg-indigo-500/10'
@@ -429,7 +430,7 @@ export const ArticleList: React.FC<ArticleListProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    title="원문 보기"
+                    title={t('원문 보기', 'View original')}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800/40 transition"
                   >
                     <ExternalLink className="w-4 h-4" />

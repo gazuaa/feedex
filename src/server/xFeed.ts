@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import type { ParsedArticle, ParsedFeed } from './rssParser';
 import { xProfile } from '../shared/xFeed';
 import { retryAfterMs } from './retryAfter';
@@ -33,7 +34,7 @@ export async function restProvider(provider: string, retryAfter: string | null, 
     .bind(provider, resume).run().catch(() => {});
   return resume;
 }
-const LIMIT_MESSAGE = 'X 게시물 제공 경로의 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.';
+const LIMIT_MESSAGE = t('X 게시물 제공 경로의 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.', "The X feed provider hit its request limit. Try again in a moment.");
 export class XFeedError extends Error {
   // retryAfter는 한도에 걸린 제공 경로 중 가장 먼저 다시 열리는 시점까지 남은 초다.
   constructor(message: string, readonly retryAfter?: number, readonly allProvidersLimited = false) { super(message); this.name = 'XFeedError'; }
@@ -42,13 +43,13 @@ export class XFeedError extends Error {
 // 응답 전체를 메모리에 무제한으로 쌓지 않고, 공개 RSS·글 페이지만 읽는다.
 export async function readFeed(response: Response, limit = 1_000_000): Promise<string> {
   const reader = response.body?.getReader();
-  if (!reader) throw new XFeedError('X 게시물 응답이 비어 있습니다.');
+  if (!reader) throw new XFeedError(t('X 게시물 응답이 비어 있습니다.', "The X post response is empty."));
   const chunks: Uint8Array[] = []; let size = 0;
   try {
     for (;;) {
       const { done, value } = await reader.read(); if (done) break;
       size += value.byteLength;
-      if (size > limit) throw new XFeedError('X 게시물 응답이 너무 큽니다.');
+      if (size > limit) throw new XFeedError(t('X 게시물 응답이 너무 큽니다.', "The X post response is too large."));
       chunks.push(value);
     }
   } finally { await reader.cancel().catch(() => {}); }
@@ -174,7 +175,7 @@ export async function fetchXOlderPage(profileUrl: string, page: XOlderPage, pars
 
 export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLike): Promise<ParsedFeed> {
   const profile = xProfile(input);
-  if (!profile) throw new XFeedError('X 계정의 프로필 주소를 입력해 주세요.');
+  if (!profile) throw new XFeedError(t('X 계정의 프로필 주소를 입력해 주세요.', "Enter an X profile URL."));
   const cached = cache.get(profile.url);
   if (cached && cached.expires > Date.now()) return cached.feed;
   const running = flights.get(profile.url); if (running) return running;
@@ -217,7 +218,7 @@ export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLik
         const { parsed, hosts } = read;
         const feed: ParsedFeed = {
           ...parsed, xmlUrl: profile.url, htmlUrl: profile.url,
-          description: `@${profile.username}의 공개 X 게시물`,
+          description: t(`@${profile.username}의 공개 X 게시물`, `Public X posts from @${profile.username}`),
           // 채널 이미지는 계정의 프로필 사진이다. 목록과 X 타임라인의 얼굴로 쓴다.
           faviconUrl: profileImage(xml, provider, hosts) || 'https://abs.twimg.com/favicons/twitter.3.ico',
           articles: dropStaleReposts(read.articles, Date.now()),
@@ -243,7 +244,7 @@ export async function fetchXFeed(input: string, parse: Parse, db?: D1DatabaseLik
       Math.max(1, Math.ceil((limitedUntil - Date.now()) / 1000)),
       limitedProviders === providers.length,
     );
-    throw new XFeedError('X 공개 게시물을 가져오지 못했습니다. 비공개·삭제된 계정이거나 제공 경로가 일시 중단됐을 수 있습니다.');
+    throw new XFeedError(t('X 공개 게시물을 가져오지 못했습니다. 비공개·삭제된 계정이거나 제공 경로가 일시 중단됐을 수 있습니다.', "Could not load public X posts. The account may be private or deleted, or the feed may be unavailable."));
   })().finally(() => flights.delete(profile.url));
   flights.set(profile.url, work); return work;
 }

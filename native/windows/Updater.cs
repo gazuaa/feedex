@@ -48,8 +48,8 @@ namespace FeedEx
             var path = Path.Combine(folder, "update.zip");
             using (var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
             {
-                if (!response.IsSuccessStatusCode) throw new UpdateException("업데이트 파일을 받지 못했어요. (HTTP " + (int)response.StatusCode + ")");
-                if (response.Content.Headers.ContentLength > MaxDownload) throw new UpdateException("업데이트 파일이 너무 커요.");
+                if (!response.IsSuccessStatusCode) throw new UpdateException(NativeLanguage.Text("업데이트 파일을 받지 못했어요. (HTTP ", "Could not download the update. (HTTP ") + (int)response.StatusCode + ")");
+                if (response.Content.Headers.ContentLength > MaxDownload) throw new UpdateException(NativeLanguage.Text("업데이트 파일이 너무 커요.", "The update file is too large."));
                 using (var source = await response.Content.ReadAsStreamAsync())
                 using (var target = File.Create(path))
                 {
@@ -59,12 +59,12 @@ namespace FeedEx
                     while ((read = await source.ReadAsync(buffer, 0, buffer.Length)) > 0)
                     {
                         total += read;
-                        if (total > MaxDownload) throw new UpdateException("업데이트 파일이 너무 커요.");
+                        if (total > MaxDownload) throw new UpdateException(NativeLanguage.Text("업데이트 파일이 너무 커요.", "The update file is too large."));
                         await target.WriteAsync(buffer, 0, read);
                     }
                 }
             }
-            if (Sha256(path) != sha256) throw new UpdateException("받은 파일이 서명한 업데이트와 달라요.");
+            if (Sha256(path) != sha256) throw new UpdateException(NativeLanguage.Text("받은 파일이 서명한 업데이트와 달라요.", "The downloaded file does not match the signed update."));
             return path;
         }
 
@@ -95,16 +95,16 @@ namespace FeedEx
                     var name = entry.FullName.Replace('\\', '/');
                     if (name.EndsWith("/", StringComparison.Ordinal))
                     {
-                        if (!folders.Contains(name)) throw new UpdateException("업데이트 파일 구성이 예상과 달라요.");
+                        if (!folders.Contains(name)) throw new UpdateException(NativeLanguage.Text("업데이트 파일 구성이 예상과 달라요.", "The update package contains unexpected files."));
                         continue;
                     }
-                    if (!files.Contains(name) || !found.Add(name)) throw new UpdateException("업데이트 파일 구성이 예상과 달라요.");
+                    if (!files.Contains(name) || !found.Add(name)) throw new UpdateException(NativeLanguage.Text("업데이트 파일 구성이 예상과 달라요.", "The update package contains unexpected files."));
                     var target = Local(staging, name.Substring(Root.Length));
                     Directory.CreateDirectory(Path.GetDirectoryName(target));
                     entry.ExtractToFile(target, true);
                 }
             }
-            if (found.Count != files.Count) throw new UpdateException("업데이트 파일 일부가 빠졌어요.");
+            if (found.Count != files.Count) throw new UpdateException(NativeLanguage.Text("업데이트 파일 일부가 빠졌어요.", "The update package is missing files."));
             return staging;
         }
 
@@ -118,7 +118,7 @@ namespace FeedEx
         {
             var actual = AssemblyName.GetAssemblyName(Local(staging, "FeedEx.exe")).Version;
             if (!Version.TryParse(version, out var expected) || actual.Major != expected.Major || actual.Minor != expected.Minor)
-                throw new UpdateException("업데이트 파일의 버전이 맞지 않아요.");
+                throw new UpdateException(NativeLanguage.Text("업데이트 파일의 버전이 맞지 않아요.", "The downloaded update has the wrong version."));
         }
 
         public static void Install(string staging, string app)

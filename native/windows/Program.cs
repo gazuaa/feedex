@@ -19,7 +19,7 @@ namespace FeedEx
             var folder = AppDomain.CurrentDomain.BaseDirectory;
             if (!File.Exists(Path.Combine(folder, "Microsoft.Web.WebView2.Core.dll")) || !File.Exists(Path.Combine(folder, "Microsoft.Web.WebView2.WinForms.dll")))
             {
-                MessageBox.Show("받은 zip의 압축을 먼저 풀어 주세요.\n\nzip을 마우스 오른쪽 단추로 눌러 '모두 압축 풀기'를 한 뒤, 풀린 FeedEx 폴더의 FeedEx.exe를 열면 돼요.", "feedex", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(NativeLanguage.Text("받은 zip의 압축을 먼저 풀어 주세요.\n\nzip을 마우스 오른쪽 단추로 눌러 '모두 압축 풀기'를 한 뒤, 풀린 FeedEx 폴더의 FeedEx.exe를 열면 돼요.", "Extract the downloaded ZIP first.\n\nRight-click the ZIP, choose Extract All and open FeedEx.exe in the extracted FeedEx folder."), "feedex", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             var homeOverride = Environment.GetEnvironmentVariable("FEEDEX_HOME");

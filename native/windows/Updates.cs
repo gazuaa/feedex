@@ -63,7 +63,7 @@ namespace FeedEx
                 catch (Exception)
                 {
                     context.Log("checkFailed");
-                    if (!quiet) Tell(context, "업데이트를 확인하지 못했어요. 인터넷 연결을 확인해 주세요.", MessageBoxIcon.Warning);
+                    if (!quiet) Tell(context, NativeLanguage.Text("업데이트를 확인하지 못했어요. 인터넷 연결을 확인해 주세요.", "Could not check for updates. Check your internet connection."), MessageBoxIcon.Warning);
                     return;
                 }
                 var latest = Json.Text(body, "version");
@@ -73,17 +73,17 @@ namespace FeedEx
                 if (download == null || !Allowed(download, context.Home) || !UpdateSignature.Verify(latest, sha256, Json.Text(body, "signature"), context.PublicKey))
                 {
                     context.Log("rejected");
-                    if (!quiet) Tell(context, "업데이트 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", MessageBoxIcon.Warning);
+                    if (!quiet) Tell(context, NativeLanguage.Text("업데이트 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", "Could not verify the update information. Try again in a moment."), MessageBoxIcon.Warning);
                     return;
                 }
                 if (!Versions.Newer(latest, Current))
                 {
                     context.Log("current");
-                    if (!quiet) Tell(context, "최신 버전을 쓰고 있어요. (feedex " + Current + ")", MessageBoxIcon.Information);
+                    if (!quiet) Tell(context, NativeLanguage.Text("최신 버전을 쓰고 있어요. (feedex ", "You’re on the latest version. (feedex ") + Current + ")", MessageBoxIcon.Information);
                     return;
                 }
                 if (quiet && context.Settings.SkippedVersion == latest) return;
-                if (!Ask(context, "새 버전(" + latest + ")을 설치할까요?\n\nfeedex가 잠깐 닫혔다가 다시 열려요."))
+                if (!Ask(context, NativeLanguage.Text("새 버전(", "Install the new version (") + latest + NativeLanguage.Text(")을 설치할까요?\n\nfeedex가 잠깐 닫혔다가 다시 열려요.", ")?\n\nFeedEx will briefly close and reopen.")))
                 {
                     // 다음에 켤 때 같은 버전을 다시 묻지 않는다. 설정의 '업데이트 확인'으로는 언제든 설치할 수 있다.
                     context.Settings.SkippedVersion = latest;
@@ -107,8 +107,8 @@ namespace FeedEx
                 catch (Exception error)
                 {
                     context.Log("installFailed: " + error.Message);
-                    var reason = error is UnauthorizedAccessException ? "FeedEx 폴더에 파일을 쓸 수 없어요." : error.Message;
-                    Tell(context, "업데이트를 설치하지 못했어요. 받는 페이지를 열 테니 받은 zip으로 FeedEx 폴더를 바꿔 주세요.\n\n" + reason, MessageBoxIcon.Warning);
+                    var reason = error is UnauthorizedAccessException ? NativeLanguage.Text("FeedEx 폴더에 파일을 쓸 수 없어요.", "Could not write files to the FeedEx folder.") : error.Message;
+                    Tell(context, NativeLanguage.Text("업데이트를 설치하지 못했어요. 받는 페이지를 열 테니 받은 zip으로 FeedEx 폴더를 바꿔 주세요.\n\n", "Could not install the update. Use the download page to get the ZIP, then replace the FeedEx folder.\n\n") + reason, MessageBoxIcon.Warning);
                     if (!context.AutoAccept) Shell.Open(download.AbsoluteUri);
                     return;
                 }
@@ -125,10 +125,10 @@ namespace FeedEx
         static void Tell(UpdateContext context, string text, MessageBoxIcon icon)
         {
             if (context.AutoAccept) { context.Log("message: " + text); return; }
-            MessageBox.Show(context.Owner, text, "feedex 업데이트", MessageBoxButtons.OK, icon);
+            MessageBox.Show(context.Owner, text, NativeLanguage.Text("feedex 업데이트", "feedex Update"), MessageBoxButtons.OK, icon);
         }
 
         static bool Ask(UpdateContext context, string text) =>
-            context.AutoAccept || MessageBox.Show(context.Owner, text, "feedex 업데이트", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes;
+            context.AutoAccept || MessageBox.Show(context.Owner, text, NativeLanguage.Text("feedex 업데이트", "feedex Update"), MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes;
     }
 }

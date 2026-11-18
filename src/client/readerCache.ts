@@ -4,6 +4,7 @@ import { hasVisibleArticles, patchPage } from './syncPages';
 import { openDeviceDatabase as openDatabase } from './deviceDatabase';
 import { retentionAge, SNAPSHOT_LIMITS } from './cachePolicy';
 import { rememberArticles } from './deviceContent';
+import { isCurrentSummary } from '../shared/aiSummary';
 
 export interface ArticlePage { articles: ArticleItem[]; hasMore?: boolean; syncSequence?: number; syncEpoch?: string; needsRefresh?: boolean }
 export interface Snapshot { account: string; key: string; data: BootstrapResponse | ArticlePage; savedAt: number; size: number }
@@ -234,7 +235,8 @@ export class ReaderCache {
     for (const [, page] of pages) for (const article of page?.articles ?? []) if (!article.body_deferred) bodies.set(article.id, article);
     const changes = delta.articles.map((article) => {
       const body = !changedBodies.has(article.id) ? bodies.get(article.id) : undefined;
-      return body ? { ...article, content_html: body.content_html, full_content_html: body.full_content_html, ai_summary: body.ai_summary, body_deferred: false } : article;
+      return body ? { ...article, content_html: body.content_html, full_content_html: body.full_content_html,
+        ai_summary: article.ai_summary || (isCurrentSummary(body.ai_summary) ? body.ai_summary : null), body_deferred: false } : article;
     });
     for (const article of delta.articles) this.overrides.delete(article.id);
     for (const id of removed) this.overrides.delete(id);

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Archive, Bookmark, CheckCheck, CheckCircle2, Circle, Copy, ExternalLink, FolderInput, FolderOpen, FolderX, History, Languages, Link2, ListFilter, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, UserRoundMinus, type LucideIcon } from 'lucide-react';
 import { bindLongPress } from '../client/longPress';
+import { t } from '../shared/i18n';
 
 export interface AppContextTarget { articleId?: string; folderId?: string; feedId?: string; link?: string; selection?: string }
 export interface AppContextAction { id: string; label: string; run: () => void | Promise<unknown>; danger?: boolean; separator?: boolean }
@@ -14,8 +15,8 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   'deepl-selection': Languages, 'deepl-article': Languages,
 };
 export function contextMenuIcon(item: Pick<AppContextAction, 'id' | 'label'>): LucideIcon {
-  if (item.id === 'updates' && item.label.includes('다시')) return Play;
-  if (item.id === 'read' && item.label.startsWith('안 읽음')) return Circle;
+  if (item.id === 'updates' && (item.label.includes('다시') || item.label.startsWith('Resume'))) return Play;
+  if (item.id === 'read' && (item.label.startsWith('안 읽음') || item.label.startsWith('Mark as unread'))) return Circle;
   return MENU_ICONS[item.id] || Rss;
 }
 
@@ -63,7 +64,7 @@ export function DesktopContextMenu({ enabled, touch = false, actions }: { enable
   }, [menu]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 3000); return () => clearTimeout(timer); }, [notice]);
   return <>
-    {enabled && menu && <div ref={ref} role="menu" aria-label="feedex 메뉴" className="feedex-context-menu" style={{ left: menu.x, top: menu.y }} onKeyDown={(event) => {
+    {enabled && menu && <div ref={ref} role="menu" aria-label={t('feedex 메뉴', 'feedex menu')} className="feedex-context-menu" style={{ left: menu.x, top: menu.y }} onKeyDown={(event) => {
       const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')];
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
       // Esc는 메뉴만 닫고 뒤에 열린 글은 닫지 않는다.
@@ -72,8 +73,8 @@ export function DesktopContextMenu({ enabled, touch = false, actions }: { enable
       if (next !== null) { event.preventDefault(); buttons[next]?.focus(); }
     }}>{menu.items.map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} data-separator={item.separator || undefined} onClick={() => {
       setMenu(null);
-      try { void Promise.resolve(item.run()).catch(() => setNotice('작업을 완료하지 못했습니다. 다시 시도해 주세요.')); }
-      catch { setNotice('작업을 완료하지 못했습니다. 다시 시도해 주세요.'); }
+      try { void Promise.resolve(item.run()).catch(() => setNotice(t('작업을 완료하지 못했습니다. 다시 시도해 주세요.', 'Could not finish that. Please try again.'))); }
+      catch { setNotice(t('작업을 완료하지 못했습니다. 다시 시도해 주세요.', 'Could not finish that. Please try again.')); }
     }}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>}
     {notice && <div role="status" className="feedex-context-notice">{notice}</div>}
   </>;

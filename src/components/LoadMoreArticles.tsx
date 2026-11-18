@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
+import { t } from '../shared/i18n';
 
 interface LoadMoreArticlesProps {
   loading: boolean;
@@ -44,7 +45,7 @@ export const LoadMoreArticles: React.FC<LoadMoreArticlesProps> = ({
         }`}
       >
         {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-        <span>{loading ? '이전 글 불러오는 중…' : '이전 글 더 보기'}</span>
+        <span>{loading ? t('이전 글 불러오는 중…', 'Loading older articles…') : t('이전 글 더 보기', 'Show older articles')}</span>
       </button>
     </div>
   );

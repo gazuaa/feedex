@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 // 데스크톱 앱의 알림은 웹 화면의 브라우저 알림 대신 앱의 전용 통로로 보낸다.
 // 맥 앱은 답을 돌려주는 WKWebView 통로를, 윈도우 앱은 번호를 붙인 메시지와 답장을 쓴다.
 import { windowsWebView, type BridgeHost, type WindowsWebView } from './nativeApp';
@@ -36,7 +37,7 @@ function windowsNotificationBridge(view: WindowsWebView): NotificationBridge {
   const bridge: NotificationBridge = {
     postMessage: (message) => new Promise((resolve, reject) => {
       const id = ++nextRequest;
-      const timer = setTimeout(() => { waiting.delete(id); reject(new Error('앱이 알림 요청에 답하지 않았습니다.')); }, 10_000);
+      const timer = setTimeout(() => { waiting.delete(id); reject(new Error(t('앱이 알림 요청에 답하지 않았습니다.', "The app did not respond to the notification request."))); }, 10_000);
       waiting.set(id, { resolve, reject, timer });
       view.postMessage({ channel: 'notifications', id, body: message });
     }),
@@ -50,7 +51,7 @@ let flight: Promise<NotificationPermission> | null = null;
 const listeners = new Set<() => void>();
 export const nativeNotificationPermission = () => permission;
 const update = (next: unknown) => {
-  if (next !== 'default' && next !== 'denied' && next !== 'granted') throw new Error('알림 권한을 확인하지 못했습니다.');
+  if (next !== 'default' && next !== 'denied' && next !== 'granted') throw new Error(t('알림 권한을 확인하지 못했습니다.', "Could not check notification permission."));
   if (permission !== next) { permission = next; listeners.forEach((listener) => listener()); }
   return permission;
 };
@@ -64,7 +65,7 @@ export function refreshNativeNotificationPermission(): Promise<NotificationPermi
   return flight;
 }
 export async function requestNativeNotificationPermission(): Promise<NotificationPermission> {
-  const bridge = nativeNotificationBridge(); if (!bridge) throw new Error('앱을 업데이트해 주세요.');
+  const bridge = nativeNotificationBridge(); if (!bridge) throw new Error(t('앱을 업데이트해 주세요.', "Please update the app."));
   revision++;
   return update((await bridge.postMessage({ action: 'request' })).permission);
 }

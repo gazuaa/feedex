@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import hlsUrl from 'hls.js/dist/hls.light.min.js?url';
 import playerUrl from './xFramePlayer.js?url';
@@ -123,7 +124,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   const animated = mobile && typeof dialog.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const previousFocus = document.activeElement;
   dialog.setAttribute('data-sfeed-photo-viewer', '');
-  dialog.setAttribute('aria-label', '사진 크게 보기');
+  dialog.setAttribute('aria-label', t('사진 크게 보기', "Open photo"));
   dialog.setAttribute('aria-modal', 'true');
   dialog.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;max-width:100vw;max-height:100vh;max-height:100dvh;margin:0;padding:0;border:0;background:rgba(2,6,23,0.92);backdrop-filter:blur(6px);color:#f8fafc;overflow:hidden;display:flex;flex-direction:column;user-select:none;z-index:9999';
   // 휴대폰에서는 화면 전체 대신 사진만 확대하므로 터치를 사진 보기가 모두 맡는다.
@@ -149,8 +150,8 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.setAttribute('data-photo-close', '');
-  closeBtn.setAttribute('aria-label', '사진 닫기');
-  closeBtn.title = '닫기 (ESC)';
+  closeBtn.setAttribute('aria-label', t('사진 닫기', "Close photo"));
+  closeBtn.title = t('닫기 (ESC)', "Close (Esc)");
   closeBtn.style.cssText = `${btnStyle};width:36px;padding:0;font-size:16px`;
   closeBtn.textContent = '✕';
 
@@ -176,14 +177,14 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
   const prevBtn = document.createElement('button');
   prevBtn.type = 'button';
   prevBtn.setAttribute('data-photo-prev', '');
-  prevBtn.setAttribute('aria-label', '이전 사진');
+  prevBtn.setAttribute('aria-label', t('이전 사진', "Previous photo"));
   prevBtn.style.cssText = `${navBtnStyle};left:16px`;
   prevBtn.textContent = '‹';
 
   const nextBtn = document.createElement('button');
   nextBtn.type = 'button';
   nextBtn.setAttribute('data-photo-next', '');
-  nextBtn.setAttribute('aria-label', '다음 사진');
+  nextBtn.setAttribute('aria-label', t('다음 사진', "Next photo"));
   nextBtn.style.cssText = `${navBtnStyle};right:16px`;
   nextBtn.textContent = '›';
 
@@ -195,7 +196,7 @@ export function openPhotoViewer(rawUrls: string[], startIndex = 0) {
       ? 'width:min(94vw,1080px);max-width:none;max-height:none;height:auto;border-radius:8px;cursor:zoom-out;margin:0 auto;display:block'
       : 'max-width:min(92vw,1200px);max-height:calc(100dvh - 84px - env(safe-area-inset-top) - env(safe-area-inset-bottom));width:auto;height:auto;object-fit:contain;border-radius:8px;cursor:zoom-in;display:block';
     pinch?.reset();
-    zoomBtn.textContent = zoomed ? '화면 맞춤' : '확대 보기';
+    zoomBtn.textContent = zoomed ? t('화면 맞춤', "Fit to screen") : t('확대 보기', "Zoom in");
     if (urls.length > 1) {
       prevBtn.disabled = index === 0;
       nextBtn.disabled = index === urls.length - 1;

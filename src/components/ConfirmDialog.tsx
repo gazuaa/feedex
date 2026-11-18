@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
+import { t } from '../shared/i18n';
 
 interface ConfirmDialogProps {
   title: string;
@@ -18,7 +19,7 @@ interface ConfirmDialogProps {
 
 /** 예/아니오를 묻는 모달. 초점은 취소에서 시작하고, 처리 중이 아니면 Esc로 취소한다. */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
-  title, children, confirmLabel, busyLabel = '처리 중…', tone = 'primary', isDark, busy, error, onCancel, onConfirm, focusConfirm = false,
+  title, children, confirmLabel, busyLabel = t('처리 중…', 'Working…'), tone = 'primary', isDark, busy, error, onCancel, onConfirm, focusConfirm = false,
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -52,7 +53,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       <div className="mt-6 flex justify-end gap-2">
         <button ref={cancelRef} type="button" onClick={onCancel} disabled={busy}
           className={`rounded-xl px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-50 ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-100 hover:bg-slate-200'}`}>
-          취소
+          {t('취소', 'Cancel')}
         </button>
         <button ref={confirmRef} type="button" onClick={onConfirm} disabled={busy}
           className={`rounded-xl px-4 py-2 text-sm font-semibold cursor-pointer disabled:opacity-50 ${tone === 'danger' ? 'bg-rose-500 hover:bg-rose-400 text-white' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'}`}>

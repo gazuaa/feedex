@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { fetchPublicWebPage, preparePublicWebPage, type PublicContent } from '../shared/publicWebPage';
 import { markdownArticleHtml } from '../shared/markdownArticle';
 import { revealLazyImages } from '../shared/lazyImages';
@@ -13,11 +14,11 @@ export class PublicWebCopyError extends Error {
 
 export function sanitizePublicWebCopy(html: string, url: string): string {
   const document = new DOMParser().parseFromString(html, 'text/html');
-  if (/security checkpoint|just a moment|verify you are human|access denied/i.test(document.title)) throw new PublicWebCopyError('challenge', '사이트의 보안 확인으로 웹 사본을 불러오지 못했습니다. 원문을 새 창에서 열어 주세요.');
-  if (/sign in|log in/i.test(document.title)) throw new PublicWebCopyError('login', '원문 사이트에서 로그인이 필요한 페이지입니다.');
-  if (/"isAccessibleForFree"\s*:\s*false/.test(html)) throw new PublicWebCopyError('restricted', '원문 사이트의 구독 권한이 필요한 기사입니다.');
+  if (/security checkpoint|just a moment|verify you are human|access denied/i.test(document.title)) throw new PublicWebCopyError('challenge', t('사이트의 보안 확인으로 웹 사본을 불러오지 못했습니다. 원문을 새 창에서 열어 주세요.', "A security check blocked the web copy. Open the original in a new window."));
+  if (/sign in|log in/i.test(document.title)) throw new PublicWebCopyError('login', t('원문 사이트에서 로그인이 필요한 페이지입니다.', "This page requires signing in on the publisher’s website."));
+  if (/"isAccessibleForFree"\s*:\s*false/.test(html)) throw new PublicWebCopyError('restricted', t('원문 사이트의 구독 권한이 필요한 기사입니다.', "This article requires a subscription on the publisher’s website."));
   const article = document.querySelector('article,main,[itemprop="articleBody"]');
-  if (((article ? article.textContent : document.body?.textContent) || '').trim().length < 120) throw new Error('웹 사본의 본문이 비어 있습니다.');
+  if (((article ? article.textContent : document.body?.textContent) || '').trim().length < 120) throw new Error(t('웹 사본의 본문이 비어 있습니다.', "The web copy is empty."));
   replaceYouTubeIframesWithCards(document, url);
   document.querySelectorAll('script,noscript,iframe,frame,frameset,object,embed,applet,template,base,meta[http-equiv],link[rel~="preload"],link[rel~="modulepreload"],link[rel~="prefetch"]').forEach((node) => node.remove());
   for (const element of document.querySelectorAll('*')) for (const { name, value } of Array.from(element.attributes)) {

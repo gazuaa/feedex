@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import type { OpmlFeed } from '../shared/opml';
 import { CURATED_FEEDS } from './curatedFeeds';
@@ -350,7 +351,7 @@ function parseXmlFeedContentRaw(xmlText: string, xmlUrl: string): ParsedFeed {
     };
   }
 
-  throw new Error('유효한 RSS 또는 Atom 피드 형식이 아닙니다.');
+  throw new Error(t('유효한 RSS 또는 Atom 피드 형식이 아닙니다.', "This is not a valid RSS or Atom feed."));
 }
 
 export function parseXmlFeedContent(xmlText: string, xmlUrl: string): ParsedFeed {
@@ -499,13 +500,13 @@ export async function fetchAndParseFeed(inputUrl: string, db?: D1DatabaseLike): 
 
 export function parseOpml(opmlXml: string): OpmlFeed[] {
   if (XMLValidator.validate(opmlXml) !== true) {
-    throw new Error('유효하지 않은 OPML XML입니다. 파일 내용을 확인해 주세요.');
+    throw new Error(t('유효하지 않은 OPML XML입니다. 파일 내용을 확인해 주세요.', "Invalid OPML XML. Check the file contents."));
   }
   const parsed = xmlParser.parse(opmlXml) as Record<string, unknown>;
   const opml = parsed.opml as Record<string, unknown> | undefined;
   const body = opml?.body as Record<string, unknown> | undefined;
   if (!body) {
-    throw new Error('유효하지 않은 OPML 파일입니다.');
+    throw new Error(t('유효하지 않은 OPML 파일입니다.', "Invalid OPML file."));
   }
 
   const results: OpmlFeed[] = [];

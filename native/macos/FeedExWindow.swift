@@ -25,7 +25,7 @@ private final class WeakNotificationMessages: NSObject, WKScriptMessageHandlerWi
     weak var target: (any WKScriptMessageHandlerWithReply)?
     init(_ target: any WKScriptMessageHandlerWithReply) { self.target = target }
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
-        guard let target else { replyHandler(nil, "앱 창이 닫혔습니다."); return }
+        guard let target else { replyHandler(nil, NativeLanguage.text("앱 창이 닫혔습니다.", "The app window closed.")); return }
         target.userContentController(controller, didReceive: message, replyHandler: replyHandler)
     }
 }
@@ -74,6 +74,7 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
     private var signIn: ASWebAuthenticationSession?
     private let debug: DebugTools?
     var onCheckForUpdates: (() -> Void)?
+    var onLanguageChanged: (() -> Void)?
     var onPopup: ((WKWebViewConfiguration) -> ReaderWindow?)?
 
     init(home: URL, notifications: NativeNotifications) {
@@ -162,6 +163,8 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
         case "article": place(body)
         case "signIn": startSignIn()
         case "checkForUpdates": onCheckForUpdates?()
+        case "language":
+            if let value = body["preference"] as? String, NativeLanguage.setPreference(value) { onLanguageChanged?() }
         case "appScale":
             if let action = body["action"] as? String { changeAppScale(action) }
         case "openExternal":
@@ -180,7 +183,7 @@ final class FeedExWindow: NSWindowController, NSWindowDelegate, WKNavigationDele
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
         guard message.webView === app, message.frameInfo.isMainFrame,
               sameOrigin(message.frameInfo.request.url, home), let body = message.body as? [String: Any] else {
-            replyHandler(nil, "feedex 화면에서만 알림을 사용할 수 있습니다."); return
+            replyHandler(nil, NativeLanguage.text("feedex 화면에서만 알림을 사용할 수 있습니다.", "Notifications are only available on the feedex screen.")); return
         }
         notifications.handle(body, reply: replyHandler)
     }

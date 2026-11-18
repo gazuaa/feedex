@@ -26,6 +26,19 @@
     -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      (() => {
+        let selected;
+        try { selected = localStorage.getItem('feedex_language'); } catch {}
+        const preferred = navigator.languages?.[0] || navigator.language || 'ko';
+        const language = selected === 'ko' || selected === 'en' ? selected : /^ko(?:-|$)/i.test(preferred) ? 'ko' : 'en';
+        document.documentElement.lang = language;
+        if (language === 'en') {
+          document.querySelector('meta[name="description"]').content = 'Follow your favorite RSS feeds, read them in one place, and save articles for later.';
+          document.querySelector('link[rel="manifest"]').href = '/manifest.en.webmanifest';
+        }
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="1024x1024" href="/icons/icon-1024.png" />

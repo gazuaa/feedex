@@ -12,6 +12,7 @@ import { InstallAppButton } from './PwaInstall';
 import { ThemeSwitch } from './ThemeSwitch';
 import { RefreshIcon } from './RefreshIcon';
 import { DesktopReadingSettings, type DesktopSettingsProps } from './ReadingSettings';
+import { t } from '../shared/i18n';
 
 interface HeaderBarProps extends DesktopSettingsProps {
   sort: 'newest' | 'oldest';
@@ -68,7 +69,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         {/* 모바일 메뉴 */}
         <button
           type="button"
-          aria-label="피드 채널 열기"
+          aria-label={t('피드 채널 열기', 'Open feed channels')}
           onClick={onOpenMobileSidebar}
           className={`lg:hidden shrink-0 p-2 rounded-lg border cursor-pointer ${
             isDark
@@ -89,7 +90,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') onCommitSearch?.(searchQuery); }}
-              placeholder="키워드 검색 (제목, 요약, 피드, 작성자)..."
+              placeholder={t('키워드 검색 (제목, 요약, 피드, 작성자)...', 'Search title, summary, feed, author…')}
               className={`w-full pl-9 pr-7 py-1.5 rounded-xl text-xs border transition focus:outline-none focus:border-emerald-500 ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500'
@@ -99,7 +100,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             {searchQuery && (
               <button
                 type="button"
-                aria-label="검색어 지우기"
+                aria-label={t('검색어 지우기', 'Clear search')}
                 onClick={() => { onSearchChange(''); onCommitSearch?.(''); }}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
               >
@@ -108,14 +109,14 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             )}
           </div>
 
-          <button type="button" onClick={onToggleSort} aria-label={`정렬: ${sort === 'oldest' ? '오래된순, 최신순으로 전환' : '최신순, 오래된순으로 전환'}`} title="클릭하여 최신순 / 오래된순 전환" className="feedex-sort-button"><ArrowDownUp size={16} /><span>{sort === 'oldest' ? '오래된순' : '최신순'}</span></button>
+          <button type="button" onClick={onToggleSort} aria-label={sort === 'oldest' ? t('정렬: 오래된순, 최신순으로 전환', 'Sort: oldest first, switch to newest first') : t('정렬: 최신순, 오래된순으로 전환', 'Sort: newest first, switch to oldest first')} title={t('클릭하여 최신순 / 오래된순 전환', 'Click to switch newest / oldest first')} className="feedex-sort-button"><ArrowDownUp size={16} /><span>{sort === 'oldest' ? t('오래된순', 'Oldest') : t('최신순', 'Newest')}</span></button>
 
           {/* 모두 읽음 */}
           <button
             type="button"
             onClick={onMarkAllRead}
-            title="현재 목록 모두 읽음 처리 (단축키: A, 선택한 글 위·아래만: Q·W)"
-            aria-label="모두 읽음"
+            title={t('현재 목록 모두 읽음 처리 (단축키: A, 선택한 글 위·아래만: Q·W)', 'Mark this list as read (shortcut: A; above/below the selected article: Q·W)')}
+            aria-label={t('모두 읽음', 'Mark all as read')}
             className={`shrink-0 p-2 rounded-xl border flex items-center transition cursor-pointer ${
               isDark
                 ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
@@ -136,7 +137,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               type="button"
               onClick={onRefresh}
               disabled={refreshing}
-              title="피드 새로고침 (단축키: R)"
+              title={t('피드 새로고침 (단축키: R)', 'Refresh feeds (shortcut: R)')}
               className={`p-2 rounded-xl border transition cursor-pointer ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'

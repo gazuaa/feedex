@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import type { D1DatabaseLike } from './types';
 import { pauseSupported } from './feedPause';
 
@@ -33,12 +34,12 @@ function ensureTable(db: D1DatabaseLike): Promise<boolean> {
 export function describeResponse(response: Pick<Response, 'status' | 'headers'>): string {
   if (response.status >= 300 && response.status < 400) {
     const location = response.headers.get('Location');
-    try { if (location) return `HTTP ${response.status} → ${new URL(location).host} (주소 이동)`; } catch { /* 주소가 이상하면 상태만 적는다. */ }
+    try { if (location) return t(`HTTP ${response.status} → ${new URL(location).host} (주소 이동)`, `HTTP ${response.status} → ${new URL(location).host} (redirect)`); } catch { /* 주소가 이상하면 상태만 적는다. */ }
   }
   return `HTTP ${response.status}`;
 }
-export const describeError = (error: unknown) => error instanceof Error && error.name === 'AbortError' ? '응답 시간 초과' : '연결 오류';
-export const NOT_A_FEED = 'RSS가 아닌 응답(보안 확인 페이지 등)';
+export const describeError = (error: unknown) => error instanceof Error && error.name === 'AbortError' ? t('응답 시간 초과', "Request timed out") : t('연결 오류', "Connection error");
+export const NOT_A_FEED = t('RSS가 아닌 응답(보안 확인 페이지 등)', "Response is not RSS (for example, a security check)");
 
 /**
  * 미러 요청 하나의 결과를 남긴다. 성공하면 실패 시작 시각을 지우고, 실패하면 처음 실패한 시각을 지킨다.

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronRight, Folder, Search, X } from 'lucide-react';
 import type { FolderItem, SubscriptionItem } from '../client/api';
+import { t } from '../shared/i18n';
 
 export function FeedExclusionsDialog({ subscriptions, folders, excluded, onSave, onClose }: {
   subscriptions: SubscriptionItem[]; folders: FolderItem[]; excluded: string[]; onSave: (ids: string[]) => Promise<void>; onClose: () => void;
@@ -16,7 +17,7 @@ export function FeedExclusionsDialog({ subscriptions, folders, excluded, onSave,
   const query = search.trim().toLocaleLowerCase();
   const folderIds = new Set(folders.map(folder => folder.id));
   const groups = [...folders.map(folder => ({ id: folder.id, name: folder.name, feeds: feeds.filter(feed => feed.folder_id === folder.id) })),
-    { id: 'unfiled', name: '미분류', feeds: feeds.filter(feed => !feed.folder_id || !folderIds.has(feed.folder_id)) }]
+    { id: 'unfiled', name: t('미분류', 'Unfiled'), feeds: feeds.filter(feed => !feed.folder_id || !folderIds.has(feed.folder_id)) }]
     .map(group => ({ ...group, visible: group.name.toLocaleLowerCase().includes(query) ? group.feeds : group.feeds.filter(feed => `${feed.custom_title || ''} ${feed.title} ${feed.xml_url}`.toLocaleLowerCase().includes(query)) }))
     .filter(group => group.visible.length > 0);
   const toggleExpanded = (id: string) => {
@@ -43,23 +44,23 @@ export function FeedExclusionsDialog({ subscriptions, folders, excluded, onSave,
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
     }}>
-      <header className="feedex-block-heading"><div><h2 id={titleId}>전체 글에서 피드 제외</h2><p>선택한 피드는 전체·안 읽음에서 숨깁니다.<br />폴더·개별 피드·저장에서는 계속 볼 수 있습니다.</p></div><button type="button" disabled={busy} aria-label="닫기" onClick={close}><X size={21} /></button></header>
-      <label className="feedex-exclusions-search"><Search size={18} /><input placeholder="폴더 또는 피드 검색" aria-label="폴더 또는 피드 검색" value={search} onChange={event => { setSearch(event.target.value); setSearchCollapsed(new Set()); }} /></label>
-      <div className="feedex-exclusions-count"><span>{count}개 피드 제외</span><button type="button" disabled={busy || !selected.size} onClick={() => setSelected(new Set())}>모두 해제</button></div>
+      <header className="feedex-block-heading"><div><h2 id={titleId}>{t('전체 글에서 피드 제외', 'Hide feeds from All articles')}</h2><p>{t('선택한 피드는 전체·안 읽음에서 숨깁니다.', 'Selected feeds are hidden from All and Unread.')}<br />{t('폴더·개별 피드·저장에서는 계속 볼 수 있습니다.', 'You can still see them in folders, the feed itself and Saved.')}</p></div><button type="button" disabled={busy} aria-label={t('닫기', 'Close')} onClick={close}><X size={21} /></button></header>
+      <label className="feedex-exclusions-search"><Search size={18} /><input placeholder={t('폴더 또는 피드 검색', 'Search folders or feeds')} aria-label={t('폴더 또는 피드 검색', 'Search folders or feeds')} value={search} onChange={event => { setSearch(event.target.value); setSearchCollapsed(new Set()); }} /></label>
+      <div className="feedex-exclusions-count"><span>{t(`${count}개 피드 제외`, `${count} feeds hidden`)}</span><button type="button" disabled={busy || !selected.size} onClick={() => setSelected(new Set())}>{t('모두 해제', 'Clear all')}</button></div>
       <div className="feedex-exclusions-list">
         {groups.map(group => {
           const open = query ? !searchCollapsed.has(group.id) : expanded.has(group.id);
           const excludedCount = group.feeds.filter(feed => selected.has(feed.feed_id)).length;
           return <section className="feedex-exclusions-group" key={group.id}>
             <div className="feedex-exclusions-folder">
-              <input type="checkbox" aria-label={`${group.name} 폴더 전체 제외`} disabled={busy} checked={excludedCount === group.feeds.length} ref={input => { if (input) input.indeterminate = excludedCount > 0 && excludedCount < group.feeds.length; }} onChange={event => {
+              <input type="checkbox" aria-label={t(`${group.name} 폴더 전체 제외`, `Hide all of ${group.name}`)} disabled={busy} checked={excludedCount === group.feeds.length} ref={input => { if (input) input.indeterminate = excludedCount > 0 && excludedCount < group.feeds.length; }} onChange={event => {
                 const next = new Set(selected);
                 for (const feed of group.feeds) event.target.checked ? next.add(feed.feed_id) : next.delete(feed.feed_id);
                 setSelected(next);
               }} />
               <button type="button" aria-expanded={open} aria-controls={`${titleId}-${group.id}`} onClick={() => toggleExpanded(group.id)}>
                 <ChevronRight size={16} className={open ? 'is-open' : ''} /><Folder size={18} /><span>{group.name}</span>
-                <small title={`전체 ${group.feeds.length}개 중 ${excludedCount}개 제외`}>{excludedCount} / {group.feeds.length}</small>
+                <small title={t(`전체 ${group.feeds.length}개 중 ${excludedCount}개 제외`, `${excludedCount} of ${group.feeds.length} hidden`)}>{excludedCount} / {group.feeds.length}</small>
               </button>
             </div>
             {open && <div id={`${titleId}-${group.id}`} className="feedex-exclusions-feeds">
@@ -69,15 +70,15 @@ export function FeedExclusionsDialog({ subscriptions, folders, excluded, onSave,
             </div>}
           </section>;
         })}
-        {!groups.length && <p>검색 결과가 없습니다.</p>}
+        {!groups.length && <p>{t('검색 결과가 없습니다.', 'No results.')}</p>}
       </div>
       {error && <p role="alert">{error}</p>}
-      <footer className="feedex-exclusions-actions"><small>같은 계정의 기기에 동기화됩니다.</small><button type="button" disabled={busy} onClick={close}>취소</button><button type="button" disabled={busy} onClick={async () => {
+      <footer className="feedex-exclusions-actions"><small>{t('같은 계정의 기기에 동기화됩니다.', 'Synced to your other devices.')}</small><button type="button" disabled={busy} onClick={close}>{t('취소', 'Cancel')}</button><button type="button" disabled={busy} onClick={async () => {
         setBusy(true); setError('');
         try { await onSave([...selected]); onClose(); }
-        catch { setError('저장하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.'); }
+        catch { setError(t('저장하지 못했습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.', 'Could not save. Check your connection and try again.')); }
         finally { setBusy(false); }
-      }}>{busy ? '저장 중…' : '적용'}</button></footer>
+      }}>{busy ? t('저장 중…', 'Saving…') : t('적용', 'Apply')}</button></footer>
     </dialog>
   </div>, document.body);
 }

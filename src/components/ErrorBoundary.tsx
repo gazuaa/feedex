@@ -1,5 +1,6 @@
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { t } from '../shared/i18n';
 
 interface Props {
   children: ReactNode;
@@ -54,10 +55,10 @@ export class ErrorBoundary extends Component<Props, State> {
             <AlertTriangle className="h-7 w-7" aria-hidden="true" />
           </div>
           <h2 className="mb-2 text-lg font-bold">
-            {this.props.fallbackTitle || '화면을 표시하는 중 오류가 발생했습니다'}
+            {this.props.fallbackTitle || t('화면을 표시하는 중 오류가 발생했습니다', 'Something went wrong while showing this screen')}
           </h2>
           <p className="mb-6 max-w-md text-xs text-slate-400 leading-relaxed">
-            {this.state.error?.message || '일시적인 렌더링 오류일 수 있습니다. 다시 시도해 주세요.'}
+            {this.state.error?.message || t('일시적인 렌더링 오류일 수 있습니다. 다시 시도해 주세요.', 'This may be a temporary display error. Please try again.')}
           </p>
           <div className="flex items-center gap-3">
             <button
@@ -66,7 +67,7 @@ export class ErrorBoundary extends Component<Props, State> {
               className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-2.5 text-xs font-semibold text-slate-950 transition cursor-pointer"
             >
               <RotateCcw className="h-4 w-4" />
-              <span>다시 시도</span>
+              <span>{t('다시 시도', 'Try again')}</span>
             </button>
             <button
               type="button"
@@ -77,7 +78,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
               }`}
             >
-              새로고침
+              {t('새로고침', 'Reload')}
             </button>
           </div>
         </div>

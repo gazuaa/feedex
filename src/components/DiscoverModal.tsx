@@ -30,6 +30,10 @@ import {
   type SubscriptionItem,
   type FeedPreviewResponse,
 } from '../client/api';
+import { t } from '../shared/i18n';
+
+// 분류 목록의 '전체' 칸. 실제 분류 이름과 겹치지 않는 값을 쓴다.
+const ALL_CATEGORIES = '__all__';
 
 interface DiscoverModalProps {
   isOpen: boolean;
@@ -53,7 +57,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
   isDark,
 }) => {
   const [tab, setTab] = useState<'curated' | 'opml' | 'x'>(initialTab);
-  const [selectedCategory, setSelectedCategory] = useState<string>('전체');
+  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORIES);
   const [previewFeed, setPreviewFeed] = useState<CuratedFeedItem | null>(null);
   const bodyRef = React.useRef<HTMLDivElement>(null);
   const [busyUrl, setBusyUrl] = useState<string | null>(null);
@@ -123,7 +127,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
       }).then((result) => {
         if (!controller.signal.aborted) setUrlPreview(result);
       }).catch((error) => {
-        if (!controller.signal.aborted) setPreviewError(error instanceof Error ? error.message : '피드를 불러오지 못했습니다.');
+        if (!controller.signal.aborted) setPreviewError(error instanceof Error ? error.message : t('피드를 불러오지 못했습니다.', 'Could not load the feed.'));
       }).finally(() => {
         if (!controller.signal.aborted) setPreviewLoading(false);
       });
@@ -152,12 +156,12 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
   if (!isOpen) return null;
 
   const categories = [
-    '전체',
+    ALL_CATEGORIES,
     ...Array.from(new Set(curatedFeeds.map((f) => f.category))),
   ];
 
   const filteredCurated = curatedFeeds.filter((feed) =>
-    (selectedCategory === '전체' || feed.category === selectedCategory) && matchesFeedSearch(feed, query));
+    (selectedCategory === ALL_CATEGORIES || feed.category === selectedCategory) && matchesFeedSearch(feed, query));
 
   const resolvedFeed: CuratedFeedItem | null = urlPreview ? {
     id: `url:${urlPreview.feed.xmlUrl}`, title: urlPreview.feed.title,
@@ -189,11 +193,11 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
       const folderName = choice.folderId ? folders.find((folder) => folder.id === choice.folderId)?.name : choice.folderName;
       setFeedback({
         type: 'success',
-        text: `"${choice.title}" 피드를 ${folderName ? `[${folderName}] 폴더에` : '미분류로'} 구독했습니다.`,
+        text: folderName ? t(`"${choice.title}" 피드를 [${folderName}] 폴더에 구독했습니다.`, `Subscribed to "${choice.title}" in [${folderName}].`) : t(`"${choice.title}" 피드를 미분류로 구독했습니다.`, `Subscribed to "${choice.title}" (unfiled).`),
       });
       setSubscribeTarget(null);
     } catch (err) {
-      setSubscribeError(err instanceof Error ? err.message : '구독하지 못했습니다.');
+      setSubscribeError(err instanceof Error ? err.message : t('구독하지 못했습니다.', 'Could not subscribe.'));
     } finally {
       setBusyUrl(null);
     }
@@ -215,7 +219,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
     setFeedback(null);
     try { await downloadOpml(controller.signal); }
     catch (error) {
-      if (!controller.signal.aborted) setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'OPML 파일을 받지 못했어요.' });
+      if (!controller.signal.aborted) setFeedback({ type: 'error', text: error instanceof Error ? error.message : t('OPML 파일을 받지 못했어요.', 'Could not download the OPML file.') });
     } finally {
       if (opmlExport.current === controller) { opmlExport.current = null; setOpmlExporting(false); }
     }
@@ -235,11 +239,11 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
         }`}
       >
         {busyUrl === feed.xmlUrl ? (
-          <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>구독 중…</span></>
+          <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>{t('구독 중…', 'Subscribing…')}</span></>
         ) : subscribed ? (
-          <><Check className="w-3.5 h-3.5" /><span>구독 중</span></>
+          <><Check className="w-3.5 h-3.5" /><span>{t('구독 중', 'Subscribed')}</span></>
         ) : (
-          <><Plus className="w-3.5 h-3.5" /><span>구독하기</span></>
+          <><Plus className="w-3.5 h-3.5" /><span>{t('구독하기', 'Subscribe')}</span></>
         )}
       </button>
     );
@@ -254,7 +258,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
     <div key={feed.id} className={`relative group p-4 rounded-2xl border flex flex-col justify-between gap-3 transition hover:border-emerald-500/50 ${cardSurface}`}>
       <button
         type="button"
-        aria-label={`${feed.title} 미리보기`}
+        aria-label={t(`${feed.title} 미리보기`, `Preview ${feed.title}`)}
         onClick={onOpen}
         className="absolute inset-0 rounded-2xl cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-500 focus-visible:outline-offset-2"
       />
@@ -273,7 +277,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
         {!feed.category && <p className="text-[11px] text-slate-500 truncate mb-1.5">{feed.xmlUrl}</p>}
         {feed.description && <p className="text-xs text-slate-400 leading-relaxed mb-3 line-clamp-3">{feed.description}</p>}
         <span className="inline-flex items-center gap-1 text-[11px] text-emerald-500 group-hover:text-emerald-400">
-          <Eye className="w-3.5 h-3.5" /> 최근 글 미리보기
+          <Eye className="w-3.5 h-3.5" /> {t('최근 글 미리보기', 'Preview recent articles')}
         </span>
       </div>
 
@@ -294,15 +298,15 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
   // 피드를 만들어 보라고 권한다.
   const builderSuggestion = builderUrl && (
     <section aria-labelledby="builder-suggestion-title" className={`rounded-2xl border p-4 sm:p-5 ${cardSurface}`}>
-      <h3 id="builder-suggestion-title" className="text-sm font-bold">원하는 피드가 없나요?</h3>
-      <p className="mt-1 text-xs text-slate-400">이 웹사이트에 올라온 글로 맞춤 RSS 피드를 만들 수 있습니다.</p>
+      <h3 id="builder-suggestion-title" className="text-sm font-bold">{t('원하는 피드가 없나요?', 'Can’t find the feed you want?')}</h3>
+      <p className="mt-1 text-xs text-slate-400">{t('이 웹사이트에 올라온 글로 맞춤 RSS 피드를 만들 수 있습니다.', 'You can build a custom RSS feed from articles on this website.')}</p>
       <div className={`mt-4 flex gap-3 sm:gap-4 rounded-xl border p-4 ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
         <img src={favicon(site?.url || builderUrl)} alt="" className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <h4 className="min-w-0 text-sm font-bold">{site?.title || hostname(builderUrl).replace(/^www\./, '')}</h4>
             <button type="button" onClick={() => { setFeedback(null); setBuilderOpen(true); }} className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/60 text-emerald-500 hover:bg-emerald-500/10 text-xs font-semibold cursor-pointer">
-              <Rss className="w-3.5 h-3.5" />RSS 피드 만들기
+              <Rss className="w-3.5 h-3.5" />{t('RSS 피드 만들기', 'Build an RSS feed')}
             </button>
           </div>
           <p className="mt-1 text-[11px] text-slate-500 truncate">{(site?.url || builderUrl).replace(/^https?:\/\/(?:www\.)?/, '')}</p>
@@ -342,17 +346,17 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             </div>
             <div>
               <h2 id="discovery-title" className="text-base font-bold">
-                피드 추가
+                {t('피드 추가', 'Add feeds')}
               </h2>
               <p className="hidden sm:block text-xs text-slate-400">
-                피드 이름이나 RSS·웹사이트 주소를 검색하고 미리본 뒤 구독하세요
+                {t('피드 이름이나 RSS·웹사이트 주소를 검색하고 미리본 뒤 구독하세요', 'Search a feed name or an RSS or website address, preview it, then subscribe')}
               </p>
             </div>
           </div>
 
           <button
             type="button"
-            aria-label="닫기"
+            aria-label={t('닫기', 'Close')}
             disabled={modalBusy}
             onClick={() => { if (!modalBusy) onClose(); }}
             className="p-2 rounded-lg text-slate-400 hover:text-white cursor-pointer"
@@ -378,7 +382,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             }`}
           >
             <Compass className="w-4 h-4" />
-            <span>피드 검색 · 추가</span>
+            <span>{t('피드 검색 · 추가', 'Search · add')}</span>
           </button>
 
           <button
@@ -392,10 +396,10 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             }`}
           >
             <FileCode2 className="w-4 h-4" />
-            <span>OPML<span className="hidden sm:inline"> 가져오기 / 내보내기</span></span>
+            <span>OPML<span className="hidden sm:inline">{t(' 가져오기 / 내보내기', ' import / export')}</span></span>
           </button>
           {xAllowed && <button type="button" disabled={modalBusy} onClick={() => setTab('x')} className={`px-3 sm:px-4 py-2.5 shrink-0 whitespace-nowrap text-xs font-semibold border-b-2 flex items-center gap-1.5 cursor-pointer ${tab === 'x' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400'}`}>
-            <Users className="w-4 h-4" /><span>X 팔로우</span>
+            <Users className="w-4 h-4" /><span>{t('X 팔로우', 'X follows')}</span>
           </button>}
         </div>
 
@@ -415,13 +419,13 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
         {/* 창 본문 */}
         <div ref={bodyRef} className="feedex-discover-body flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
           {/* 피드 검색과 주소 미리 보기를 한곳에서 */}
-          {tab === 'curated' && <form role="search" aria-label="피드 검색" onSubmit={(event) => { event.preventDefault(); if (previewUrl) setPreviewRetry((value) => value + 1); }} className="mb-5">
-            <label htmlFor="feed-discovery-search" className="sr-only">피드 이름 또는 RSS·웹사이트 주소</label>
+          {tab === 'curated' && <form role="search" aria-label={t('피드 검색', 'Search feeds')} onSubmit={(event) => { event.preventDefault(); if (previewUrl) setPreviewRetry((value) => value + 1); }} className="mb-5">
+            <label htmlFor="feed-discovery-search" className="sr-only">{t('피드 이름 또는 RSS·웹사이트 주소', 'Feed name or RSS or website address')}</label>
             <div className="relative">
               <Search aria-hidden="true" className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input id="feed-discovery-search" type="search" value={query} disabled={busyUrl !== null || builderBusy} onChange={(event) => { setQuery(event.target.value); setBuilderOpen(false); setUrlFeedOpen(false); setSubscribeTarget(null); setPreviewFeed(null); setUrlPreview(null); setPreviewError(null); setFeedback(null); }} placeholder="피드 이름, 웹사이트·RSS 주소 또는 @X계정" autoComplete="off" className={`w-full pl-10 pr-4 py-3 rounded-xl text-sm border focus:outline-none focus:border-emerald-500 ${isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`} />
+              <input id="feed-discovery-search" type="search" value={query} disabled={busyUrl !== null || builderBusy} onChange={(event) => { setQuery(event.target.value); setBuilderOpen(false); setUrlFeedOpen(false); setSubscribeTarget(null); setPreviewFeed(null); setUrlPreview(null); setPreviewError(null); setFeedback(null); }} placeholder={t('피드 이름, 웹사이트·RSS 주소 또는 @X계정', 'Feed name, website or RSS address, or @X account')} autoComplete="off" className={`w-full pl-10 pr-4 py-3 rounded-xl text-sm border focus:outline-none focus:border-emerald-500 ${isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`} />
             </div>
-            <p className="text-[11px] text-slate-400 mt-2">이름으로 추천 피드를 찾거나, 주소를 입력해 최근 글을 미리보세요.</p>
+            <p className="text-[11px] text-slate-400 mt-2">{t('이름으로 추천 피드를 찾거나, 주소를 입력해 최근 글을 미리보세요.', 'Find suggested feeds by name, or enter an address to preview recent articles.')}</p>
           </form>}
           {tab === 'curated' && (
             builderOpen && builderUrl ? <RssBuilder key={builderUrl} url={builderUrl} folders={folders} isDark={isDark} onBack={() => setBuilderOpen(false)} onSubscribed={onSubscribed} onBusyChange={setBuilderBusy} /> : subscribeTarget ? (
@@ -449,16 +453,16 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
             ) : previewUrl ? (
               <div aria-live="polite" aria-busy={previewLoading} className="space-y-5">
                 {previewLoading ? (
-                  <p role="status" className="py-6 flex items-center justify-center gap-2 text-sm text-slate-400"><Loader2 className="w-5 h-5 animate-spin" />{xProfile(previewUrl) ? 'X 공개 게시물을 불러오는 중입니다…' : '이 주소에서 RSS 피드를 찾는 중입니다…'}</p>
+                  <p role="status" className="py-6 flex items-center justify-center gap-2 text-sm text-slate-400"><Loader2 className="w-5 h-5 animate-spin" />{xProfile(previewUrl) ? t('X 공개 게시물을 불러오는 중입니다…', 'Loading public X posts…') : t('이 주소에서 RSS 피드를 찾는 중입니다…', 'Looking for an RSS feed at this address…')}</p>
                 ) : resolvedFeed ? (
-                  <section aria-label="찾은 피드" className="space-y-2">
-                    <h3 className="text-xs font-semibold text-slate-400">찾은 피드</h3>
+                  <section aria-label={t('찾은 피드', 'Found feed')} className="space-y-2">
+                    <h3 className="text-xs font-semibold text-slate-400">{t('찾은 피드', 'Found feed')}</h3>
                     {feedCard(resolvedFeed, () => setUrlFeedOpen(true))}
                   </section>
                 ) : previewError ? (
                   <div className="py-4 text-center">
                     <p role="alert" className="text-sm text-rose-500">{previewError}</p>
-                    <button type="button" onClick={() => setPreviewRetry((value) => value + 1)} className="mt-3 px-3 py-2 rounded-xl text-xs text-emerald-500 border border-emerald-500/40 cursor-pointer">다시 시도</button>
+                    <button type="button" onClick={() => setPreviewRetry((value) => value + 1)} className="mt-3 px-3 py-2 rounded-xl text-xs text-emerald-500 border border-emerald-500/40 cursor-pointer">{t('다시 시도', 'Try again')}</button>
                   </div>
                 ) : null}
                 {builderSuggestion}
@@ -479,13 +483,13 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
-                    {cat}
+                    {cat === ALL_CATEGORIES ? t('전체', 'All') : cat}
                   </button>
                 ))}
               </div>
 
               <div className="grid sm:grid-cols-2 gap-3.5">
-                {filteredCurated.length === 0 && <p className="sm:col-span-2 py-10 text-center text-sm text-slate-400">검색 결과가 없습니다. RSS 또는 웹사이트 주소로도 찾아보세요.</p>}
+                {filteredCurated.length === 0 && <p className="sm:col-span-2 py-10 text-center text-sm text-slate-400">{t('검색 결과가 없습니다. RSS 또는 웹사이트 주소로도 찾아보세요.', 'No results. Try an RSS or website address too.')}</p>}
                 {filteredCurated.map((feed) => feedCard(feed, () => setPreviewFeed(feed)))}
               </div>
             </div>
@@ -505,11 +509,10 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
               >
                 <div>
                   <h3 className="text-sm font-bold mb-1">
-                    내 구독 목록 OPML 내보내기 (Export)
+                    {t('내 구독 목록 OPML 내보내기 (Export)', 'Export my subscriptions as OPML')}
                   </h3>
                   <p className="text-xs text-slate-400">
-                    현재 구독 중인 모든 폴더와 RSS 피드 목록을 표준 OPML 2.0 XML 파일로
-                    다운로드합니다.{desktopBridge && ' 기본 브라우저에서 같은 계정으로 로그인해 내려받을 수 있어요.'}
+                    {t('현재 구독 중인 모든 폴더와 RSS 피드 목록을 표준 OPML 2.0 XML 파일로 다운로드합니다.', 'Downloads all your folders and RSS feeds as a standard OPML 2.0 XML file.')}{desktopBridge && t(' 기본 브라우저에서 같은 계정으로 로그인해 내려받을 수 있어요.', ' Sign in with the same account in your default browser to download it.')}
                   </p>
                 </div>
                 <button
@@ -519,7 +522,7 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
                   className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   {opmlExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  <span>{opmlExporting ? 'OPML 준비 중…' : desktopBridge ? '브라우저에서 OPML 내보내기' : 'OPML 다운로드 (.opml)'}</span>
+                  <span>{opmlExporting ? t('OPML 준비 중…', 'Preparing OPML…') : desktopBridge ? t('브라우저에서 OPML 내보내기', 'Export OPML in browser') : t('OPML 다운로드 (.opml)', 'Download OPML (.opml)')}</span>
                 </button>
               </div>
 

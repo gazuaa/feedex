@@ -59,14 +59,14 @@ namespace FeedEx
                     var next = Target.From(body);
                     var title = Json.Text(body, "title");
                     var text = Json.Text(body, "body");
-                    if (next == null || title == null || text == null || title.Length > 500 || text.Length > 2000) throw new NotificationException("알림 내용을 확인해 주세요.");
+                    if (next == null || title == null || text == null || title.Length > 500 || text.Length > 2000) throw new NotificationException(NativeLanguage.Text("알림 내용을 확인해 주세요.", "Check the notification content."));
                     shown = next;
                     icon.Visible = true;
                     // 윈도우가 받는 길이에 맞춘다. 제목은 63자, 본문은 255자까지다.
-                    icon.ShowBalloonTip(10000, Trim(title.Length > 0 ? title : "feedex", 63), Trim(text.Length > 0 ? text : "새 글", 255), ToolTipIcon.None);
+                    icon.ShowBalloonTip(10000, Trim(title.Length > 0 ? title : "feedex", 63), Trim(text.Length > 0 ? text : NativeLanguage.Text("새 글", "New article"), 255), ToolTipIcon.None);
                     return new Dictionary<string, object>();
                 default:
-                    throw new NotificationException("지원하지 않는 알림 요청입니다.");
+                    throw new NotificationException(NativeLanguage.Text("지원하지 않는 알림 요청입니다.", "This notification request is not supported."));
             }
         }
 

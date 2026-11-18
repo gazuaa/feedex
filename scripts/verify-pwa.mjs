@@ -9,6 +9,9 @@ assert.ok(manifest.name.startsWith('feedex'));
 assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.start_url, '/');
 assert.equal(manifest.id, '/');
+const englishManifest = JSON.parse(readFileSync('public/manifest.en.webmanifest', 'utf8'));
+assert.equal(englishManifest.lang, 'en');
+for (const key of ['id', 'start_url', 'name', 'display', 'icons']) assert.deepEqual(englishManifest[key], manifest[key], '한·영 설정에서 같은 앱으로 설치된다.');
 // 모든 PNG 아이콘은 모서리까지 꽉 찬 불투명 사각형이다. 아이폰은 둥글린 투명 아이콘을 한 번 더 둥글려 테두리가 지저분해진다.
 for (const icon of manifest.icons) assert.equal(readFileSync('public' + icon.src)[25], 2, `${icon.src} is an opaque full-bleed square`);
 assert.match(readFileSync('index.html', 'utf8'), /rel="apple-touch-icon" sizes="1024x1024" href="\/icons\/icon-1024.png"/, 'large home screen icons stay sharp');
@@ -38,13 +41,15 @@ vm.runInNewContext(readFileSync('public/sw.js', 'utf8'), {
 for (const name of ['install', 'activate']) { let work; handlers[name]({ waitUntil: (promise) => { work = promise; } }); await work; }
 assert.equal(skipped, 1); assert.equal(claimed, 1); assert.deepEqual(deleted, ['sfeed-public-v1', 'sfeed-public-v2', 'sfeed-public-v3', 'sfeed-public-v4', 'sfeed-public-v5'], 'the old cache with the previous app icons is dropped');
 assert.ok(!storage.has('/'), 'the authenticated app shell must not be cached');
+const installedPaths = [...storage.keys()];
+assert.ok(installedPaths.includes('/page-language.js'), '오프라인 안내도 언어를 바꿀 수 있다.');
 const runFetch = (path, mode = 'navigate', method = 'GET') => {
   let result;
   handlers.fetch({ request: { url: new URL(path, 'https://sfeed.test').href, method, mode }, respondWith: (promise) => { result = promise; } });
   return result;
 };
 assert.equal(await (await runFetch('/?session_token=private')).text(), 'fresh network page');
-assert.equal(storage.size, 8, 'navigation must not write to the public cache');
+assert.deepEqual([...storage.keys()], installedPaths, 'navigation must not write to the public cache');
 for (const path of ['/api/articles', '/api/auth/google/credential', '/auth/callback', 'https://accounts.google.com/gsi/client']) assert.equal(runFetch(path), undefined, 'auth/API/cross-origin requests must not be intercepted');
 assert.equal(runFetch('/anything', 'navigate', 'POST'), undefined);
 assert.equal(runFetch('/assets/app.js', 'cors'), undefined, 'do not hold an old app bundle in a service worker');
@@ -77,7 +82,7 @@ try {
   assert.equal(redirected.headers.get('location'), 'https://feedex.jyk.workers.dev/privacy?from=old');
   const legacyAsset = await worker.fetch(new Request('https://sfeed.jyk.workers.dev/page-asset/invalid?u=http%3A%2F%2Fimage.rhythmer.net%2Fcss%2Fcommon.css'), {}, {});
   assert.equal(legacyAsset.status, 403, 'legacy signed page-asset URLs are served directly on the legacy worker instead of redirecting to another worker secret');
-  for (const path of ['/', '/sw.js', '/manifest.webmanifest', '/offline.js', '/downloads/appcast.xml']) {
+  for (const path of ['/', '/sw.js', '/manifest.webmanifest', '/manifest.en.webmanifest', '/page-language.js', '/offline.js', '/downloads/appcast.xml']) {
     const response = await worker.fetch(new Request('https://sfeed.test' + path), { ASSETS: { fetch: async () => new Response('asset') } }, {});
     assert.equal(response.headers.get('cache-control'), 'no-store');
     if (path === '/sw.js') assert.equal(response.headers.get('service-worker-allowed'), '/');

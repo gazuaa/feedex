@@ -1,11 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace FeedEx
 {
+    static class NativeLanguage
+    {
+        public static string Preference { get; set; } = "system";
+        public static bool Valid(string value) => value == "ko" || value == "en" || value == "system";
+        public static string Text(string korean, string english) =>
+            (Preference == "ko" || (Preference == "system" && CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ko")) ? korean : english;
+    }
+
     /// <summary>
     /// 주소를 다루는 규칙. 창과 상관없는 코드라 맥에서도 Tests 프로젝트로 시험한다.
     /// </summary>

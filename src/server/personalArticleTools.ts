@@ -1,4 +1,5 @@
 import type { Env, WorkersAILike } from './types';
+import { t } from '../shared/i18n';
 
 type Service = 'deepl' | 'workers-ai';
 export type PersonalAI = { accountId: string; token: string };
@@ -45,7 +46,7 @@ const decode = (value: string) => Uint8Array.from(atob(value), (char) => char.ch
 
 async function encryptionKey(env: Env) {
   const secret = env.X_SETTINGS_SECRET;
-  if (!secret || !personalToolStorage(env)) throw new Error('서버에 개인 API 키를 저장할 준비가 되지 않았어요.');
+  if (!secret || !personalToolStorage(env)) throw new Error(t('서버에 개인 API 키를 저장할 준비가 되지 않았어요.', 'The server is not set up to store personal API keys.'));
   const bytes = await crypto.subtle.digest('SHA-256', enc.encode(`feedex:personal-article-tools:v1:${secret}`));
   return crypto.subtle.importKey('raw', bytes, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
@@ -95,16 +96,16 @@ export async function readPersonalTools(env: Env, userId: string, onlyAI = false
 
 export function personalWorkersAI(account: PersonalAI): WorkersAILike {
   return { async run(model, inputs) {
-    if (!/^@cf\/[\w.-]+\/[\w.-]+$/.test(model)) throw new Error('사용할 수 없는 Workers AI 모델입니다.');
+    if (!/^@cf\/[\w.-]+\/[\w.-]+$/.test(model)) throw new Error(t('사용할 수 없는 Workers AI 모델입니다.', 'That Workers AI model can’t be used.'));
     const url = `https://api.cloudflare.com/client/v4/accounts/${account.accountId}/ai/run/${model}`;
     const response = await fetch(url, {
       method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(30_000),
       headers: { Authorization: `Bearer ${account.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(inputs),
     });
-    if (!response.ok) { await response.body?.cancel(); throw new Error('개인 Workers AI 요청에 실패했어요.'); }
+    if (!response.ok) { await response.body?.cancel(); throw new Error(t('개인 Workers AI 요청에 실패했어요.', 'Your Workers AI request failed.')); }
     const data = await response.json() as { success?: boolean; result?: Awaited<ReturnType<WorkersAILike['run']>> };
-    if (data.success !== true || !data.result) throw new Error('개인 Workers AI 응답을 확인하지 못했어요.');
+    if (data.success !== true || !data.result) throw new Error(t('개인 Workers AI 응답을 확인하지 못했어요.', 'Could not read the response from your Workers AI account.'));
     return data.result;
   } };
 }

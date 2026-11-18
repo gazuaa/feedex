@@ -106,6 +106,7 @@ namespace FeedEx
         public static string DataFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FeedEx");
 
         public double Scale { get; set; } = AppScale.Standard;
+        public string Language { get; set; } = "system";
         public Rectangle? Bounds { get; set; }
         public bool Maximized { get; set; }
         public string SkippedVersion { get; set; }
@@ -119,6 +120,8 @@ namespace FeedEx
                 using (var key = Registry.CurrentUser.OpenSubKey(KeyPath))
                 {
                     if (key == null) return settings;
+                    var language = key.GetValue("Language") as string;
+                    if (NativeLanguage.Valid(language)) settings.Language = language;
                     if (double.TryParse(key.GetValue("AppScale") as string, NumberStyles.Float, CultureInfo.InvariantCulture, out var scale)) settings.Scale = AppScale.Restored(scale);
                     var bounds = (key.GetValue("Bounds") as string)?.Split(',');
                     if (bounds?.Length == 4 && int.TryParse(bounds[0], out var x) && int.TryParse(bounds[1], out var y) && int.TryParse(bounds[2], out var width) && int.TryParse(bounds[3], out var height) && width > 0 && height > 0)
@@ -139,6 +142,7 @@ namespace FeedEx
                 using (var key = Registry.CurrentUser.CreateSubKey(KeyPath))
                 {
                     key.SetValue("AppScale", Scale.ToString("0.##", CultureInfo.InvariantCulture));
+                    key.SetValue("Language", Language);
                     if (Bounds is Rectangle bounds) key.SetValue("Bounds", string.Join(",", bounds.X, bounds.Y, bounds.Width, bounds.Height));
                     key.SetValue("Maximized", Maximized ? 1 : 0, RegistryValueKind.DWord);
                     if (SkippedVersion != null) key.SetValue("SkippedVersion", SkippedVersion);

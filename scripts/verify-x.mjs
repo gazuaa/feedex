@@ -22,12 +22,13 @@ try {
     attachMedia(target) { attached = target; }
     destroy() { destroyed = true; }
   }
-  const document = { currentScript: { dataset: { hls: 'https://sfeed.test/assets/hls.js' } }, querySelectorAll: () => [video], createElement: () => ({}), head: { append: (script) => queueMicrotask(() => script.onload()) } };
+  const document = { documentElement: { lang: 'en' }, currentScript: { dataset: { hls: 'https://sfeed.test/assets/hls.js' } }, querySelectorAll: () => [video], createElement: () => ({}), head: { append: (script) => queueMicrotask(() => script.onload()) } };
   runInNewContext(readFileSync('src/client/xFramePlayer.js', 'utf8'), { document, window: { Hls }, addEventListener: (_, handler) => handler(), Promise, Error });
   assert.deepEqual(loaded, [], '재생을 누르기 전에는 영상 데이터를 미리 받지 않는다.');
   await events.click(); assert.equal(attached, video); assert.deepEqual(loaded, [video.dataset.hlsSrc]);
   mediaEvents.manifest(); await Promise.resolve(); assert.equal(playCount, 1); assert.equal(button.hidden, true);
   mediaEvents.error(null, { fatal: true }); assert.equal(destroyed, true); assert.equal(button.hidden, false); assert.equal(box.dataset.failed, '1');
+  assert.equal(button.textContent, 'Retry video');
   }
 
   {

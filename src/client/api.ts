@@ -1,3 +1,4 @@
+import { LANG_HEADER, lang, t, locale } from '../shared/i18n';
 import type { ReaderSyncCursor } from '../shared/readerSync';
 export type LayoutMode = 'magazine' | 'cards' | 'list';
 export type ThemeMode = 'dark' | 'light';
@@ -157,6 +158,8 @@ export async function apiRequest<T>(
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
+  // 서버가 오류·안내 문구와 AI 결과를 화면 언어로 돌려주게 한다.
+  if (!headers.has(LANG_HEADER)) headers.set(LANG_HEADER, lang());
 
   const endpoint = path.split('?')[0];
   const tracked = ['/api/bootstrap', '/api/sync', '/api/feeds/refresh'].includes(endpoint);
@@ -185,14 +188,14 @@ export function formatRelativeTime(isoDate: string): string {
     const date = new Date(isoDate);
     const diffMs = Date.now() - date.getTime();
     const diffMinutes = Math.floor(diffMs / 60_000);
-    if (diffMinutes < 1) return '방금 전';
-    if (diffMinutes < 60) return `${diffMinutes}분 전`;
+    if (diffMinutes < 1) return t('방금 전', 'just now');
+    if (diffMinutes < 60) return t(`${diffMinutes}분 전`, `${diffMinutes}m ago`);
     const diffHours = Math.floor(diffMinutes / 60);
-    if (diffHours < 24) return `${diffHours}시간 전`;
+    if (diffHours < 24) return t(`${diffHours}시간 전`, `${diffHours}h ago`);
     const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}일 전`;
+    if (diffDays < 7) return t(`${diffDays}일 전`, `${diffDays}d ago`);
     // 지난해 이전의 글은 연도를 붙여야 한다. 안 그러면 2018년 글이 올해 글로 읽힌다.
-    return date.toLocaleDateString('ko-KR', {
+    return date.toLocaleDateString(locale(), {
       ...(date.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }),
       month: 'short',
       day: 'numeric',
@@ -203,13 +206,13 @@ export function formatRelativeTime(isoDate: string): string {
 }
 
 export function formatArticleDate(article: Pick<ArticleItem, 'published_at' | 'date_source'>): string {
-  if (article.date_source === 'updated' || article.date_source === 'collected') return '발행일 미제공';
+  if (article.date_source === 'updated' || article.date_source === 'collected') return t('발행일 미제공', 'No publish date');
   return formatRelativeTime(article.published_at);
 }
 
 /** 정기 제목을 비교할 때 상대 시간이 아닌 원문 발행일과 시각을 보여 준다. */
 export function formatPublicationDate(article: Pick<ArticleItem, 'published_at' | 'date_source'>): string {
   const date = new Date(article.published_at);
-  if (article.date_source === 'updated' || article.date_source === 'collected' || !Number.isFinite(date.getTime())) return '발행일 미제공';
-  return date.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  if (article.date_source === 'updated' || article.date_source === 'collected' || !Number.isFinite(date.getTime())) return t('발행일 미제공', 'No publish date');
+  return date.toLocaleString(locale(), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }

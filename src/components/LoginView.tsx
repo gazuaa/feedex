@@ -13,6 +13,9 @@ import { apiRequest, setStoredToken, type UserProfile, type ThemePreference } fr
 import { inNativeApp, inNativeSignInWindow, nativeAppName, nativeBridge, nativePlatform, nativeSignInPlatform } from '../client/nativeApp';
 import { InstallAppButton } from './PwaInstall';
 import { ThemeSwitch } from './ThemeSwitch';
+import { LanguageSwitch } from './LanguageSwitch';
+import { useResolvedTheme } from '../client/theme';
+import { t, lang } from '../shared/i18n';
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -49,18 +52,19 @@ const DEMO_GOOGLE_ACCOUNTS = [
   {
     name: '김태현 (Product Engineer)',
     email: 'taehyun.kim@gmail.com',
-    role: '추천 피드를 직접 선택하는 개인 워크스페이스',
+    role: t('추천 피드를 직접 선택하는 개인 워크스페이스', 'Personal workspace that picks its own suggested feeds'),
     picture: 'https://api.dicebear.com/9.x/glass/svg?seed=taehyun',
   },
   {
     name: '박서연 (AI Researcher)',
     email: 'seoyeon.ai@gmail.com',
-    role: '별도 멀티유저 워크스페이스 계정',
+    role: t('별도 멀티유저 워크스페이스 계정', 'Separate multi-user workspace account'),
     picture: 'https://api.dicebear.com/9.x/glass/svg?seed=seoyeon',
   },
 ];
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'dark', onChangeTheme }) => {
+  const resolvedTheme = useResolvedTheme(theme);
   const [googleClientId, setGoogleClientId] = useState<string>(
     DEFAULT_GOOGLE_CLIENT_ID
   );
@@ -87,7 +91,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
         setStoredToken(res.token);
         onLoginSuccess(res.user);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '로그인하지 못했습니다. 다시 시도해 주세요.');
+        setError(err instanceof Error ? err.message : t('로그인하지 못했습니다. 다시 시도해 주세요.', 'Could not sign in. Please try again.'));
       } finally {
         setLoading(false);
       }
@@ -146,7 +150,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
                 setError(
                   err instanceof Error
                     ? err.message
-                    : 'Google 인증 확인에 실패했습니다.'
+                    : t('Google 인증 확인에 실패했습니다.', 'Could not verify your Google sign-in.')
                 );
               } finally {
                 setLoading(false);
@@ -160,7 +164,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
             size: 'large',
             text: 'signin_with',
             shape: 'pill',
-            locale: 'ko',
+            locale: lang(),
             width: Math.max(200, Math.min(340, (gsiBtnRef.current.parentElement?.clientWidth || 372) - 34)),
           });
         } catch {
@@ -196,7 +200,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
       setStoredToken(res.token);
       onLoginSuccess(res.user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '로그인에 실패했습니다.');
+      setError(err instanceof Error ? err.message : t('로그인에 실패했습니다.', 'Sign-in failed.'));
     } finally {
       setLoading(false);
     }
@@ -218,7 +222,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
       {/* 휴대폰에서는 로고와 한 줄 소개만 남겨 로그인 버튼이 첫 화면에 보이게 한다. 긴 소개와 기능 카드는 넓은 화면에서만 보인다. */}
       <div className="lg:w-7/12 px-6 pt-6 pb-5 lg:p-16 flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/30">
         <div className="relative z-10">
-          {onChangeTheme && <div className="flex justify-end mb-4"><ThemeSwitch theme={theme} onChange={onChangeTheme} /></div>}
+          {onChangeTheme && <div className="flex justify-end gap-2 mb-4"><LanguageSwitch dark={resolvedTheme === 'dark'} /><ThemeSwitch theme={theme} onChange={onChangeTheme} /></div>}
           <div className="inline-flex items-center gap-3 mb-5 lg:mb-10">
             <FeedExIcon className="w-11 h-11 shrink-0 shadow-lg shadow-emerald-500/20 rounded-[10px]" />
             <div className="flex items-center">
@@ -230,17 +234,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
           </div>
 
           <h1 className="text-2xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight lg:mb-6">
-            쏟아지는 기술과 뉴스를
+            {t('쏟아지는 기술과 뉴스를', 'Read the flood of tech and news')}
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
-              가장 빠르고 스마트하게
-            </span>{' '}
-            읽다
+              {t('가장 빠르고 스마트하게', 'faster and smarter')}
+            </span>{t(' 읽다', '')}
           </h1>
           <p className="hidden lg:block text-slate-400 text-base sm:text-lg max-w-xl leading-relaxed mb-10">
-            Feedly 스타일의 직관적인 3가지 레이아웃, 광고 없는 원문 스크래핑(Reader
-            View), 그리고 Cloudflare Workers AI 기반 한국어 3줄 핵심 요약까지 결합된
-            멀티유저 RSS 큐레이션 플랫폼입니다.
+            {t('Feedly 스타일의 직관적인 3가지 레이아웃, 광고 없는 원문 스크래핑(Reader View), 그리고 Cloudflare Workers AI 기반 한국어 3줄 핵심 요약까지 결합된 멀티유저 RSS 큐레이션 플랫폼입니다.', 'A multi-user RSS reader with three Feedly-style layouts, ad-free full-text Reader View and three-line summaries from Cloudflare Workers AI.')}
           </p>
 
           <div className="hidden lg:grid sm:grid-cols-2 gap-4 max-w-2xl">
@@ -250,11 +251,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
               </div>
               <div>
                 <h3 className="font-semibold text-white text-sm mb-1">
-                  Cloudflare Workers AI 요약
+                  {t('Cloudflare Workers AI 요약', 'Cloudflare Workers AI summaries')}
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  긴 영문·기술 아티클도 클릭 한 번으로 핵심 요약과 주요 포인트를 한국어로
-                  즉시 정리합니다.
+                  {t('긴 영문·기술 아티클도 클릭 한 번으로 핵심 요약과 주요 포인트를 한국어로 즉시 정리합니다.', 'Get the key points of long technical articles in one click.')}
                 </p>
               </div>
             </div>
@@ -265,11 +265,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
               </div>
               <div>
                 <h3 className="font-semibold text-white text-sm mb-1">
-                  원문 전체 스크래핑 (Reader View)
+                  {t('원문 전체 스크래핑 (Reader View)', 'Full-text Reader View')}
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  요약본만 제공하는 RSS 피드도 원문 웹페이지 본문을 추출해 쾌적한 리더
-                  뷰로 보여줍니다.
+                  {t('요약본만 제공하는 RSS 피드도 원문 웹페이지 본문을 추출해 쾌적한 리더 뷰로 보여줍니다.', 'Even feeds that only send excerpts are shown in full, extracted from the original page.')}
                 </p>
               </div>
             </div>
@@ -280,11 +279,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
               </div>
               <div>
                 <h3 className="font-semibold text-white text-sm mb-1">
-                  매거진 · 카드 · 리스트 3종 뷰
+                  {t('매거진 · 카드 · 리스트 3종 뷰', 'Magazine · cards · list views')}
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  취향에 따라 레이아웃과 다크/라이트 모드를 전환하고 단축키(↑/↓/M/S)로
-                  빠르게 탐색하세요.
+                  {t('취향에 따라 레이아웃과 다크/라이트 모드를 전환하고 단축키(↑/↓/M/S)로 빠르게 탐색하세요.', 'Switch layouts and dark or light mode, and move quickly with shortcuts (↑/↓/M/S).')}
                 </p>
               </div>
             </div>
@@ -295,11 +293,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
               </div>
               <div>
                 <h3 className="font-semibold text-white text-sm mb-1">
-                  폴더 분류 & OPML 마이그레이션
+                  {t('폴더 분류 & OPML 마이그레이션', 'Folders & OPML migration')}
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  카테고리별 폴더 정리와 OPML 파일 가져오기/내보내기로 기존 Feedly 구독을
-                  그대로 이전합니다.
+                  {t('카테고리별 폴더 정리와 OPML 파일 가져오기/내보내기로 기존 Feedly 구독을 그대로 이전합니다.', 'Organize feeds in folders and bring your Feedly subscriptions over with OPML import and export.')}
                 </p>
               </div>
             </div>
@@ -311,10 +308,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>Powered by React 19 · Hono · Cloudflare D1 · Workers AI</span>
           </div>
-          <span>GitHub + Cloudflare 자동 배포 아키텍처</span>
+          <span>{t('GitHub + Cloudflare 자동 배포 아키텍처', 'Deployed automatically with GitHub + Cloudflare')}</span>
           <InstallAppButton />
           <a href="/privacy" className="hover:text-slate-300 hover:underline underline-offset-2">
-            개인정보처리방침
+            {t('개인정보처리방침', 'Privacy policy')}
           </a>
         </div>
       </div>
@@ -324,11 +321,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
         <div className="w-full max-w-md space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-white mb-2">
-              Google 계정으로 시작하기
+              {t('Google 계정으로 시작하기', 'Get started with Google')}
             </h2>
             <p className="text-sm text-slate-400">
-              구글 계정으로 로그인하면 내 폴더, 구독 피드, 북마크(Read Later)가 기기
-              사이에서 동기화됩니다.
+              {t('구글 계정으로 로그인하면 내 폴더, 구독 피드, 북마크(Read Later)가 기기 사이에서 동기화됩니다.', 'Sign in with Google to sync your folders, feeds and Read Later across devices.')}
+              
             </p>
           </div>
 
@@ -340,17 +337,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
 
           {handoff && (
             <p className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 leading-relaxed">
-              {handoffApp}에서 쓸 계정으로 로그인하세요. 로그인하면 {handoffApp}으로 돌아갑니다.
+              {t(`${handoffApp}에서 쓸 계정으로 로그인하세요. 로그인하면 ${handoffApp}으로 돌아갑니다.`, `Sign in with the account to use in ${handoffApp}. You’ll go back to ${handoffApp} afterwards.`)}
             </p>
           )}
 
           {native ? (
             <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-slate-900/70 border border-slate-800">
               <button type="button" disabled={loading} onClick={() => { setError(null); nativeBridge()?.postMessage({ type: 'signIn' }); }} className="w-full max-w-[340px] min-h-[44px] rounded-full bg-white text-slate-900 text-sm font-semibold hover:bg-slate-100 disabled:opacity-60 cursor-pointer">
-                {loading ? '로그인하는 중…' : 'Google 계정으로 로그인'}
+                {loading ? t('로그인하는 중…', 'Signing in…') : t('Google 계정으로 로그인', 'Sign in with Google')}
               </button>
               <span className="text-[11px] text-slate-400 text-center leading-relaxed">
-                {nativePlatform() === 'windows' ? '기본 브라우저에서 로그인하면 이 앱으로 돌아와요.' : '시스템 로그인 창(Safari)에서 로그인하면 이 앱으로 돌아와요.'}
+                {nativePlatform() === 'windows' ? t('기본 브라우저에서 로그인하면 이 앱으로 돌아와요.', 'Sign in in your default browser and you’ll come back to this app.') : t('시스템 로그인 창(Safari)에서 로그인하면 이 앱으로 돌아와요.', 'Sign in in the system sign-in window (Safari) and you’ll come back to this app.')}
               </span>
             </div>
           ) : (
@@ -358,7 +355,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
           <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-slate-900/70 border border-slate-800">
             <div ref={gsiBtnRef} className="min-h-[44px] flex items-center justify-center" />
             <span className="text-[11px] text-slate-400">
-              Google Identity Services (RS256 서명 검증 · D1 세션 동기화)
+              {t('Google Identity Services (RS256 서명 검증 · D1 세션 동기화)', 'Google Identity Services (RS256 signature check · D1 session sync)')}
             </span>
           </div>
           )}
@@ -370,7 +367,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
                 <div className="relative flex py-2 items-center">
                   <div className="flex-grow border-t border-slate-800"></div>
                   <span className="flex-shrink mx-3 text-xs text-slate-500 font-medium">
-                    로컬 개발용 빠른 계정 전환
+                    {t('로컬 개발용 빠른 계정 전환', 'Quick account switch (local development)')}
                   </span>
                   <div className="flex-grow border-t border-slate-800"></div>
                 </div>
@@ -413,22 +410,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
                 className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-3"
               >
                 <div className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-                  <span>이메일로 즉시 워크스페이스 시작</span>
+                  <span>{t('이메일로 즉시 워크스페이스 시작', 'Start a workspace with your email')}</span>
                   <span className="text-[11px] text-emerald-400 font-normal">
-                    원하는 추천 피드만 선택해 구독
+                    {t('원하는 추천 피드만 선택해 구독', 'Subscribe only to the suggested feeds you want')}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <input
                     type="text"
-                    placeholder="이름 (예: 홍길동)"
+                    placeholder={t('이름 (예: 홍길동)', 'Name (e.g. Jane Doe)')}
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
                     className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                   <input
                     type="email"
-                    placeholder="이메일 (user@gmail.com)"
+                    placeholder={t('이메일 (user@gmail.com)', 'Email (user@gmail.com)')}
                     value={customEmail}
                     onChange={(e) => setCustomEmail(e.target.value)}
                     required
@@ -441,7 +438,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, theme = 'd
                   className="w-full py-2.5 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-40"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>이 계정으로 시작하기</span>
+                  <span>{t('이 계정으로 시작하기', 'Start with this account')}</span>
                 </button>
               </form>
             </>

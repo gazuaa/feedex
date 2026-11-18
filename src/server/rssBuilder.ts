@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { parseHTML } from 'linkedom';
 import type { BuilderAnalysis, BuilderArticle, BuilderGroup, BuilderSite } from '../shared/rssBuilder';
 import { normalizeFeedUrl } from '../shared/feedDiscovery';
@@ -16,9 +17,9 @@ import type { Env } from './types';
 
 export function publicPageUrl(value: string): string {
   const normalized = normalizeFeedUrl(value);
-  if (!normalized) throw new Error('올바른 공개 웹사이트 주소를 입력해 주세요.');
+  if (!normalized) throw new Error(t('올바른 공개 웹사이트 주소를 입력해 주세요.', "Enter a valid public website URL."));
   const host = new URL(normalized).hostname.toLowerCase();
-  if (!host.includes('.') || (/(?:^|\.)(?:localhost|local|internal|test)$/i.test(host) && !host.endsWith('.example.test')) || /^(?:\d+\.){3}\d+$/.test(host) || host.includes(':')) throw new Error('공개 웹사이트 주소만 사용할 수 있습니다.');
+  if (!host.includes('.') || (/(?:^|\.)(?:localhost|local|internal|test)$/i.test(host) && !host.endsWith('.example.test')) || /^(?:\d+\.){3}\d+$/.test(host) || host.includes(':')) throw new Error(t('공개 웹사이트 주소만 사용할 수 있습니다.', "Only public website URLs are supported."));
   return normalized;
 }
 const text = (value: string | null | undefined) => decodeHtmlEntities(value || '').replace(/\s+/g, ' ').trim();
@@ -44,7 +45,7 @@ type HtmlDocument = ReturnType<typeof parseHTML>['document'];
 
 function pageTitle(document: HtmlDocument, source: URL): string {
   const title = text(document.querySelector('meta[property="og:title"]')?.getAttribute('content') || document.querySelector('title')?.textContent) || source.hostname;
-  if (/security checkpoint|just a moment|verify you are human|access denied/i.test(title)) throw new Error('사이트가 자동 수집을 차단하고 있습니다. 보안 확인이 없는 공개 글 목록 주소를 사용해 주세요.');
+  if (/security checkpoint|just a moment|verify you are human|access denied/i.test(title)) throw new Error(t('사이트가 자동 수집을 차단하고 있습니다. 보안 확인이 없는 공개 글 목록 주소를 사용해 주세요.', "The site blocks automated access. Use a public article listing without a security check."));
   return title;
 }
 
@@ -131,7 +132,7 @@ export function analysePicked(html: string, pageUrl: string, selector: string, p
   stripActiveContent(document);
   let picked;
   try { picked = extractPicked(document, pick, pageUrl); }
-  catch { throw new Error('글 목록 선택이 올바르지 않습니다. 다시 선택해 주세요.'); }
+  catch { throw new Error(t('글 목록 선택이 올바르지 않습니다. 다시 선택해 주세요.', "The selected article list is invalid. Choose it again.")); }
   const now = Date.now();
   const articles: BuilderArticle[] = picked.slice(0, 100).map((item) => {
     const published = parseListedDate(item.dateText, now);
@@ -158,10 +159,10 @@ export function analyseBuilderHtml(html: string, sourceUrl: string, selector?: s
   const { document } = parseHTML(html);
   const title = pageTitle(document, source);
   document.querySelectorAll('script,style,noscript,template,nav,header,footer,aside,[role="navigation"]').forEach((node) => node.remove());
-  if (selector && selector.length > 1000) throw new Error('글 목록 선택이 너무 깁니다.');
+  if (selector && selector.length > 1000) throw new Error(t('글 목록 선택이 너무 깁니다.', "The article list selection is too long."));
   let anchors;
   try { anchors = [...document.querySelectorAll(selector || 'a[href]')].slice(0, 600); }
-  catch { throw new Error('글 목록 선택이 올바르지 않습니다. 다시 선택해 주세요.'); }
+  catch { throw new Error(t('글 목록 선택이 올바르지 않습니다. 다시 선택해 주세요.', "The selected article list is invalid. Choose it again.")); }
   const entries = new Map<string, { article: BuilderArticle; prefix: string; score: number }>();
   for (const node of anchors) {
     const anchor = node.tagName === 'A' ? node : node.querySelector('a[href]');
@@ -211,15 +212,15 @@ export async function fetchPage(url: string, accept = 'text/html,application/xht
   for (let i = 0; i < 5; i++) {
     const response = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FeedEx/1.0)', Accept: accept } });
     if (response.status >= 300 && response.status < 400 && response.headers.get('location')) { current = publicPageUrl(new URL(response.headers.get('location')!, current).href); continue; }
-    if (!response.ok) throw new Error(`사이트 응답 오류 (HTTP ${response.status})`);
+    if (!response.ok) throw new Error(t(`사이트 응답 오류 (HTTP ${response.status})`, `Website response error (HTTP ${response.status})`));
     return { html: (await response.text()).slice(0, limit), url: current };
   }
-  throw new Error('사이트 이동이 너무 많습니다.');
+  throw new Error(t('사이트 이동이 너무 많습니다.', "The site redirected too many times."));
 }
 
 /** `phone`은 스크립트로 휴대폰 배치를 고르는 사이트를 위해 페이지를 휴대폰 폭으로 배치한다. */
 export async function renderPage(url: string, env: Pick<Env, 'BROWSER'>, content: 'links' | 'article' = 'links', phone = false): Promise<{ html: string; url: string }> {
-  if (!env.BROWSER) throw new Error('이 사이트는 브라우저 렌더링이 필요합니다.');
+  if (!env.BROWSER) throw new Error(t('이 사이트는 브라우저 렌더링이 필요합니다.', "This site requires browser rendering."));
   const { default: puppeteer } = await import('@cloudflare/puppeteer');
   const browser = await puppeteer.launch(env.BROWSER);
   try {
@@ -234,7 +235,7 @@ export async function renderPage(url: string, env: Pick<Env, 'BROWSER'>, content
     });
     // 기사 사본에 필요한 것은 읽을 수 있는 문단이지, 다 끝난 광고·분석 트래픽이 아니다.
     const response = await page.goto(publicPageUrl(url), { waitUntil: content === 'article' ? 'domcontentloaded' : 'networkidle2', timeout: 20000 });
-    if (response && !response.ok()) throw new Error(`사이트 응답 오류 (HTTP ${response.status()})`);
+    if (response && !response.ok()) throw new Error(t(`사이트 응답 오류 (HTTP ${response.status()})`, `Website response error (HTTP ${response.status()})`));
     await page.waitForFunction(content === 'article'
       ? 'Array.from(document.querySelector("article, [itemprop=articleBody], main")?.querySelectorAll("p") || []).reduce((length, p) => length + (p.innerText || "").trim().length, 0) > 120'
       : 'document.querySelectorAll("a[href]").length >= 5', { timeout: content === 'article' ? 10000 : 5000 }).catch(() => {});
@@ -343,7 +344,7 @@ export async function analyseBuilderPage(url: string, env: Env, selector?: strin
   if (selector?.startsWith(SITEMAP_SELECTOR)) return analyseSitemap(source, selector);
   if (selector?.startsWith(PICK_SELECTOR)) {
     const pick = decodePick(selector);
-    if (!pick) throw new Error('선택한 글 목록 정보가 올바르지 않습니다. 다시 선택해 주세요.');
+    if (!pick) throw new Error(t('선택한 글 목록 정보가 올바르지 않습니다. 다시 선택해 주세요.', "The selected article list is invalid. Choose it again."));
     const page = pick.rendered ? await renderPage(source, env) : await fetchPage(source);
     return { ...analysePicked(page.html, page.url, selector, pick), ...(pick.rendered ? {} : { nextPages: nextListPages(page.html, page.url, BUILDER_PAGES - 1) }) };
   }
@@ -369,7 +370,7 @@ export async function analyseBuilderPage(url: string, env: Env, selector?: strin
       if (result.groups.length || selector) return result;
       if (result.snapshot || !fallback?.snapshot) fallback = result;
       failure = undefined;
-    } catch (error) { failure = new Error(error instanceof Error && /차단/.test(error.message) ? error.message : '사이트의 글 목록을 불러오지 못했습니다. 자동 수집을 허용하는 공개 페이지인지 확인해 주세요.'); }
+    } catch (error) { failure = new Error(error instanceof Error && /차단/.test(error.message) ? error.message : t('사이트의 글 목록을 불러오지 못했습니다. 자동 수집을 허용하는 공개 페이지인지 확인해 주세요.', "Could not load the article list. Check that the public page allows automated access.")); }
   }
   if (!selector && !fallback?.snapshot) {
     const fromSitemap = await analyseSitemap(source).catch(() => null);
@@ -385,7 +386,7 @@ const builderArticles = (analysis: BuilderAnalysis, selector: string): ParsedArt
 
 export function builderParsedFeed(analysis: BuilderAnalysis, selector: string, xmlUrl: string, title?: string): ParsedFeed {
   const articles = builderArticles(analysis, selector);
-  if (!articles.length) throw new Error('수집할 글 목록을 찾지 못했습니다. 다른 목록을 선택해 주세요.');
+  if (!articles.length) throw new Error(t('수집할 글 목록을 찾지 못했습니다. 다른 목록을 선택해 주세요.', "Could not find articles in that list. Choose a different list."));
   return { xmlUrl, htmlUrl: analysis.sourceUrl, title: title?.trim() || analysis.title, description: 'RSS 빌더로 만든 웹사이트 글 목록', faviconUrl: `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(analysis.sourceUrl).hostname)}&sz=64`, articles, ...(analysis.nextPages?.length ? { listPages: analysis.nextPages } : {}) };
 }
 

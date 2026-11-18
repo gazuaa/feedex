@@ -4,6 +4,7 @@ import { Play, Repeat2 } from 'lucide-react';
 import { apiRequest, type ArticleItem } from '../client/api';
 import { parseXPost, xTime, type XMedia, type XPost } from '../client/xTimeline';
 import { useXAvatars } from '../client/xAvatars';
+import { t } from '../shared/i18n';
 
 // 만료된 X 카드 이미지(pbs.twimg.com/card_img/...)는 글마다 한 번만 미러에서 새 주소를 받아온다.
 const refreshedCards = new Set<string>();
@@ -79,15 +80,15 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
       <Avatar post={post.avatar ? post : { ...post, avatar: avatarOf(post.handle) || null }} isDark={isDark} />
     </div>
     <div className="min-w-0 flex-1">
-      {post.repostedBy && <p className="-mt-0.5 mb-0.5 text-[13px] font-semibold text-slate-500">{post.repostedBy} 님이 재게시함</p>}
+      {post.repostedBy && <p className="-mt-0.5 mb-0.5 text-[13px] font-semibold text-slate-500">{t(`${post.repostedBy} 님이 재게시함`, `${post.repostedBy} reposted`)}</p>}
       <div className="flex min-w-0 items-center gap-1 text-[15px] leading-5">
         <ArticleBlockTag blocked={blocked} />
         <span className={`truncate font-bold ${strong}`}>{post.name}</span>
         <span className="truncate text-slate-500">@{post.handle}</span>
         <span className="shrink-0 text-slate-500">· {xTime(article.published_at)}</span>
-        {!article.is_read && <span role="img" aria-label="안 읽음" className="ml-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />}
+        {!article.is_read && <span role="img" aria-label={t('안 읽음', 'Unread')} className="ml-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />}
       </div>
-      {post.replyTo && <p className="text-[15px] leading-5 text-slate-500"><span className="text-sky-500">@{post.replyTo}</span> 님에게 보내는 답글</p>}
+      {post.replyTo && <p className="text-[15px] leading-5 text-slate-500">{t('', 'Replying to ')}<span className="text-sky-500">@{post.replyTo}</span>{t(' 님에게 보내는 답글', '')}</p>}
       {post.text && <p className={`feedex-x-text mt-0.5 whitespace-pre-wrap break-words leading-snug line-clamp-[14] ${strong}`}>{post.text}</p>}
       <MediaGrid media={post?.media || []} line={line} onImageError={refreshExpiredImage} />
       {post.card && <a href={post.card.href} target="_blank" rel="noopener noreferrer" onClick={stop} className={`mt-3 block overflow-hidden rounded-2xl border ${line}`}>

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 export interface ArticleBlockRule {
   id: string;
   name: string;
@@ -16,10 +17,10 @@ export function parseBlockTerms(text: string): string[] {
   return [...terms.values()];
 }
 export function blockRuleError(rule: Pick<ArticleBlockRule, 'name' | 'all' | 'any'>): string | null {
-  if (!rule.name.trim() || rule.name.length > 120) return '규칙 이름을 120자 이내로 입력해 주세요.';
-  if (!rule.all.length && !rule.any.length) return '제목에 포함할 표현을 하나 이상 입력해 주세요.';
-  if (rule.all.length > 12 || rule.any.length > 12) return '각 조건에는 표현을 12개까지 넣을 수 있습니다.';
-  if ([...rule.all, ...rule.any].some((term) => !normalizeBlockTitle(term) || term.length > 100)) return '각 표현은 1~100자로 입력해 주세요.';
+  if (!rule.name.trim() || rule.name.length > 120) return t('규칙 이름을 120자 이내로 입력해 주세요.', 'Enter a rule name of up to 120 characters.');
+  if (!rule.all.length && !rule.any.length) return t('제목에 포함할 표현을 하나 이상 입력해 주세요.', 'Enter at least one phrase to match in titles.');
+  if (rule.all.length > 12 || rule.any.length > 12) return t('각 조건에는 표현을 12개까지 넣을 수 있습니다.', 'Each condition can have up to 12 phrases.');
+  if ([...rule.all, ...rule.any].some((term) => !normalizeBlockTitle(term) || term.length > 100)) return t('각 표현은 1~100자로 입력해 주세요.', 'Each phrase must be 1–100 characters.');
   return null;
 }
 export function validArticleBlockRule(value: unknown): value is ArticleBlockRule {

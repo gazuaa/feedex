@@ -18,7 +18,15 @@ ditto --norsrc --noextattr --noacl "$sparkle/Sparkle.framework" "$bundle/Content
 cp "$root/native/macos/Info.plist" "$bundle/Contents/Info.plist"
 cp "$sparkle/LICENSE" "$bundle/Contents/Resources/Sparkle-LICENSE.txt"
 # 맥은 아이콘 모서리를 직접 둥글리지 않으므로, 웹 아이콘(꽉 찬 사각형)이 아닌 둥근 맥 전용 아이콘을 쓴다.
-sips -s format icns "$root/native/macos/AppIcon.png" --out "$bundle/Contents/Resources/FeedExReader.icns" >/dev/null
+# 어떤 macOS에서는 sips가 icns를 바로 쓰지 못하므로(Error 13), 크기별 PNG를 만들어 iconutil로 묶는다.
+iconset="$temp/FeedExReader.iconset"
+mkdir -p "$iconset"
+for size in 16 32 128 256 512; do
+  sips -z "$size" "$size" "$root/native/macos/AppIcon.png" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+  double=$((size * 2))
+  sips -z "$double" "$double" "$root/native/macos/AppIcon.png" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$iconset" -o "$bundle/Contents/Resources/FeedExReader.icns"
 for arch in arm64 x86_64; do
   xcrun swiftc -O -parse-as-library -module-cache-path "$temp/module-cache" -target "$arch-apple-macos12.0" "$root"/native/macos/*.swift -F "$sparkle" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -o "$temp/reader-$arch"
 done

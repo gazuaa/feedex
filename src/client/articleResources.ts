@@ -1,3 +1,4 @@
+import { lang, t } from '../shared/i18n';
 import { apiRequest, type ArticleItem, type ArticleViewMode } from './api';
 import { cachedArticle, readContent, writeContent } from './deviceContent';
 import { cacheGeneration } from './cachePolicy';
@@ -45,7 +46,8 @@ export class ArticleResources {
     // 예전 X 글 사본은 댓글 자리만 회색으로 남은 x.com 화면이거나, 인용 글 상자가 깨진 사본이다. 지금 방식의 사본을 새로 받게 한다.
     // 대리 경로(/page-asset/) 없이 http 그림·스타일이 그대로 남은 사본이나, 유튜브 임베드 변환 전에 만든 http 사본도 다시 받는다.
     if (!stored || !('html' in stored.data)
-      || (isXStatusUrl(article.url) && (!stored.data.thread || stored.data.partial || !stored.data.html.includes(X_THREAD_MARK)))
+      || (isXStatusUrl(article.url) && (!stored.data.thread || stored.data.partial || !stored.data.html.includes(X_THREAD_MARK)
+        || (/<html\s+lang="(ko|en)"/i.exec(stored.data.html)?.[1] ?? 'ko') !== lang()))
       || /<(?:link|img)\b[^>]+(?:href|src)=["']http:\/\//i.test(stored.data.html)
       || (/^http:\/\//i.test(article.url) && stored.data.html.includes('<base ') && !stored.data.html.includes('data-sfeed-copy="2"'))) {
       this.preparedCopies.delete(article.id);
@@ -133,7 +135,7 @@ export class ArticleResources {
       if (!this.current()) throw new Error('Session changed');
       const page = await this.request<{ articles: ArticleItem[] }>(`/api/articles?articleId=${encodeURIComponent(article.id)}`);
       const latest = page.articles?.[0];
-      if (!latest || latest.id !== article.id) throw new Error('글을 찾을 수 없습니다.');
+      if (!latest || latest.id !== article.id) throw new Error(t('글을 찾을 수 없습니다.', "Article not found."));
       // 리더 본문은 따로 뽑은 것이므로, 서버 답에 없으면 기기에 남긴 것을 그대로 쓴다.
       const full = latest.full_content_html || (await this.hydrate(article)).full_content_html || null;
       if (this.current() && generation === cacheGeneration.get(this.account)) await writeContent(this.account, `article:${article.id}`, { id: article.id, url: latest.url, content_html: latest.content_html, full_content_html: full, published_at: latest.published_at, date_source: latest.date_source });

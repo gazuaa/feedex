@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { useCallback, useSyncExternalStore } from 'react';
 import type { ArticleItem } from './api';
 import { compileArticleBlocks, readArticleBlocks } from './articleBlocks';
@@ -29,14 +30,14 @@ export function useNotificationPermission() {
 }
 export async function enableLocalNotifications(account: string): Promise<string> {
   if (inNativeApp()) {
-    if (!nativeNotificationBridge()) return `${nativeAppName()} 업데이트 후 알림을 켤 수 있어요.`;
+    if (!nativeNotificationBridge()) return t(`${nativeAppName()} 업데이트 후 알림을 켤 수 있어요.`, `Update the ${nativeAppName()} to turn on notifications.`);
     const permission = await requestNativeNotificationPermission();
     setLocalNotifications(account, true);
-    return permission === 'granted' ? '' : `${nativeSystemName()} 알림 설정에서 feedex를 허용해 주세요. 허용하면 자동으로 켜집니다.`;
+    return permission === 'granted' ? '' : t(`${nativeSystemName()} 알림 설정에서 feedex를 허용해 주세요. 허용하면 자동으로 켜집니다.`, `Allow FeedEx in ${nativeSystemName()} notification settings. Notifications will then turn on automatically.`);
   }
-  if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) return '이 브라우저에서는 알림을 지원하지 않습니다. 아이폰은 홈 화면에 설치한 앱에서 확인해 주세요.';
+  if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) return t('이 브라우저에서는 알림을 지원하지 않습니다. 아이폰은 홈 화면에 설치한 앱에서 확인해 주세요.', "This browser does not support notifications. On iPhone, open FeedEx from the Home Screen.");
   const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return '기기 또는 브라우저 설정에서 알림을 허용해 주세요.';
+  if (permission !== 'granted') return t('기기 또는 브라우저 설정에서 알림을 허용해 주세요.', "Allow notifications in your device or browser settings.");
   setLocalNotifications(account, true);
   return '';
 }

@@ -5,7 +5,7 @@ const vite = await createServer({ configFile: false, server: { middlewareMode: t
 const originalFetch = globalThis.fetch;
 try {
   const { analyseBuilderHtml, publicPageUrl, pickerSnapshot, parseListedDate } = await vite.ssrLoadModule('/src/server/rssBuilder.ts');
-  const { pickerRuntime, extractPicked, encodePick, decodePick } = await vite.ssrLoadModule('/src/shared/rssPicker.ts');
+  const { pickerRuntime, pickerText, extractPicked, encodePick, decodePick } = await vite.ssrLoadModule('/src/shared/rssPicker.ts');
   const { parseHTML } = await import('linkedom');
   const { parseXmlFeedContent } = await vite.ssrLoadModule('/src/server/rssParser.ts');
   const { LocalD1Database } = await vite.ssrLoadModule('/src/server/localD1.ts');
@@ -231,7 +231,7 @@ try {
   const pageGlobals = { document: pageCopy.document, window: pageCopy.window, parent: { postMessage: (message) => posted.push(message) }, Element: pageCopy.window.Element };
   const savedGlobals = Object.fromEntries(Object.keys(pageGlobals).map((key) => [key, globalThis[key]]));
   Object.assign(globalThis, pageGlobals);
-  try { pickerRuntime(extractPicked, firstLook.sourceUrl, firstLook.groups[0].articles[0].url); } finally { Object.assign(globalThis, savedGlobals); }
+  try { pickerRuntime(extractPicked, firstLook.sourceUrl, firstLook.groups[0].articles[0].url, pickerText()); } finally { Object.assign(globalThis, savedGlobals); }
   const chosen = posted.find((message) => message.source === 'sfeed-picker' && message.type === 'selection');
   assert.ok(chosen, 'the suggested article selects its list');
   assert.deepEqual(chosen.selection, { item: 'div.group.flex.flex-col', title: 'h3', image: 'img', date: 'time' }, 'cards, not the byline link, repeat');

@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { Hono } from 'hono';
 import type { Env, UserRecord } from './types';
 import { xCallbackUrl, xProfile, type XAccount } from '../shared/xFeed';
@@ -11,7 +12,7 @@ const encode = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replac
 const decode = (text: string) => Uint8Array.from(atob(text.replace(/-/g, '+').replace(/_/g, '/')), (value) => value.charCodeAt(0));
 async function encryptionKey(env: Env) {
   const credentials = await readXCredentials(env);
-  if (!credentials) throw new XConnectionError('X 연결 설정을 먼저 완료해 주세요.', 503);
+  if (!credentials) throw new XConnectionError(t('X 연결 설정을 먼저 완료해 주세요.', "Finish setting up the X connection first."), 503);
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`sfeed-x-v1:${credentials.clientSecret}`));
   return crypto.subtle.importKey('raw', hash, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
@@ -29,7 +30,7 @@ async function unseal(env: Env, sealed: unknown, userId: string): Promise<Connec
     const value = JSON.parse(new TextDecoder().decode(decrypted)) as Connection;
     if (value.sub !== userId || !/^\d{1,20}$/.test(value.xId) || typeof value.token !== 'string' || !Number.isFinite(value.expires) || value.expires <= Date.now()) throw new Error();
     return value;
-  } catch { throw new XConnectionError('X 연결이 만료됐습니다. X 계정을 다시 연결해 주세요.', 401); }
+  } catch { throw new XConnectionError(t('X 연결이 만료됐습니다. X 계정을 다시 연결해 주세요.', "The X connection expired. Reconnect your account."), 401); }
 }
 
 type XProblem = 'credits-depleted' | 'usage-capped' | 'client-forbidden' | 'client-not-enrolled' | 'insufficient-scope' | 'not-authorized-for-resource';
@@ -58,7 +59,7 @@ async function xProblem(response: Response): Promise<XProblem | undefined> {
 async function xJson(path: string, init: RequestInit = {}): Promise<Record<string, any>> {
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 12_000);
   const step = path === '2/oauth2/token' ? 'token' : path === '2/users/me' ? 'profile' : 'following';
-  const label = step === 'token' ? 'X 로그인 승인 확인' : step === 'profile' ? 'X 계정 확인' : '팔로우 목록 조회';
+  const label = step === 'token' ? t('X 로그인 승인 확인', "X authorization") : step === 'profile' ? t('X 계정 확인', "X account lookup") : t('팔로우 목록 조회', "X following lookup");
   let upstreamStatus: number | null = null;
   try {
     // Workers는 redirect: 'error'를 지원하지 않는다. 직접 3xx를 거절해 인증정보가 다른 주소로 전달되지 않게 한다.
@@ -66,38 +67,38 @@ async function xJson(path: string, init: RequestInit = {}): Promise<Record<strin
     upstreamStatus = response.status;
     if (response.status >= 300 && response.status < 400) {
       await response.body?.cancel();
-      throw new XConnectionError(`${label} 중 예상하지 않은 주소 이동 응답을 받았습니다. 잠시 후 다시 연결해 주세요.`);
+      throw new XConnectionError(t(`${label} 중 예상하지 않은 주소 이동 응답을 받았습니다. 잠시 후 다시 연결해 주세요.`, `${label} returned an unexpected redirect. Reconnect in a moment.`));
     }
     if (!response.ok) {
       const problem = await xProblem(response);
-      if (response.status === 429) throw new XConnectionError('X API 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.', 429);
+      if (response.status === 429) throw new XConnectionError(t('X API 요청 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.', "The X API request limit has been reached. Try again in a moment."), 429);
       if (response.status === 402 || (response.status === 403 && problem === 'credits-depleted')) {
-        const message = problem === 'credits-depleted' ? 'X API 크레딧이 부족합니다.' : 'X가 API 결제·크레딧 제한으로 요청을 거절했습니다.';
-        throw new XConnectionError(`${message} X 개발자 콘솔의 크레딧 잔액과 사용 한도를 확인해 주세요. (HTTP ${response.status})`, response.status, 'x_credits_required', response.status);
+        const message = problem === 'credits-depleted' ? t('X API 크레딧이 부족합니다.', "Not enough X API credits.") : t('X가 API 결제·크레딧 제한으로 요청을 거절했습니다.', "X rejected the request due to a billing or credit limit.");
+        throw new XConnectionError(t(`${message} X 개발자 콘솔의 크레딧 잔액과 사용 한도를 확인해 주세요. (HTTP ${response.status})`, `${message} Check your credit balance and usage limits in the X Developer Console. (HTTP ${response.status})`), response.status, 'x_credits_required', response.status);
       }
       if (response.status === 403) {
-        const message = problem === 'usage-capped' ? 'X API 사용 한도에 도달했습니다. 개발자 콘솔의 사용 한도를 확인해 주세요.'
-          : problem === 'insufficient-scope' ? '팔로우 목록 읽기 승인이 없습니다. X 계정을 다시 연결하고 follows.read 권한을 허용해 주세요.'
-          : problem === 'client-forbidden' || problem === 'client-not-enrolled' ? '이 X 앱에는 해당 API의 이용 권한이 없습니다. 개발자 콘솔의 연결 프로젝트와 API 이용 권한을 확인해 주세요.'
-          : `${label} 요청을 X가 허용하지 않았습니다. 개발자 콘솔에서 이 앱의 API 이용 권한을 확인해 주세요.`;
+        const message = problem === 'usage-capped' ? t('X API 사용 한도에 도달했습니다. 개발자 콘솔의 사용 한도를 확인해 주세요.', "The X API usage limit has been reached. Check your limit in the Developer Console.")
+          : problem === 'insufficient-scope' ? t('팔로우 목록 읽기 승인이 없습니다. X 계정을 다시 연결하고 follows.read 권한을 허용해 주세요.', "Permission to read your following list is missing. Reconnect your X account and allow follows.read.")
+          : problem === 'client-forbidden' || problem === 'client-not-enrolled' ? t('이 X 앱에는 해당 API의 이용 권한이 없습니다. 개발자 콘솔의 연결 프로젝트와 API 이용 권한을 확인해 주세요.', "This X app cannot access that API. Check its project and API permissions in the Developer Console.")
+          : t(`${label} 요청을 X가 허용하지 않았습니다. 개발자 콘솔에서 이 앱의 API 이용 권한을 확인해 주세요.`, `X denied the ${label} request. Check the app’s API permissions in the Developer Console.`);
         throw new XConnectionError(`${message} (HTTP 403)`, 403, problem === 'insufficient-scope' ? 'x_scope_required' : problem === 'usage-capped' ? 'x_usage_capped' : 'x_access_forbidden', 403);
       }
-      if (response.status === 401 || response.status === 400) throw new XConnectionError('X 연결을 확인하지 못했습니다. 계정을 다시 연결해 주세요.', 401);
-      throw new XConnectionError('X가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도해 주세요.');
+      if (response.status === 401 || response.status === 400) throw new XConnectionError(t('X 연결을 확인하지 못했습니다. 계정을 다시 연결해 주세요.', "Could not verify the X connection. Reconnect your account."), 401);
+      throw new XConnectionError(t('X가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도해 주세요.', "X is temporarily unavailable. Try again in a moment."));
     }
     // 한 페이지는 최대 1,000개다. 비정상 응답을 계속 받지 않는다.
     const text = await response.text();
-    if (text.length > 2_000_000) throw new XConnectionError('X 응답이 너무 큽니다.');
+    if (text.length > 2_000_000) throw new XConnectionError(t('X 응답이 너무 큽니다.', "The X response is too large."));
     const data = JSON.parse(text);
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new SyntaxError('Unexpected X response');
     return data;
   } catch (error) {
     // 요청 내용·헤더·응답 본문에는 키와 토큰이 있으므로 기록하지 않고 실패 단계만 남긴다.
-    console.warn('X API 요청 실패', { step, status: upstreamStatus, code: error instanceof XConnectionError ? error.code : undefined, reason: controller.signal.aborted ? 'timeout' : error instanceof SyntaxError ? 'invalid_json' : error instanceof XConnectionError ? 'response' : 'network' });
+    console.warn(t('X API 요청 실패', "X API request failed."), { step, status: upstreamStatus, code: error instanceof XConnectionError ? error.code : undefined, reason: controller.signal.aborted ? 'timeout' : error instanceof SyntaxError ? 'invalid_json' : error instanceof XConnectionError ? 'response' : 'network' });
     if (error instanceof XConnectionError) throw error;
-    if (controller.signal.aborted) throw new XConnectionError(`${label} 응답이 늦어지고 있습니다. 잠시 후 다시 연결해 주세요.`);
-    if (error instanceof SyntaxError) throw new XConnectionError(`${label} 중 X가 올바르지 않은 응답 형식을 보냈습니다. 잠시 후 다시 연결해 주세요.`);
-    throw new XConnectionError(`${label} 중 X에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.`);
+    if (controller.signal.aborted) throw new XConnectionError(t(`${label} 응답이 늦어지고 있습니다. 잠시 후 다시 연결해 주세요.`, `${label} is taking too long. Reconnect in a moment.`));
+    if (error instanceof SyntaxError) throw new XConnectionError(t(`${label} 중 X가 올바르지 않은 응답 형식을 보냈습니다. 잠시 후 다시 연결해 주세요.`, `${label} returned an invalid response. Reconnect in a moment.`));
+    throw new XConnectionError(t(`${label} 중 X에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.`, `${label} could not reach X. Try again in a moment.`));
   } finally { clearTimeout(timer); }
 }
 
@@ -105,10 +106,10 @@ export const xRoutes = new Hono<{ Bindings: Env; Variables: { user: UserRecord }
 xRoutes.use('*', async (c, next) => {
   c.header('Cache-Control', 'no-store');
   // 외부 X 요청이나 저장된 연결 정보를 읽기 전에 운영자 권한부터 확인한다.
-  if (!canManageX(c.env, c.get('user'))) throw new XConnectionError('X 팔로우 연결은 운영자 계정만 사용할 수 있습니다.', 403, 'x_owner_required');
+  if (!canManageX(c.env, c.get('user'))) throw new XConnectionError(t('X 팔로우 연결은 운영자 계정만 사용할 수 있습니다.', "Only the owner can import an X following list."), 403, 'x_owner_required');
   await next();
 });
-xRoutes.onError((error, c) => c.json({ error: error instanceof XConnectionError ? error.message : 'X 연결 중 오류가 발생했습니다.', ...(error instanceof XConnectionError && error.code ? { code: error.code, upstreamStatus: error.upstreamStatus } : {}) }, error instanceof XConnectionError ? error.status : 502));
+xRoutes.onError((error, c) => c.json({ error: error instanceof XConnectionError ? error.message : t('X 연결 중 오류가 발생했습니다.', "Could not connect to X."), ...(error instanceof XConnectionError && error.code ? { code: error.code, upstreamStatus: error.upstreamStatus } : {}) }, error instanceof XConnectionError ? error.status : 502));
 
 async function clientConfig(env: Env, user: UserRecord, requestUrl: string) {
   const credentials = await readXCredentials(env);
@@ -117,47 +118,47 @@ async function clientConfig(env: Env, user: UserRecord, requestUrl: string) {
 xRoutes.get('/config', async (c) => c.json(await clientConfig(c.env, c.get('user'), c.req.url)));
 
 xRoutes.put('/settings', async (c) => {
-  if (!canManageX(c.env, c.get('user'))) throw new XConnectionError('X 연결 설정은 feedex 운영자만 변경할 수 있습니다.', 403);
+  if (!canManageX(c.env, c.get('user'))) throw new XConnectionError(t('X 연결 설정은 feedex 운영자만 변경할 수 있습니다.', "Only the FeedEx owner can change X connection settings."), 403);
   // 환경 변수로 관리 중인 설치에서는 화면 설정으로 덮어쓰지 않는다.
-  if (c.env.X_CLIENT_ID?.trim() && c.env.X_CLIENT_SECRET?.trim()) throw new XConnectionError('이 연결 정보는 서버에서 관리 중입니다.', 400);
+  if (c.env.X_CLIENT_ID?.trim() && c.env.X_CLIENT_SECRET?.trim()) throw new XConnectionError(t('이 연결 정보는 서버에서 관리 중입니다.', "These connection settings are managed by the server."), 400);
   const input = await c.req.json<{ clientId?: unknown; clientSecret?: unknown }>().catch(() => null);
-  if (!input) throw new XConnectionError('연결 정보를 입력해 주세요.', 400);
+  if (!input) throw new XConnectionError(t('연결 정보를 입력해 주세요.', "Enter the connection details."), 400);
   try { await saveXCredentials(c.env, input); }
-  catch (error) { throw new XConnectionError(error instanceof XSettingsError ? error.message : 'X 연결 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.', error instanceof XSettingsError ? 400 : 503); }
+  catch (error) { throw new XConnectionError(error instanceof XSettingsError ? error.message : t('X 연결 정보를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.', "Could not save the X connection settings. Try again in a moment."), error instanceof XSettingsError ? 400 : 503); }
   return c.json(await clientConfig(c.env, c.get('user'), c.req.url));
 });
 
 xRoutes.post('/connect', async (c) => {
   const credentials = await readXCredentials(c.env);
-  if (!credentials) throw new XConnectionError('X 연결 설정을 먼저 완료해 주세요.', 503);
+  if (!credentials) throw new XConnectionError(t('X 연결 설정을 먼저 완료해 주세요.', "Finish setting up the X connection first."), 503);
   const body = await c.req.json<{ code?: unknown; verifier?: unknown }>().catch(() => null);
-  if (typeof body?.code !== 'string' || !body.code || body.code.length > 2048 || typeof body.verifier !== 'string' || !/^[a-zA-Z\d._~-]{43,128}$/.test(body.verifier)) throw new XConnectionError('X 연결 요청을 확인할 수 없습니다. 다시 연결해 주세요.', 400);
+  if (typeof body?.code !== 'string' || !body.code || body.code.length > 2048 || typeof body.verifier !== 'string' || !/^[a-zA-Z\d._~-]{43,128}$/.test(body.verifier)) throw new XConnectionError(t('X 연결 요청을 확인할 수 없습니다. 다시 연결해 주세요.', "Could not verify the X connection request. Reconnect your account."), 400);
   const form = new URLSearchParams({ grant_type: 'authorization_code', code: body.code, code_verifier: body.verifier, redirect_uri: xCallbackUrl(c.req.url) });
   const auth = btoa(`${encodeURIComponent(credentials.clientId)}:${encodeURIComponent(credentials.clientSecret)}`);
   const result = await xJson('2/oauth2/token', { method: 'POST', headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString() });
-  if (typeof result.access_token !== 'string' || result.access_token.length > 4096 || !Number.isFinite(Number(result.expires_in)) || Number(result.expires_in) <= 0) throw new XConnectionError('X 로그인 응답을 확인하지 못했습니다.');
+  if (typeof result.access_token !== 'string' || result.access_token.length > 4096 || !Number.isFinite(Number(result.expires_in)) || Number(result.expires_in) <= 0) throw new XConnectionError(t('X 로그인 응답을 확인하지 못했습니다.', "Could not verify the X sign-in response."));
   const scopes = typeof result.scope === 'string' ? result.scope.split(' ') : [];
-  if (!['users.read', 'follows.read'].every((scope) => scopes.includes(scope))) throw new XConnectionError('팔로우 목록을 읽을 권한을 허용해 주세요.', 403);
+  if (!['users.read', 'follows.read'].every((scope) => scopes.includes(scope))) throw new XConnectionError(t('팔로우 목록을 읽을 권한을 허용해 주세요.', "Allow access to your following list."), 403);
   const me = await xJson('2/users/me', { headers: { Authorization: `Bearer ${result.access_token}` } });
-  if (!/^\d{1,20}$/.test(me.data?.id || '') || typeof me.data?.username !== 'string') throw new XConnectionError('X 계정 정보를 확인하지 못했습니다.');
+  if (!/^\d{1,20}$/.test(me.data?.id || '') || typeof me.data?.username !== 'string') throw new XConnectionError(t('X 계정 정보를 확인하지 못했습니다.', "Could not verify your X account details."));
   const connection = await seal(c.env, { sub: c.get('user').id, xId: me.data.id, token: result.access_token, expires: Date.now() + Math.min(Number(result.expires_in), 7200) * 1000 });
   return c.json({ connection, username: me.data.username });
 });
 
 xRoutes.post('/following', async (c) => {
   const body = await c.req.json<{ connection?: unknown; cursor?: unknown }>().catch(() => null);
-  if (body?.cursor != null && (typeof body.cursor !== 'string' || !/^[a-zA-Z\d_-]{1,2048}$/.test(body.cursor))) throw new XConnectionError('다음 팔로우 목록의 주소를 확인하지 못했습니다.', 400);
+  if (body?.cursor != null && (typeof body.cursor !== 'string' || !/^[a-zA-Z\d_-]{1,2048}$/.test(body.cursor))) throw new XConnectionError(t('다음 팔로우 목록의 주소를 확인하지 못했습니다.', "Could not find the next page of the following list."), 400);
   const connection = await unseal(c.env, body?.connection, c.get('user').id);
   const query = new URLSearchParams({ max_results: '1000', 'user.fields': 'name,username,profile_image_url,protected' });
   if (body?.cursor) query.set('pagination_token', body.cursor as string);
   const result = await xJson(`2/users/${connection.xId}/following?${query}`, { headers: { Authorization: `Bearer ${connection.token}` } });
-  if (result.errors?.length || (result.data != null && !Array.isArray(result.data))) throw new XConnectionError('X 팔로우 목록의 일부를 읽지 못했습니다. 다시 시도해 주세요.');
+  if (result.errors?.length || (result.data != null && !Array.isArray(result.data))) throw new XConnectionError(t('X 팔로우 목록의 일부를 읽지 못했습니다. 다시 시도해 주세요.', "Could not load part of your X following list. Try again."));
   const accounts: XAccount[] = (result.data || []).flatMap((account: Record<string, unknown>) => {
     if (typeof account.id !== 'string' || !/^\d{1,20}$/.test(account.id) || typeof account.username !== 'string' || !xProfile(`@${account.username}`)) return [];
     const image = typeof account.profile_image_url === 'string' && /^https:\/\/pbs\.twimg\.com\//i.test(account.profile_image_url) ? account.profile_image_url : null;
     return [{ id: account.id, username: account.username, name: typeof account.name === 'string' ? account.name : account.username, protected: account.protected === true, profileImageUrl: image }];
   });
-  if (accounts.length !== (result.data || []).length) throw new XConnectionError('X 계정 정보의 일부를 확인하지 못했습니다. 다시 불러와 주세요.');
+  if (accounts.length !== (result.data || []).length) throw new XConnectionError(t('X 계정 정보의 일부를 확인하지 못했습니다. 다시 불러와 주세요.', "Some X account details could not be verified. Reload the list."));
   const nextCursor = typeof result.meta?.next_token === 'string' ? result.meta.next_token : null;
   return c.json({ accounts, nextCursor });
 });

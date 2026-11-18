@@ -23,9 +23,9 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
     let browser: WKWebView
     private let address = NSTextField()
     private let status = NSTextField(labelWithString: "")
-    private let back = NSButton(title: "이전", target: nil, action: nil)
-    private let forward = NSButton(title: "다음", target: nil, action: nil)
-    private let returnToArticle = NSButton(title: "기사로 돌아가기", target: nil, action: nil)
+    private let back = NSButton(title: NativeLanguage.text("이전", "Back"), target: nil, action: nil)
+    private let forward = NSButton(title: NativeLanguage.text("다음", "Forward"), target: nil, action: nil)
+    private let returnToArticle = NSButton(title: NativeLanguage.text("기사로 돌아가기", "Back to Article"), target: nil, action: nil)
     private var observers: [NSKeyValueObservation] = []
     private var requestedArticle: URL?
     var onClose: (() -> Void)?
@@ -39,7 +39,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
             backing: .buffered, defer: false
         )
         super.init(window: window)
-        window.title = "feedex 읽기"
+        window.title = NativeLanguage.text("feedex 읽기", "feedex Reader")
         window.minSize = NSSize(width: 480, height: 360)
         window.center()
         window.delegate = self
@@ -47,7 +47,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
         browser.navigationDelegate = self
         browser.uiDelegate = self
 
-        address.placeholderString = "https:// 기사 주소"
+        address.placeholderString = NativeLanguage.text("https:// 기사 주소", "https:// article URL")
         address.target = self
         address.action = #selector(openAddress)
         address.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -59,8 +59,8 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
         returnToArticle.target = self
         returnToArticle.action = #selector(reopenArticle)
         returnToArticle.isHidden = true
-        let reload = NSButton(title: "새로고침", target: self, action: #selector(reloadPage))
-        let open = NSButton(title: "열기", target: self, action: #selector(openAddress))
+        let reload = NSButton(title: NativeLanguage.text("새로고침", "Reload"), target: self, action: #selector(reloadPage))
+        let open = NSButton(title: NativeLanguage.text("열기", "Open"), target: self, action: #selector(openAddress))
         let controls = NSStackView(views: [back, forward, reload, address, open, returnToArticle])
         controls.spacing = 8
         controls.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
@@ -78,7 +78,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
         browser.setContentHuggingPriority(.defaultLow, for: .vertical)
         window.contentView = content
         window.initialFirstResponder = address
-        status.stringValue = "feedex에서 기사를 열거나 주소를 입력하세요."
+        status.stringValue = NativeLanguage.text("feedex에서 기사를 열거나 주소를 입력하세요.", "Open an article in feedex or enter its URL here.")
 
         // 같은 기사 안에서 사이트가 이동할 때도 주소와 탐색 상태를 표시한다.
         observers = [
@@ -120,7 +120,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
 
     @objc private func openAddress() {
         guard let url = articleURL(address.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            status.stringValue = "올바른 HTTPS 기사 주소를 입력하세요."
+            status.stringValue = NativeLanguage.text("올바른 HTTPS 기사 주소를 입력하세요.", "Enter a valid HTTPS article URL.")
             return
         }
         window?.makeFirstResponder(browser)
@@ -145,19 +145,19 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
             articleURL(url.absoluteString) != nil || url.absoluteString == "about:blank" {
             decisionHandler(.allow)
         } else {
-            status.stringValue = "이 주소는 읽기 창에서 열 수 없습니다."
+            status.stringValue = NativeLanguage.text("이 주소는 읽기 창에서 열 수 없습니다.", "This address cannot open in the Reader window.")
             decisionHandler(.cancel)
         }
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        status.stringValue = "원문을 불러오는 중…"
+        status.stringValue = NativeLanguage.text("원문을 불러오는 중…", "Loading the original…")
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         updateControls()
         status.stringValue = webView.url?.host ?? ""
-        window?.title = webView.title.map { "feedex 읽기 · \($0)" } ?? "feedex 읽기"
+        window?.title = webView.title.map { NativeLanguage.text("feedex 읽기 · \($0)", "feedex Reader · \($0)") } ?? NativeLanguage.text("feedex 읽기", "feedex Reader")
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -170,7 +170,7 @@ final class ReaderWindow: NSWindowController, WKNavigationDelegate, WKUIDelegate
 
     private func showError(_ error: Error) {
         if (error as NSError).code == NSURLErrorCancelled { return }
-        status.stringValue = "원문을 열지 못했습니다. \(error.localizedDescription)"
+        status.stringValue = NativeLanguage.text("원문을 열지 못했습니다. \(error.localizedDescription)", "Could not open the original. \(error.localizedDescription)")
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,

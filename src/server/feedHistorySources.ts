@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { parseHTML } from 'linkedom';
 import { XMLParser } from 'fast-xml-parser';
 import { analyseBuilderHtml, analysePicked, builderParsedFeed, nextListPages, publicPageUrl } from './rssBuilder';
@@ -31,17 +32,17 @@ async function readPage(input: string, accept: string): Promise<{ text: string; 
     if (response.status >= 300 && response.status < 400 && response.headers.get('location')) { await response.body?.cancel(); url = publicPageUrl(new URL(response.headers.get('location')!, url).href); continue; }
     if (response.status === 429) {
       const wait = response.headers.get('Retry-After') || '', seconds = /^\d+$/.test(wait) ? Number(wait) : (Date.parse(wait) - Date.now()) / 1000;
-      await response.body?.cancel(); throw new HistorySourceError('사이트의 요청 제한에 도달했습니다. 기다린 뒤 이어받을 수 있습니다.', Date.now() + Math.min(600, Math.max(30, Number.isFinite(seconds) ? seconds : 60)) * 1000);
+      await response.body?.cancel(); throw new HistorySourceError(t('사이트의 요청 제한에 도달했습니다. 기다린 뒤 이어받을 수 있습니다.', "The site hit its request limit. Wait a moment before resuming."), Date.now() + Math.min(600, Math.max(30, Number.isFinite(seconds) ? seconds : 60)) * 1000);
     }
-    if (!response.ok) { await response.body?.cancel(); throw new HistorySourceError(`과거 목록을 받지 못했습니다. (HTTP ${response.status})`); }
-    const reader = response.body?.getReader(); if (!reader) throw new HistorySourceError('목록 응답이 비어 있습니다.');
+    if (!response.ok) { await response.body?.cancel(); throw new HistorySourceError(t(`과거 목록을 받지 못했습니다. (HTTP ${response.status})`, `Could not load the archive. (HTTP ${response.status})`)); }
+    const reader = response.body?.getReader(); if (!reader) throw new HistorySourceError(t('목록 응답이 비어 있습니다.', "The article list response is empty."));
     const chunks: Uint8Array[] = []; let size = 0;
-    try { for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > 2_000_000) throw new HistorySourceError('사이트의 목록 응답이 너무 큽니다.'); chunks.push(value); } }
+    try { for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > 2_000_000) throw new HistorySourceError(t('사이트의 목록 응답이 너무 큽니다.', "The article list response is too large.")); chunks.push(value); } }
     finally { await reader.cancel().catch(() => {}); }
     const bytes = new Uint8Array(size); let at = 0; for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.length; }
     return { text: new TextDecoder().decode(bytes), url, links: response.headers.get('Link') || '' };
   }
-  throw new HistorySourceError('사이트 이동이 너무 많습니다.');
+  throw new HistorySourceError(t('사이트 이동이 너무 많습니다.', "The site redirected too many times."));
 }
 function nextRss(text: string, url: string, header: string): string | null {
   const parsed = new XMLParser({ ignoreAttributes: false }).parse(text), channel = parsed.feed || parsed.rss?.channel || {};
@@ -102,15 +103,15 @@ export async function readHistorySource(source: HistorySource, env: Env): Promis
   if (source.kind === 'x-start') { const parsed = await fetchAndParseFeed(source.url, env.DB); return { articles: parsed.articles, next: parsed.xOlder ? { kind: 'x-page', url: source.url, x: parsed.xOlder } : null }; }
   if (source.kind === 'x-page') {
     const page = await fetchXOlderPage(source.url, source.x!, parseXmlFeedContent, env.DB);
-    if (page === 'limited') throw new HistorySourceError('X 공개 피드 제공 경로가 쉬는 중입니다. 잠시 뒤 이어받아 주세요.', Date.now() + 60_000);
-    if (page === 'failed') throw new HistorySourceError('X의 과거 글 목록을 받지 못했습니다. 잠시 뒤 이어받아 주세요.');
+    if (page === 'limited') throw new HistorySourceError(t('X 공개 피드 제공 경로가 쉬는 중입니다. 잠시 뒤 이어받아 주세요.', "The public X feed is temporarily unavailable. Resume in a moment."), Date.now() + 60_000);
+    if (page === 'failed') throw new HistorySourceError(t('X의 과거 글 목록을 받지 못했습니다. 잠시 뒤 이어받아 주세요.', "Could not load older X posts. Resume in a moment."));
     return { articles: page.articles, next: page.older ? { ...source, x: page.older, offset: 0 } : null };
   }
   const pageUrl = source.params ? `${source.url}?${new URLSearchParams(source.params)}` : source.url;
   const page = await readPage(pageUrl, source.kind === 'rss' ? 'application/rss+xml,application/atom+xml,application/xml;q=0.9' : source.kind === 'news-json' ? 'application/json' : 'text/html');
   if (source.kind === 'rss') { const parsed = parseXmlFeedContent(page.text, page.url), next = nextRss(page.text, page.url, page.links); return { articles: parsed.articles, next: parsed.articles.length && next ? { kind: 'rss', url: next } : null }; }
   if (source.kind === 'news-json') {
-    const json = JSON.parse(page.text); if (json.result !== 'success' || !Array.isArray(json.data)) throw new HistorySourceError('사이트의 과거 목록 형식이 바뀌었습니다.');
+    const json = JSON.parse(page.text); if (json.result !== 'success' || !Array.isArray(json.data)) throw new HistorySourceError(t('사이트의 과거 목록 형식이 바뀌었습니다.', "The site’s archive format changed."));
     const articles: ParsedArticle[] = json.data.slice(0, 100).flatMap((item: Record<string, unknown>) => {
       const id = String(item.idxno || ''); if (!/^\d{1,12}$/.test(id)) return [];
       const url = new URL(`/news/articleView.html?idxno=${id}`, source.url).href, title = plain(decoded(item.title)); if (!title) return [];
@@ -125,7 +126,7 @@ export async function readHistorySource(source: HistorySource, env: Env): Promis
   if (source.kind === 'site' && new URL(page.url).pathname === '/') { const next = archiveLink(page.text, page.url); if (next) return { articles: [], next: { kind: 'html', url: next }, discovery: true }; }
   let parsed: { articles: ParsedArticle[]; selector: string | undefined };
   const pick = source.selector ? decodePick(source.selector) : null;
-  if (source.selector?.startsWith('sitemap:')) throw new HistorySourceError('사이트맵 피드는 공개 기사 목록을 제공하는 사이트에서 과거 글을 가져올 수 있습니다.');
+  if (source.selector?.startsWith('sitemap:')) throw new HistorySourceError(t('사이트맵 피드는 공개 기사 목록을 제공하는 사이트에서 과거 글을 가져올 수 있습니다.', "A sitemap feed can fetch older articles from a site with a public article archive."));
   if (pick && source.selector) {
     const analysis = analysePicked(page.text, page.url, source.selector, pick); const feed = builderParsedFeed(analysis, source.selector, source.url); parsed = { articles: feed.articles, selector: source.selector };
   } else parsed = htmlArticles(page.text, page.url, source.selector);

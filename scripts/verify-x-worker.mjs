@@ -7,12 +7,14 @@ const bundled = await build({
   stdin: { contents: `
     import { Hono } from 'hono';
     import { xRoutes } from './src/server/xConnection';
+    import { requestLang, runWithLang } from './src/server/requestLang';
     const app = new Hono();
+    app.use('*', (c, next) => runWithLang(requestLang(c.req.raw), next));
     app.use('*', async (c, next) => { c.set('user', c.req.header('x-test-user') === 'other' ? { id: 'other-user', email: 'other@example.test' } : { id: 'worker-user', email: 'worker@example.test' }); await next(); });
     app.route('/api/x', xRoutes);
     export default { fetch: (request, env) => app.fetch(request, env) };
   `, resolveDir: process.cwd(), sourcefile: 'x-worker-check.ts', loader: 'ts' },
-  bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022', logLevel: 'silent',
+  bundle: true, write: false, format: 'esm', platform: 'browser', target: 'es2022', logLevel: 'silent', external: ['node:async_hooks'],
 });
 let mode = 'success';
 let failure;
@@ -35,11 +37,15 @@ const worker = new Miniflare({
     return json({ data: [{ id: '9', name: 'NASA', username: 'NASA' }], meta: { result_count: 1 } });
   },
 });
-const post = (path, body, identity = 'owner') => worker.dispatchFetch(`https://sfeed.test/api/x/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': identity }, body: JSON.stringify(body) });
+const post = (path, body, identity = 'owner') => worker.dispatchFetch(`https://sfeed.test/api/x/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': identity, 'X-Feedex-Lang': 'ko' }, body: JSON.stringify(body) });
 const payload = { code: 'worker-approval-code', verifier: 'v'.repeat(64) };
 try {
   const deniedConfig = await worker.dispatchFetch('https://sfeed.test/api/x/config', { headers: { 'x-test-user': 'other' } });
   assert.equal(deniedConfig.status, 403); assert.equal((await deniedConfig.json()).code, 'x_owner_required');
+  const deniedIn = (language) => worker.dispatchFetch('https://sfeed.test/api/x/config', { headers: { 'x-test-user': 'other', 'X-Feedex-Lang': language } }).then(response => response.json());
+  const [english, korean] = await Promise.all([deniedIn('en'), deniedIn('ko')]);
+  assert.equal(english.error, 'Only the owner can import an X following list.');
+  assert.match(korean.error, /운영자 계정만/);
   const deniedConnect = await post('connect', payload, 'other');
   assert.equal(deniedConnect.status, 403); assert.equal(calls.length, 0, '일반 회원은 외부 X 요청 전에 차단한다.');
   const ownerConfig = await worker.dispatchFetch('https://sfeed.test/api/x/config');

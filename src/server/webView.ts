@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { parseHTML } from 'linkedom';
 import { fetchPage, renderPage, webCopy } from './rssBuilder';
 import type { Env } from './types';
@@ -24,5 +25,5 @@ export async function fetchWebView(url: string, env: Pick<Env, 'BROWSER'>, phone
     const rendered = await renderPage(url, env, 'article', phone);
     if (usable(rendered.html)) return { html: webCopy(rendered.html, rendered.url, assets), url: rendered.url };
   }
-  throw new Error('원문 사이트를 표시하지 못했습니다.');
+  throw new Error(t('원문 사이트를 표시하지 못했습니다.', "Could not display the original site."));
 }

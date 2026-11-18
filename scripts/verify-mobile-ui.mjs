@@ -72,11 +72,11 @@ try {
     const options = drawerSource.slice(drawerSource.indexOf('const shareOptions = (close: () => void) => {'), drawerSource.indexOf('return (\n    <div className="feedex-article-reader'));
     // 다른 앱으로 공유는 휴대폰(터치 화면)에서만 맨 위에 둔다. 컴퓨터의 시스템 공유는 이메일 정도만 떠서 쓸모가 없다.
     assert.match(options, /const phoneShare = isMobile && [^;]*navigator\.share === 'function'[^;]*\(pointer: coarse\)/, 'other apps appear only on touch phones');
-    assert.match(options, /\{phoneShare && <button[^\n]*다른 앱으로 공유<\/button>\}\s*<button[^>]*>.*링크 복사/, 'on phones other apps come first');
+    assert.match(options, /\{phoneShare && <button[^\n]*shareWithDevice[^\n]*<\/button>\}\s*<button[^\n]*onCopyLink/, 'on phones other apps come first');
     assert.equal(options.match(/다른 앱으로 공유/g).length, 1, 'desktops do not list other apps at the bottom');
-    for (const label of ['링크 복사', 'Slap에 공유', 'X에 공유', 'Threads에 공유', '텔레그램으로 공유', '이메일로 공유']) assert.ok(options.includes(label), label);
-    assert.match(options, /<button type="button"[^\n]+links\.x[^\n]+X에 공유<\/button>/, 'the X action survives social share link filters');
-    assert.match(options, /<button type="button"[^\n]+links\.telegram[^\n]+텔레그램으로 공유<\/button>/, 'the Telegram action survives social share link filters');
+    for (const label of ['Copy link', 'Share to Slap', 'Share to X', 'Share to Threads', 'Share to Telegram', 'Share by email']) assert.ok(options.includes(label), label);
+    assert.match(options, /<button type="button"[^\n]+openShareLink\(links\.x, close\)[^\n]+<\/button>/, 'the X action survives social share link filters');
+    assert.match(options, /<button type="button"[^\n]+openShareLink\(links\.telegram, close\)[^\n]+<\/button>/, 'the Telegram action survives social share link filters');
     for (const label of ['제목과 링크 복사', '요약과 함께 복사']) assert.ok(!drawerSource.includes(label), `${label} is not offered`);
     // 시스템 공유는 누른 순간 메뉴를 닫기 전에 연다. 열지 못하면 링크를 복사해 둔다.
     const device = drawerSource.slice(drawerSource.indexOf('const shareWithDevice = (close: () => void) => {'), drawerSource.indexOf('const shareOptions = (close'));
@@ -167,7 +167,7 @@ try {
   assert.match(readFileSync(new URL('../src/index.css', import.meta.url), 'utf8'), /:has\(\.feedex-web-pager\[data-sliding\]\)[^{]*\{ visibility: hidden !important; transition: none !important; \}/, 'bars are only hidden, not removed, while sliding back');
   assert.match(drawer, /const measure = \(\) => \{ if \(!top\.offsetHeight\) return;/, 'a bar measured at zero height does not move the site');
   // 위쪽 ... 메뉴의 첫 항목은 AI 요약이다.
-  assert.match(drawer, /aria-label="본문 도구">\s*(?:\{\/\*[^]*?\*\/\}\s*)?<button aria-pressed=\{aiOpen\} onClick=\{\(\) => \{ closeMobileMenu\(\); toggleAiSummary\(\); \}\}>/, 'the top more menu offers the AI summary first');
+  assert.match(drawer, /className="feedex-mobile-reader-menu"[^\n]+>\s*(?:\{\/\*[^]*?\*\/\}\s*)?<button aria-pressed=\{aiOpen\} onClick=\{\(\) => \{ closeMobileMenu\(\); toggleAiSummary\(\); \}\}>/, 'the top more menu offers the AI summary first');
   // 휴대폰 다듬기: 한국어 줄바꿈, 피드 제외 창의 키보드, 사진 보기의 안전 영역과 아래로 밀어 닫기, 번역 띠 한 줄.
   const styles = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
   assert.match(styles, /body \{ word-break: keep-all; overflow-wrap: break-word; \}/, 'Korean lines break between words');
@@ -188,6 +188,6 @@ try {
   assert.match(loginView, /script\.src = 'https:\/\/accounts\.google\.com\/gsi\/client';[\s\S]*?loadGsi\(\);\s*tryInitGsi\(\);/, 'the login screen loads Google sign-in itself');
   assert.match(loginView, /<p className="hidden lg:block /, 'phones skip the long intro'); assert.match(loginView, /<div className="hidden lg:grid /, 'phones skip the feature cards');
   const installCard = readFileSync(new URL('../src/components/PwaInstall.tsx', import.meta.url), 'utf8');
-  assert.match(installCard, /aria-label="설치 안내 하루 동안 숨기기"[^>]*className="[^"]*h-10 w-10/, 'the install card close button is finger sized');
+  assert.match(installCard, /onClick=\{prompt\.dismiss\}[^>]*className="[^"]*h-10 w-10/, 'the install card close button is finger sized');
   console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, share links, Slap sharing that opens the installed app (or tells iPhone to open it), phone-only system sharing that falls back to copying, a clipboard fallback, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
 } finally { await vite.close(); }

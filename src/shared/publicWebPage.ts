@@ -1,3 +1,4 @@
+import { t } from './i18n';
 // 서버 요청을 막는 언론사의 공개 기사 페이지만 기기 렌더러를 쓸 수 있다.
 // 계정 주소, 토큰, 쿠키는 절대 넘기지 않는다.
 const DEVICE_SITES = [
@@ -25,7 +26,7 @@ const MAX_HTML_BYTES = 2_000_000;
 
 async function fetchPublicResponse(value: string, options: PublicPageOptions, format: 'html' | 'content') {
   const url = publicDeviceArticle(value); if (!url) return null;
-  if (options.timeoutMs !== undefined && options.timeoutMs <= 0) throw new Error('웹 사본 응답이 늦어지고 있습니다. 다시 시도해 주세요.');
+  if (options.timeoutMs !== undefined && options.timeoutMs <= 0) throw new Error(t('웹 사본 응답이 늦어지고 있습니다. 다시 시도해 주세요.', 'The web copy is taking too long. Please try again.'));
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.min(options.timeoutMs ?? 20000, 20000));
   try {
@@ -34,14 +35,14 @@ async function fetchPublicResponse(value: string, options: PublicPageOptions, fo
       // 캐시를 건너뛰는 요청(X-No-Cache)은 매번 원문 사이트에 새로 가서 요청 제한에 다시 걸리므로 보내지 않는다.
       headers: { Accept: 'application/json', ...(format === 'html' ? { 'X-Return-Format': 'html', 'X-Timeout': '15' } : {}) },
     });
-    if (!response.ok) { await response.body?.cancel(); throw new Error(`공개 웹 사본 응답 오류 (HTTP ${response.status})`); }
-    const reader = response.body?.getReader(); if (!reader) throw new Error('공개 웹 사본이 비어 있습니다.');
+    if (!response.ok) { await response.body?.cancel(); throw new Error(t(`공개 웹 사본 응답 오류 (HTTP ${response.status})`, `Public web copy error (HTTP ${response.status})`)); }
+    const reader = response.body?.getReader(); if (!reader) throw new Error(t('공개 웹 사본이 비어 있습니다.', 'The public web copy is empty.'));
     const chunks: Uint8Array[] = []; let size = 0;
     try {
       for (;;) {
         const { done, value: chunk } = await reader.read(); if (done) break;
         size += chunk.byteLength;
-        if (size > MAX_HTML_BYTES) throw new Error('공개 웹 사본이 너무 큽니다.');
+        if (size > MAX_HTML_BYTES) throw new Error(t('공개 웹 사본이 너무 큽니다.', 'The public web copy is too large.'));
         chunks.push(chunk);
       }
     } finally { await reader.cancel().catch(() => {}); }
@@ -49,8 +50,8 @@ async function fetchPublicResponse(value: string, options: PublicPageOptions, fo
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
     return { body: new TextDecoder().decode(bytes), url };
   } catch (error) {
-    if (controller.signal.aborted) throw new Error('웹 사본 응답이 늦어지고 있습니다. 다시 시도해 주세요.');
-    if (error instanceof TypeError) throw new Error('웹 사본에 연결하지 못했습니다. 연결 상태를 확인해 주세요.');
+    if (controller.signal.aborted) throw new Error(t('웹 사본 응답이 늦어지고 있습니다. 다시 시도해 주세요.', 'The web copy is taking too long. Please try again.'));
+    if (error instanceof TypeError) throw new Error(t('웹 사본에 연결하지 못했습니다. 연결 상태를 확인해 주세요.', 'Could not reach the web copy. Check your connection.'));
     throw error;
   } finally { clearTimeout(timer); }
 }
@@ -58,13 +59,13 @@ async function fetchPublicResponse(value: string, options: PublicPageOptions, fo
 interface RenderedData { html?: string; content?: string; title?: string; url?: string; finalUrl?: string }
 function renderedResponse(body: string, requested: string): { data: RenderedData; url: string } {
   let envelope: { code?: number; data?: RenderedData };
-  try { envelope = JSON.parse(body); } catch { throw new Error('원본 HTML 형식이 아닙니다.'); }
-  if (!envelope || !envelope.data || typeof envelope.data !== 'object') throw new Error('웹 사본 HTML이 비어 있습니다.');
-  if (Number(envelope.code) >= 400) throw new Error(`공개 웹 사본 응답 오류 (HTTP ${envelope.code})`);
+  try { envelope = JSON.parse(body); } catch { throw new Error(t('원본 HTML 형식이 아닙니다.', 'The response is not HTML.')); }
+  if (!envelope || !envelope.data || typeof envelope.data !== 'object') throw new Error(t('웹 사본 HTML이 비어 있습니다.', 'The web copy HTML is empty.'));
+  if (Number(envelope.code) >= 400) throw new Error(t(`공개 웹 사본 응답 오류 (HTTP ${envelope.code})`, `Public web copy error (HTTP ${envelope.code})`));
   const data = envelope.data;
-  if (data.url && publicDeviceArticle(data.url)?.replace(/\/$/, '') !== requested.replace(/\/$/, '')) throw new Error('요청한 기사의 응답이 아닙니다.');
+  if (data.url && publicDeviceArticle(data.url)?.replace(/\/$/, '') !== requested.replace(/\/$/, '')) throw new Error(t('요청한 기사의 응답이 아닙니다.', 'The response is not for the requested article.'));
   const url = publicDeviceArticle(data.finalUrl || requested);
-  if (!url || new URL(url).origin !== new URL(requested).origin) throw new Error('허용되지 않은 기사 이동 주소입니다.');
+  if (!url || new URL(url).origin !== new URL(requested).origin) throw new Error(t('허용되지 않은 기사 이동 주소입니다.', 'The article redirected to a disallowed address.'));
   return { data, url };
 }
 
@@ -73,10 +74,10 @@ export async function fetchPublicWebPage(value: string, options: PublicPageOptio
   let html = response.body, url = response.url;
   if (html.trimStart().startsWith('{')) {
     const rendered = renderedResponse(html, url);
-    if (typeof rendered.data.html !== 'string') throw new Error('웹 사본 HTML이 비어 있습니다.');
+    if (typeof rendered.data.html !== 'string') throw new Error(t('웹 사본 HTML이 비어 있습니다.', 'The web copy HTML is empty.'));
     html = rendered.data.html; url = rendered.url;
   }
-  if (!/^\s*(?:<!doctype\s+html[^>]*>\s*)?<html[\s>]/i.test(html)) throw new Error('원본 HTML 형식이 아닙니다.');
+  if (!/^\s*(?:<!doctype\s+html[^>]*>\s*)?<html[\s>]/i.test(html)) throw new Error(t('원본 HTML 형식이 아닙니다.', 'The response is not HTML.'));
   return { html, url };
 }
 

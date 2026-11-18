@@ -9,10 +9,11 @@ import { useCopyTheme } from '../client/copyTheme';
 import { useXPostFrame, useXReadingCarry } from '../client/xPostFrame';
 import { X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
 import type { XPost } from '../client/xTimeline';
+import { t } from '../shared/i18n';
 
 export interface XPostTarget { articleId: string; url: string; quote?: XPost['quote'] }
 type Copy = { html: string; url: string; thread?: boolean; partial?: boolean; translationProof?: string };
-type Translation = { html: string; provider: string; alreadyKorean?: boolean; notice?: string };
+type Translation = { html: string; provider: string; alreadyTargetLanguage?: boolean; alreadyKorean?: boolean; notice?: string };
 type Summary = { copy: Copy; open: boolean; pending: boolean; text?: string; error?: string };
 /** 사본이 다 그려지기를 기다리며 미리보기를 덮어 두는 최대 시간. 이미지가 멈춰도 이 뒤에는 사본을 보여 준다. */
 const PREVIEW_HOLD_MS = 3000;
@@ -46,7 +47,8 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
   const [translationError, setTranslationError] = useState('');
   const translationRequest = useRef<AbortController | null>(null);
   const result = activeCopy && translation?.copy === activeCopy ? translation.result : null;
-  const showTranslation = Boolean(translated && result && !result.alreadyKorean);
+  const alreadyTranslated = result?.alreadyTargetLanguage ?? result?.alreadyKorean;
+  const showTranslation = Boolean(translated && result && !alreadyTranslated);
   const [summary, setSummary] = useState<Summary | null>(null);
   const summaryRequest = useRef<AbortController | null>(null);
   const activeSummary = summary?.copy === activeCopy ? summary : null;
@@ -73,7 +75,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     const textHtml = paragraphs.length
       ? paragraphs.map((p) => `<p>${escape(p).replace(/\n/g, '<br>')}</p>`).join('')
       : `<p>${escape(quote?.text || '')}</p>`;
-    return xThreadPreview({ ...source, url, title: quote?.text || '글을 불러오는 중…', published_at: '', feed_title: `${quote?.name || handle} (@${handle})`, feed_html_url: `https://x.com/${handle}`, feed_favicon: null, content_html: `${textHtml}${media}` }, Boolean(error));
+    return xThreadPreview({ ...source, url, title: quote?.text || t('글을 불러오는 중…', 'Loading post…'), published_at: '', feed_title: `${quote?.name || handle} (@${handle})`, feed_html_url: `https://x.com/${handle}`, feed_favicon: null, content_html: `${textHtml}${media}` }, Boolean(error));
   }, [url, activeQuote, handle, source, error]);
   useEffect(() => {
     let active = true;
@@ -91,7 +93,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       // 원글을 못 불러온 답글 사본은 저장하지 않고 다음에 다시 받는다.
       if (!result.partial) await writeContent(accountId, key, result);
     };
-    void load().catch(() => { if (active) setError('글을 불러오지 못했어요. 다시 시도해 주세요.'); });
+    void load().catch(() => { if (active) setError(t('글을 불러오지 못했어요. 다시 시도해 주세요.', 'Could not load the post. Please try again.')); });
     return () => { active = false; controller.abort(); };
   }, [accountId, source.id, url, retry]);
   useEffect(() => {
@@ -120,7 +122,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       if (translationRequest.current !== controller) return;
       setTranslation({ copy: activeCopy, result: response }); setTranslated(true);
     } catch (err) {
-      if (translationRequest.current === controller) setTranslationError(err instanceof Error ? err.message : '번역하지 못했어요. 다시 시도해 주세요.');
+      if (translationRequest.current === controller) setTranslationError(err instanceof Error ? err.message : t('번역하지 못했어요. 다시 시도해 주세요.', 'Could not translate. Please try again.'));
     } finally {
       if (translationRequest.current === controller) { translationRequest.current = null; setTranslating(false); }
     }
@@ -137,7 +139,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       });
       if (summaryRequest.current === controller) setSummary({ ...pending, pending: false, text: response.aiSummary });
     } catch (error) {
-      if (summaryRequest.current === controller) setSummary({ ...pending, pending: false, error: error instanceof Error ? error.message : '요약하지 못했어요. 다시 시도해 주세요.' });
+      if (summaryRequest.current === controller) setSummary({ ...pending, pending: false, error: error instanceof Error ? error.message : t('요약하지 못했어요. 다시 시도해 주세요.', 'Could not summarize. Please try again.') });
     } finally {
       if (summaryRequest.current === controller) summaryRequest.current = null;
     }
@@ -172,13 +174,13 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       return () => clearTimeout(timer);
     }
   }, [isReady, holdingPreview]);
-  const frameTitle = `${activeQuote?.name || handle} X 글`;
+  const frameTitle = t(`${activeQuote?.name || handle} X 글`, `X post by ${activeQuote?.name || handle}`);
   const frameStyle = { colorScheme: isDark ? 'dark' : 'light' } as const;
-  const translateAction = translating ? '번역 취소' : showTranslation ? '원문 보기' : '번역';
-  const summaryAction = activeSummary?.pending ? '요약 취소' : activeSummary?.open ? '요약 닫기' : '요약';
-  return <section aria-label="앱에서 X 글 보기" className={`feedex-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto flex h-full min-h-0 min-w-0 w-full flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
+  const translateAction = translating ? t('번역 취소', 'Cancel translation') : showTranslation ? t('원문 보기', 'Show original') : t('번역', 'Translate');
+  const summaryAction = activeSummary?.pending ? t('요약 취소', 'Cancel summary') : activeSummary?.open ? t('요약 닫기', 'Close summary') : t('요약', 'Summary');
+  return <section aria-label={t('앱에서 X 글 보기', 'X post in the app')} className={`feedex-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto flex h-full min-h-0 min-w-0 w-full flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
     <header className={`feedex-linked-post-header flex items-center gap-2 border-b px-3 py-3 ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
-      <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2" onClick={back}><ChevronLeft size={21} /><span>{trail.length > 1 ? '이전 글' : '원래 글'}</span></button>
+      <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2" onClick={back}><ChevronLeft size={21} /><span>{trail.length > 1 ? t('이전 글', 'Previous') : t('원래 글', 'Back')}</span></button>
       <span className="min-w-0 flex-1 truncate text-sm text-slate-500">@{url.split('/')[3]}</span>
       <button type="button" aria-label={translateAction} title={translateAction} aria-pressed={showTranslation} disabled={!isReady}
         className="p-3 disabled:opacity-40" onClick={() => void toggleTranslation()}>
@@ -187,18 +189,18 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
       <button type="button" aria-label={summaryAction} title={summaryAction} aria-pressed={activeSummary?.open ?? false} disabled={!isReady}
         className={`inline-flex items-center gap-1.5 p-3 disabled:opacity-40 ${activeSummary?.open ? 'text-emerald-600 dark:text-emerald-400' : ''}`} onClick={toggleSummary}>
         {activeSummary?.pending ? <Loader2 size={19} className="animate-spin" /> : <Sparkles size={19} />}
-        <span className="hidden sm:inline text-xs font-semibold">요약</span>
+        <span className="hidden sm:inline text-xs font-semibold">{t('요약', 'Summary')}</span>
       </button>
-      <button type="button" aria-label="X 글 새로고침" className="p-3" onClick={() => { setCopy(null); setRetry((value) => value + 1); }}><RefreshCw size={19} /></button>
-      <a href={url} target="_blank" rel="noopener noreferrer" aria-label="X에서 열기" className="p-3"><ExternalLink size={19} /></a>
+      <button type="button" aria-label={t('X 글 새로고침', 'Reload X post')} className="p-3" onClick={() => { setCopy(null); setRetry((value) => value + 1); }}><RefreshCw size={19} /></button>
+      <a href={url} target="_blank" rel="noopener noreferrer" aria-label={t('X에서 열기', 'Open on X')} className="p-3"><ExternalLink size={19} /></a>
     </header>
     {error && <p role="status" className="px-4 py-2 text-sm text-slate-500">{error}</p>}
     {(translating || translationError || (translated && result)) && <p role={translationError ? 'alert' : 'status'} className="px-4 py-2 text-sm text-slate-500">
-      {translationError || (translating ? '한국어로 번역하는 중…' : result?.alreadyKorean ? '이미 한국어로 된 글이에요.' : result?.notice || `${result?.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`)}
+      {translationError || (translating ? t('한국어로 번역하는 중…', 'Translating to English…') : alreadyTranslated ? t('이미 한국어로 된 글이에요.', 'This post is already in English.') : result?.notice || t(`${result?.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`, `Translated by ${result?.provider === 'deepl' ? 'DeepL' : 'Workers AI'}`))}
     </p>}
     {activeSummary?.open && <div className="feedex-web-summary">
       <AiSummaryCard isDark={isDark} summarizing={activeSummary.pending} summary={activeSummary.text} error={activeSummary.error || ''}
-        loadingLabel="X 글을 요약하는 중…" onRegenerate={loadSummary} onClose={toggleSummary} />
+        loadingLabel={t('X 글을 요약하는 중…', 'Summarizing the X post…')} onRegenerate={loadSummary} onClose={toggleSummary} />
     </div>}
     <WebPager enabled={isMobile} onBack={back} closes={trail.length <= 1}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
       {isReady && (

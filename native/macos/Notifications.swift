@@ -39,7 +39,7 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
             center.getNotificationSettings { [weak self] settings in
                 let denied = settings.authorizationStatus == .denied
                 Task { @MainActor in
-                    guard let self else { reply(nil, "앱 창이 닫혔습니다."); return }
+                    guard let self else { reply(nil, NativeLanguage.text("앱 창이 닫혔습니다.", "The app window closed.")); return }
                     if denied { self.openSettings(); reply(["permission": "denied"], nil); return }
                     self.center.requestAuthorization(options: [.alert, .sound]) { granted, error in
                         if let error { reply(nil, error.localizedDescription) }
@@ -54,14 +54,14 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
             } else { reply([:], nil) }
         case "show":
             guard let target = NotificationTarget(body), let title = body["title"] as? String,
-                  let text = body["body"] as? String, title.count <= 500, text.count <= 2000 else { reply(nil, "알림 내용을 확인해 주세요."); return }
+                  let text = body["body"] as? String, title.count <= 500, text.count <= 2000 else { reply(nil, NativeLanguage.text("알림 내용을 확인해 주세요.", "Check the notification content.")); return }
             let content = UNMutableNotificationContent()
             content.title = title; content.body = text; content.userInfo = target.data
             content.sound = .default
             center.add(UNNotificationRequest(identifier: target.identifier, content: content, trigger: nil)) { error in
                 if let error { reply(nil, error.localizedDescription) } else { reply([:], nil) }
             }
-        default: reply(nil, "지원하지 않는 알림 요청입니다.")
+        default: reply(nil, NativeLanguage.text("지원하지 않는 알림 요청입니다.", "This notification request is not supported."))
         }
     }
 

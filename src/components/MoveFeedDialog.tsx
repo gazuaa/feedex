@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { FolderItem } from '../client/api';
 import { ConfirmDialog } from './ConfirmDialog';
+import { t } from '../shared/i18n';
 
 const NEW = '__new';
 
@@ -24,9 +25,9 @@ export const MoveFeedDialog: React.FC<MoveFeedDialogProps> = ({
   const field = `mt-3 w-full rounded-xl border px-3 py-2 text-sm ${isDark ? 'bg-slate-950 border-slate-700 text-slate-100' : 'bg-white border-slate-300 text-slate-900'}`;
   return (
     <ConfirmDialog
-      title="폴더 옮기기"
-      confirmLabel="옮기기"
-      busyLabel="옮기는 중…"
+      title={t('폴더 옮기기', 'Move to folder')}
+      confirmLabel={t('옮기기', 'Move')}
+      busyLabel={t('옮기는 중…', 'Moving…')}
       isDark={isDark}
       busy={busy}
       error={error}
@@ -36,13 +37,13 @@ export const MoveFeedDialog: React.FC<MoveFeedDialogProps> = ({
         else if (name.trim()) onMove({ newFolder: name.trim() });
       }}
     >
-      <p><strong>{feedTitle}</strong> 피드를 옮길 폴더를 고르세요.</p>
-      <select aria-label="옮길 폴더" value={choice} onChange={(event) => setChoice(event.target.value)} className={field}>
-        <option value="">미분류</option>
-        {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}{folder.id === currentFolderId ? ' (현재)' : ''}</option>)}
-        <option value={NEW}>새 폴더 만들기…</option>
+      <p>{t('', 'Choose a folder for ')}<strong>{feedTitle}</strong>{t(' 피드를 옮길 폴더를 고르세요.', '.')}</p>
+      <select aria-label={t('옮길 폴더', 'Destination folder')} value={choice} onChange={(event) => setChoice(event.target.value)} className={field}>
+        <option value="">{t('미분류', 'Unfiled')}</option>
+        {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}{folder.id === currentFolderId ? t(' (현재)', ' (current)') : ''}</option>)}
+        <option value={NEW}>{t('새 폴더 만들기…', 'New folder…')}</option>
       </select>
-      {choice === NEW && <input autoFocus aria-label="새 폴더 이름" placeholder="새 폴더 이름" value={name} maxLength={60}
+      {choice === NEW && <input autoFocus aria-label={t('새 폴더 이름', 'New folder name')} placeholder={t('새 폴더 이름', 'New folder name')} value={name} maxLength={60}
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && name.trim() && !busy) onMove({ newFolder: name.trim() }); }}
         className={field} />}

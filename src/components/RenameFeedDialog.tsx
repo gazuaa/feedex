@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiRequest, getStoredToken, type SubscriptionItem } from '../client/api';
 import { ConfirmDialog } from './ConfirmDialog';
+import { t } from '../shared/i18n';
 
 export interface RenamedFeed { customTitle: string | null; title: string }
 export function RenameFeedDialog({ feed, isDark, onClose, onRenamed }: { feed: SubscriptionItem; isDark: boolean; onClose: () => void; onRenamed: (value: RenamedFeed) => Promise<void> }) {
@@ -16,12 +17,12 @@ export function RenameFeedDialog({ feed, isDark, onClose, onRenamed }: { feed: S
       if (!current()) return;
       await onRenamed(value);
       if (current()) onClose();
-    } catch (reason) { if (current()) setError(reason instanceof Error ? reason.message : '이름을 저장하지 못했습니다. 다시 시도해 주세요.'); }
+    } catch (reason) { if (current()) setError(reason instanceof Error ? reason.message : t('이름을 저장하지 못했습니다. 다시 시도해 주세요.', 'Could not save the name. Please try again.')); }
     finally { pending.current = false; if (current()) setBusy(false); }
   };
-  return <ConfirmDialog title="피드 이름 수정" confirmLabel="저장" busyLabel="저장 중…" isDark={isDark} busy={busy} error={error} onCancel={onClose} onConfirm={() => void save()}>
-    <label className="block"><span>피드 이름</span><input ref={input} aria-label="피드 이름" value={name} maxLength={200} disabled={busy} onChange={event => setName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void save(); } }} className={`mt-2 w-full rounded-xl border px-3 py-2.5 ${isDark ? 'border-slate-700 bg-slate-950' : 'border-slate-300 bg-white'}`} /></label>
-    <p className="mt-3 text-xs text-slate-400">내 계정의 모든 기기에 적용됩니다. 비워서 저장하면 원래 피드 이름으로 돌아갑니다.</p>
-    {feed.custom_title && <button type="button" disabled={busy} onClick={() => { setName(''); input.current?.focus(); }} className="mt-3 text-xs text-emerald-500 underline">원래 이름 사용</button>}
+  return <ConfirmDialog title={t('피드 이름 수정', 'Rename feed')} confirmLabel={t('저장', 'Save')} busyLabel={t('저장 중…', 'Saving…')} isDark={isDark} busy={busy} error={error} onCancel={onClose} onConfirm={() => void save()}>
+    <label className="block"><span>{t('피드 이름', 'Feed name')}</span><input ref={input} aria-label={t('피드 이름', 'Feed name')} value={name} maxLength={200} disabled={busy} onChange={event => setName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void save(); } }} className={`mt-2 w-full rounded-xl border px-3 py-2.5 ${isDark ? 'border-slate-700 bg-slate-950' : 'border-slate-300 bg-white'}`} /></label>
+    <p className="mt-3 text-xs text-slate-400">{t('내 계정의 모든 기기에 적용됩니다. 비워서 저장하면 원래 피드 이름으로 돌아갑니다.', 'Applies on all your devices. Save it empty to go back to the original feed name.')}</p>
+    {feed.custom_title && <button type="button" disabled={busy} onClick={() => { setName(''); input.current?.focus(); }} className="mt-3 text-xs text-emerald-500 underline">{t('원래 이름 사용', 'Use original name')}</button>}
   </ConfirmDialog>;
 }

@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { useLayoutEffect, useSyncExternalStore, type RefObject } from 'react';
 
 // 데스크톱 앱 안에서 열렸을 때만 있는 연결. 크롬 앱이나 일반 브라우저에는 없다.
@@ -6,6 +7,7 @@ import { useLayoutEffect, useSyncExternalStore, type RefObject } from 'react';
 export type NativeRect = { x: number; y: number; width: number; height: number };
 export type NativeMessage =
   | { type: 'signIn' }
+  | { type: 'language'; preference: 'system' | 'ko' | 'en' }
   | { type: 'checkForUpdates' }
   | { type: 'appScale'; action: 'smaller' | 'larger' | 'reset' }
   | { type: 'article'; url: string | null; rect?: NativeRect; zoom?: number; hidden?: boolean }
@@ -47,7 +49,7 @@ export function nativeFeatures(host: { feedexAppFeatures?: unknown } = globalThi
   return Array.isArray(features) ? features.filter((feature): feature is string => typeof feature === 'string') : [];
 }
 /** 화면에 쓰는 앱 이름과 운영체제 이름. */
-export const nativeAppName = (platform: NativePlatform | null = nativePlatform()) => platform === 'windows' ? '윈도우 앱' : '맥 앱';
+export const nativeAppName = (platform: NativePlatform | null = nativePlatform()) => platform === 'windows' ? t('윈도우 앱', "Windows app") : t('맥 앱', "Mac app");
 export const nativeSystemName = (platform: NativePlatform | null = nativePlatform()) => platform === 'windows' ? 'Windows' : 'macOS';
 /** 데스크톱 앱이 연 시스템 로그인 창(맥은 Safari, 윈도우는 기본 브라우저) 안인지. 이 창에서는 로그인한 계정을 앱에 넘기기만 한다. */
 export const inNativeSignInWindow = (search = typeof location === 'undefined' ? '' : location.search) => new URLSearchParams(search).has('native-sign-in');

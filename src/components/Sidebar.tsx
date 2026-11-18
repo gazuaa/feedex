@@ -29,6 +29,7 @@ import type {
   UserProfile,
   BootstrapResponse,
 } from '../client/api';
+import { t, locale } from '../shared/i18n';
 
 interface SidebarProps {
   user: UserProfile;
@@ -151,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               type="button"
               onClick={(e) => toggleFolderCollapse(folder.id, e)}
-              aria-label={`${folder.name} ${isCollapsed ? '펼치기' : '접기'}`}
+              aria-label={isCollapsed ? t(`${folder.name} 펼치기`, `Expand ${folder.name}`) : t(`${folder.name} 접기`, `Collapse ${folder.name}`)}
               aria-expanded={!isCollapsed}
               className="p-0.5 rounded hover:bg-slate-700/40 text-slate-400 cursor-pointer"
             >
@@ -183,7 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 e.stopPropagation();
                 onDeleteFolder(folder.id);
               }}
-              title="폴더 삭제"
+              title={t('폴더 삭제', 'Delete folder')}
               className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-500 hover:text-rose-400 transition cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -195,7 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="pl-5 space-y-0.5">
             {folderSubs.length === 0 ? (
               <div className="px-3 py-1 text-[11px] text-slate-500">
-                비어 있는 폴더
+                {t('비어 있는 폴더', 'Empty folder')}
               </div>
             ) : (
               folderSubs.map((sub) => {
@@ -232,7 +233,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <Rss className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                       )}
                       <span className={`truncate ${sub.paused_at ? 'opacity-60' : ''}`}>{sub.title}</span>
-                      {sub.paused_at && <Pause role="img" aria-label="업데이트 중지됨" className="w-3 h-3 shrink-0 text-slate-500" />}
+                      {sub.paused_at && <Pause role="img" aria-label={t('업데이트 중지됨', 'Updates paused')} className="w-3 h-3 shrink-0 text-slate-500" />}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {getFeedCount(sub) > 0 && (
@@ -246,7 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           e.stopPropagation();
                           onToggleUpdates(sub);
                         }}
-                        title={sub.paused_at ? '업데이트 다시 받기' : '업데이트 중지'}
+                        title={sub.paused_at ? t('업데이트 다시 받기', 'Resume updates') : t('업데이트 중지', 'Pause updates')}
                         className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-emerald-400 transition cursor-pointer"
                       >
                         {sub.paused_at ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
@@ -257,7 +258,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           e.stopPropagation();
                           onUnsubscribe(sub.id, sub.title);
                         }}
-                        title="구독 취소"
+                        title={t('구독 취소', 'Unsubscribe')}
                         className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-rose-400 transition cursor-pointer"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -284,7 +285,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <aside
         id="feed-channel-pane"
-        aria-label="피드 채널"
+        aria-label={t('피드 채널', 'Feed channels')}
         className={`feedex-sidebar fixed lg:static inset-y-0 left-0 z-50 w-72 min-h-0 shrink-0 flex flex-col overflow-hidden border-r lg:border-r-0 transition-transform duration-200 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${
@@ -308,7 +309,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             type="button"
-            aria-label="피드 채널 닫기"
+            aria-label={t('피드 채널 닫기', 'Close feed channels')}
             onClick={onCloseMobile}
             className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white"
           >
@@ -326,19 +327,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full py-2.5 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm shadow-emerald-500/20 transition cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>피드 추가 · 추천 탐색</span>
+            <span>{t('피드 추가 · 추천 탐색', 'Add feeds · browse suggestions')}</span>
           </button>
         </div>
 
-        <nav aria-label="글 보기" className={`mx-3 mb-4 grid grid-cols-3 shrink-0 gap-1 rounded-xl border p-1 ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
+        <nav aria-label={t('글 보기', 'Article views')} className={`mx-3 mb-4 grid grid-cols-3 shrink-0 gap-1 rounded-xl border p-1 ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
           {([
-            { id: 'all', label: '전체', icon: Archive, count: counts.totalArticles },
-            { id: 'unread', label: '안 읽음', icon: null, count: counts.totalUnread },
-            { id: 'saved', label: '저장', icon: Bookmark, count: counts.savedCount },
+            { id: 'all', label: t('전체', 'All'), icon: Archive, count: counts.totalArticles },
+            { id: 'unread', label: t('안 읽음', 'Unread'), icon: null, count: counts.totalUnread },
+            { id: 'saved', label: t('저장', 'Saved'), icon: Bookmark, count: counts.savedCount },
           ] as const).map((tab) => {
             const selected = libraryTab === tab.id;
             const Icon = tab.icon;
-            return <button key={tab.id} type="button" aria-pressed={selected} title={`${tab.label} (단축키: ⌘${tab.id === 'all' ? '1' : tab.id === 'unread' ? '2' : '3'})`} onClick={() => { onSelectLibraryTab(tab.id); }} className={`min-w-0 flex flex-col items-center gap-1 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${selected ? isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white text-emerald-700 shadow-sm' : isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-white hover:text-slate-950'}`}><span className="inline-flex items-center gap-1">{Icon ? <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <span aria-hidden="true" className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"><span className="h-2 w-2 rounded-full bg-current" /></span>}<span>{tab.label}</span></span></button>;
+            return <button key={tab.id} type="button" aria-pressed={selected} title={`${tab.label} (${t('단축키', 'shortcut')}: ⌘${tab.id === 'all' ? '1' : tab.id === 'unread' ? '2' : '3'})`} onClick={() => { onSelectLibraryTab(tab.id); }} className={`min-w-0 flex flex-col items-center gap-1 rounded-lg py-2 text-xs font-semibold transition cursor-pointer ${selected ? isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white text-emerald-700 shadow-sm' : isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-white hover:text-slate-950'}`}><span className="inline-flex items-center gap-1">{Icon ? <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <span aria-hidden="true" className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"><span className="h-2 w-2 rounded-full bg-current" /></span>}<span>{tab.label}</span></span></button>;
           })}
         </nav>
 
@@ -348,17 +349,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             aria-current={isAllArticlesActive ? 'page' : undefined}
             onClick={() => { onSelectScope('all', null, null); onCloseMobile(); }}
             className={`feedex-desktop-all-articles flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition cursor-pointer ${isAllArticlesActive ? 'border-transparent bg-emerald-500/15 text-emerald-400 font-semibold' : isDark ? 'border-slate-800 hover:bg-slate-800' : 'border-slate-200 hover:bg-white'}`}
-          ><Archive size={17} className={isAllArticlesActive ? 'text-emerald-400' : 'text-emerald-500'} /><span>전체 글</span><span className="ml-auto text-xs text-slate-400">{libraryCount.toLocaleString('ko-KR')}</span><ChevronRight size={15} /></button>
+          ><Archive size={17} className={isAllArticlesActive ? 'text-emerald-400' : 'text-emerald-500'} /><span>{t('전체 글', 'All articles')}</span><span className="ml-auto text-xs text-slate-400">{libraryCount.toLocaleString(locale())}</span><ChevronRight size={15} /></button>
         </div>
 
         {/* 스크롤되는 내비게이션 트리 */}
-        <div aria-label="구독 피드 채널" role="navigation" tabIndex={0} className="feedex-channel-list flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 space-y-5 pb-4">
+        <div aria-label={t('구독 피드 채널', 'Subscribed feeds')} role="navigation" tabIndex={0} className="feedex-channel-list flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 space-y-5 pb-4">
           {/* X 구역: X 계정만 담은 폴더 */}
           {xVisibleFolders.length > 0 && (
-            <section aria-label="X 계정">
+            <section aria-label={t('X 계정', 'X accounts')}>
               <div className="flex items-center gap-1.5 px-2 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 <XLogo className="w-3 h-3" />
-                <span>X 계정 ({subscriptions.filter((sub) => sub.folder_id && xFolders.has(sub.folder_id)).length})</span>
+                <span>{t('X 계정', 'X accounts')} ({subscriptions.filter((sub) => sub.folder_id && xFolders.has(sub.folder_id)).length})</span>
               </div>
               <div className="space-y-1.5">{xVisibleFolders.map(folderBlock)}</div>
             </section>
@@ -368,16 +369,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div>
             <div className="flex items-center justify-between px-2 mb-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                피드 및 폴더 ({subscriptions.length})
+                {t('피드 및 폴더', 'Feeds and folders')} ({subscriptions.length})
               </span>
               <button
                 type="button"
                 onClick={() => setCreatingFolder((v) => !v)}
-                title="새 폴더 만들기"
+                title={t('새 폴더 만들기', 'New folder')}
                 className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
               >
                 <FolderPlus className="w-3.5 h-3.5" />
-                <span>폴더 추가</span>
+                <span>{t('폴더 추가', 'Add folder')}</span>
               </button>
             </div>
 
@@ -386,7 +387,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="flex items-center gap-1.5">
                   <input
                     type="text"
-                    placeholder="새 폴더 이름..."
+                    placeholder={t('새 폴더 이름...', 'New folder name…')}
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     autoFocus
@@ -400,7 +401,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="submit"
                     className="px-2.5 py-1.5 rounded-lg bg-emerald-500 text-slate-950 text-xs font-semibold cursor-pointer"
                   >
-                    생성
+                    {t('생성', 'Create')}
                   </button>
                 </div>
               </form>
@@ -413,7 +414,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {uncategorizedSubs.length > 0 && (
                 <div className="pt-1 space-y-0.5">
                   <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                    미분류 피드
+                    {t('미분류 피드', 'Unfiled feeds')}
                   </div>
                   {uncategorizedSubs.map((sub) => {
                     const isFeedActive =
@@ -445,7 +446,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <Rss className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                           )}
                           <span className={`truncate ${sub.paused_at ? 'opacity-60' : ''}`}>{sub.title}</span>
-                          {sub.paused_at && <Pause role="img" aria-label="업데이트 중지됨" className="w-3 h-3 shrink-0 text-slate-500" />}
+                          {sub.paused_at && <Pause role="img" aria-label={t('업데이트 중지됨', 'Updates paused')} className="w-3 h-3 shrink-0 text-slate-500" />}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           {getFeedCount(sub) > 0 && (
@@ -459,7 +460,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               e.stopPropagation();
                               onToggleUpdates(sub);
                             }}
-                            title={sub.paused_at ? '업데이트 다시 받기' : '업데이트 중지'}
+                            title={sub.paused_at ? t('업데이트 다시 받기', 'Resume updates') : t('업데이트 중지', 'Pause updates')}
                             className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-emerald-400 transition cursor-pointer"
                           >
                             {sub.paused_at ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
@@ -470,7 +471,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               e.stopPropagation();
                               onUnsubscribe(sub.id, sub.title);
                             }}
-                            title="구독 취소"
+                            title={t('구독 취소', 'Unsubscribe')}
                             className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-500 hover:text-rose-400 transition cursor-pointer"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -499,7 +500,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <Compass className="w-4 h-4 text-emerald-400" />
-              <span>추천 피드 카탈로그</span>
+              <span>{t('추천 피드 카탈로그', 'Suggested feeds')}</span>
             </button>
 
             <button
@@ -515,7 +516,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }`}
             >
               <FileCode2 className="w-4 h-4 text-blue-400" />
-              <span>OPML 가져오기 / 내보내기</span>
+              <span>{t('OPML 가져오기 / 내보내기', 'Import / export OPML')}</span>
             </button>
           </div>
         </div>
@@ -554,7 +555,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             type="button"
             onClick={onLogout}
-            title="로그아웃 / 계정 전환"
+            title={t('로그아웃 / 계정 전환', 'Sign out / switch account')}
             className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800/40 transition cursor-pointer shrink-0"
           >
             <LogOut className="w-4 h-4" />

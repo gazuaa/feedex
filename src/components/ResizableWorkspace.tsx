@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { fitPanelWidths, panelLimits, PANEL_DEFAULTS, PANEL_MIN, readPanelWidths, savePanelWidths, type PanelName } from '../client/panelWidths';
+import { t } from '../shared/i18n';
 
 interface ResizableWorkspaceProps {
   userId: string;
@@ -50,15 +51,15 @@ export function ResizableWorkspace({ userId, isDark, sidebar, header, reader, fo
 
   const splitter = (panel: PanelName) => <div
     role="separator"
-    aria-label={panel === 'channels' ? '채널과 피드 목록 너비 조절' : '피드 목록과 본문 너비 조절'}
+    aria-label={panel === 'channels' ? t('채널과 피드 목록 너비 조절', 'Resize channels and feed list') : t('피드 목록과 본문 너비 조절', 'Resize feed list and article')}
     aria-orientation="vertical"
     aria-controls={panel === 'channels' ? 'feed-channel-pane feed-article-list' : 'feed-article-list article-reader-pane'}
     aria-valuemin={PANEL_MIN[panel]}
     aria-valuemax={limits[panel]}
     aria-valuenow={widths[panel]}
-    aria-valuetext={`${widths[panel]}픽셀`}
+    aria-valuetext={t(`${widths[panel]}픽셀`, `${widths[panel]} pixels`)}
     tabIndex={0}
-    title="드래그하여 너비 조절 · 두 번 클릭하여 초기화"
+    title={t('드래그하여 너비 조절 · 두 번 클릭하여 초기화', 'Drag to resize · double-click to reset')}
     className="feedex-pane-splitter"
     onPointerDown={(event) => {
       if (event.button !== 0) return;
@@ -90,7 +91,7 @@ export function ResizableWorkspace({ userId, isDark, sidebar, header, reader, fo
       <div className="feedex-workspace-header shrink-0" inert={inactive || mobileReaderOpen || undefined} aria-hidden={mobileReaderOpen || undefined}>{header}</div>
       <div className="feedex-content-panes flex-1 min-w-0 min-h-0 overflow-hidden">
         {/* 모바일 본문이 터치를 받는 동안에도 iOS가 목록의 스크롤 입력 영역을 유지하게 한다. */}
-        <main ref={listRef} aria-hidden={mobileReaderOpen || undefined} id="feed-article-list" aria-label="피드 목록" tabIndex={inactive || mobileReaderOpen ? -1 : 0} className="feedex-feed-list min-w-0 min-h-0 overflow-y-auto overscroll-contain" onClick={(event) => {
+        <main ref={listRef} aria-hidden={mobileReaderOpen || undefined} id="feed-article-list" aria-label={t('피드 목록', 'Feed list')} tabIndex={inactive || mobileReaderOpen ? -1 : 0} className="feedex-feed-list min-w-0 min-h-0 overflow-y-auto overscroll-contain" onClick={(event) => {
           if (!onClearSelection || event.defaultPrevented) return;
           if (shouldClearListSelection(event.target)) onClearSelection();
         }} onFocusCapture={mobileReaderOpen ? () => {
@@ -99,7 +100,7 @@ export function ResizableWorkspace({ userId, isDark, sidebar, header, reader, fo
           first?.focus({ preventScroll: true });
         } : undefined}><div inert={inactive || undefined}>{children}</div></main>
         {splitter('list')}
-        <aside ref={readerRef} inert={inactive || undefined} id="article-reader-pane" aria-label="글 본문" className="feedex-reader-pane h-full min-w-0 min-h-0 overflow-hidden">{reader}</aside>
+        <aside ref={readerRef} inert={inactive || undefined} id="article-reader-pane" aria-label={t('글 본문', 'Article')} className="feedex-reader-pane h-full min-w-0 min-h-0 overflow-hidden">{reader}</aside>
       </div>
       {footer}
     </div>

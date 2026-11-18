@@ -1,5 +1,6 @@
 import type { ArticleItem, FolderItem, SubscriptionItem } from './api';
 import { isXProfileFeed } from '../shared/xFeed';
+import { isEnglish, t } from '../shared/i18n';
 
 // 안의 피드가 모두 X 계정인 폴더. 사이드바와 보관함에서 일반 폴더와 떼어 보여 준다.
 export function xFolderIds(folders: FolderItem[], subscriptions: SubscriptionItem[]): Set<string> {
@@ -99,9 +100,10 @@ export function xTime(value: string, now = Date.now()): string {
   const time = Date.parse(value);
   if (!Number.isFinite(time)) return '';
   const seconds = Math.max(0, Math.round((now - time) / 1000));
-  if (seconds < 60) return '방금';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}분`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}시간`;
+  if (seconds < 60) return t('방금', 'Now');
+  if (seconds < 3600) return t(`${Math.floor(seconds / 60)}분`, `${Math.floor(seconds / 60)}m`);
+  if (seconds < 86400) return t(`${Math.floor(seconds / 3600)}시간`, `${Math.floor(seconds / 3600)}h`);
   const date = new Date(time), today = new Date(now);
+  if (isEnglish()) return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(date.getFullYear() === today.getFullYear() ? {} : { year: 'numeric' }) });
   return date.getFullYear() === today.getFullYear() ? `${date.getMonth() + 1}월 ${date.getDate()}일` : `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
 }

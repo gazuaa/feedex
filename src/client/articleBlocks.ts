@@ -3,6 +3,7 @@ import { apiRequest, getStoredToken, type ArticleItem } from './api';
 import { normalizeBlockTitle as normalize, validArticleBlockRule as validRule, type ArticleBlockRule } from '../shared/articleBlocks';
 export { parseBlockTerms, blockRuleError, type ArticleBlockRule } from '../shared/articleBlocks';
 import { parseBlockTerms } from '../shared/articleBlocks';
+import { t } from '../shared/i18n';
 
 export type BlockArticle = Pick<ArticleItem, 'title' | 'feed_id'>;
 const EMPTY: readonly ArticleBlockRule[] = [];
@@ -71,16 +72,16 @@ export function useArticleBlockAccountSync(account: string) {
   }, [account]);
 }
 async function changeAccountRule(account: string, action: object) {
-  if (!account) throw new Error('로그인한 계정을 확인해 주세요.');
+  if (!account) throw new Error(t('로그인한 계정을 확인해 주세요.', 'Check the signed-in account.'));
   const token = getStoredToken();
   await syncArticleBlocks(account);
-  if (getStoredToken() !== token) throw new Error('계정이 변경되었습니다. 다시 로그인해 주세요.');
+  if (getStoredToken() !== token) throw new Error(t('계정이 변경되었습니다. 다시 로그인해 주세요.', 'The account changed. Please sign in again.'));
   const state = await apiRequest<AccountRules>('/api/user/article-blocks', { method: 'PUT', body: JSON.stringify(action), signal: AbortSignal.timeout(8000) });
-  if (getStoredToken() !== token) throw new Error('계정이 변경되었습니다. 다시 로그인해 주세요.');
+  if (getStoredToken() !== token) throw new Error(t('계정이 변경되었습니다. 다시 로그인해 주세요.', 'The account changed. Please sign in again.'));
   cacheAccountRules(account, state);
 }
 export async function saveArticleBlock(account: string, rule: ArticleBlockRule) {
-  if (!validRule(rule)) throw new Error('차단 규칙을 확인해 주세요.');
+  if (!validRule(rule)) throw new Error(t('차단 규칙을 확인해 주세요.', 'Check the block rule.'));
   await changeAccountRule(account, { action: 'save', rule });
 }
 export async function removeArticleBlock(account: string, id: string) {
@@ -125,7 +126,7 @@ export function suggestArticleBlock(article: Pick<ArticleItem, 'title' | 'feed_i
   }
   if (phrase.length) fixed.push(phrase.join(' '));
   const all = dailyEtf ? ['현물 ETF', '하루새'] : fixed.flatMap(parseBlockTerms).filter((term) => term.length >= 2 && term.length <= 100).slice(0, 12);
-  return { id: `block_${crypto.randomUUID()}`, name: dailyEtf ? '현물 ETF 일일 자금 흐름' : `${article.feed_title} 제목 차단`.slice(0, 120),
+  return { id: `block_${crypto.randomUUID()}`, name: dailyEtf ? t('현물 ETF 일일 자금 흐름', 'Daily spot ETF flows') : t(`${article.feed_title} 제목 차단`, `${article.feed_title} title block`).slice(0, 120),
     feedId: article.feed_id, feedTitle: article.feed_title.slice(0, 200), all: all.length ? all : [title.slice(0, 100)], any: dailyEtf ? ['순유입', '순유출'] : [], enabled: true, createdAt: new Date().toISOString() };
 }
 

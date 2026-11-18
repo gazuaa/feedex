@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 // 열려 있는 탭과 홈 화면 앱은 새로 고치기 전까지 처음 받은 앱 코드를 계속 쓴다. 그래서 고친 것을
 // 배포해도 오래 켜 둔 앱에는 닿지 않는다. 앱이 보이는 동안 정기적으로 앱 껍데기(index.html)의
 // 화면 코드와 스타일을 확인하고, 바뀌었으면 읽던 자리를 남긴 뒤 새로 고친다.
@@ -109,7 +110,7 @@ export function watchAppVersion(options: Pick<AppVersionOptions, 'canSwap' | 'be
     reload: () => window.location.reload(),
     loadShell: async () => {
       const response = await fetch('/', { cache: 'no-store', credentials: 'same-origin' });
-      if (!response.ok) throw new Error(`앱 껍데기 응답 오류 (HTTP ${response.status})`);
+      if (!response.ok) throw new Error(t(`앱 껍데기 응답 오류 (HTTP ${response.status})`, `Could not load the app (HTTP ${response.status})`));
       return response.text();
     },
   });

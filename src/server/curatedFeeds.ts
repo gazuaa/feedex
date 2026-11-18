@@ -1,3 +1,4 @@
+import { lang } from '../shared/i18n';
 import type { CuratedFeed } from './types';
 
 export const CURATED_FEEDS: CuratedFeed[] = [
@@ -161,3 +162,35 @@ export const CURATED_FEEDS: CuratedFeed[] = [
     tags: ['CSS', 'Web Design', 'UI'],
   },
 ];
+
+// 영어 화면에서 쓰는 설명·분류·폴더 이름. 피드 이름과 주소는 그대로 둔다.
+const CATEGORY_EN: Record<string, string> = { '국내 테크 & 개발': 'Korean tech & dev', 'Global Tech & AI': 'Global Tech & AI', '디자인 & 프로덕트': 'Design & product' };
+const FOLDER_EN: Record<string, string> = { '국내 테크': 'Korean tech', 'Global Tech & AI': 'Global Tech & AI', '디자인 & 프로덕트': 'Design & product' };
+const ENGLISH: Record<string, { description: string; tags?: string[] }> = {
+  geeknews: { description: 'A Korean community that summarizes and shares news on development, startups, AI and tech trends', tags: ['Dev', 'Startups', 'AI', 'Trends'] },
+  'toss-tech': { description: 'The Toss team’s blog on fintech innovation and frontend, backend and design engineering', tags: ['Frontend', 'Backend', 'Design', 'Fintech'] },
+  'woowahan-tech': { description: 'Large-scale architecture and engineering culture behind Baemin, Korea’s food delivery app', tags: ['Architecture', 'Server', 'Data', 'Culture'] },
+  'kakao-tech': { description: 'Kakao’s AI, cloud and platform engineering work and insights', tags: ['AI', 'Cloud', 'Platform'] },
+  'daangn-tech': { description: 'Daangn Market engineers on machine learning, infrastructure and mobile development', tags: ['Mobile', 'ML', 'Infra'] },
+  '44bits': { description: 'Korean tech media on cloud, containers, Kubernetes and DevOps' },
+  'hacker-news': { description: 'Real-time tech news that Silicon Valley and engineers worldwide are watching' },
+  'cloudflare-blog': { description: 'In-depth articles on edge computing, Workers, D1, network security and internet infrastructure' },
+  'openai-news': { description: 'Official updates on OpenAI model releases, research papers and AI safety' },
+  'the-verge': { description: 'News on devices, big tech, digital culture and science' },
+  techcrunch: { description: 'Breaking news on startup funding, venture capital, AI products and big tech' },
+  'mit-tech-review': { description: 'MIT’s analysis of future technology, AI, biotech and climate tech' },
+  'smashing-magazine': { description: 'In-depth UX/UI, CSS and accessibility guides for web designers and frontend engineers' },
+  'css-tricks': { description: 'Modern web design, CSS layout, interactive UI techniques and frontend tips' },
+};
+
+/** 요청한 화면 언어에 맞춘 추천 피드 목록. */
+export function localizedCuratedFeeds(): CuratedFeed[] {
+  if (lang() !== 'en') return CURATED_FEEDS;
+  return CURATED_FEEDS.map((feed) => ({
+    ...feed,
+    description: ENGLISH[feed.id]?.description ?? feed.description,
+    tags: ENGLISH[feed.id]?.tags ?? feed.tags,
+    category: CATEGORY_EN[feed.category] ?? feed.category,
+    folderSuggest: FOLDER_EN[feed.folderSuggest] ?? feed.folderSuggest,
+  }));
+}

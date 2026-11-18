@@ -1,4 +1,5 @@
 import { youtubeEmbedSrc, youtubeStartSeconds, youtubeVideoId } from './youtubeEmbed';
+import { t } from './i18n';
 
 const common = ['class', 'title', 'lang', 'dir'];
 const lazySrc = ['data-src', 'data-lazy-src', 'data-original', 'data-original-src', 'data-actualsrc', 'data-lazy'];
@@ -58,6 +59,6 @@ export function articleAttribute(tag: string, name: string, value: string, base?
 export function articleYoutube(input: Record<string, string>, base?: string) {
   const src = input.src || input['data-src'] || input['data-lazy-src'];
   const url = src && articleAttribute('iframe', 'src', src, base);
-  return url ? { src: url, title: input.title || 'YouTube 동영상', width: '560', height: '315', loading: 'lazy',
+  return url ? { src: url, title: input.title || t('YouTube 동영상', 'YouTube video'), width: '560', height: '315', loading: 'lazy',
     referrerpolicy: 'strict-origin-when-cross-origin', allow: 'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture', allowfullscreen: '' } : null;
 }

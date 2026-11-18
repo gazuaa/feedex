@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Check, Folder, FolderPlus, Inbox, Loader2 } from 'lucide-react';
 import type { FolderItem } from '../client/api';
+import { t } from '../shared/i18n';
 
 export interface FolderChoice {
   title: string;
@@ -19,7 +20,7 @@ export function SubscribeFolderStep({
   isDark,
   busy,
   error,
-  confirmLabel = '구독하기',
+  confirmLabel = t('구독하기', 'Subscribe'),
   onBack,
   onConfirm,
 }: {
@@ -73,31 +74,31 @@ export function SubscribeFolderStep({
   return (
     <form onSubmit={submit} aria-labelledby="folder-step-title" className="mx-auto w-full max-w-2xl space-y-5">
       <button type="button" disabled={busy} onClick={onBack} className="inline-flex items-center gap-1.5 text-xs text-emerald-500 hover:text-emerald-400 cursor-pointer">
-        <ArrowLeft className="w-4 h-4" />이전으로
+        <ArrowLeft className="w-4 h-4" />{t('이전으로', 'Back')}
       </button>
       <div className="flex items-center gap-3">
         <img src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`} alt="" className="w-10 h-10 rounded-xl shrink-0" />
         <div className="min-w-0">
-          <h3 id="folder-step-title" className="text-base font-bold">어느 폴더에 구독할까요?</h3>
+          <h3 id="folder-step-title" className="text-base font-bold">{t('어느 폴더에 구독할까요?', 'Which folder should it go in?')}</h3>
           <p className="text-xs text-slate-400 truncate">{feedTitle}</p>
         </div>
       </div>
-      <div role="radiogroup" aria-label="구독할 폴더" className="grid gap-2 sm:grid-cols-2">
-        {option('', '폴더 없음 (미분류)', <Inbox className="w-4 h-4 shrink-0 text-slate-400" />)}
+      <div role="radiogroup" aria-label={t('구독할 폴더', 'Folder')} className="grid gap-2 sm:grid-cols-2">
+        {option('', t('폴더 없음 (미분류)', 'No folder (unfiled)'), <Inbox className="w-4 h-4 shrink-0 text-slate-400" />)}
         {folders.map((folder) => option(folder.id, folder.name, <Folder className="w-4 h-4 shrink-0" style={{ color: folder.color }} />))}
-        {option(NEW_FOLDER, '새 폴더 만들기', <FolderPlus className="w-4 h-4 shrink-0 text-emerald-500" />)}
+        {option(NEW_FOLDER, t('새 폴더 만들기', 'New folder'), <FolderPlus className="w-4 h-4 shrink-0 text-emerald-500" />)}
       </div>
       {choice === NEW_FOLDER && (
-        <input autoFocus aria-label="새 폴더 이름" value={newName} disabled={busy} onChange={(event) => setNewName(event.target.value)} placeholder="새 폴더 이름 (예: 크립토 리서치)" className={input} />
+        <input autoFocus aria-label={t('새 폴더 이름', 'New folder name')} value={newName} disabled={busy} onChange={(event) => setNewName(event.target.value)} placeholder={t('새 폴더 이름 (예: 크립토 리서치)', 'New folder name (e.g. Crypto research)')} className={input} />
       )}
       <label className="block text-xs font-semibold">
-        피드 이름
+        {t('피드 이름', 'Feed name')}
         <input value={title} disabled={busy} onChange={(event) => setTitle(event.target.value)} className={`${input} mt-2`} />
       </label>
       {error && <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-xs text-rose-500">{error}</p>}
       <button type="submit" disabled={!ready || busy} className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 cursor-pointer disabled:opacity-50 disabled:cursor-default">
         {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-        {busy ? '구독하는 중…' : confirmLabel}
+        {busy ? t('구독하는 중…', 'Subscribing…') : confirmLabel}
       </button>
     </form>
   );

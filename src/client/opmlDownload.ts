@@ -1,4 +1,5 @@
 import { apiRequest, getStoredToken } from './api';
+import { t } from '../shared/i18n';
 
 export const OPML_BROWSER_PANEL = 'opml';
 
@@ -6,7 +7,7 @@ export async function downloadOpml(signal: AbortSignal) {
   const session = getStoredToken();
   const file = await apiRequest('/api/opml/export', { cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer', signal }, 'blob');
   if (signal.aborted || getStoredToken() !== session) return;
-  if (!/^text\/x-opml(?:;|$)/i.test(file.type) || !file.size) throw new Error('OPML 파일을 받지 못했어요. 다시 시도해 주세요.');
+  if (!/^text\/x-opml(?:;|$)/i.test(file.type) || !file.size) throw new Error(t('OPML 파일을 받지 못했어요. 다시 시도해 주세요.', 'Could not download the OPML file. Please try again.'));
 
   const url = URL.createObjectURL(file);
   const link = document.createElement('a');

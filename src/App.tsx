@@ -1,3 +1,4 @@
+import { isEnglish, t } from './shared/i18n';
 import { Filter, ShieldBan } from 'lucide-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -125,7 +126,7 @@ function BlockedArticlesChip({ showBlockedArticles, blockedCount, onToggle, onMa
       className="feedex-filter-chip feedex-block-chip"
       data-pressing={pressing || undefined}
       aria-pressed={showBlockedArticles}
-      title="누르면 차단된 글을 보거나 숨겨요. 길게 누르면 차단 규칙을 관리해요."
+      title={t("누르면 차단된 글을 보거나 숨겨요. 길게 누르면 차단 규칙을 관리해요.", "Tap to show or hide blocked articles. Press and hold to manage rules.")}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         start();
@@ -143,8 +144,8 @@ function BlockedArticlesChip({ showBlockedArticles, blockedCount, onToggle, onMa
           <ShieldBan size={15} className="feedex-shield-fill" />
         </span>
       </span>
-      <span>{showBlockedArticles ? '차단 글 숨기기' : '차단 글 보기'}</span>
-      <span className="feedex-filter-count" aria-label={`${blockedCount}개`}>{blockedCount}</span>
+      <span>{showBlockedArticles ? t('차단 글 숨기기', "Hide blocked") : t('차단 글 보기', "Show blocked")}</span>
+      <span className="feedex-filter-count" aria-label={t(`${blockedCount}개`, `${blockedCount} blocked`)}>{blockedCount}</span>
     </button>
   );
 }
@@ -1128,14 +1129,14 @@ export const App: React.FC = () => {
       feedIds.forEach((id) => confirmedFeedViews.current.set(id, result.viewMode));
       if (stateWrites.current.get(key) === work) {
         apply(saved, () => result.viewMode);
-        if (together && saved.length > 1) setNotice(`X 계정 ${saved.length.toLocaleString()}개에 같은 보기를 적용했어요.`);
+        if (together && saved.length > 1) setNotice(t(`X 계정 ${saved.length.toLocaleString()}개에 같은 보기를 적용했어요.`, `Applied the same view to ${saved.length.toLocaleString('en-US')} X accounts.`));
       }
     });
     stateWrites.current.set(key, work);
     void work.catch(() => {
       if (current() && stateWrites.current.get(key) === work) {
         apply(feedIds, (id) => confirmedFeedViews.current.get(id) ?? null);
-        setNotice('보기 방식을 동기화하지 못했습니다. 다시 선택해 주세요.');
+        setNotice(t('보기 방식을 동기화하지 못했습니다. 다시 선택해 주세요.', "Could not sync your reading view. Choose it again to retry."));
       }
     }).finally(() => {
       if (stateWrites.current.get(key) === work) { stateWrites.current.delete(key); feedIds.forEach((id) => confirmedFeedViews.current.delete(id)); }
@@ -1242,7 +1243,7 @@ export const App: React.FC = () => {
       // 다 읽었으니 새 글이 있는지 바로 확인한다. 누른 적 없는 새로고침이라 안내는 띄우지 않는다.
       void showSync(refreshFeeds(true));
     } catch {
-      setMarkReadError('읽음 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      setMarkReadError(t('읽음 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.', "Could not mark articles as read. Try again in a moment."));
     } finally {
       markingAllReadRef.current = false;
       setMarkingAllRead(false);
@@ -1266,7 +1267,7 @@ export const App: React.FC = () => {
 
   const handleDeleteFolder = async (folderId: string) => {
     setDeleteError(null);
-    setDeleteTarget({ kind: 'folder', id: folderId, name: folders.find((folder) => folder.id === folderId)?.name || '이 폴더' });
+    setDeleteTarget({ kind: 'folder', id: folderId, name: folders.find((folder) => folder.id === folderId)?.name || t('이 폴더', "This folder") });
   };
 
   useEffect(() => {
@@ -1283,10 +1284,10 @@ export const App: React.FC = () => {
       const mark = <T extends SubscriptionItem>(sub: T): T => sub.id === feed.id ? { ...sub, paused_at: pausedAt } : sub;
       setSubscriptions((prev) => prev.map(mark));
       readerCache?.updateBootstrap((data) => ({ ...data, subscriptions: data.subscriptions.map(mark) }));
-      setNotice(paused ? `${feed.title}: 새 글을 그만 받아요. 받은 글은 그대로 남아요.` : `${feed.title}: 새 글을 다시 받아요.`);
+      setNotice(paused ? t(`${feed.title}: 새 글을 그만 받아요. 받은 글은 그대로 남아요.`, `${feed.title}: Updates paused. Existing articles are still here.`) : t(`${feed.title}: 새 글을 다시 받아요.`, `${feed.title}: Updates resumed.`));
       await fetchBootstrap();
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : '바꾸지 못했습니다. 다시 시도해 주세요.');
+      setNotice(err instanceof Error ? err.message : t('바꾸지 못했습니다. 다시 시도해 주세요.', "Could not save the change. Try again."));
     }
   };
 
@@ -1308,10 +1309,10 @@ export const App: React.FC = () => {
       }
       readerCache?.touch();
       await Promise.all([fetchBootstrap(), fetchArticles()]);
-      setNotice(`${moveTarget.title}: ${folder ? `‘${folder.name}’ 폴더로` : '미분류로'} 옮겼어요.`);
+      setNotice(t(`${moveTarget.title}: ${folder ? `‘${folder.name}’ 폴더로` : '미분류로'} 옮겼어요.`, `${moveTarget.title}: ${folder ? `Moved to “${folder.name}”.` : 'Moved out of its folder.'}`));
       setMoveTarget(null);
     } catch (err) {
-      setMoveError(err instanceof Error ? err.message : '옮기지 못했습니다. 다시 시도해 주세요.');
+      setMoveError(err instanceof Error ? err.message : t('옮기지 못했습니다. 다시 시도해 주세요.', "Could not move the feed. Try again."));
     } finally {
       setMovingFeed(false);
     }
@@ -1342,7 +1343,7 @@ export const App: React.FC = () => {
       }
       setDeleteTarget(null);
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : '삭제하지 못했습니다.');
+      setDeleteError(err instanceof Error ? err.message : t('삭제하지 못했습니다.', "Could not delete this item."));
     } finally {
       setDeleting(false);
     }
@@ -1481,7 +1482,7 @@ export const App: React.FC = () => {
   );
 
   const handleCopyLink = useCallback(async (url: string) => {
-    setNotice(await copyText(url) ? '링크를 복사했어요.' : '링크를 복사하지 못했어요. 원문을 열어 주소를 복사해 주세요.');
+    setNotice(await copyText(url) ? t('링크를 복사했어요.', "Link copied.") : t('링크를 복사하지 못했어요. 원문을 열어 주소를 복사해 주세요.', "Could not copy the link. Open the original to copy its address."));
   }, []);
 
   // 전체 키보드 단축키 (↑/↓/M/S/R/A/Q/W/C/O/ESC)
@@ -1576,40 +1577,39 @@ export const App: React.FC = () => {
   const headerInfo = useMemo(() => {
     if (activeScope === 'today') {
       return {
-        title: '오늘의 아티클 (Today)',
-        subtitle: '최근 24시간 동안 발행된 새로운 소식',
+        title: t('오늘의 아티클 (Today)', "Today"),
+        subtitle: t('최근 24시간 동안 발행된 새로운 소식', "Articles published in the last 24 hours"),
       };
     }
     if (activeScope === 'saved') {
       return {
-        title: '나중에 읽기 (Read Later)',
-        subtitle: '북마크로 저장해 둔 아티클 모음',
+        title: t('나중에 읽기 (Read Later)', "Read Later"),
+        subtitle: t('북마크로 저장해 둔 아티클 모음', "Articles you bookmarked"),
       };
     }
     if (activeScope === 'folder' && activeFolderId) {
       const folder = folders.find((f) => f.id === activeFolderId);
       return {
-        title: folder ? folder.name : '폴더',
-        subtitle: '카테고리 폴더 내 전체 피드 아티클',
+        title: folder ? folder.name : t('폴더', "Folder"),
+        subtitle: t('카테고리 폴더 내 전체 피드 아티클', "Articles from all feeds in this folder"),
       };
     }
     if (activeScope === 'feed' && activeFeedId) {
       const sub = subscriptions.find((s) => s.feed_id === activeFeedId);
       return {
-        title: sub ? sub.title : '피드',
+        title: sub ? sub.title : t('피드', "Feed"),
         subtitle: sub?.description || sub?.xml_url || '',
       };
     }
     return {
-      title: unreadOnly ? '안 읽은 글' : '전체 피드 (All Feeds)',
-      subtitle: `구독 중인 ${subscriptions.length}개 피드의 최신 아티클 스트림`,
+      title: unreadOnly ? t('안 읽은 글', "Unread") : t('전체 피드 (All Feeds)', "All Feeds"),
+      subtitle: t(`구독 중인 ${subscriptions.length}개 피드의 최신 아티클 스트림`, `Latest articles from your subscriptions (${subscriptions.length})`),
     };
   }, [activeScope, activeFolderId, activeFeedId, folders, subscriptions, unreadOnly]);
 
   if (authChecking) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-sm">
-        feedex 워크스페이스를 불러오는 중...
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-sm">{t("feedex 워크스페이스를 불러오는 중...", "Loading your FeedEx workspace…")}
       </div>
     );
   }
@@ -1661,36 +1661,36 @@ export const App: React.FC = () => {
       if (isMobile) { handleSelectScope(scope === 'all' && mobileTab === 'saved' ? 'saved' : scope, folderId, feedId); setMobileSidebarOpen(false); }
       else handleSelectDesktopScope(scope, folderId, feedId);
     };
-    if (target.selection) items.push({ id: 'copy-text', label: '선택한 텍스트 복사', run: () => navigator.clipboard.writeText(target.selection!) },
+    if (target.selection) items.push({ id: 'copy-text', label: t('선택한 텍스트 복사', "Copy selected text"), run: () => navigator.clipboard.writeText(target.selection!) },
       // DeepL API 없이 사용자의 DeepL 웹 번역기로 넘긴다. X의 'DeepL로 번역'처럼 고른 글만 번역한다.
-      { id: 'deepl-selection', label: '선택한 글 DeepL로 번역', run: () => openInDeepL(target.selection!) });
+      { id: 'deepl-selection', label: t('선택한 글 DeepL로 번역', "Translate selection in DeepL"), run: () => openInDeepL(target.selection!) });
     const article = target.articleId ? articleCache.current.get(target.articleId) : null;
     const feed = target.feedId ? subscriptions.find((sub) => sub.feed_id === target.feedId) : null;
     const folder = target.folderId ? folders.find((item) => item.id === target.folderId) : null;
     if (article) {
-      items.push({ id: 'read', label: article.is_read ? '안 읽음으로 표시' : '읽음으로 표시', run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
-        { id: 'save', label: article.is_saved ? '저장 취소' : '나중에 읽기', run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
-      items.push({ id: 'deepl-article', label: '이 글 DeepL로 번역', run: () => { const latest = articleCache.current.get(article.id) ?? article; openInDeepL(`${latest.title}\n\n${htmlToText(latest.full_content_html || latest.content_html || `<p>${latest.summary || ''}</p>`)}`); } });
-      items.push({ id: 'block-title', label: '비슷한 글 숨기기…', separator: true, run: () => setBlockDialog({ accountId: user.id, article }) });
+      items.push({ id: 'read', label: article.is_read ? t('안 읽음으로 표시', "Mark as unread") : t('읽음으로 표시', "Mark as read"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
+        { id: 'save', label: article.is_saved ? t('저장 취소', "Remove bookmark") : t('나중에 읽기', "Read later"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
+      items.push({ id: 'deepl-article', label: t('이 글 DeepL로 번역', "Translate this article in DeepL"), run: () => { const latest = articleCache.current.get(article.id) ?? article; openInDeepL(`${latest.title}\n\n${htmlToText(latest.full_content_html || latest.content_html || `<p>${latest.summary || ''}</p>`)}`); } });
+      items.push({ id: 'block-title', label: t('비슷한 글 숨기기…', "Hide similar articles…"), separator: true, run: () => setBlockDialog({ accountId: user.id, article }) });
     } else if (feed) {
-      if (feed.builder_id) items.push({ id: 'edit-builder', label: 'RSS 빌더 피드 수정…', run: () => setBuilderEditor({ accountId: user.id, id: feed.builder_id! }) });
-      items.push({ id: 'rename-feed', label: '피드 이름 수정…', run: () => setRenameFeed({ accountId: user.id, feed }) });
-      items.push({ id: 'feed-history', label: '과거 글 불러오기…', run: () => setHistoryFeed({ accountId: user.id, feed }) });
-      items.push({ id: 'open-feed', label: '피드 글 보기', run: () => openScope('feed', null, feed.feed_id) },
-        { id: 'mark-feed', label: '피드 모두 읽음', run: () => { setMarkReadError(null); setMarkReadTarget({ scope: 'feed', feedId: feed.feed_id, folderId: null, name: feed.title, search: '', savedOnly: false }); } },
-        { id: 'move-feed', label: '폴더 옮기기…', run: () => { setMoveError(null); setMoveTarget(feed); } },
-        { id: 'updates', label: feed.paused_at ? '업데이트 다시 받기' : '업데이트 중지', separator: true, run: () => handleToggleFeedUpdates(feed) },
-        { id: 'unsubscribe', label: '구독 취소…', danger: true, run: () => handleUnsubscribe(feed.id, feed.title) });
+      if (feed.builder_id) items.push({ id: 'edit-builder', label: t('RSS 빌더 피드 수정…', "Edit RSS Builder feed…"), run: () => setBuilderEditor({ accountId: user.id, id: feed.builder_id! }) });
+      items.push({ id: 'rename-feed', label: t('피드 이름 수정…', "Rename feed…"), run: () => setRenameFeed({ accountId: user.id, feed }) });
+      items.push({ id: 'feed-history', label: t('과거 글 불러오기…', "Fetch older articles…"), run: () => setHistoryFeed({ accountId: user.id, feed }) });
+      items.push({ id: 'open-feed', label: t('피드 글 보기', "View feed articles"), run: () => openScope('feed', null, feed.feed_id) },
+        { id: 'mark-feed', label: t('피드 모두 읽음', "Mark feed as read"), run: () => { setMarkReadError(null); setMarkReadTarget({ scope: 'feed', feedId: feed.feed_id, folderId: null, name: feed.title, search: '', savedOnly: false }); } },
+        { id: 'move-feed', label: t('폴더 옮기기…', "Move to folder…"), run: () => { setMoveError(null); setMoveTarget(feed); } },
+        { id: 'updates', label: feed.paused_at ? t('업데이트 다시 받기', "Resume updates") : t('업데이트 중지', "Pause updates"), separator: true, run: () => handleToggleFeedUpdates(feed) },
+        { id: 'unsubscribe', label: t('구독 취소…', "Unsubscribe…"), danger: true, run: () => handleUnsubscribe(feed.id, feed.title) });
     } else if (folder) {
-      items.push({ id: 'open-folder', label: '폴더 글 보기', run: () => openScope('folder', folder.id) },
-        { id: 'mark-folder', label: '폴더 모두 읽음', run: () => { setMarkReadError(null); setMarkReadTarget({ scope: 'folder', folderId: folder.id, feedId: null, name: folder.name, search: '', savedOnly: false }); } },
-        { id: 'delete-folder', label: '폴더 삭제…', danger: true, separator: true, run: () => handleDeleteFolder(folder.id) });
+      items.push({ id: 'open-folder', label: t('폴더 글 보기', "View folder articles"), run: () => openScope('folder', folder.id) },
+        { id: 'mark-folder', label: t('폴더 모두 읽음', "Mark folder as read"), run: () => { setMarkReadError(null); setMarkReadTarget({ scope: 'folder', folderId: folder.id, feedId: null, name: folder.name, search: '', savedOnly: false }); } },
+        { id: 'delete-folder', label: t('폴더 삭제…', "Delete folder…"), danger: true, separator: true, run: () => handleDeleteFolder(folder.id) });
     }
     const url = target.link || article?.url || feed?.html_url;
-    if (url) items.push({ id: 'open-original', label: '원문 새 탭에서 열기', separator: true, run: () => { window.open(url, '_blank', 'noopener,noreferrer'); } },
-      { id: 'copy-link', label: '링크 복사', run: () => handleCopyLink(url) });
-    if (!article && !feed && !folder) items.push({ id: 'all', label: '전체 글 보기', run: () => openScope('all') },
-      { id: 'refresh', label: '피드 새로고침', run: handleRefreshFeeds }, { id: 'add', label: '피드 추가', run: () => openMobileDiscover() });
+    if (url) items.push({ id: 'open-original', label: t('원문 새 탭에서 열기', "Open original in new tab"), separator: true, run: () => { window.open(url, '_blank', 'noopener,noreferrer'); } },
+      { id: 'copy-link', label: t('링크 복사', "Copy link"), run: () => handleCopyLink(url) });
+    if (!article && !feed && !folder) items.push({ id: 'all', label: t('전체 글 보기', "View all articles"), run: () => openScope('all') },
+      { id: 'refresh', label: t('피드 새로고침', "Refresh feeds"), run: handleRefreshFeeds }, { id: 'add', label: t('피드 추가', "Add feed"), run: () => openMobileDiscover() });
     return items;
   };
 
@@ -1760,7 +1760,7 @@ export const App: React.FC = () => {
           </>
         }
         reader={
-          <ErrorBoundary fallbackTitle="본문을 표시하는 중 오류가 발생했습니다" onReset={() => { setXPostTarget(null); setSelectedArticleId(null); }}>
+          <ErrorBoundary fallbackTitle={t("본문을 표시하는 중 오류가 발생했습니다", "Could not display the article")} onReset={() => { setXPostTarget(null); setSelectedArticleId(null); }}>
             {xPostTarget && selectedArticle?.id === xPostTarget.articleId ? <XPostPanel key={`${selectedArticle.id}:${xPostTarget.url}`} accountId={user.id} source={selectedArticle} target={xPostTarget} onBack={() => setXPostTarget(null)} isDark={isDark} /> : <ArticleDrawer
               key={selectedArticle?.id || 'empty-reader'}
               article={selectedArticle}
@@ -1793,39 +1793,39 @@ export const App: React.FC = () => {
           >
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <span>
-                <strong className="text-slate-400">↑ / ↓</strong> 이전·다음 아티클
+                <strong className="text-slate-400">↑ / ↓</strong>{t("이전·다음 아티클", "Previous / next article")}
               </span>
               <span>
-                <strong className="text-slate-400">M</strong> 읽음/안읽음 토글
+                <strong className="text-slate-400">M</strong>{t("읽음/안읽음 토글", "Toggle read status")}
               </span>
               <span>
-                <strong className="text-slate-400">S</strong> 나중에 읽기 북마크
+                <strong className="text-slate-400">S</strong>{t("나중에 읽기 북마크", "Toggle bookmark")}
               </span>
               <span>
-                <strong className="text-slate-400">R</strong> 피드 새로고침
+                <strong className="text-slate-400">R</strong>{t("피드 새로고침", "Refresh feeds")}
               </span>
               <span>
-                <strong className="text-slate-400">A</strong> 모두 읽음
+                <strong className="text-slate-400">A</strong>{t("모두 읽음", "Mark all as read")}
               </span>
               <span>
-                <strong className="text-slate-400">Q / W</strong> 선택 글 위·아래 모두 읽음
+                <strong className="text-slate-400">Q / W</strong>{t("선택 글 위·아래 모두 읽음", "Mark articles above / below as read")}
               </span>
               <span>
-                <strong className="text-slate-400">C</strong> 링크 복사
+                <strong className="text-slate-400">C</strong>{t("링크 복사", "Copy link")}
               </span>
               <span>
-                <strong className="text-slate-400">O</strong> 원문 열기
+                <strong className="text-slate-400">O</strong>{t("원문 열기", "Open original")}
               </span>
               <span>
-                <strong className="text-slate-400">ESC</strong> 리더 뷰 닫기
+                <strong className="text-slate-400">ESC</strong>{t("리더 뷰 닫기", "Close reader")}
               </span>
             </div>
           </footer>
         }
       >
-        {(filterAllFeeds || articleBlocks.some((rule) => rule.enabled)) && <div className="feedex-block-bar" role="group" aria-label="글 필터">
+        {(filterAllFeeds || articleBlocks.some((rule) => rule.enabled)) && <div className="feedex-block-bar" role="group" aria-label={t("글 필터", "Article filters")}>
           {filterAllFeeds && <button type="button" className="feedex-filter-chip" data-active={excludedSubscriptionCount > 0 || undefined} onClick={() => setFeedExclusionsOpen(true)}>
-            <Filter size={15} aria-hidden="true" /><span>필터</span>{excludedSubscriptionCount > 0 && <span className="feedex-filter-count" aria-label={`${excludedSubscriptionCount}개`}>{excludedSubscriptionCount}</span>}
+            <Filter size={15} aria-hidden="true" /><span>{t("필터", "Filter")}</span>{excludedSubscriptionCount > 0 && <span className="feedex-filter-count" aria-label={t(`${excludedSubscriptionCount}개`, `${excludedSubscriptionCount} excluded`)}>{excludedSubscriptionCount}</span>}
           </button>}
           {articleBlocks.some(rule => rule.enabled) && (
             <BlockedArticlesChip
@@ -1836,8 +1836,8 @@ export const App: React.FC = () => {
             />
           )}
         </div>}
-        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>표시할 글이 없습니다.</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>제외한 피드 변경</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap && !(hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3)) ? <div className="feedex-block-empty"><p>이 페이지의 글이 모두 차단 규칙에 해당합니다.</p><p>차단된 글을 보거나 이전 글을 더 불러올 수 있습니다.</p><button type="button" onClick={() => setShowBlockedArticles(true)}>차단 글 보기 ({blockedArticles.length}개)</button></div> : (
-          <ErrorBoundary fallbackTitle="글 목록을 표시하는 중 오류가 발생했습니다" onReset={() => void fetchArticles()}>
+        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>{t("표시할 글이 없습니다.", "No articles to show.")}</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>{t("제외한 피드 변경", "Change excluded feeds")}</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap && !(hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3)) ? <div className="feedex-block-empty"><p>{t("이 페이지의 글이 모두 차단 규칙에 해당합니다.", "Block rules matched every article on this page.")}</p><p>{t("차단된 글을 보거나 이전 글을 더 불러올 수 있습니다.", "Show blocked articles or load older articles.")}</p><button type="button" onClick={() => setShowBlockedArticles(true)}>{t(`차단 글 보기 (${blockedArticles.length}개)`, `Show blocked (${blockedArticles.length})`)}</button></div> : (
+          <ErrorBoundary fallbackTitle={t("글 목록을 표시하는 중 오류가 발생했습니다", "Could not display the article list")} onReset={() => void fetchArticles()}>
             <ArticleList
               accountId={user.id}
               onUpdateArticleFields={handleUpdateArticleFields}
@@ -1884,11 +1884,11 @@ export const App: React.FC = () => {
         setArticles(previous => previous.map(article => article.feed_id === feedId ? { ...article, feed_title: value.title } : article));
         for (const [id, article] of articleCache.current) if (article.feed_id === feedId) articleCache.current.set(id, { ...article, feed_title: value.title });
         readerCache?.updateBootstrap(data => ({ ...data, subscriptions: data.subscriptions.map(renamed) }));
-        readerCache?.touch(); await fetchBootstrap(); await fetchArticles(); setNotice('피드 이름을 저장했어요.');
+        readerCache?.touch(); await fetchBootstrap(); await fetchArticles(); setNotice(t('피드 이름을 저장했어요.', "Feed name saved."));
       }} />}
       {historyFeed?.accountId === user.id && <FeedHistoryDialog key={`${user.id}:${historyFeed.feed.feed_id}`} feed={historyFeed.feed} isDark={isDark} onClose={() => setHistoryFeed(null)} onChanged={async () => { readerCache?.touch(); await Promise.all([fetchBootstrap(), fetchArticles()]); }} />}
       {builderEditor?.accountId === user.id && <RssBuilderEditor key={`${user.id}:${builderEditor.id}`} builderId={builderEditor.id} folders={folders} isDark={isDark} onClose={() => setBuilderEditor(null)} onSaved={async () => { readerCache?.touch(); await Promise.all([fetchBootstrap(), fetchArticles()]); }} />}
-      {blockDialog?.accountId === user.id && <ArticleBlockDialog key={`${user.id}:${blockDialog.article?.id || 'manage'}`} accountId={user.id} article={blockDialog.article} articles={blockPreviewArticles} subscriptions={subscriptions} onClose={() => setBlockDialog(null)} onApplied={() => setNotice('차단 규칙을 저장했어요.')} />}
+      {blockDialog?.accountId === user.id && <ArticleBlockDialog key={`${user.id}:${blockDialog.article?.id || 'manage'}`} accountId={user.id} article={blockDialog.article} articles={blockPreviewArticles} subscriptions={subscriptions} onClose={() => setBlockDialog(null)} onApplied={() => setNotice(t('차단 규칙을 저장했어요.', "Block rule saved."))} />}
 
       {isMobile && <div className="feedex-mobile-library-host" data-open={mobileSidebarOpen || undefined}><MobileLibrary visible={mobileSidebarOpen} user={user} folders={folders} subscriptions={subscriptions} counts={counts} countTab={mobileTab} onChangeCountTab={applyMobileFilter} onSelectTab={selectMobileTab} onSelectFolder={(id) => { handleSelectScope('folder', id); setMobileSidebarOpen(false); }} onSelectFeed={(id) => { handleSelectScope('feed', null, id); setMobileSidebarOpen(false); }} onAdd={() => openMobileDiscover()} onRefresh={handleRefreshFeeds} refreshing={refreshingFeeds} syncing={backgroundSyncs > 0} onCreateFolder={handleCreateFolder} onDeleteFolder={handleDeleteFolder} onUnsubscribe={handleUnsubscribe} onToggleUpdates={handleToggleFeedUpdates} onLogout={handleLogout} {...mobileSettings} /></div>}
       {isMobile && !selectedArticle && <PullRefreshIndicator distance={pullDistance} refreshing={refreshingFeeds} />}
@@ -1924,9 +1924,9 @@ export const App: React.FC = () => {
 
       {deleteTarget && (
         <ConfirmDialog
-          title={deleteTarget.kind === 'folder' ? '폴더를 삭제할까요?' : '구독을 취소할까요?'}
-          confirmLabel={deleteTarget.kind === 'folder' ? '폴더 삭제' : '구독 취소'}
-          busyLabel="삭제 중…"
+          title={deleteTarget.kind === 'folder' ? t('폴더를 삭제할까요?', "Delete this folder?") : t('구독을 취소할까요?', "Unsubscribe from this feed?")}
+          confirmLabel={deleteTarget.kind === 'folder' ? t('폴더 삭제', "Delete folder") : t('구독 취소', "Unsubscribe")}
+          busyLabel={t("삭제 중…", "Deleting…")}
           tone="danger"
           isDark={isDark}
           busy={deleting}
@@ -1935,8 +1935,10 @@ export const App: React.FC = () => {
           onConfirm={confirmDelete}
         >
           {deleteTarget.kind === 'folder' ? (
+            isEnglish() ? <p>Delete the folder <strong>{deleteTarget.name}</strong>? Its feeds will stay subscribed and move out of the folder.</p> :
             <p><strong>{deleteTarget.name}</strong> 폴더를 삭제합니다. 안에 있던 피드 {subscriptions.filter((sub) => sub.folder_id === deleteTarget.id).length}개는 구독을 유지한 채 미분류로 옮겨집니다.</p>
           ) : (
+            isEnglish() ? <p>Remove <strong>{deleteTarget.name}</strong> from your feeds? If you subscribe again, your articles, read status and bookmarks will be restored.</p> :
             <p><strong>{deleteTarget.name}</strong> 피드를 목록에서 뺍니다. 나중에 다시 구독하면 지금까지의 글과 읽음·저장 기록이 그대로 돌아옵니다.</p>
           )}
         </ConfirmDialog>

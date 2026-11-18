@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { xVideoHtml } from '../shared/xMedia';
 import { originalUrl, providers, readFeed, restProvider, restingUntil } from './xFeed';
 import { X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
+import { lang, t } from '../shared/i18n';
 export { isXStatusUrl as xStatusUrl } from '../shared/xFeed';
 
 // x.com은 로그인하지 않은 사람에게 댓글을 몇 개만 보여 주고, 다른 사이트의 프레임도 거부한다.
@@ -292,7 +293,7 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     return `<div class="quote"><a class="quote-post" href="${escape(href || statusUrl)}"><span class="who">${avatar ? `<img class="mini" src="${escape(avatar)}" alt=""${lazy(kind)}>` : ''}<b>${name}</b> <span>${user}</span></span><span class="text">${rich(box.querySelector('.quote-text'), true)}</span></a>${quoteMedia}</div>`;
   };
   const stats = (item: Element) => {
-    const labels: Record<string, string> = { 'icon-comment': '댓글', 'icon-retweet': '재게시', 'icon-quote': '인용', 'icon-heart': '좋아요', 'icon-views': '조회' };
+    const labels: Record<string, string> = { 'icon-comment': t('댓글', 'Replies'), 'icon-retweet': t('재게시', 'Reposts'), 'icon-quote': t('인용', 'Quotes'), 'icon-heart': t('좋아요', 'Likes'), 'icon-views': t('조회', 'Views') };
     const parts = [...item.querySelectorAll('.tweet-stats .tweet-stat')].flatMap((stat) => {
       const icon = [...stat.querySelectorAll('span')].map((span) => span.getAttribute('class') || '').find((name) => labels[name]);
       const count = stat.textContent?.trim();
@@ -331,10 +332,10 @@ function threadDocument(document: Element, main: Element, provider: string, stat
   const replies = [...document.querySelectorAll('.replies .reply')].map((group) => `<div class="thread">${[...group.querySelectorAll('.timeline-item')].map((item) => post(item, 'reply')).join('')}</div>`).join('');
   const more = document.querySelector('.replies .show-more');
   const header = main.querySelector('.tweet-header');
-  const title = escape(`${header?.querySelector('.fullname')?.textContent?.trim() || 'X'} (${header?.querySelector('.username')?.textContent?.trim() || ''}) X 글`);
-  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(statusUrl)}" target="_blank">${X_THREAD_MARK}<title>${title}</title><style>${X_THREAD_STYLE}${X_VIDEO_STYLE}</style></head><body><main>`
-    + (parentMissing ? '<p class="empty parent-missing">공개 미러가 이 답글의 원글을 불러오지 못했어요. 위의 다시 시도를 누르거나 X에서 열어 보세요.</p>' : items('.main-thread .before-tweet .timeline-item', 'before')) + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
-    + `<section class="replies"><h2>댓글</h2>${replies || '<p class="empty">아직 보이는 댓글이 없어요.</p>'}</section>`
-    + `<p class="more"><a data-x-external href="${escape(statusUrl)}">${more ? '댓글 더 보기 · ' : ''}X에서 열기 (로그인한 상태로 보기·반응)</a></p>`
+  const title = escape(`${header?.querySelector('.fullname')?.textContent?.trim() || 'X'} (${header?.querySelector('.username')?.textContent?.trim() || ''}) ${t('X 글', 'X post')}`);
+  return `<!doctype html><html lang="${lang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(statusUrl)}" target="_blank">${X_THREAD_MARK}<title>${title}</title><style>${X_THREAD_STYLE}${X_VIDEO_STYLE}</style></head><body><main>`
+    + (parentMissing ? `<p class="empty parent-missing">${t('공개 미러가 이 답글의 원글을 불러오지 못했어요. 위의 다시 시도를 누르거나 X에서 열어 보세요.', 'The public mirror did not return the original post. Try again or open it on X.')}</p>` : items('.main-thread .before-tweet .timeline-item', 'before')) + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
+    + `<section class="replies"><h2>${t('댓글', 'Replies')}</h2>${replies || `<p class="empty">${t('아직 보이는 댓글이 없어요.', 'No replies to show yet.')}</p>`}</section>`
+    + `<p class="more"><a data-x-external href="${escape(statusUrl)}">${more ? t('댓글 더 보기 · ', 'More replies · ') : ''}${t('X에서 열기 (로그인한 상태로 보기·반응)', 'Open on X to view or react while signed in')}</a></p>`
     + '</main></body></html>';
 }

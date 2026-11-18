@@ -58,11 +58,12 @@ import { youtubeEmbedSrc } from '../shared/youtubeEmbed';
 import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 import { shownThumbnail } from '../client/thumbnails';
 import { inNativeApp, nativeBridge, nativeFeatures, nativePlatform, useNativeArticle } from '../client/nativeApp';
+import { t, locale } from '../shared/i18n';
 
 const VIEW_MODES = [
-  { id: 'feed', label: '피드', title: '피드 본문 — RSS에 담긴 내용', Icon: Rss },
-  { id: 'reader', label: '리더', title: '전체 본문 — 원문에서 본문만 깔끔하게', Icon: BookOpen },
-  { id: 'web', label: '웹', title: '웹 페이지 — 원본 사이트 그대로', Icon: Globe },
+  { id: 'feed', label: t('피드', 'Feed'), title: t('피드 본문 — RSS에 담긴 내용', 'Feed text — what the RSS feed contains'), Icon: Rss },
+  { id: 'reader', label: t('리더', 'Reader'), title: t('전체 본문 — 원문에서 본문만 깔끔하게', 'Full text — just the article from the original'), Icon: BookOpen },
+  { id: 'web', label: t('웹', 'Web'), title: t('웹 페이지 — 원본 사이트 그대로', 'Web page — the original site as is'), Icon: Globe },
 ] as const;
 
 // 웹 보기 확대 단계는 브라우저와 같다. 프레임 안 페이지는 다른 출처라서 바깥에서
@@ -205,13 +206,13 @@ interface ArticleDrawerProps {
 
 // 웹 보기 상단 안내: [전체 문구, 좁은 칸용 짧은 문구]
 function webCopyNotice(xWaiting: boolean, xFailed: boolean, copy: WebCopyState | null): [string, string] {
-  if (copy?.retrying && (xWaiting || copy.thread)) return ['X 원글과 댓글을 다시 불러오는 중이에요.', 'X 대화를 다시 불러오는 중'];
-  if (copy?.partial) return ['공개 미러에서 원글을 받지 못했어요.', '원글을 받지 못했어요'];
-  if (xWaiting && xFailed) return ['공개 미러에서 댓글을 받지 못했어요. 먼저 받은 글만 보여드려요.', '댓글을 받지 못했어요'];
-  if (xWaiting || copy?.thread) return ['공개 미러(Nitter)에서 받은 X 글과 댓글이에요. 로그인한 상태로 보려면 X에서 여세요.', '공개 미러로 받은 글과 댓글'];
-  if (copy?.textOnly) return ['사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.', '본문만 보여드려요'];
-  if (copy?.fitting) return ['휴대폰 화면에 맞춘 사본을 준비하고 있어요.', '화면에 맞추는 중'];
-  return ['웹 사본으로 표시 중', '사본'];
+  if (copy?.retrying && (xWaiting || copy.thread)) return [t('X 원글과 댓글을 다시 불러오는 중이에요.', 'Reloading the X post and replies.'), t('X 대화를 다시 불러오는 중', 'Reloading X conversation')];
+  if (copy?.partial) return [t('공개 미러에서 원글을 받지 못했어요.', 'The public mirror did not return the parent post.'), t('원글을 받지 못했어요', 'Parent post missing')];
+  if (xWaiting && xFailed) return [t('공개 미러에서 댓글을 받지 못했어요. 먼저 받은 글만 보여드려요.', 'The public mirror did not return replies. Showing the post that arrived first.'), t('댓글을 받지 못했어요', 'Replies missing')];
+  if (xWaiting || copy?.thread) return [t('공개 미러(Nitter)에서 받은 X 글과 댓글이에요. 로그인한 상태로 보려면 X에서 여세요.', 'This X post and its replies come from a public mirror (Nitter). Open it on X to see it signed in.'), t('공개 미러로 받은 글과 댓글', 'From a public mirror')];
+  if (copy?.textOnly) return [t('사이트가 잠시 요청을 막아 원래 모양 대신 본문만 보여드려요.', 'The site is blocking requests for now, so only the text is shown instead of the original layout.'), t('본문만 보여드려요', 'Text only')];
+  if (copy?.fitting) return [t('휴대폰 화면에 맞춘 사본을 준비하고 있어요.', 'Preparing a copy that fits a phone screen.'), t('화면에 맞추는 중', 'Fitting to screen')];
+  return [t('웹 사본으로 표시 중', 'Showing a web copy'), t('사본', 'Copy')];
 }
 
 /**
@@ -223,19 +224,19 @@ function SummaryText({ text }: { text: string }) {
   return <>{text.split(/\*\*(.+?)\*\*/g).map((part, index) => index % 2 ? <strong key={index}>{part}</strong> : part)}</>;
 }
 
-export function AiSummaryCard({ isDark, summarizing, summary, error, onRegenerate, onClose, loadingLabel = '기사 본문을 요약하는 중…' }: { isDark: boolean; summarizing: boolean; summary?: string | null; error: string; onRegenerate: () => void; onClose?: () => void; loadingLabel?: string }) {
+export function AiSummaryCard({ isDark, summarizing, summary, error, onRegenerate, onClose, loadingLabel = t('기사 본문을 요약하는 중…', 'Summarizing the article…') }: { isDark: boolean; summarizing: boolean; summary?: string | null; error: string; onRegenerate: () => void; onClose?: () => void; loadingLabel?: string }) {
   // 웹 보기의 칸(onClose가 있는 경우)은 사이트를 덜 가리게 여백과 제목을 줄인다.
   return <div className={`${onClose ? 'p-3.5' : 'p-5'} rounded-2xl border relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
     <div className="flex items-center justify-between gap-2 mb-3">
       <div className="flex min-w-0 items-center gap-2">
         <div className="shrink-0 p-1.5 rounded-lg bg-emerald-500 text-slate-950"><Sparkles className="w-4 h-4" /></div>
         <div className="min-w-0">
-          <h3 className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-900'}`}>요약</h3>
+          <h3 className={`text-sm font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-900'}`}>{t('요약', 'Summary')}</h3>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        {!summarizing && <button type="button" onClick={onRegenerate} title="다시 요약하기" className="whitespace-nowrap text-xs text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"><RefreshCw className="w-3 h-3" /><span>{error ? '다시 시도' : '재생성'}</span></button>}
-        {onClose && <button type="button" onClick={onClose} aria-label="요약 닫기" title="요약 닫기" className="text-slate-400 hover:text-emerald-400 cursor-pointer"><X className="w-4 h-4" /></button>}
+        {!summarizing && <button type="button" onClick={onRegenerate} title={t('다시 요약하기', 'Summarize again')} className="whitespace-nowrap text-xs text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"><RefreshCw className="w-3 h-3" /><span>{error ? t('다시 시도', 'Try again') : t('재생성', 'Regenerate')}</span></button>}
+        {onClose && <button type="button" onClick={onClose} aria-label={t('요약 닫기', 'Close summary')} title={t('요약 닫기', 'Close summary')} className="text-slate-400 hover:text-emerald-400 cursor-pointer"><X className="w-4 h-4" /></button>}
       </div>
     </div>
     {summarizing ? (
@@ -475,7 +476,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     : webFrameShown
       ? { notice: frame.url, short: siteHost(frame.url), xUrl: undefined }
       : webPreviewShown
-        ? { notice: '웹 페이지를 다 불러오면 보여 드려요.', short: '불러오는 중', xUrl: undefined }
+        ? { notice: t('웹 페이지를 다 불러오면 보여 드려요.', 'It will show once the web page has loaded.'), short: t('불러오는 중', 'Loading'), xUrl: undefined }
         : null;
   const hasArticle = Boolean(article);
   // 막대는 본문 위에 떠 있어서 나타나고 사라져도 본문은 움직이지 않는다. 그 대신 본문은 막대 높이만큼 비워 두고 시작한다.
@@ -642,8 +643,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
   if (!article) return <div className={`hidden lg:flex h-full flex-col items-center justify-center gap-3 px-8 text-center ${isDark ? 'bg-slate-950 text-slate-400' : 'bg-white text-slate-500'}`}>
     <BookOpen className="w-10 h-10 text-emerald-500/60" aria-hidden="true" />
-    <h2 className="text-base font-semibold">읽을 글을 선택해 주세요</h2>
-    <p className="text-sm">왼쪽 목록에서 글을 누르면 여기에 표시됩니다.</p>
+    <h2 className="text-base font-semibold">{t('읽을 글을 선택해 주세요', 'Choose an article to read')}</h2>
+    <p className="text-sm">{t('왼쪽 목록에서 글을 누르면 여기에 표시됩니다.', 'Pick an article in the list on the left to show it here.')}</p>
   </div>;
 
   // 기사 새로고침: 지금 보기에 맞게 다시 받는다. 웹 사본과 리더 본문은 기기·서버에 남은 것을 쓰지 않고,
@@ -653,7 +654,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const target = article, here = () => shownArticleId.current === target.id;
     if (mode === 'web' && frame?.articleId === target.id && frame.embeddable) { setFrameReloads((count) => count + 1); return; }
     setRefreshing(true);
-    let message = '기사를 새로 받았어요.';
+    let message = t('기사를 새로 받았어요.', 'Article refreshed.');
     try {
       if (mode === 'web') {
         const previous = webCopy?.articleId === target.id && webCopy.html ? webCopy : null;
@@ -661,8 +662,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         try {
           const copy = await (resources ? resources.refreshWeb(target) : apiRequest<WebResult>(`/api/articles/${target.id}/web-copy`));
           // 원래 모양을 보던 중이면 본문만 받은 것으로 바꾸지 않는다.
-          if (copy.textOnly && previous && !previous.textOnly) { if (here()) setWebCopy(previous); message = '사이트가 잠시 막아 원래 모양을 새로 받지 못했어요. 보던 사본을 그대로 둘게요.'; }
-          else if (copy.partial && previous?.thread && !previous.partial) { message = 'X 원글을 새로 받지 못했어요. 보던 대화를 그대로 표시합니다.'; }
+          if (copy.textOnly && previous && !previous.textOnly) { if (here()) setWebCopy(previous); message = t('사이트가 잠시 막아 원래 모양을 새로 받지 못했어요. 보던 사본을 그대로 둘게요.', 'The site blocked the request, so the original layout could not be refreshed. Keeping the copy you were reading.'); }
+          else if (copy.partial && previous?.thread && !previous.partial) { message = t('X 원글을 새로 받지 못했어요. 보던 대화를 그대로 표시합니다.', 'Could not get the X parent post again. Keeping the conversation you were reading.'); }
           else if (here()) setWebCopy({ articleId: target.id, ...copy });
         } catch (error) {
           if (here()) setWebCopy(previous ?? { articleId: target.id, html: null, error: error instanceof Error ? error.message : undefined });
@@ -672,17 +673,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         const body = resources
           ? await resources.reader(target, true).then((item) => ({ fullContentHtml: item.full_content_html, publishedAt: item.published_at }))
           : await apiRequest<{ fullContentHtml: string; publishedAt?: string }>(`/api/articles/${target.id}/reader-view`, { method: 'POST', body: JSON.stringify({ force: true }) });
-        if (!body.fullContentHtml) throw new Error('리더 본문이 비어 있습니다.');
+        if (!body.fullContentHtml) throw new Error(t('리더 본문이 비어 있습니다.', 'The reader text is empty.'));
         onUpdateArticleFields(target.id, { full_content_html: body.fullContentHtml, ...(body.publishedAt ? { published_at: body.publishedAt } : {}) });
         if (here()) setReaderFailedFor((failed) => failed === target.id ? null : failed);
       } else {
         const latest = resources ? await resources.latest(target) : (await apiRequest<{ articles: ArticleItem[] }>(`/api/articles?articleId=${encodeURIComponent(target.id)}`)).articles[0];
-        if (!latest) throw new Error('글을 찾을 수 없습니다.');
+        if (!latest) throw new Error(t('글을 찾을 수 없습니다.', 'Article not found.'));
         // 읽음·저장 상태는 이 기기에서 바꾼 것이 더 새로우므로 그대로 둔다.
         const { title, author, summary, content_html, full_content_html, thumbnail_url, published_at, date_source } = latest;
         onUpdateArticleFields(target.id, { title, author, summary, content_html, full_content_html: full_content_html || target.full_content_html, thumbnail_url, published_at, date_source, body_deferred: false, body_load_error: false });
       }
-    } catch { message = '기사를 새로 받지 못했어요. 보던 내용은 그대로 둘게요.'; }
+    } catch { message = t('기사를 새로 받지 못했어요. 보던 내용은 그대로 둘게요.', 'Could not refresh the article. Keeping what you were reading.'); }
     finally { setRefreshing(false); }
     if (here()) onNotice(message);
   };
@@ -721,16 +722,16 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       // 원글 없이 받은 대화도 보이는 그대로 번역한다(서버가 증표로 구분한다).
       const xThread = xPost && source === 'full' && thread?.thread && thread.html && thread.translationProof
         ? { html: thread.html, proof: thread.translationProof } : undefined;
-      const res = await apiRequest<{ title: string; html: string; provider: string; bodySource?: 'full' | 'feed'; notice?: string; alreadyKorean?: boolean }>(`/api/articles/${article.id}/translate`, {
+      const res = await apiRequest<{ title: string; html: string; provider: string; bodySource?: 'full' | 'feed'; notice?: string; alreadyTargetLanguage?: boolean; alreadyKorean?: boolean }>(`/api/articles/${article.id}/translate`, {
         method: 'POST', body: JSON.stringify({ source, phone: isMobile, xThread }), signal: controller.signal,
       });
       if (!current()) return;
-      if (res.alreadyKorean) { setTranslated(false); onNotice('이미 한국어로 된 글이에요.'); return; }
+      if (res.alreadyTargetLanguage ?? res.alreadyKorean) { setTranslated(false); onNotice(t('이미 한국어로 된 글이에요.', 'This article is already in English.')); return; }
       setTranslation({ articleId: article.id, source, bodySource: res.bodySource, title: res.title, html: res.html, provider: res.provider, threadProof: xThread?.proof });
       setTranslated(true);
       if (res.notice) onNotice(res.notice);
     } catch (error) {
-      if (current()) { setTranslated(false); setTranslationError(error instanceof Error && error.message ? error.message : '번역하지 못했어요. 다시 시도해 주세요.'); }
+      if (current()) { setTranslated(false); setTranslationError(error instanceof Error && error.message ? error.message : t('번역하지 못했어요. 다시 시도해 주세요.', 'Could not translate. Please try again.')); }
     } finally {
       if (translateRequest.current === controller) { translateRequest.current = null; setTranslating(false); }
     }
@@ -743,7 +744,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     if (translation?.articleId === article.id && translation.source === translationSource && sameThread) { setTranslated(true); return; }
     void handleTranslate();
   };
-  const translateAction = translating ? '번역 취소' : showTranslation ? '원문 보기' : '번역';
+  const translateAction = translating ? t('번역 취소', 'Cancel translation') : showTranslation ? t('원문 보기', 'Show original') : t('번역', 'Translate');
   const canOpenArticleInDeepL = !xPost || translationSource === 'feed' || Boolean(completeThread);
   /** 사용자의 DeepL 웹 번역기에 제목과 본문을 넘긴다. DeepL API 없이 로그인한 DeepL 계정으로 번역한다. */
   const openArticleInDeepL = () => {
@@ -754,11 +755,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   };
   const translationFeedback = (translating || translationError) && <div className="feedex-translation-feedback" role={translating ? 'status' : 'alert'}>
     {translating && <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />}
-    <span className="flex-1">{translating ? '한국어로 번역하는 중…' : translationError}</span>
-    {translating ? <button type="button" onClick={toggleTranslation}>취소</button> : <>
-      <button type="button" onClick={() => void handleTranslate()}>다시 시도</button>
-      {canOpenArticleInDeepL && <button type="button" onClick={openArticleInDeepL}>DeepL에서 번역</button>}
-      <button type="button" aria-label="번역 오류 닫기" onClick={() => setTranslationError('')}><X size={16} /></button>
+    <span className="flex-1">{translating ? t('한국어로 번역하는 중…', 'Translating to English…') : translationError}</span>
+    {translating ? <button type="button" onClick={toggleTranslation}>{t('취소', 'Cancel')}</button> : <>
+      <button type="button" onClick={() => void handleTranslate()}>{t('다시 시도', 'Try again')}</button>
+      {canOpenArticleInDeepL && <button type="button" onClick={openArticleInDeepL}>{t('DeepL에서 번역', 'Translate in DeepL')}</button>}
+      <button type="button" aria-label={t('번역 오류 닫기', 'Dismiss translation error')} onClick={() => setTranslationError('')}><X size={16} /></button>
     </>}
   </div>;
 
@@ -782,7 +783,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         ai_summary: res.aiSummary,
       });
     } catch (error) {
-      if (current()) setSummaryError(error instanceof Error && error.message ? error.message : '기사 요약을 만들지 못했어요. 다시 시도해 주세요.');
+      if (current()) setSummaryError(error instanceof Error && error.message ? error.message : t('기사 요약을 만들지 못했어요. 다시 시도해 주세요.', 'Could not summarize the article. Please try again.'));
     } finally {
       if (summaryRequest.current === controller) { summaryRequest.current = null; setSummarizing(false); }
     }
@@ -796,15 +797,15 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       if (!currentAiSummary || (!xPost && mode !== 'feed' && !isCurrentSummary(currentAiSummary, 'full'))) void handleSummarizeAI();
     }
   };
-  const aiAction = summarizing ? '요약 취소' : aiOpen ? '요약 닫기' : '요약';
+  const aiAction = summarizing ? t('요약 취소', 'Cancel summary') : aiOpen ? t('요약 닫기', 'Close summary') : t('요약', 'Summary');
 
   // 두 가지를 하나의 조절기로 다룬다: 피드·리더 보기에서는 글자 크기,
   // 웹 보기에서는 사이트 배율.
   const sizeControl = (className: string) => siteShown
-    ? <div role="group" aria-label="사이트 확대·축소" className={className}>
-        <button type="button" aria-label="사이트 축소" disabled={webZoom === WEB_ZOOM_STEPS[0]} onClick={() => changeWebZoom(-1)}><ZoomOut size={18} /></button>
-        <button type="button" aria-label={`현재 ${Math.round(webZoom * 100)}%, 100%로 되돌리기`} onClick={() => changeWebZoom(0)}>{Math.round(webZoom * 100)}%</button>
-        <button type="button" aria-label="사이트 확대" disabled={webZoom === WEB_ZOOM_STEPS[WEB_ZOOM_STEPS.length - 1]} onClick={() => changeWebZoom(1)}><ZoomIn size={18} /></button>
+    ? <div role="group" aria-label={t('사이트 확대·축소', 'Site zoom')} className={className}>
+        <button type="button" aria-label={t('사이트 축소', 'Zoom out site')} disabled={webZoom === WEB_ZOOM_STEPS[0]} onClick={() => changeWebZoom(-1)}><ZoomOut size={18} /></button>
+        <button type="button" aria-label={t(`현재 ${Math.round(webZoom * 100)}%, 100%로 되돌리기`, `${Math.round(webZoom * 100)}% now, reset to 100%`)} onClick={() => changeWebZoom(0)}>{Math.round(webZoom * 100)}%</button>
+        <button type="button" aria-label={t('사이트 확대', 'Zoom in site')} disabled={webZoom === WEB_ZOOM_STEPS[WEB_ZOOM_STEPS.length - 1]} onClick={() => changeWebZoom(1)}><ZoomIn size={18} /></button>
       </div>
     : <TextSizeControl className={className} />;
 
@@ -865,7 +866,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     }
     // 안드로이드: 설치한 Slap 앱이 Slap 주소를 받아 연다.
     if (window.matchMedia?.('(pointer: coarse)').matches) { window.open(web, '_blank', 'noopener,noreferrer'); return; }
-    openSlapApp(app, () => onNotice(left ? 'Slap 앱이 열리지 않았어요. Slap을 열면 공유 창이 떠요.' : 'Slap 앱이 열리지 않았어요. Chrome이나 Edge에 Slap 앱을 설치했는지 확인해 주세요.'));
+    openSlapApp(app, () => onNotice(left ? t('Slap 앱이 열리지 않았어요. Slap을 열면 공유 창이 떠요.', 'The Slap app didn’t open. Open Slap to see the share sheet.') : t('Slap 앱이 열리지 않았어요. Chrome이나 Edge에 Slap 앱을 설치했는지 확인해 주세요.', 'The Slap app didn’t open. Check that the Slap app is installed in Chrome or Edge.')));
   };
   /**
    * 공유 방법: 링크 복사 → Slap과 공유 사이트 → 이메일. 휴대폰(터치 화면)에서는 시스템 공유를 맨 위에 둔다.
@@ -879,14 +880,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const phoneShare = isMobile && typeof navigator !== 'undefined' && typeof navigator.share === 'function'
       && typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true;
     return <>
-      {phoneShare && <button type="button" className={option} onClick={() => shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />다른 앱으로 공유</button>}
-      <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />링크 복사</button>
-      <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => void shareToSlap(close, event)}><MessageSquare size={16} aria-hidden="true" />Slap에 공유</a>
+      {phoneShare && <button type="button" className={option} onClick={() => shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />{t('다른 앱으로 공유', 'Share to another app')}</button>}
+      <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />{t('링크 복사', 'Copy link')}</button>
+      <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => void shareToSlap(close, event)}><MessageSquare size={16} aria-hidden="true" />{t('Slap에 공유', 'Share to Slap')}</a>
       {/* 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 한다. */}
-      <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />X에 공유</button>
-      <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />Threads에 공유</a>
-      <button type="button" className={option} onClick={() => openShareLink(links.telegram, close)}><Send size={16} aria-hidden="true" />텔레그램으로 공유</button>
-      {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />이메일로 공유</a>}
+      <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />{t('X에 공유', 'Share to X')}</button>
+      <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />{t('Threads에 공유', 'Share to Threads')}</a>
+      <button type="button" className={option} onClick={() => openShareLink(links.telegram, close)}><Send size={16} aria-hidden="true" />{t('텔레그램으로 공유', 'Share to Telegram')}</button>
+      {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />{t('이메일로 공유', 'Share by email')}</a>}
     </>;
   };
 
@@ -908,9 +909,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         }`}
       >
         <div ref={topRef} className="feedex-mobile-reader-top lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
-          <button className="feedex-mobile-icon" onClick={onClose} aria-label="목록으로 돌아가기"><ChevronDown size={22} /></button>
-          <div role="radiogroup" aria-label="본문 보기 방식" className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}<span>{label}</span></button>)}</div>
-          <button className="feedex-mobile-icon" aria-label="본문 도구" aria-expanded={mobileMenu === 'tools'} onClick={() => setMobileMenu('tools')}><MoreHorizontal size={20} /></button>
+          <button className="feedex-mobile-icon" onClick={onClose} aria-label={t('목록으로 돌아가기', 'Back to list')}><ChevronDown size={22} /></button>
+          <div role="radiogroup" aria-label={t('본문 보기 방식', 'Article view')} className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}<span>{label}</span></button>)}</div>
+          <button className="feedex-mobile-icon" aria-label={t('본문 도구', 'Article tools')} aria-expanded={mobileMenu === 'tools'} onClick={() => setMobileMenu('tools')}><MoreHorizontal size={20} /></button>
         </div>
         {/* 상단 동작 막대 */}
         <div
@@ -923,15 +924,15 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           }`}
         >
           <div className="feedex-reader-navigation flex shrink-0 items-center gap-1">
-            <button type="button" onClick={onClose} aria-label="목록으로 돌아가기" title="목록으로 돌아가기" className={`feedex-reader-back feedex-reader-icon ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-700 hover:bg-slate-100'}`}><ArrowLeft className="w-4 h-4" /></button>
+            <button type="button" onClick={onClose} aria-label={t('목록으로 돌아가기', 'Back to list')} title={t('목록으로 돌아가기', 'Back to list')} className={`feedex-reader-back feedex-reader-icon ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-700 hover:bg-slate-100'}`}><ArrowLeft className="w-4 h-4" /></button>
 
             {/* 읽음/안 읽음 전환 */}
             <button
               type="button"
               onClick={() => onToggleRead(article)}
-              aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'}
+              aria-label={article.is_read ? t('안 읽음으로 표시', 'Mark as unread') : t('읽음으로 표시', 'Mark as read')}
               aria-pressed={article.is_read}
-              title={article.is_read ? '안읽음으로 표시 (M)' : '읽음으로 표시 (M)'}
+              title={article.is_read ? t('안읽음으로 표시 (M)', 'Mark as unread (M)') : t('읽음으로 표시 (M)', 'Mark as read (M)')}
               className={`feedex-reader-icon ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
@@ -950,8 +951,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 type="button"
                 disabled={!hasPrev}
                 onClick={() => onNavigateRelative('prev')}
-                aria-label="이전 아티클"
-                title="이전 아티클 (↑)"
+                aria-label={t('이전 아티클', 'Previous article')}
+                title={t('이전 아티클 (↑)', 'Previous article (↑)')}
                 className={`feedex-reader-icon disabled:opacity-30 ${
                   isDark
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-800'
@@ -964,8 +965,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 type="button"
                 disabled={!hasNext}
                 onClick={() => onNavigateRelative('next')}
-                aria-label="다음 아티클"
-                title="다음 아티클 (↓)"
+                aria-label={t('다음 아티클', 'Next article')}
+                title={t('다음 아티클 (↓)', 'Next article (↓)')}
                 className={`feedex-reader-icon disabled:opacity-30 ${
                   isDark
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-800'
@@ -980,8 +981,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               type="button"
               onClick={() => void refreshArticle()}
               disabled={refreshing}
-              aria-label="기사 새로고침"
-              title="기사 새로고침"
+              aria-label={t('기사 새로고침', 'Refresh article')}
+              title={t('기사 새로고침', 'Refresh article')}
               className={`feedex-reader-secondary feedex-reader-icon disabled:cursor-default ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
@@ -999,9 +1000,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             <button
               type="button"
               onClick={() => onToggleSaved(article)}
-              aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'}
+              aria-label={article.is_saved ? t('저장 취소', 'Remove from saved') : t('나중에 읽기', 'Read later')}
               aria-pressed={article.is_saved}
-              title="나중에 읽기 북마크 (S)"
+              title={t('나중에 읽기 북마크 (S)', 'Read later bookmark (S)')}
               className={`feedex-reader-icon ${
                 article.is_saved
                   ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-400'
@@ -1022,7 +1023,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             {mode === 'web' && (
               <div
                 role="group"
-                aria-label="사이트 확대·축소"
+                aria-label={t('사이트 확대·축소', 'Site zoom')}
                 className={`feedex-reader-zoom flex items-center rounded-xl border ${
                   isDark
                     ? 'bg-slate-900 border-slate-800 text-slate-300'
@@ -1033,8 +1034,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                   type="button"
                   onClick={() => changeWebZoom(-1)}
                   disabled={webZoom === WEB_ZOOM_STEPS[0]}
-                  title="사이트 축소"
-                  aria-label="사이트 축소"
+                  title={t('사이트 축소', 'Zoom out site')}
+                  aria-label={t('사이트 축소', 'Zoom out site')}
                   className={`p-2 rounded-l-xl transition cursor-pointer disabled:opacity-30 disabled:cursor-default ${
                     isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
                   }`}
@@ -1044,8 +1045,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => changeWebZoom(0)}
-                  title="100%로 되돌리기"
-                  aria-label={`현재 ${Math.round(webZoom * 100)}%, 100%로 되돌리기`}
+                  title={t('100%로 되돌리기', 'Reset to 100%')}
+                  aria-label={t(`현재 ${Math.round(webZoom * 100)}%, 100%로 되돌리기`, `${Math.round(webZoom * 100)}% now, reset to 100%`)}
                   className={`feedex-reader-zoom-value min-w-[3rem] py-2 text-xs font-medium tabular-nums transition cursor-pointer ${
                     isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
                   }`}
@@ -1056,8 +1057,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                   type="button"
                   onClick={() => changeWebZoom(1)}
                   disabled={webZoom === WEB_ZOOM_STEPS[WEB_ZOOM_STEPS.length - 1]}
-                  title="사이트 확대"
-                  aria-label="사이트 확대"
+                  title={t('사이트 확대', 'Zoom in site')}
+                  aria-label={t('사이트 확대', 'Zoom in site')}
                   className={`p-2 rounded-r-xl transition cursor-pointer disabled:opacity-30 disabled:cursor-default ${
                     isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
                   }`}
@@ -1071,8 +1072,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             <button
               type="button"
               onClick={() => onCopyLink(article)}
-              aria-label="링크 복사"
-              title="링크 복사 (C)"
+              aria-label={t('링크 복사', 'Copy link')}
+              title={t('링크 복사 (C)', 'Copy link (C)')}
               className={`feedex-reader-secondary feedex-reader-icon ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
@@ -1082,7 +1083,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <Link2 className="w-4 h-4" />
             </button>
 
-            <button type="button" aria-label="글 공유" title="글 공유" aria-expanded={shareDialogOpen} aria-haspopup="dialog" onClick={openShare}
+            <button type="button" aria-label={t('글 공유', 'Share article')} title={t('글 공유', 'Share article')} aria-expanded={shareDialogOpen} aria-haspopup="dialog" onClick={openShare}
               className={`feedex-reader-icon ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
               <Share2 className="w-4 h-4" />
             </button>
@@ -1092,8 +1093,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               href={article.url}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="원문 사이트 새 탭에서 열기"
-              title="원문 사이트 새 탭에서 열기 (O)"
+              aria-label={t('원문 사이트 새 탭에서 열기', 'Open original site in a new tab')}
+              title={t('원문 사이트 새 탭에서 열기 (O)', 'Open original site in a new tab (O)')}
               className={`feedex-reader-secondary feedex-reader-icon ${
                 isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-emerald-400'
@@ -1119,11 +1120,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
             {/* 좁을 때만 보이는 더보기. 숨긴 버튼(새로고침, 링크 복사, 원문 열기, 번역)을 여기서 쓴다. */}
             <details ref={toolbarMoreRef} className="feedex-reader-more">
-              <summary aria-label="더 보기" title="더 보기" className={`feedex-reader-icon list-none ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}><MoreHorizontal className="w-4 h-4" /></summary>
+              <summary aria-label={t('더 보기', 'More')} title={t('더 보기', 'More')} className={`feedex-reader-icon list-none ${isDark ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}><MoreHorizontal className="w-4 h-4" /></summary>
               <div className="feedex-reader-more-menu" role="menu">
-                <button type="button" role="menuitem" disabled={refreshing} onClick={() => { closeToolbarMore(); void refreshArticle(); }}><RotateCw className="w-4 h-4" aria-hidden="true" />기사 새로고침</button>
-                <button type="button" role="menuitem" onClick={() => { closeToolbarMore(); onCopyLink(article); }}><Link2 className="w-4 h-4" aria-hidden="true" />링크 복사</button>
-                <a role="menuitem" href={article.url} target="_blank" rel="noopener noreferrer" onClick={closeToolbarMore}><ExternalLink className="w-4 h-4" aria-hidden="true" />원문 새 탭에서 열기</a>
+                <button type="button" role="menuitem" disabled={refreshing} onClick={() => { closeToolbarMore(); void refreshArticle(); }}><RotateCw className="w-4 h-4" aria-hidden="true" />{t('기사 새로고침', 'Refresh article')}</button>
+                <button type="button" role="menuitem" onClick={() => { closeToolbarMore(); onCopyLink(article); }}><Link2 className="w-4 h-4" aria-hidden="true" />{t('링크 복사', 'Copy link')}</button>
+                <a role="menuitem" href={article.url} target="_blank" rel="noopener noreferrer" onClick={closeToolbarMore}><ExternalLink className="w-4 h-4" aria-hidden="true" />{t('원문 새 탭에서 열기', 'Open original in a new tab')}</a>
                 <button type="button" role="menuitem" aria-pressed={showTranslation} onClick={() => { closeToolbarMore(); toggleTranslation(); }}>{translating ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Languages className="w-4 h-4" aria-hidden="true" />}{translateAction}</button>
               </div>
             </details>
@@ -1145,14 +1146,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               ) : (
                 <Sparkles className="w-3.5 h-3.5" />
               )}
-              <span className="feedex-reader-control-label">요약</span>
+              <span className="feedex-reader-control-label">{t('요약', 'Summary')}</span>
             </button>
           </div>
 
           {/* 본문 보기: 피드 본문 / 리더(전체 기사) / 웹 페이지 */}
           <div
             role="radiogroup"
-            aria-label="본문 보기 방식"
+            aria-label={t('본문 보기 방식', 'Article view')}
             className={`feedex-reader-view ml-auto flex shrink-0 items-center rounded-xl border p-0.5 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
             }`}
@@ -1195,23 +1196,23 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <div ref={webViewRef} className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
             {/* 웹 보기에서는 사이트 위에 요약을 접을 수 있는 칸으로 둔다. 길면 이 칸 안에서 스크롤한다. */}
             {aiOpen && (currentAiSummary || summarizing || summaryError) && <div className="feedex-web-summary">
-              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} loadingLabel={xPost ? 'X 대화를 요약하는 중…' : undefined} />
+              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} loadingLabel={xPost ? t('X 대화를 요약하는 중…', 'Summarizing the X conversation…') : undefined} />
             </div>}
             {translationFeedback}
             {nativeWeb ? (<>
               <WebStatusBar key={article.id} url={article.url} isDark={isDark} hidden={false} canLogin={false} notice={article.url} shortNotice={siteHost(article.url)}>
                 <button type="button" onClick={() => nativeBridge()?.postMessage({ type: 'openExternal', url: article.url })} className="inline-flex items-center gap-1 hover:underline">
-                  <WebLabel short="브라우저" long="브라우저에서 열기" /><ExternalLink className="w-3 h-3" aria-hidden="true" />
+                  <WebLabel short={t('브라우저', 'Browser')} long={t('브라우저에서 열기', 'Open in browser')} /><ExternalLink className="w-3 h-3" aria-hidden="true" />
                 </button>
               </WebStatusBar>
               {/* 맥 앱이 이 자리에 원문 화면을 겹쳐 띄운다. */}
               <div ref={nativeSlotRef} data-native-article className="relative flex-1 min-h-0 bg-white" />
             </>) : mobileOriginal ? (
               <div className="feedex-web-fill flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
-                <p className="text-sm text-slate-500 dark:text-slate-400">4Pillars의 보안 확인은 원문에서 진행할 수 있어요.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{t('4Pillars의 보안 확인은 원문에서 진행할 수 있어요.', 'Complete 4Pillars’ security check on the original site.')}</p>
                 <a href={mobileOriginal.href} target={separateOriginal ? '_blank' : undefined} rel="noreferrer" onClick={(event) => { if (!separateOriginal && leavesForOriginal(event)) onLeaveForOriginal?.(); }}
                   className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950">
-                  원문에서 읽기 <ExternalLink size={15} aria-hidden="true" />
+                  {t('원문에서 읽기', 'Read on the original')} <ExternalLink size={15} aria-hidden="true" />
                 </a>
               </div>
             ) : (<>
@@ -1226,14 +1227,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               shortNotice={webStatus?.short ?? ''}
               onLeave={onLeaveForOriginal}
             >
-              {webCopyShown && !xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short="원래 모양" long="원래 모양 다시 받기" /></button>}
-              {webCopyShown && !copyFor?.retrying && (copyFor?.partial || (xWaiting && xFailed)) && <button type="button" onClick={showWebCopy} disabled={refreshing} className="hover:underline">다시 시도</button>}
-              {webFrameShown && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short={isDark ? "다크 사본" : "사본으로"} long={isDark ? "다크 웹 사본으로 보기" : "웹 사본으로 보기"} /></button>}
-              {webFrameShown && mobileTableSite && <button type="button" onClick={() => setFitOriginalTable(!fitOriginalTable)} className="hover:underline">{fitOriginalTable ? '기본 크기' : '표 너비 맞춤'}</button>}
+              {webCopyShown && !xWaiting && webCopy?.textOnly && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short={t('원래 모양', 'Original layout')} long={t('원래 모양 다시 받기', 'Get the original layout again')} /></button>}
+              {webCopyShown && !copyFor?.retrying && (copyFor?.partial || (xWaiting && xFailed)) && <button type="button" onClick={showWebCopy} disabled={refreshing} className="hover:underline">{t('다시 시도', 'Try again')}</button>}
+              {webFrameShown && <button type="button" onClick={showWebCopy} className="hover:underline"><WebLabel short={isDark ? t('다크 사본', 'Dark copy') : t('사본으로', 'Copy')} long={isDark ? t('다크 웹 사본으로 보기', 'View as a dark web copy') : t('웹 사본으로 보기', 'View as a web copy')} /></button>}
+              {webFrameShown && mobileTableSite && <button type="button" onClick={() => setFitOriginalTable(!fitOriginalTable)} className="hover:underline">{fitOriginalTable ? t('기본 크기', 'Default size') : t('표 너비 맞춤', 'Fit tables')}</button>}
               {/* X 글은 공개 미러로 보여 주므로, 로그인한 상태로 보려면 X에서 연다. 다른 글의 원문은 막대가 이 창에서 연다. */}
               {webStatus?.xUrl && (
                 <a href={webStatus.xUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
-                  X에서 열기<ExternalLink className="w-3 h-3" aria-hidden="true" />
+                  {t('X에서 열기', 'Open on X')}<ExternalLink className="w-3 h-3" aria-hidden="true" />
                 </a>
               )}
             </WebStatusBar>
@@ -1289,7 +1290,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                       <iframe
                         key={`${activeYouTube.id}:${activeYouTube.start}`}
                         src={youtubeEmbedSrc(activeYouTube.id, activeYouTube.start, true)}
-                        title="YouTube 동영상"
+                        title={t('YouTube 동영상', 'YouTube video')}
                         className="h-full w-full border-0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
@@ -1298,8 +1299,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                       <button
                         type="button"
                         onClick={closeYouTube}
-                        aria-label="동영상 닫기"
-                        title="동영상 닫기"
+                        aria-label={t('동영상 닫기', 'Close video')}
+                        title={t('동영상 닫기', 'Close video')}
                         className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-slate-950/80 text-xs font-bold text-white hover:bg-slate-900 cursor-pointer"
                       >
                         ✕
@@ -1336,19 +1337,19 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               <div className="feedex-web-fill flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
                 <Globe className="w-9 h-9 text-slate-400" aria-hidden="true" />
                 <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  {webCopy?.articleId === article.id && webCopy.error ? webCopy.error : frame.reason === 'challenge' ? '사이트의 보안 확인 때문에 웹 보기를 열 수 없어요.' : frame.reason === 'http' ? '사이트에서 페이지를 불러오지 못했어요.' : '이 사이트는 다른 서비스 안에서 열리지 않도록 막아 두었어요.'}
+                  {webCopy?.articleId === article.id && webCopy.error ? webCopy.error : frame.reason === 'challenge' ? t('사이트의 보안 확인 때문에 웹 보기를 열 수 없어요.', 'The site’s security check prevents the web view.') : frame.reason === 'http' ? t('사이트에서 페이지를 불러오지 못했어요.', 'The site could not load the page.') : t('이 사이트는 다른 서비스 안에서 열리지 않도록 막아 두었어요.', 'This site does not allow being opened inside another service.')}
                 </p>
-                {webCopy?.articleId === article.id && webCopy.retrying && <p className={`-mt-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>사이트가 잠깐 막은 것일 수 있어요. 이 글을 보고 계시는 동안 잠시 뒤 자동으로 다시 받아 볼게요.</p>}
+                {webCopy?.articleId === article.id && webCopy.retrying && <p className={`-mt-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('사이트가 잠깐 막은 것일 수 있어요. 이 글을 보고 계시는 동안 잠시 뒤 자동으로 다시 받아 볼게요.', 'The site may be blocking requests briefly. While you’re on this article, it will try again automatically.')}</p>}
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  <button type="button" className="feedex-cache-clear" onClick={showWebCopy}>웹 사본 다시 시도</button>
-                  <button type="button" className="feedex-cache-clear" onClick={() => setFrame({ articleId: article.id, embeddable: true, url: article.url })}>원본 다시 표시</button>
+                  <button type="button" className="feedex-cache-clear" onClick={showWebCopy}>{t('웹 사본 다시 시도', 'Retry web copy')}</button>
+                  <button type="button" className="feedex-cache-clear" onClick={() => setFrame({ articleId: article.id, embeddable: true, url: article.url })}>{t('원본 다시 표시', 'Show the original again')}</button>
                   <a
                     href={frame.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold inline-flex items-center gap-1.5 transition"
                   >
-                    새 창에서 열기
+                    {t('새 창에서 열기', 'Open in a new window')}
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                   <button
@@ -1361,7 +1362,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     }`}
                   >
                     <BookOpen className="w-3.5 h-3.5" />
-                    리더로 보기
+                    {t('리더로 보기', 'Open in Reader')}
                   </button>
                 </div>
               </div>
@@ -1369,9 +1370,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             </>)}
           </div>
         ) : (
-        <div ref={bodyRef} tabIndex={0} aria-label="본문 내용" className="feedex-reader-content flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-6">
+        <div ref={bodyRef} tabIndex={0} aria-label={t('본문 내용', 'Article content')} className="feedex-reader-content flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-8 py-6 space-y-6">
           {translationFeedback}
-          {article.body_deferred && <div role="status" className="flex items-center gap-2 text-sm text-slate-400">{article.body_load_error ? <><span>본문을 가져오지 못했습니다.</span><button className="text-emerald-500" onClick={() => onUpdateArticleFields(article.id, { body_load_error: false })}>다시 시도</button></> : <><Loader2 size={16} className="animate-spin" /><span>본문 불러오는 중…</span></>}</div>}
+          {article.body_deferred && <div role="status" className="flex items-center gap-2 text-sm text-slate-400">{article.body_load_error ? <><span>{t('본문을 가져오지 못했습니다.', 'Could not load the text.')}</span><button className="text-emerald-500" onClick={() => onUpdateArticleFields(article.id, { body_load_error: false })}>{t('다시 시도', 'Try again')}</button></> : <><Loader2 size={16} className="animate-spin" /><span>{t('본문 불러오는 중…', 'Loading text…')}</span></>}</div>}
           {/* 글 정보 머리글 */}
           <div className="space-y-3 border-b pb-6 border-slate-800/60">
             <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-400 font-medium">
@@ -1391,10 +1392,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 </span>
               )}
               <span className="text-slate-500">·</span>
-              <span className="text-slate-400" title={article.date_source === 'original' ? '원문 발행일' : '피드에서 제공한 발행일'}>
-                {checkingDate ? '원문 발행일 확인 중…' : article.date_source === 'updated' || article.date_source === 'collected' ? '발행일 미제공' : <>
-                {article.date_source !== 'original' && '피드 제공 · '}
-                {new Date(article.published_at).toLocaleString('ko-KR', {
+              <span className="text-slate-400" title={article.date_source === 'original' ? t('원문 발행일', 'Publish date from the original') : t('피드에서 제공한 발행일', 'Publish date from the feed')}>
+                {checkingDate ? t('원문 발행일 확인 중…', 'Checking the original publish date…') : article.date_source === 'updated' || article.date_source === 'collected' ? t('발행일 미제공', 'No publish date') : <>
+                {article.date_source !== 'original' && t('피드 제공 · ', 'From feed · ')}
+                {new Date(article.published_at).toLocaleString(locale(), {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',
@@ -1425,13 +1426,13 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           {/* 번역해서 보여 주는 중이라는 작은 표시. 누르면 원문으로 돌아간다. */}
           {showTranslation && <div role="status" className="feedex-translation-bar">
             <Languages className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 truncate">{translation!.source === 'full' && translation!.bodySource === 'feed' ? '피드 본문만 번역' : `${translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`}</span>
-            {canOpenArticleInDeepL && translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL}>DeepL에서 보기</button>}
-            <button type="button" onClick={() => setTranslated(false)}>원문 보기</button>
+            <span className="min-w-0 truncate">{translation!.source === 'full' && translation!.bodySource === 'feed' ? t('피드 본문만 번역', 'Feed text translated') : t(`${translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`, `Translated by ${translation!.provider === 'deepl' ? 'DeepL' : 'Workers AI'}`)}</span>
+            {canOpenArticleInDeepL && translation!.provider !== 'deepl' && <button type="button" onClick={openArticleInDeepL}>{t('DeepL에서 보기', 'View in DeepL')}</button>}
+            <button type="button" onClick={() => setTranslated(false)}>{t('원문 보기', 'Show original')}</button>
           </div>}
 
           {/* Cloudflare Workers AI 요약 카드 */}
-          {aiOpen && (currentAiSummary || summarizing || summaryError) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} loadingLabel={xPost ? 'X 대화를 요약하는 중…' : undefined} />}
+          {aiOpen && (currentAiSummary || summarizing || summaryError) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} loadingLabel={xPost ? t('X 대화를 요약하는 중…', 'Summarizing the X conversation…') : undefined} />}
 
           {/* 대표 썸네일 이미지 (contentHtml에 이미 들어 있지 않을 때). X 대화 번역은 작성자 줄과 사진을 본문에 함께 보여 주므로 넣지 않는다. */}
           {article.thumbnail_url && !showingXTranslation &&
@@ -1458,10 +1459,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               {scrapingReader ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>{bodyless ? '원문에서 본문을 불러오는 중이에요.' : '원문에서 전체 본문을 불러오는 중이에요. 그동안 피드 본문을 보여드려요.'}</span>
+                  <span>{bodyless ? t('원문에서 본문을 불러오는 중이에요.', 'Loading the text from the original.') : t('원문에서 전체 본문을 불러오는 중이에요. 그동안 피드 본문을 보여드려요.', 'Loading the full text from the original. Showing the feed text meanwhile.')}</span>
                 </>
               ) : (
-                <span>원문 전체 본문을 불러오지 못해 피드 본문을 보여드려요.</span>
+                <span>{t('원문 전체 본문을 불러오지 못해 피드 본문을 보여드려요.', 'Could not load the full text, so the feed text is shown.')}</span>
               )}
             </div>
           )}
@@ -1470,11 +1471,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           {bodyless && !showTranslation ? (
             !scrapingReader && (
               <div className={`rounded-2xl border p-6 text-center ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'}`}>
-                <p className="text-sm font-semibold">{readerFailed ? '원문 본문을 불러오지 못했어요' : '이 글은 피드에 본문이 없어요'}</p>
+                <p className="text-sm font-semibold">{readerFailed ? t('원문 본문을 불러오지 못했어요', 'Could not load the original text') : t('이 글은 피드에 본문이 없어요', 'This feed has no text for this article')}</p>
                 <p className="mt-2 text-xs leading-relaxed text-slate-400">
                   {readerFailed
-                    ? '사이트에서 본문을 가져오지 못했습니다. 잠시 후 다시 시도하거나 원문 사이트에서 읽어 주세요.'
-                    : '원문 사이트에서 읽거나, 리더 보기로 본문을 불러와 보세요.'}
+                    ? t('사이트에서 본문을 가져오지 못했습니다. 잠시 후 다시 시도하거나 원문 사이트에서 읽어 주세요.', 'Could not get the text from the site. Try again later or read it on the original site.')
+                    : t('원문 사이트에서 읽거나, 리더 보기로 본문을 불러와 보세요.', 'Read it on the original site, or load the text with Reader.')}
                 </p>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                   <a
@@ -1483,7 +1484,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     rel="noopener noreferrer"
                     className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold inline-flex items-center gap-1.5 transition"
                   >
-                    <span>원문 사이트에서 읽기</span>
+                    <span>{t('원문 사이트에서 읽기', 'Read on the original site')}</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                   {(mode !== 'reader' || readerFailed) && (
@@ -1493,7 +1494,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                       className={`px-4 py-2 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer ${isDark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-300 hover:bg-slate-100'}`}
                     >
                       <BookOpen className="w-3.5 h-3.5" />
-                      <span>{readerFailed ? '본문 다시 불러오기' : '리더로 보기'}</span>
+                      <span>{readerFailed ? t('본문 다시 불러오기', 'Reload text') : t('리더로 보기', 'Open in Reader')}</span>
                     </button>
                   )}
                 </div>
@@ -1520,7 +1521,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             }`}
           >
             <div className="text-xs text-slate-400">
-              원문 출처: <span className="font-medium">{article.feed_title}</span>
+              {t('원문 출처', 'Source')}: <span className="font-medium">{article.feed_title}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <a
@@ -1529,7 +1530,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 rel="noopener noreferrer"
                 className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold inline-flex items-center gap-1.5 transition"
               >
-                <span>원문 사이트에서 보기</span>
+                <span>{t('원문 사이트에서 보기', 'View on the original site')}</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
@@ -1537,7 +1538,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
         </div>
         )}
         <nav
-          aria-label="본문 조작"
+          aria-label={t('본문 조작', 'Article actions')}
           className="feedex-mobile-dock feedex-mobile-reader-dock lg:hidden"
           data-collapsed={barsHidden || undefined}
           onPointerDown={barsHidden ? undefined : keepPeeking}
@@ -1546,7 +1547,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             <button
               type="button"
               className="feedex-dock-peek-btn"
-              aria-label="메뉴 보이기"
+              aria-label={t('메뉴 보이기', 'Show menu')}
               onPointerDown={(e) => {
                 e.stopPropagation();
                 try { navigator.vibrate?.(10); } catch {}
@@ -1571,38 +1572,38 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           {/* 알약을 누른 손을 떼며 생기는 클릭이 방금 펼쳐진 자리의 버튼(이전·다음 글 등)을 누르지 않게 잠깐 막는다. */}
           <div className="feedex-dock-actions" aria-hidden={barsHidden || undefined} inert={barsHidden || undefined}
             onClickCapture={(event) => { if (Date.now() - peekOpenedAt.current < 450) { event.preventDefault(); event.stopPropagation(); } }}>
-            <button aria-label={article.is_read ? '안 읽음으로 표시' : '읽음으로 표시'} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
-            <button aria-label={article.is_saved ? '저장 취소' : '나중에 읽기'} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
-            <button aria-label="이전 아티클" disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>
-            <button aria-label="다음 아티클" disabled={!hasNext} onClick={() => onNavigateRelative('next')}><ChevronRight size={21} /></button>
-            <button aria-label="글 공유" aria-expanded={shareDialogOpen || mobileMenu === 'share'} onClick={openShare}><Share2 size={18} /></button>
-            <button aria-label="번역 및 AI 요약" aria-expanded={mobileMenu === 'assist'} onClick={() => setMobileMenu('assist')}>{translating || summarizing ? <Loader2 size={19} className="animate-spin" /> : <Sparkles size={19} />}</button>
+            <button aria-label={article.is_read ? t('안 읽음으로 표시', 'Mark as unread') : t('읽음으로 표시', 'Mark as read')} aria-pressed={article.is_read} onClick={() => onToggleRead(article)}>{article.is_read ? <CheckCircle2 size={19} /> : <Circle size={19} />}</button>
+            <button aria-label={article.is_saved ? t('저장 취소', 'Remove from saved') : t('나중에 읽기', 'Read later')} aria-pressed={article.is_saved} onClick={() => onToggleSaved(article)}><Bookmark size={19} fill={article.is_saved ? 'currentColor' : 'none'} /></button>
+            <button aria-label={t('이전 아티클', 'Previous article')} disabled={!hasPrev} onClick={() => onNavigateRelative('prev')}><ChevronLeft size={21} /></button>
+            <button aria-label={t('다음 아티클', 'Next article')} disabled={!hasNext} onClick={() => onNavigateRelative('next')}><ChevronRight size={21} /></button>
+            <button aria-label={t('글 공유', 'Share article')} aria-expanded={shareDialogOpen || mobileMenu === 'share'} onClick={openShare}><Share2 size={18} /></button>
+            <button aria-label={t('번역 및 AI 요약', 'Translation and AI summary')} aria-expanded={mobileMenu === 'assist'} onClick={() => setMobileMenu('assist')}>{translating || summarizing ? <Loader2 size={19} className="animate-spin" /> : <Sparkles size={19} />}</button>
           </div>
         </nav>
-        {shareDialogOpen && <dialog ref={shareDialogRef} aria-label="공유 방법" onCancel={(event) => { event.preventDefault(); closeShareDialog(); }}
+        {shareDialogOpen && <dialog ref={shareDialogRef} aria-label={t('공유 방법', 'Share options')} onCancel={(event) => { event.preventDefault(); closeShareDialog(); }}
           onClick={(event) => { if (event.target === event.currentTarget) closeShareDialog(); }}
           className={`feedex-desktop-share-menu fixed inset-0 m-auto max-h-[calc(100dvh-24px)] w-[calc(100%-24px)] max-w-sm overflow-y-auto rounded-2xl border text-sm shadow-2xl backdrop:bg-black/45 ${isDark ? 'border-slate-700 bg-slate-900 text-slate-100' : 'border-slate-200 bg-white text-slate-900'}`}>
           <div className="p-4">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="font-semibold">글 공유</h2>
-              <button type="button" aria-label="공유 닫기" className="rounded-lg p-2 hover:bg-emerald-500/10" onClick={closeShareDialog}><X size={17} /></button>
+              <h2 className="font-semibold">{t('글 공유', 'Share article')}</h2>
+              <button type="button" aria-label={t('공유 닫기', 'Close share')} className="rounded-lg p-2 hover:bg-emerald-500/10" onClick={closeShareDialog}><X size={17} /></button>
             </div>
             <div className="grid gap-1 min-[350px]:grid-cols-2">{shareOptions(closeShareDialog)}</div>
           </div>
         </dialog>}
         {isMobile && mobileMenu && <>
-          <button type="button" className="feedex-reader-menu-backdrop" aria-label="메뉴 닫기" onClick={closeMobileMenu} />
-          {mobileMenu === 'tools' ? <div className="feedex-mobile-reader-menu" aria-label="본문 도구">
+          <button type="button" className="feedex-reader-menu-backdrop" aria-label={t('메뉴 닫기', 'Close menu')} onClick={closeMobileMenu} />
+          {mobileMenu === 'tools' ? <div className="feedex-mobile-reader-menu" aria-label={t('본문 도구', 'Article tools')}>
             {/* 위쪽 ... 메뉴에서도 요약을 바로 열 수 있게 맨 위에 둔다. 아래 막대의 번역·요약 메뉴와 같은 동작이다. */}
             <button aria-pressed={aiOpen} onClick={() => { closeMobileMenu(); toggleAiSummary(); }}>{summarizing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}{aiAction}</button>
-            {canOpenArticleInDeepL && <button onClick={() => { closeMobileMenu(); openArticleInDeepL(); }}><ExternalLink size={18} />DeepL에서 번역</button>}
-            <button disabled={refreshing} onClick={() => { closeMobileMenu(); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />기사 새로고침</button>
-            <p className="feedex-mobile-menu-label">{siteShown ? '사이트 확대·축소' : '글자 크기'}</p>
+            {canOpenArticleInDeepL && <button onClick={() => { closeMobileMenu(); openArticleInDeepL(); }}><ExternalLink size={18} />{t('DeepL에서 번역', 'Translate in DeepL')}</button>}
+            <button disabled={refreshing} onClick={() => { closeMobileMenu(); void refreshArticle(); }}><RotateCw size={18} className={refreshing ? 'animate-spin' : undefined} />{t('기사 새로고침', 'Refresh article')}</button>
+            <p className="feedex-mobile-menu-label">{siteShown ? t('사이트 확대·축소', 'Site zoom') : t('글자 크기', 'Text size')}</p>
             {sizeControl('feedex-mobile-zoom')}
-            <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}><ExternalLink size={18} />원문 사이트 열기</a>
-          </div> : mobileMenu === 'share' ? <div role="group" className="feedex-mobile-reader-menu feedex-mobile-assist-menu feedex-mobile-share-menu" aria-label="공유 방법">
+            <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}><ExternalLink size={18} />{t('원문 사이트 열기', 'Open original site')}</a>
+          </div> : mobileMenu === 'share' ? <div role="group" className="feedex-mobile-reader-menu feedex-mobile-assist-menu feedex-mobile-share-menu" aria-label={t('공유 방법', 'Share options')}>
             {shareOptions(closeMobileMenu)}
-          </div> : <div className="feedex-mobile-reader-menu feedex-mobile-assist-menu" aria-label="번역 및 AI 요약">
+          </div> : <div className="feedex-mobile-reader-menu feedex-mobile-assist-menu" aria-label={t('번역 및 AI 요약', 'Translation and AI summary')}>
             <button aria-pressed={showTranslation} onClick={() => { closeMobileMenu(); toggleTranslation(); }}>{translating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}{translateAction}</button>
             <button aria-pressed={aiOpen} onClick={() => { closeMobileMenu(); toggleAiSummary(); }}><Sparkles size={18} />{aiAction}</button>
           </div>}

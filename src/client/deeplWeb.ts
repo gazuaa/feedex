@@ -1,4 +1,5 @@
 import { nativeBridge } from './nativeApp';
+import { lang } from '../shared/i18n';
 
 // DeepL API 없이 DeepL로 번역하기: 사용자의 DeepL 웹 번역기를 글이 채워진 상태로 연다.
 // 로그인한 DeepL 계정과 구독(Pro)이 그대로 쓰인다. 주소 형식은 https://www.deepl.com/translator#<원문 언어>/<번역 언어>/<글>이다.
@@ -14,6 +15,7 @@ export function guessSourceLanguage(text: string): string {
   if (kana > 0 && kana + han > hangul) return 'ja';
   if (han > hangul && han > 0) return 'zh';
   if (cyrillic > 0 && cyrillic * 2 > (text.match(/[a-z]/gi) || []).length) return 'ru';
+  if (hangul && hangul > (text.match(/[a-z]/gi) || []).length) return 'ko';
   return 'en';
 }
 
@@ -28,7 +30,8 @@ export function htmlToText(html: string, parser: { parseFromString(text: string,
 /** DeepL 웹 번역기 주소. 너무 길면 문단 경계에서 자른다. */
 export function deeplTranslatorUrl(text: string, limit = DEEPL_LINK_LIMIT): string {
   const source = guessSourceLanguage(text);
-  const head = `https://www.deepl.com/translator#${source}/ko/`;
+  const target = lang();
+  const head = `https://www.deepl.com/translator#${source}/${target}/`;
   let body = text.trim();
   while (body && head.length + encodeURIComponent(body).length > limit) {
     const cut = body.lastIndexOf('\n\n', Math.floor(body.length * 0.8));

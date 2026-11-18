@@ -46,6 +46,7 @@ namespace FeedEx
         {
             this.home = home;
             this.settings = settings;
+            NativeLanguage.Preference = settings.Language;
             this.instance = instance;
             appScale = AppScale.Restored(settings.Scale);
             Text = "feedex";
@@ -60,7 +61,7 @@ namespace FeedEx
             app.Dock = DockStyle.Fill;
             article.Bounds = Rectangle.Empty;
             spinner.AutoSize = true;
-            spinner.Text = "원문을 불러오는 중…";
+            spinner.Text = NativeLanguage.Text("원문을 불러오는 중…", "Loading the original…");
             spinner.Padding = new Padding(10, 6, 10, 6);
             spinner.BackColor = SystemColors.Window;
             spinner.ForeColor = SystemColors.GrayText;
@@ -137,14 +138,14 @@ namespace FeedEx
             }
             catch (WebView2RuntimeNotFoundException)
             {
-                var answer = MessageBox.Show(this, "feedex를 열려면 Microsoft Edge WebView2 런타임이 필요해요. 설치 페이지를 열까요?", "feedex", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                var answer = MessageBox.Show(this, NativeLanguage.Text("feedex를 열려면 Microsoft Edge WebView2 런타임이 필요해요. 설치 페이지를 열까요?", "FeedEx requires the Microsoft Edge WebView2 Runtime. Open its installation page?"), "feedex", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                 if (answer == DialogResult.Yes) Shell.Open("https://developer.microsoft.com/microsoft-edge/webview2/");
                 Close();
                 return;
             }
             catch (Exception error)
             {
-                MessageBox.Show(this, "feedex 화면을 열지 못했어요.\n\n" + error.Message, "feedex", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, NativeLanguage.Text("feedex 화면을 열지 못했어요.\n\n", "Could not open feedex.\n\n") + error.Message, "feedex", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 Close();
                 return;
             }
@@ -257,6 +258,15 @@ namespace FeedEx
                 case "article": Place(body); break;
                 case "signIn": StartSignIn(); break;
                 case "checkForUpdates": _ = Updates.Check(updates, false); break;
+                case "language":
+                    var language = Json.Text(body, "preference");
+                    if (NativeLanguage.Valid(language) && language != settings.Language)
+                    {
+                        NativeLanguage.Preference = settings.Language = language;
+                        spinner.Text = NativeLanguage.Text("원문을 불러오는 중…", "Loading the original…");
+                        settings.Save();
+                    }
+                    break;
                 case "appScale": ChangeAppScale(Json.Text(body, "action")); break;
                 case "openExternal":
                     var url = AppLinks.WebAddress(Json.Text(body, "url"));
@@ -475,7 +485,7 @@ namespace FeedEx
             }
             catch (Exception)
             {
-                MessageBox.Show(this, "업데이트를 설치했어요. feedex를 다시 열어 주세요.", "feedex 업데이트", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, NativeLanguage.Text("업데이트를 설치했어요. feedex를 다시 열어 주세요.", "The update is installed. Please reopen feedex."), NativeLanguage.Text("feedex 업데이트", "feedex Update"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             Close();
         }

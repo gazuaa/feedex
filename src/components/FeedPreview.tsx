@@ -6,6 +6,7 @@ import {
   type CuratedFeedItem,
   type FeedPreviewResponse,
 } from '../client/api';
+import { t } from '../shared/i18n';
 
 interface FeedPreviewProps {
   feed: CuratedFeedItem;
@@ -47,7 +48,7 @@ export const FeedPreview: React.FC<FeedPreviewProps> = ({
       })
       .catch((err) => {
         if (!controller.signal.aborted) {
-          setError(err instanceof Error ? err.message : '최근 글을 불러오지 못했습니다.');
+          setError(err instanceof Error ? err.message : t('최근 글을 불러오지 못했습니다.', 'Could not load recent articles.'));
         }
       })
       .finally(() => {
@@ -57,7 +58,7 @@ export const FeedPreview: React.FC<FeedPreviewProps> = ({
   }, [feed.id, retry, preview]);
 
   return (
-    <section className="space-y-5" aria-label={`${feed.title} 미리보기`}>
+    <section className="space-y-5" aria-label={t(`${feed.title} 미리보기`, `${feed.title} preview`)}>
       <button
         type="button"
         autoFocus={!preview}
@@ -65,7 +66,7 @@ export const FeedPreview: React.FC<FeedPreviewProps> = ({
         className="inline-flex items-center gap-1.5 text-xs text-emerald-500 hover:text-emerald-400 cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" />
-        검색 결과로
+        {t('검색 결과로', 'Back to results')}
       </button>
 
       <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
@@ -82,19 +83,19 @@ export const FeedPreview: React.FC<FeedPreviewProps> = ({
           rel="noopener noreferrer"
           className="mt-3 inline-flex items-center gap-1 text-xs text-emerald-500 hover:underline"
         >
-          웹사이트 방문 <ExternalLink className="w-3 h-3" />
+          {t('웹사이트 방문', 'Visit website')} <ExternalLink className="w-3 h-3" />
         </a>
       </div>
 
       <div>
-        <h4 className="text-sm font-semibold">최근 글 미리보기</h4>
-        <p className="mt-1 text-xs text-slate-400">미리보기만으로는 구독되지 않습니다. 원하는 피드만 구독해 보세요.</p>
+        <h4 className="text-sm font-semibold">{t('최근 글 미리보기', 'Recent articles')}</h4>
+        <p className="mt-1 text-xs text-slate-400">{t('미리보기만으로는 구독되지 않습니다. 원하는 피드만 구독해 보세요.', 'Previewing does not subscribe. Subscribe only to the feeds you want.')}</p>
       </div>
 
       <div aria-live="polite" aria-busy={loading}>
         {loading ? (
           <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400">
-            <Loader2 className="w-5 h-5 animate-spin" /> 최근 글을 불러오는 중입니다…
+            <Loader2 className="w-5 h-5 animate-spin" /> {t('최근 글을 불러오는 중입니다…', 'Loading recent articles…')}
           </div>
         ) : error ? (
           <div className="py-8 text-center">
@@ -104,13 +105,13 @@ export const FeedPreview: React.FC<FeedPreviewProps> = ({
               onClick={() => setRetry((value) => value + 1)}
               className="mt-3 px-3 py-2 rounded-lg text-xs text-emerald-500 border border-emerald-500/40 hover:bg-emerald-500/10 cursor-pointer"
             >
-              다시 시도
+              {t('다시 시도', 'Try again')}
             </button>
           </div>
         ) : articles.length === 0 ? (
           <div className="py-10 text-center text-slate-400">
             <Rss className="w-6 h-6 mx-auto mb-2" />
-            <p className="text-sm">아직 공개된 글이 없습니다.</p>
+            <p className="text-sm">{t('아직 공개된 글이 없습니다.', 'No articles yet.')}</p>
           </div>
         ) : (
           <ul className="space-y-3">
@@ -132,7 +133,7 @@ export const FeedPreview: React.FC<FeedPreviewProps> = ({
                   </div>
                   {article.summary && <p className="mt-2 text-xs text-slate-400 leading-relaxed line-clamp-3 break-words">{article.summary}</p>}
                   <time dateTime={article.publishedAt} className="block mt-2 text-[11px] text-slate-500">
-                    {article.dateSource === 'updated' || article.dateSource === 'collected' ? '발행일 미제공' : formatRelativeTime(article.publishedAt)}
+                    {article.dateSource === 'updated' || article.dateSource === 'collected' ? t('발행일 미제공', 'No publish date') : formatRelativeTime(article.publishedAt)}
                   </time>
                 </a>
               </li>

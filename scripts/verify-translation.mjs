@@ -90,7 +90,7 @@ try {
   const { LocalD1Database } = await vite.ssrLoadModule('/src/server/localD1.ts');
   const db = new LocalD1Database(':memory:', 'migrations/0001_schema.sql');
   const env = { DB: db, ALLOW_QUICK_LOGIN: 'true', OWNER_EMAIL: 'owner@example.test', X_SETTINGS_SECRET: 's'.repeat(40) };
-  const call = (path, { token, method = 'GET', body } = {}) => app.request(path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }, env);
+  const call = (path, { token, method = 'GET', body, language, acceptLanguage } = {}) => app.request(path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(language ? { 'X-Feedex-Lang': language } : {}), ...(acceptLanguage ? { 'Accept-Language': acceptLanguage } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }, env);
   const login = async (email) => (await call('/api/auth/google/quick', { method: 'POST', body: { email } })).json();
   const owner = await login('owner@example.test'), other = await login('reader@example.test');
   const stamp = new Date().toISOString();
@@ -250,12 +250,45 @@ try {
   assert.equal(changed.cached, false); assert.equal(changed.html, `번역:${changedBody}`, 'a changed article is translated again');
   const forced = await (await call('/api/articles/art/translate', { token: owner.token, method: 'POST', body: { source: 'full', force: true } })).json();
   assert.equal(forced.cached, false);
+  let englishRequests = 0;
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init?.body ?? '{}');
+    if (body.target_lang !== 'EN-US') return deeplFetch()(url, init);
+    englishRequests++;
+    return Response.json({ translations: body.text.map((text) => ({ detected_source_language: 'ES', text: `English: ${text}` })) });
+  };
+  const translatedIn = (language) => call('/api/articles/art/translate', { token: owner.token, method: 'POST', body: { source: 'full' }, language, acceptLanguage: 'ko-KR' }).then(response => response.json());
+  const englishTranslation = await translatedIn('en');
+  assert.equal(englishTranslation.cached, false);
+  assert.equal(englishTranslation.html, `English: ${changedBody}`);
+  assert.equal((await translatedIn('en')).cached, true);
+  assert.equal((await translatedIn('ko')).html, `번역:${changedBody}`);
+  assert.equal(englishRequests, 1, '영어는 따로 번역하고 같은 언어로 다시 열면 저장본을 쓴다.');
+  globalThis.fetch = deeplFetch();
   const cleared = await (await call('/api/translation/deepl', { token: owner.token, method: 'DELETE' })).json();
   assert.equal(cleared.provider, 'workers-ai');
   const managedEnv = { ...env, DEEPL_API_KEY: freeKey };
   const managed = await app.request('/api/translation/deepl', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${owner.token}` }, body: JSON.stringify({ key: freeKey }) }, managedEnv);
   assert.equal(managed.status, 400, 'a key managed by the server is not replaced from the screen');
 
+  const readable = '<p>The library added several public computers to give visitors better access to online services.</p><p>Visitors can use the computers for free without making a reservation.</p>';
+  await db.prepare("UPDATE articles SET full_content_html=? WHERE id='art'").bind(readable).run();
+  env.AI = { async run(_model, input) {
+    await Promise.resolve();
+    const english = input.messages[0].content.startsWith('Write a natural English summary');
+    return { response: { overview: english ? 'The library added computers to improve public access.' : '도서관이 방문객을 위해 공용 컴퓨터를 추가했습니다.', points: [] } };
+  } };
+  const summaryIn = (language, acceptLanguage) => call('/api/articles/art/summarize', { token: owner.token, method: 'POST', body: {}, language, acceptLanguage }).then(response => response.json());
+  const [enSummary, koSummary] = await Promise.all([summaryIn(undefined, 'en-US'), summaryIn('ko', 'en-US')]);
+  assert.ok(enSummary.aiSummary && koSummary.aiSummary, JSON.stringify({ enSummary, koSummary }));
+  assert.match(enSummary.aiSummary, /^\*\*Key takeaways\*\*\nThe library/);
+  assert.match(koSummary.aiSummary, /^\*\*핵심 요약\*\*\n도서관/);
+  assert.equal((await summaryIn('ko')).cached, true);
+  assert.deepEqual(await summaryIn('en'), { ...enSummary, cached: true });
+  for (const [language, summary] of [['en', enSummary], ['ko', koSummary]]) {
+    const result = await (await call('/api/articles?articleId=art', { token: owner.token, language })).json();
+    assert.equal(result.articles?.[0]?.ai_summary, summary.aiSummary, '글 목록도 설정한 언어의 요약을 반환한다.');
+  }
   // 같은 글을 구독해도 자기 자격 증명과 결과만 사용한다. 연결이 없거나 한도가 차도 운영자 계정은 쓰지 않는다.
   const another = await login('another-reader@example.test');
   for (const reader of [other, another]) {
@@ -312,8 +345,8 @@ try {
   assert.equal(ciphertexts.results.length, 2);
   assert.ok(!JSON.stringify(ciphertexts.results).includes(aiToken) && !JSON.stringify(ciphertexts.results).includes(personalKey));
   assert.match((await (await assist(other, 'translate', { source: 'feed', force: true })).json()).html, /인공지능 번역/, 'DeepL 한도가 차면 같은 사용자의 AI만 쓴다.');
-  const readable = '<p>The library added several computers to give visitors access to online services.</p><p>Anyone can use the computers without making a reservation.</p>';
-  await db.prepare("UPDATE articles SET full_content_html=?,ai_summary=? WHERE id='art'").bind(readable, '**핵심 요약**\n운영자 계정의 예전 요약입니다.').run();
+  const personalReadable = '<p>The library added several computers to give visitors access to online services.</p><p>Anyone can use the computers without making a reservation.</p>';
+  await db.prepare("UPDATE articles SET full_content_html=?,ai_summary=? WHERE id='art'").bind(personalReadable, '**핵심 요약**\n운영자 계정의 예전 요약입니다.').run();
   const otherList = await (await call('/api/articles?articleId=art', { token: other.token })).json();
   assert.equal(otherList.articles[0].ai_summary, null);
   const ownSummary = await (await assist(other, 'summarize')).json();
@@ -384,8 +417,8 @@ try {
   assert.ok(link.length <= DEEPL_LINK_LIMIT, 'long articles fit the app hand-off limit'); assert.match(decodeURIComponent(link), /Paragraph 0 with some words\.\n\nParagraph 1/);
   assert.doesNotMatch(link, /%0A%0A$/, 'cut at a paragraph boundary');
   const appSource = (await import('node:fs')).readFileSync('src/App.tsx', 'utf8');
-  assert.match(appSource, /id: 'deepl-selection', label: '선택한 글 DeepL로 번역', run: \(\) => openInDeepL\(target\.selection!\)/, 'selected text can go to DeepL from the right-click menu');
-  assert.match(appSource, /id: 'deepl-article', label: '이 글 DeepL로 번역'/, 'a whole article can go to DeepL from the right-click menu');
+  assert.match(appSource, /id: 'deepl-selection', label: t\([^\n]+\), run: \(\) => openInDeepL\(target\.selection!\)/, 'selected text can go to DeepL from the right-click menu');
+  assert.match(appSource, /id: 'deepl-article', label: t\([^\n]+\), run: \(\) => [^\n]+openInDeepL/, 'a whole article can go to DeepL from the right-click menu');
   assert.match((await import('node:fs')).readFileSync('src/client/deeplWeb.ts', 'utf8'), /bridge\.postMessage\(\{ type: 'openExternal', url \}\)/, 'the Mac and Windows apps open DeepL in the default browser');
 
   console.log('PASS: DeepL endpoint, auth header, HTML handling, escaped titles, size-limited parts in order; Workers AI paragraph translation with model fallback, code and Korean left alone; DeepL quota falls back to Workers AI; Korean articles cost nothing; subscribed-only translations saved per source and redone when the article changes; operator-only encrypted DeepL key that is checked before saving and never returned; translate button in every view and the operator setting; X conversation translations without a repeated heading and with boxed quotes; articles left in Slap for the same e-mail; DeepL web hand-off for selections and whole articles without the API.');

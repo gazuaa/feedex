@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { leavesForOriginal, opensOriginalSeparately, originalArticleUrl } from '../client/originalWindow';
+import { t } from '../shared/i18n';
 
-const ORIGINAL_HELP = '원문 사이트에서 읽고 로그인할 수 있어요.';
+const ORIGINAL_HELP = t('원문 사이트에서 읽고 로그인할 수 있어요.', 'Read and sign in on the original site.');
 
 /** 막대 폭에 맞는 이름을 보여 준다. 데스크톱에서도 글 칸이 좁을 수 있어 기기가 아니라 막대 폭으로 고른다. */
 export function WebLabel({ short, long }: { short: string; long: string }) {
@@ -39,7 +40,7 @@ export function WebStatusBar({ url, isDark, hidden, canLogin, busy = false, noti
         {children}
         {original && (
           <a href={original.href} target={separate ? '_blank' : undefined} rel="noreferrer" title={ORIGINAL_HELP} onClick={(event) => { if (!separate && leavesForOriginal(event)) onLeave?.(); }} className={`inline-flex items-center gap-1 font-semibold hover:underline ${accent}`}>
-            <WebLabel short="원문" long="원문에서 읽기·로그인" /><ExternalLink className="w-3 h-3" aria-hidden="true" />
+            <WebLabel short={t('원문', 'Original')} long={t('원문에서 읽기·로그인', 'Read or sign in on the original')} /><ExternalLink className="w-3 h-3" aria-hidden="true" />
           </a>
         )}
       </div>

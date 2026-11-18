@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-title-en="Privacy Policy — feedex">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>개인정보처리방침 — feedex</title>
+    <script src="/page-language.js" defer></script>
     <style>
       :root {
         color-scheme: dark;
@@ -44,10 +45,11 @@
         color: #64748b;
         font-size: 13px;
       }
+      html[lang="en"] [lang="ko"], html[lang="ko"] [lang="en"] { display: none; }
     </style>
   </head>
   <body>
-    <main>
+    <main lang="ko">
       <h1>개인정보처리방침</h1>
       <p class="meta">시행일: 2026년 10월 19일</p>
 
@@ -101,6 +103,31 @@
       </p>
 
       <p class="meta"><a href="/">feedex로 돌아가기</a></p>
+    </main>
+    <main lang="en">
+      <h1>Privacy Policy</h1>
+      <p class="meta">Effective October 19, 2026</p>
+      <p>feedex (<a href="https://feedex.jyk.workers.dev">feedex.jyk.workers.dev</a>) lets you subscribe to and read RSS feeds. This policy explains what feedex collects and how it uses that information.</p>
+      <h2>Information we collect</h2>
+      <ul>
+        <li>When you sign in with Google, Google provides your account identifier, email address, name and profile photo URL.</li>
+        <li>Folders, feed subscriptions, read status, bookmarks and display settings you create while using the service.</li>
+        <li>A session token to keep you signed in.</li>
+      </ul>
+      <h2>How we use your information</h2>
+      <p>We use this information only to sign you in, identify your account, store your subscriptions and read status, and sync them across devices. We do not use it for advertising or sell it.</p>
+      <h2>Storage and processing</h2>
+      <ul>
+        <li>Cloudflare (Workers and the D1 database) stores and processes the information.</li>
+        <li>Session tokens expire when you sign out or 30 days after they are issued.</li>
+        <li>When you request an AI summary or load the original article, the public article text is sent to Cloudflare Workers AI or fetched directly from the article site. Account information is not included.</li>
+        <li>If you connect your own API accounts, the credentials are stored encrypted. The text of articles you translate or summarize is sent to the DeepL or Cloudflare Workers AI account you connected. Disconnecting in Settings deletes the stored credentials.</li>
+      </ul>
+      <h2>Google user data</h2>
+      <p>feedex uses information received from Google APIs in accordance with the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements. We do not use Google user data for other purposes or share it with third parties.</p>
+      <h2>Deletion requests and questions</h2>
+      <p>To request deletion of your account and saved data or ask a question, email <a href="mailto:jonyq659@gmail.com">jonyq659@gmail.com</a>. We will verify the request and delete the account and related data.</p>
+      <p class="meta"><a href="/">Back to feedex</a></p>
     </main>
   </body>
 </html>

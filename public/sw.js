@@ -1,9 +1,9 @@
 // Slap처럼 공개된 설치·오프라인 자원만 캐시한다. 계정 데이터와 앱 HTML은
 // 항상 네트워크에서 받으므로, 계정을 바꿔도 이전 사용자의 피드가 드러나지 않고
 // 배포 뒤에 예전 앱 껍데기가 남지 않는다.
-const CACHE = 'sfeed-public-v6';
+const CACHE = 'sfeed-public-v7';
 const OFFLINE = '/offline.html';
-const PUBLIC_ASSETS = [OFFLINE, '/offline.js', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-1024.png', '/icons/icon-maskable-512.png', '/icons/apple-touch-icon.png'];
+const PUBLIC_ASSETS = [OFFLINE, '/offline.js', '/page-language.js', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-1024.png', '/icons/icon-maskable-512.png', '/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PUBLIC_ASSETS)).then(() => self.skipWaiting()));
@@ -17,7 +17,10 @@ self.addEventListener('fetch', (event) => {
   if (PUBLIC_ASSETS.includes(url.pathname)) {
     event.respondWith(caches.open(CACHE).then((cache) => cache.match(url.pathname)).then((cached) => cached || fetch(request)));
   } else if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(async () => (await caches.open(CACHE)).match(OFFLINE).then((cached) => cached || new Response('인터넷에 연결한 뒤 다시 열어 주세요.', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }))));
+    event.respondWith(fetch(request).catch(async () => (await caches.open(CACHE)).match(OFFLINE).then((cached) => cached || new Response(
+      /^ko(?:[-,;]|$)/i.test(request.headers.get('Accept-Language') || navigator.language || 'ko') ? '인터넷에 연결한 뒤 다시 열어 주세요.' : 'Connect to the internet and try again.',
+      { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
+    ))));
   }
 });
 

@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import { Hono } from 'hono';
 import type { Env, UserRecord } from './types';
 import type { ParsedArticle } from './rssParser';
@@ -25,14 +26,14 @@ async function stored(env: Env, userId: string, feedId: string): Promise<State |
 }
 function fresh(feed: Feed, options: FeedHistoryOptions): State {
   const time = nowIso();
-  return { revision: 0, status: 'paused', reason: 'ready', options, added: 0, checked: 0, duplicates: 0, unknownDates: 0, pages: 0, oldest: null, startedAt: time, updatedAt: time, retryAt: null, readyAt: 0, message: '준비됐습니다. 한 페이지씩 과거 글을 확인합니다.', websiteStarted: !!feed.source_url || isXProfileFeed(feed.xml_url), source: { kind: feed.source_url ? 'html' : isXProfileFeed(feed.xml_url) ? 'x-start' : 'rss', url: feed.source_url || feed.xml_url, ...(feed.selector ? { selector: feed.selector } : {}) }, visited: [], fingerprints: [] };
+  return { revision: 0, status: 'paused', reason: 'ready', options, added: 0, checked: 0, duplicates: 0, unknownDates: 0, pages: 0, oldest: null, startedAt: time, updatedAt: time, retryAt: null, readyAt: 0, message: t('준비됐습니다. 한 페이지씩 과거 글을 확인합니다.', "Ready to check older articles one page at a time."), websiteStarted: !!feed.source_url || isXProfileFeed(feed.xml_url), source: { kind: feed.source_url ? 'html' : isXProfileFeed(feed.xml_url) ? 'x-start' : 'rss', url: feed.source_url || feed.xml_url, ...(feed.selector ? { selector: feed.selector } : {}) }, visited: [], fingerprints: [] };
 }
 const finish = (state: State, reason: State['reason'], message: string, done = true) => { state.reason = reason; state.message = message; state.status = done ? 'done' : 'paused'; };
 function advance(state: State, feed: Feed, next: HistorySource | null, sourceLimit?: boolean) {
   if (next) { state.source = next; return; }
   if (!state.websiteStarted && feed.html_url) { state.websiteStarted = true; state.source = { kind: 'site', url: feed.html_url }; return; }
   state.source = null;
-  finish(state, sourceLimit ? 'source_limit' : state.added || state.pages > 1 ? 'end' : 'unsupported', sourceLimit ? '사이트가 공개한 과거 목록의 마지막 페이지까지 확인했습니다.' : '공개된 목록에서 더 가져올 수 있는 과거 글이 없습니다.');
+  finish(state, sourceLimit ? 'source_limit' : state.added || state.pages > 1 ? 'end' : 'unsupported', sourceLimit ? t('사이트가 공개한 과거 목록의 마지막 페이지까지 확인했습니다.', "Reached the end of the site’s public archive.") : t('공개된 목록에서 더 가져올 수 있는 과거 글이 없습니다.', "No more older articles are available in the public archive."));
 }
 async function hash(value: string) { const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return Array.from(new Uint8Array(bytes).slice(0, 12), n => n.toString(16).padStart(2, '0')).join(''); }
 
@@ -58,39 +59,39 @@ async function reconcile(env: Env, feedId: string, articles: ParsedArticle[]) {
 
 routes.get('/:id/history', async c => {
   const userId = c.get('user').id, feedId = c.req.param('id');
-  if (!await subscribed(c.env, userId, feedId)) return c.json({ error: '구독 중인 피드가 아닙니다.' }, 404);
+  if (!await subscribed(c.env, userId, feedId)) return c.json({ error: t('구독 중인 피드가 아닙니다.', "You are not subscribed to this feed.") }, 404);
   const state = await stored(c.env, userId, feedId);
   return c.json({ job: state ? publicJob(state) : null });
 });
 routes.post('/:id/history', async c => {
   const userId = c.get('user').id, feedId = c.req.param('id'), feed = await subscribed(c.env, userId, feedId);
-  if (!feed) return c.json({ error: '구독 중인 피드가 아닙니다.' }, 404);
+  if (!feed) return c.json({ error: t('구독 중인 피드가 아닙니다.', "You are not subscribed to this feed.") }, 404);
   const body = await c.req.json().catch(() => null);
-  if (!body || !validHistoryOptions(body.options) || (body.restart !== undefined && typeof body.restart !== 'boolean')) return c.json({ error: '기간과 최대 개수를 다시 선택해 주세요.' }, 400);
+  if (!body || !validHistoryOptions(body.options) || (body.restart !== undefined && typeof body.restart !== 'boolean')) return c.json({ error: t('기간과 최대 개수를 다시 선택해 주세요.', "Choose a date range and maximum article count again.") }, 400);
   const old = await stored(c.env, userId, feedId), previousRevision = old?.revision ?? -1;
   const state = !old || body.restart ? fresh(feed, body.options) : old;
   state.options = body.options;
   if (old?.retryAt && old.retryAt > Date.now()) { state.retryAt = old.retryAt; state.reason = 'rate_limit'; state.message = old.message; }
-  if (state.source && state.reason !== 'rate_limit') finish(state, 'ready', '저장된 위치에서 이어받습니다.', false);
+  if (state.source && state.reason !== 'rate_limit') finish(state, 'ready', t('저장된 위치에서 이어받습니다.', "Resuming where you left off."), false);
   state.revision = previousRevision + 1; state.updatedAt = nowIso();
   // 수집 중인 다른 창의 상태를 덮어쓰지 않는다. 구성 변경에도 같은 임대를 적용한다.
   const result = await c.env.DB.prepare(`INSERT INTO feed_history_jobs(user_id,feed_id,state_json,revision,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id,feed_id) DO UPDATE SET state_json=excluded.state_json,revision=excluded.revision,updated_at=excluded.updated_at WHERE feed_history_jobs.lease_until<=? AND feed_history_jobs.revision=?`).bind(userId, feedId, JSON.stringify(state), state.revision, state.updatedAt, Date.now(), previousRevision).run();
-  if (!Number(result.meta?.changes)) return c.json({ error: '다른 창에서 진행 중입니다. 잠시 뒤 다시 열어 주세요.' }, 409);
+  if (!Number(result.meta?.changes)) return c.json({ error: t('다른 창에서 진행 중입니다. 잠시 뒤 다시 열어 주세요.', "Another window is fetching older articles. Try again shortly.") }, 409);
   return c.json({ job: publicJob(state) });
 });
 routes.post('/:id/history/step', async c => {
   const userId = c.get('user').id, feedId = c.req.param('id'), feed = await subscribed(c.env, userId, feedId);
-  if (!feed) return c.json({ error: '구독 중인 피드가 아닙니다.' }, 404);
+  if (!feed) return c.json({ error: t('구독 중인 피드가 아닙니다.', "You are not subscribed to this feed.") }, 404);
   const body = await c.req.json().catch(() => null), state = await stored(c.env, userId, feedId);
-  if (!state) return c.json({ error: '먼저 가져올 기간과 개수를 선택해 주세요.' }, 400);
-  if (!body || !Number.isSafeInteger(body.revision)) return c.json({ error: '진행 정보가 올바르지 않습니다.' }, 400);
+  if (!state) return c.json({ error: t('먼저 가져올 기간과 개수를 선택해 주세요.', "Choose a date range and article count first.") }, 400);
+  if (!body || !Number.isSafeInteger(body.revision)) return c.json({ error: t('진행 정보가 올바르지 않습니다.', "The saved progress is invalid.") }, 400);
   if (state.revision !== body.revision || !state.source || state.status === 'done' || state.readyAt > Date.now() || (state.retryAt && state.retryAt > Date.now())) return c.json({ job: publicJob(state) });
   const lease = crypto.randomUUID();
   const locked = await c.env.DB.prepare('UPDATE feed_history_jobs SET lease_token=?,lease_until=? WHERE user_id=? AND feed_id=? AND revision=? AND lease_until<=?').bind(lease, Date.now() + 60_000, userId, feedId, state.revision, Date.now()).run();
-  if (!Number(locked.meta?.changes)) return c.json({ error: '다른 창에서 이 피드를 불러오는 중입니다.' }, 409);
+  if (!Number(locked.meta?.changes)) return c.json({ error: t('다른 창에서 이 피드를 불러오는 중입니다.', "Another window is loading this feed.") }, 409);
   try {
-    if (state.options.limit > 0 && state.added >= state.options.limit) finish(state, 'limit', '선택한 최대 개수까지 추가했습니다. 개수를 늘리면 이어받을 수 있습니다.', false);
-    else if (state.pages >= 5000) { state.source = null; finish(state, 'source_limit', '한 번에 확인할 수 있는 5,000페이지에 도달했습니다.'); }
+    if (state.options.limit > 0 && state.added >= state.options.limit) finish(state, 'limit', t('선택한 최대 개수까지 추가했습니다. 개수를 늘리면 이어받을 수 있습니다.', "Reached your article limit. Increase it to continue."), false);
+    else if (state.pages >= 5000) { state.source = null; finish(state, 'source_limit', t('한 번에 확인할 수 있는 5,000페이지에 도달했습니다.', "Reached the limit of 5,000 pages per fetch.")); }
     else {
       const source = state.source!, page = await readHistorySource(source, c.env), offset = source.offset || 0;
       const pageKey = await hash(JSON.stringify({ ...source, offset: 0 }));
@@ -99,7 +100,7 @@ routes.post('/:id/history/step', async c => {
       else {
         const cutoff = state.options.days ? Date.now() - state.options.days * 86400_000 : 0;
         const dated = page.articles.filter(article => article.dateSource !== 'collected' && article.dateSource !== 'updated' && Number.isFinite(Date.parse(article.publishedAt)));
-        if (cutoff && dated.length && dated.every(article => Date.parse(article.publishedAt) < cutoff)) finish(state, 'period', '선택한 기간까지 확인했습니다. 기간을 넓히면 이 위치에서 이어받습니다.', false);
+        if (cutoff && dated.length && dated.every(article => Date.parse(article.publishedAt) < cutoff)) finish(state, 'period', t('선택한 기간까지 확인했습니다. 기간을 넓히면 이 위치에서 이어받습니다.', "Reached the start of the selected date range. Extend the range to continue."), false);
         else {
           let index = offset;
           // 한 요청의 데이터베이스 작업량도 제한한다. 페이지 중간에서 멈추면 항목 위치를 보관한다.
@@ -122,13 +123,13 @@ routes.post('/:id/history/step', async c => {
               await c.env.DB.prepare(`INSERT INTO article_states(user_id,article_id,is_read,is_saved,read_at) VALUES ${ids.map(() => '(?,?,1,0,?)').join(',')} ON CONFLICT(user_id,article_id) DO NOTHING`).bind(...ids.flatMap(id => [userId, id, nowIso()])).run();
             }
           }
-          finish(state, 'ready', '공개된 과거 목록을 확인하고 있습니다.', false);
+          finish(state, 'ready', t('공개된 과거 목록을 확인하고 있습니다.', "Checking the public archive."), false);
           if (index < page.articles.length) state.source = { ...source, offset: index };
           else {
             state.pages++; state.visited = [...state.visited.slice(-1999), pageKey]; if (fingerprint) state.fingerprints = [...state.fingerprints.slice(-1999), fingerprint];
             advance(state, feed, page.next, page.sourceLimit);
           }
-          if (state.source && state.options.limit > 0 && state.added >= state.options.limit) finish(state, 'limit', '선택한 최대 개수까지 추가했습니다. 개수를 늘리면 이어받을 수 있습니다.', false);
+          if (state.source && state.options.limit > 0 && state.added >= state.options.limit) finish(state, 'limit', t('선택한 최대 개수까지 추가했습니다. 개수를 늘리면 이어받을 수 있습니다.', "Reached your article limit. Increase it to continue."), false);
         }
       }
       state.retryAt = null;
@@ -137,7 +138,7 @@ routes.post('/:id/history/step', async c => {
     // RSS의 공개 보관 경로가 없을 때만 웹 목록으로 넘어간다. 요청 제한은 그대로 기다린다.
     const retry = error instanceof HistorySourceError ? error.retryAt : null;
     if (state.source?.kind === 'rss' && !retry && !state.websiteStarted && feed.html_url) advance(state, feed, null);
-    else { state.retryAt = retry; finish(state, retry ? 'rate_limit' : 'error', error instanceof HistorySourceError ? error.message : '과거 글을 받지 못했습니다. 잠시 뒤 저장된 위치에서 이어받아 주세요.', false); }
+    else { state.retryAt = retry; finish(state, retry ? 'rate_limit' : 'error', error instanceof HistorySourceError ? error.message : t('과거 글을 받지 못했습니다. 잠시 뒤 저장된 위치에서 이어받아 주세요.', "Could not load older articles. Resume where you left off in a moment."), false); }
   } finally {
     state.revision++; state.updatedAt = nowIso(); state.readyAt = Date.now() + 1200;
     await c.env.DB.prepare('UPDATE feed_history_jobs SET state_json=?,revision=?,updated_at=?,lease_token=NULL,lease_until=0 WHERE user_id=? AND feed_id=? AND lease_token=?').bind(JSON.stringify(state), state.revision, state.updatedAt, userId, feedId, lease).run();

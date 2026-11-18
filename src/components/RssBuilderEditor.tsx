@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, X } from 'lucide-react';
 import { apiRequest, type FolderItem } from '../client/api';
 import { RssBuilder, type BuilderEdit } from './RssBuilder';
+import { t } from '../shared/i18n';
 
 type SavedBuilder = BuilderEdit & { sourceUrl: string };
 /** 데스크톱 피드 메뉴와 모바일 길게 누르기에서 같은 수정 화면을 연다. */
@@ -13,7 +14,7 @@ export function RssBuilderEditor({ builderId, folders, isDark, onClose, onSaved 
     const controller = new AbortController(); setBuilder(null); setError('');
     void apiRequest<SavedBuilder>(`/api/rss-builder/${encodeURIComponent(builderId)}`, { signal: controller.signal })
       .then((value) => { if (!controller.signal.aborted) setBuilder(value); })
-      .catch((reason) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '피드 설정을 불러오지 못했습니다.'); });
+      .catch((reason) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : t('피드 설정을 불러오지 못했습니다.', 'Could not load the feed settings.')); });
     return () => controller.abort();
   }, [builderId, retry]);
   useEffect(() => {
@@ -32,9 +33,9 @@ export function RssBuilderEditor({ builderId, folders, isDark, onClose, onSaved 
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
     }}>
-      <header className={`feedex-discover-header flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}><h2 id={titleId} className="text-base font-bold">RSS 빌더 피드 수정</h2><button type="button" aria-label="RSS 빌더 수정 닫기" disabled={busy} onClick={onClose} className="rounded-lg p-2 disabled:opacity-40"><X size={21} /></button></header>
+      <header className={`feedex-discover-header flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3 sm:px-6 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}><h2 id={titleId} className="text-base font-bold">{t('RSS 빌더 피드 수정', 'Edit RSS builder feed')}</h2><button type="button" aria-label={t('RSS 빌더 수정 닫기', 'Close RSS builder editor')} disabled={busy} onClick={onClose} className="rounded-lg p-2 disabled:opacity-40"><X size={21} /></button></header>
       <div className="feedex-discover-body min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
-        {error ? <div role="alert" className="space-y-3 text-sm text-rose-500"><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)} className="font-semibold underline">다시 불러오기</button></div> : builder ? <RssBuilder key={builder.id} url={builder.sourceUrl} edit={builder} folders={folders} isDark={isDark} onBack={onClose} onSubscribed={onSaved} onBusyChange={setBusy} /> : <p role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400"><Loader2 size={17} className="animate-spin" />저장된 피드 설정을 불러오는 중…</p>}
+        {error ? <div role="alert" className="space-y-3 text-sm text-rose-500"><p>{error}</p><button type="button" onClick={() => setRetry((value) => value + 1)} className="font-semibold underline">{t('다시 불러오기', 'Reload')}</button></div> : builder ? <RssBuilder key={builder.id} url={builder.sourceUrl} edit={builder} folders={folders} isDark={isDark} onBack={onClose} onSubscribed={onSaved} onBusyChange={setBusy} /> : <p role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400"><Loader2 size={17} className="animate-spin" />{t('저장된 피드 설정을 불러오는 중…', 'Loading saved feed settings…')}</p>}
       </div>
     </dialog>
   </div>, document.body);

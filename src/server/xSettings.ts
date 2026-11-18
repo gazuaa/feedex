@@ -1,3 +1,4 @@
+import { t } from '../shared/i18n';
 import type { Env, UserRecord } from './types';
 
 export interface XCredentials { clientId: string; clientSecret: string }
@@ -8,7 +9,7 @@ const decode = (text: string) => Uint8Array.from(atob(text.replace(/-/g, '+').re
 const valid = (value: unknown): value is string => typeof value === 'string' && /^[\x21-\x7e]{8,2048}$/.test(value);
 
 async function settingsKey(env: Env) {
-  if (!env.X_SETTINGS_SECRET || env.X_SETTINGS_SECRET.length < 32) throw new XSettingsError('X 연결 정보 저장 준비가 끝나지 않았습니다. 잠시 후 다시 시도해 주세요.');
+  if (!env.X_SETTINGS_SECRET || env.X_SETTINGS_SECRET.length < 32) throw new XSettingsError(t('X 연결 정보 저장 준비가 끝나지 않았습니다. 잠시 후 다시 시도해 주세요.', "X connection settings are not ready to save. Try again in a moment."));
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`sfeed-x-settings-v1:${env.X_SETTINGS_SECRET}`));
   return crypto.subtle.importKey('raw', hash, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
@@ -24,12 +25,12 @@ export async function readXCredentials(env: Env): Promise<XCredentials | null> {
     const value = JSON.parse(new TextDecoder().decode(plain));
     if (!valid(value.clientId) || !valid(value.clientSecret)) throw new Error();
     return value;
-  } catch { throw new Error('저장된 X 연결 정보를 확인하지 못했습니다. 연결 설정을 다시 저장해 주세요.'); }
+  } catch { throw new Error(t('저장된 X 연결 정보를 확인하지 못했습니다. 연결 설정을 다시 저장해 주세요.', "Could not read the saved X connection. Save the connection settings again.")); }
 }
 
 export async function saveXCredentials(env: Env, input: { clientId?: unknown; clientSecret?: unknown }): Promise<XCredentials> {
   const value = { clientId: typeof input.clientId === 'string' ? input.clientId.trim() : input.clientId, clientSecret: typeof input.clientSecret === 'string' ? input.clientSecret.trim() : input.clientSecret };
-  if (!valid(value.clientId) || !valid(value.clientSecret)) throw new XSettingsError('X 앱의 Client ID와 Client Secret을 확인해 주세요.');
+  if (!valid(value.clientId) || !valid(value.clientSecret)) throw new XSettingsError(t('X 앱의 Client ID와 Client Secret을 확인해 주세요.', "Check the X app’s Client ID and Client Secret."));
   // 앱 운영자의 연결 정보만 암호화해 보관한다. 암호화 키는 DB와 별도의 서버 비밀값이다.
   const credentials = value as XCredentials, iv = crypto.getRandomValues(new Uint8Array(12));
   const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode('x_oauth') }, await settingsKey(env), new TextEncoder().encode(JSON.stringify(credentials)));

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 // RSS 만들기 도구의 클릭으로 고르기. 사람이 페이지의 정적 사본에서 기사 제목을 누르면
 // 비슷한 카드를 찾아 선택자로 저장한다. extractPicked()는 서버(linkedom)와 샌드박스
 // 페이지 사본 안에서 모두 돌아서 둘이 같은 기사를 본다. extractPicked와 pickerRuntime은
@@ -106,7 +107,17 @@ export function extractPicked(root: ParentNode, selection: PickSelection, baseUr
 }
 
 /** 샌드박스 페이지 사본 안에서 돌며 postMessage로 앱과 이야기한다. */
-export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, suggestUrl: string | null) {
+/** 고르기 화면 안내 문구. 런타임은 문자열로 바뀌어 페이지 안에서 돌므로 화면 언어 문구를 인자로 넘긴다. */
+export const pickerText = () => ({
+  needLink: t('링크로 연결된 글 제목을 눌러 주세요.', 'Tap an article title that is a link.'),
+  single: t('같은 모양의 글을 찾지 못해 이 글 하나만 선택했습니다. 목록의 다른 글 제목을 눌러 보세요.', 'No articles with the same shape were found, so only this one is selected. Try another title in the list.'),
+  insideCard: t('초록 테두리로 표시된 글 카드 안에서 골라 주세요.', 'Pick inside an article card outlined in green.'),
+  titleFirst: t('먼저 글 제목을 골라 주세요.', 'Pick an article title first.'),
+  pageLink: t('구독할 때 함께 모으는 쪽', 'Collected together when you subscribe'),
+});
+type PickerText = ReturnType<typeof pickerText>;
+
+export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, suggestUrl: string | null, text: PickerText) {
   const FIELDS = ['title', 'summary', 'image', 'date'] as const;
   const HEADINGS = 'h1,h2,h3,h4,h5,h6';
   type Field = (typeof FIELDS)[number];
@@ -245,17 +256,17 @@ export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, su
   const pick = (target: Element) => {
     if (field === 'title') {
       const link = target.closest('a[href]') || target.querySelector('a[href]');
-      if (!link) return send({ type: 'notice', message: '링크로 연결된 글 제목을 눌러 주세요.' });
+      if (!link) return send({ type: 'notice', message: text.needLink });
       const base = (target.textContent || '').trim().length > 1 ? target : link;
       const heading = base.matches(HEADINGS) ? base : base.querySelector(HEADINGS) || (base === link ? titleWithin(link) : base);
       const found = cardFor(heading, link);
       const card = found ? found.card : link;
       selection = { item: found ? cardSelector(found.card, found.classes) : cardSelector(link, Array.from(link.classList).filter(stable).slice(0, 3)), title: pathWithin(card, heading), ...guess(card, heading) };
       const count = paint();
-      return send({ type: 'notice', message: count > 1 ? null : '같은 모양의 글을 찾지 못해 이 글 하나만 선택했습니다. 목록의 다른 글 제목을 눌러 보세요.' });
+      return send({ type: 'notice', message: count > 1 ? null : text.single });
     } else {
       const card = target.closest('[data-sfeed-item]');
-      if (!selection || !card) return send({ type: 'notice', message: selection ? '초록 테두리로 표시된 글 카드 안에서 골라 주세요.' : '먼저 글 제목을 골라 주세요.' });
+      if (!selection || !card) return send({ type: 'notice', message: selection ? text.insideCard : text.titleFirst });
       const node = field === 'image' ? (target.matches('img') ? target : target.querySelector('img') || target) : target;
       selection = { ...selection, [field]: pathWithin(card, node) };
       send({ type: 'notice', message: null });
@@ -327,7 +338,7 @@ export function pickerRuntime(extract: typeof extractPicked, baseUrl: string, su
 
 /** iframe srcdoc에 바로 넣을 수 있는, 고르기 도구를 더한 페이지 사본. */
 /** 함께 모을 목록 쪽(지금 쪽과 다음 쪽들)의 쪽 번호 링크에 파란 점선을 친다. 페이지 사본 안에서 돈다. */
-export function markListPages(baseUrl: string, pages: string[]) {
+export function markListPages(baseUrl: string, pages: string[], title: string) {
   const wanted = new Set([baseUrl, ...pages].map((href) => { try { const url = new URL(href); url.hash = ''; return url.href; } catch { return href; } }));
   const style = document.createElement('style');
   style.textContent = '[data-sfeed-page]{outline:2px dashed #0ea5e9!important;outline-offset:2px!important;background-color:rgba(14,165,233,.16)!important;border-radius:4px!important}';
@@ -337,13 +348,14 @@ export function markListPages(baseUrl: string, pages: string[]) {
       const url = new URL(link.getAttribute('href') || '', document.baseURI); url.hash = '';
       // 1쪽 링크는 지금 주소에 쪽 번호 1이 붙은 모양일 수 있다.
       const first = new URL(url.href); for (const key of Array.from(first.searchParams.keys())) if (first.searchParams.get(key) === '1') first.searchParams.delete(key);
-      if (wanted.has(url.href) || (wanted.has(first.href) && first.href !== url.href)) { link.setAttribute('data-sfeed-page', ''); link.setAttribute('title', '구독할 때 함께 모으는 쪽'); }
+      if (wanted.has(url.href) || (wanted.has(first.href) && first.href !== url.href)) { link.setAttribute('data-sfeed-page', ''); link.setAttribute('title', title); }
     } catch { /* 읽을 수 없는 링크는 건너뛴다. */ }
   }
 }
 
 export function pickerDocument(snapshot: string, baseUrl: string, suggestUrl: string | null, pages: string[] = []): string {
-  const code = `(${pickerRuntime.toString()})(${extractPicked.toString()}, ${JSON.stringify(baseUrl)}, ${JSON.stringify(suggestUrl)});${pages.length ? `(${markListPages.toString()})(${JSON.stringify(baseUrl)}, ${JSON.stringify(pages)});` : ''}`.replace(/<\/script/gi, '<\\/script');
+  const text = pickerText();
+  const code = `(${pickerRuntime.toString()})(${extractPicked.toString()}, ${JSON.stringify(baseUrl)}, ${JSON.stringify(suggestUrl)}, ${JSON.stringify(text)});${pages.length ? `(${markListPages.toString()})(${JSON.stringify(baseUrl)}, ${JSON.stringify(pages)}, ${JSON.stringify(text.pageLink)});` : ''}`.replace(/<\/script/gi, '<\\/script');
   const script = `<script>${code}</script>`;
   return /<\/body>/i.test(snapshot) ? snapshot.replace(/<\/body>(?![\s\S]*<\/body>)/i, () => `${script}</body>`) : snapshot + script;
 }
