@@ -94,6 +94,22 @@ try {
   const otherToken = (await otherLogin.json()).token;
   const otherFailures = await app.request('/api/opml/failures', { headers: { authorization: `Bearer ${otherToken}` } }, env);
   assert.deepEqual((await otherFailures.json()).failures, [], 'Failure lists must be isolated per account');
+  // 다운로드도 일반 API와 같은 헤더 인증을 사용하며 예전 주소에 붙인 세션은 사용할 수 없다.
+  const rejectedExport = await app.request(`/api/opml/export?token=${encodeURIComponent(token)}`, {}, env);
+  assert.equal(rejectedExport.status, 401);
+  assert.equal((await app.request('/api/opml/export', {}, env)).status, 401);
+  const exportFile = await request('/api/opml/export');
+  assert.equal(exportFile.status, 200);
+  assert.match(exportFile.headers.get('content-type'), /^text\/x-opml\b/);
+  assert.equal(exportFile.headers.get('content-disposition'), 'attachment; filename="feedex-subscriptions.opml"');
+  assert.match(exportFile.headers.get('cache-control'), /private, no-store/);
+  const exported = await exportFile.text();
+  assert.match(exported, /Tech &amp; News/);
+  assert.match(exported, /xmlUrl="https:\/\/example.test\/feed\/0"/);
+  assert.ok(!exported.includes(token));
+  const emptyExport = await app.request('/api/opml/export', { headers: { authorization: `Bearer ${otherToken}` } }, env);
+  assert.equal(emptyExport.status, 200);
+  assert.doesNotMatch(await emptyExport.text(), /https:\/\/example.test\/feed\//);
   let state = await (await request('/api/bootstrap')).json();
   assert.equal(state.subscriptions.length, 125);
   assert.equal(state.folders.length, 1, 'A failed feed must not create an empty folder');

@@ -300,9 +300,7 @@ app.use('/api/*', async (c, next) => {
   }
 
   const authHeader = c.req.header('Authorization') || '';
-  const token = authHeader.startsWith('Bearer ')
-    ? authHeader.slice(7).trim()
-    : c.req.query('token') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
 
   if (!token || token.startsWith(NATIVE_CODE_PREFIX)) {
     return c.json({ error: '인증이 필요합니다.' }, 401);
@@ -1841,6 +1839,7 @@ app.get('/api/opml/export', async (c) => {
     headers: {
       'Content-Type': 'text/x-opml; charset=utf-8',
       'Content-Disposition': 'attachment; filename="feedex-subscriptions.opml"',
+      'Cache-Control': 'private, no-store',
     },
   });
 });

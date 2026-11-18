@@ -142,10 +142,13 @@ export function rememberedProfile(token: string): UserProfile | null {
 }
 export class ApiError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
+export function apiRequest<T>(path: string, options?: RequestInit): Promise<T>;
+export function apiRequest(path: string, options: RequestInit, responseType: 'blob'): Promise<Blob>;
 export async function apiRequest<T>(
   path: string,
-  options: RequestInit = {}
-): Promise<T> {
+  options: RequestInit = {},
+  responseType: 'json' | 'blob' = 'json',
+): Promise<T | Blob> {
   const token = getStoredToken();
   const headers = new Headers(options.headers || {});
   if (!headers.has('Content-Type') && options.body) {
@@ -168,7 +171,7 @@ export async function apiRequest<T>(
       try { const data = await res.json(); if (data?.error) errorMsg = data.error; } catch { /* 오류 본문이 없으면 상태 코드를 쓴다. */ }
       throw new ApiError(errorMsg, res.status);
     }
-    const data = await res.json() as T;
+    const data = responseType === 'blob' ? await res.blob() : await res.json() as T;
     report(true);
     return data;
   } catch (error) {

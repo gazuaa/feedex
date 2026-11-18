@@ -28,6 +28,7 @@ import { ArticleDrawer } from './components/ArticleDrawer';
 import { XPostPanel, type XPostTarget } from './components/XPostPanel';
 import { ResizableWorkspace } from './components/ResizableWorkspace';
 import { DiscoverModal } from './components/DiscoverModal';
+import { OPML_BROWSER_PANEL } from './client/opmlDownload';
 import { MarkAllReadDialog } from './components/MarkAllReadDialog';
 import { MoveFeedDialog } from './components/MoveFeedDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
@@ -283,10 +284,11 @@ export const App: React.FC = () => {
   }, []);
 
   // 대화상자와 모바일 사이드바
-  const [discoverOpen, setDiscoverOpen] = useState(() => new URLSearchParams(window.location.search).has('x_callback'));
-  const [discoverTab, setDiscoverTab] = useState<'curated' | 'opml' | 'x'>(
-    new URLSearchParams(window.location.search).has('x_callback') ? 'x' : 'curated'
-  );
+  const [discoverTab, setDiscoverTab] = useState<'curated' | 'opml' | 'x'>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has('x_callback') ? 'x' : params.get('panel') === OPML_BROWSER_PANEL ? 'opml' : 'curated';
+  });
+  const [discoverOpen, setDiscoverOpen] = useState(() => discoverTab !== 'curated');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
   const isMobile = useMobileViewport();
   useMobileScrollRecovery(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId, `${user?.id}:${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${searchQuery}:${articleSort}`);

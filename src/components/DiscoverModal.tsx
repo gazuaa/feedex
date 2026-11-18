@@ -21,9 +21,10 @@ import { matchesFeedSearch, normalizeFeedUrl } from '../shared/feedDiscovery';
 import { xProfile } from '../shared/xFeed';
 import type { XConfig } from '../client/xConnection';
 import type { BuilderSite } from '../shared/rssBuilder';
+import { downloadOpml, OPML_BROWSER_PANEL } from '../client/opmlDownload';
+import { nativeBridge } from '../client/nativeApp';
 import {
   apiRequest,
-  getStoredToken,
   type CuratedFeedItem,
   type FolderItem,
   type SubscriptionItem,
@@ -68,6 +69,8 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
   const [subscribeTarget, setSubscribeTarget] = useState<CuratedFeedItem | null>(null);
   const [subscribeError, setSubscribeError] = useState<string | null>(null);
   const [opmlImporting, setOpmlImporting] = useState(false);
+  const [opmlExporting, setOpmlExporting] = useState(false);
+  const opmlExport = React.useRef<AbortController | null>(null);
   const [xImporting, setXImporting] = useState(false);
   const [xAllowed, setXAllowed] = useState(false);
   const modalBusy = opmlImporting || builderBusy || xImporting;
@@ -87,6 +90,11 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
     setBuilderOpen(false);
     setUrlFeedOpen(false);
   }, [initialTab, isOpen]);
+
+  React.useEffect(() => {
+    if (!isOpen) setOpmlExporting(false);
+    return () => { opmlExport.current?.abort(); opmlExport.current = null; };
+  }, [isOpen]);
 
   React.useEffect(() => {
     setXAllowed(false);
@@ -191,12 +199,26 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
     }
   };
 
-  const handleExportOpml = () => {
-    const token = getStoredToken();
-    const url = `/api/opml/export${
-      token ? `?token=${encodeURIComponent(token)}` : ''
-    }`;
-    window.open(url, '_blank');
+  const desktopBridge = nativeBridge();
+  const handleExportOpml = async () => {
+    // 설치된 데스크톱 앱은 기본 브라우저에서 다운로드한다. 브라우저에는 열어 줄 화면만 넘긴다.
+    if (desktopBridge) {
+      const url = new URL('/', window.location.origin);
+      url.searchParams.set('panel', OPML_BROWSER_PANEL);
+      desktopBridge.postMessage({ type: 'openExternal', url: url.href });
+      return;
+    }
+    if (opmlExport.current) return;
+    const controller = new AbortController();
+    opmlExport.current = controller;
+    setOpmlExporting(true);
+    setFeedback(null);
+    try { await downloadOpml(controller.signal); }
+    catch (error) {
+      if (!controller.signal.aborted) setFeedback({ type: 'error', text: error instanceof Error ? error.message : 'OPML 파일을 받지 못했어요.' });
+    } finally {
+      if (opmlExport.current === controller) { opmlExport.current = null; setOpmlExporting(false); }
+    }
   };
 
   const subscribeButton = (feed: CuratedFeedItem) => {
@@ -487,17 +509,17 @@ export const DiscoverModal: React.FC<DiscoverModalProps> = ({
                   </h3>
                   <p className="text-xs text-slate-400">
                     현재 구독 중인 모든 폴더와 RSS 피드 목록을 표준 OPML 2.0 XML 파일로
-                    다운로드합니다.
+                    다운로드합니다.{desktopBridge && ' 기본 브라우저에서 같은 계정으로 로그인해 내려받을 수 있어요.'}
                   </p>
                 </div>
                 <button
                   type="button"
-                  disabled={opmlImporting}
+                  disabled={opmlImporting || opmlExporting}
                   onClick={handleExportOpml}
                   className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
-                  <Download className="w-4 h-4" />
-                  <span>OPML 다운로드 (.opml)</span>
+                  {opmlExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span>{opmlExporting ? 'OPML 준비 중…' : desktopBridge ? '브라우저에서 OPML 내보내기' : 'OPML 다운로드 (.opml)'}</span>
                 </button>
               </div>
 
