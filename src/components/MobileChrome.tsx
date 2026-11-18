@@ -62,8 +62,7 @@ export function MobileSettingsContent({ theme, onChangeTheme, layout, onChangeLa
       </SettingGroup>
       <SettingGroup title="읽기">{!library && <ScrollReadSetting markReadOnScroll={markReadOnScroll} onChangeMarkReadOnScroll={onChangeMarkReadOnScroll} />}<AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
       {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { close(); onManageArticleBlocks(); }} /></SettingGroup>}
-      {/* 운영자만 보는 설정. 운영자가 아니면 두 설정 모두 비어 묶음째 숨는다(CSS). */}
-      {accountId && <SettingGroup title="관리"><TranslationSetting /><XMirrorStatus /></SettingGroup>}
+      {accountId && <><SettingGroup title="번역·요약"><TranslationSetting key={accountId} /></SettingGroup><SettingGroup title="관리"><XMirrorStatus /></SettingGroup></>}
       {accountId && <SettingGroup title="이 기기"><CacheSettings accountId={accountId} active /></SettingGroup>}
       <SettingGroup title="기타">
         <button type="button" className="feedex-setting-action" onClick={() => { close(); onOpenOpml(); }}><FileCode2 size={18} aria-hidden="true" /><span>OPML 가져오기 / 내보내기</span><ChevronRight size={16} aria-hidden="true" /></button>

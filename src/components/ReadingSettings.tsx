@@ -89,7 +89,7 @@ export function DesktopReadingSettings({ autoRefreshMinutes, onChangeAutoRefresh
       <SettingGroup title="보기"><NativeAppScaleSetting /><TextSizeSetting /><LayoutSetting layout={layout} onChangeLayout={onChangeLayout} /></SettingGroup>
       <SettingGroup title="읽기"><ScrollReadSetting {...props} /><AutoRefreshSetting autoRefreshMinutes={autoRefreshMinutes} onChangeAutoRefreshMinutes={onChangeAutoRefreshMinutes} />{accountId && <LocalNotificationSetting accountId={accountId} />}</SettingGroup>
       {accountId && onManageArticleBlocks && <SettingGroup title="계정"><ArticleBlockSetting accountId={accountId} onManage={() => { if (ref.current) ref.current.open = false; onManageArticleBlocks(); }} /></SettingGroup>}
-      {accountId && <SettingGroup title="관리"><TranslationSetting /><XMirrorStatus /></SettingGroup>}
+      {accountId && <><SettingGroup title="번역·요약"><TranslationSetting key={accountId} /></SettingGroup><SettingGroup title="관리"><XMirrorStatus /></SettingGroup></>}
       {accountId && <SettingGroup title="이 기기"><NativeAppUpdateSetting /><CacheSettings accountId={accountId} /></SettingGroup>}
     </div>
   </details>;

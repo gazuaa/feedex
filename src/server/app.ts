@@ -39,7 +39,8 @@ import { extractOriginalPublishedAt } from './publicationDate';
 import { resolveArticlePublication, type PublicationArticle } from './articlePublication';
 import { DEFAULT_SUMMARY_MODEL, summarizeArticleWithAI, summaryText } from './aiSummarizer';
 import { isCurrentSummary } from '../shared/aiSummary';
-import { clearDeepLKey, DeepLError, deeplProblem, deeplUsage, ensureTranslationTable, readDeepLKey, readTranslationPreference, saveDeepLKey, saveTranslationPreference, sourceHash, translateArticle, TranslationError, validDeepLKey } from './translator';
+import { clearDeepLKey, DeepLError, deeplProblem, deeplUsage, ensureTranslationTable, readDeepLKey, readTranslationPreference, saveDeepLKey, saveTranslationPreference, sourceHash, translateArticle, TranslationError, validDeepLKey, type TranslatedArticle } from './translator';
+import { clearPersonalTool, personalToolStorage, personalWorkersAI, readPersonalToolResult, readPersonalTools, savePersonalTool, savePersonalToolResult, validPersonalAI } from './personalArticleTools';
 import { canManageX } from './xSettings';
 import {
   generateId,
@@ -922,7 +923,7 @@ app.post('/api/feeds/refresh', async (c) => {
 app.post('/api/sync', async (c) => {
   const body = await c.req.json<{ cursor?: unknown }>();
   const user = c.get('user');
-  return c.json(await readerDelta(c.env.DB, user.id, body?.cursor, accountArticleBlocks(user.preferences_json)));
+  return c.json(await readerDelta(c.env.DB, user.id, body?.cursor, accountArticleBlocks(user.preferences_json), canManageX(c.env, user)));
 });
 
 // 목록의 검색 조건. 모두 읽음도 같은 조건을 써서 검색 결과만 읽음 처리한다.
@@ -1050,7 +1051,7 @@ app.get('/api/articles', async (c) => {
       a.summary,
       a.content_html,
       a.full_content_html,
-      a.ai_summary,
+      ${canManageX(c.env, user) ? 'a.ai_summary' : 'NULL'} AS ai_summary,
       a.thumbnail_url,
       a.published_at,
       COALESCE(dc.source, 'feed') AS date_source,
@@ -1461,6 +1462,8 @@ app.post('/api/articles/:id/slap', async (c) => {
 });
 
 app.post('/api/articles/:id/translate', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
+  const user = c.get('user');
   type Request = { source?: unknown; force?: unknown; phone?: unknown; xThread?: unknown; xUrl?: unknown };
   const body: Request = await c.req.json<Request>().catch(() => ({}));
   const source = body.source === 'feed' ? 'feed' : 'full';
@@ -1469,6 +1472,10 @@ app.post('/api/articles/:id/translate', async (c) => {
      FROM articles WHERE id = ? AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id=articles.feed_id AND s.user_id=?)`
   ).bind(c.req.param('id'), c.get('user').id).first<{ id: string; title: string; url: string; summary: string | null; content_html: string | null; full_content_html: string | null }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  const personal = canManageX(c.env, user) ? undefined : await readPersonalTools(c.env, user.id);
+  if (personal && !personal.deepl && !personal.ai) return c.json({ error: '환경설정 → 번역·요약에서 내 DeepL 또는 Workers AI 계정을 연결해 주세요.', code: 'article_tool_account_required' }, 412);
+  // 일반 사용자의 실행 환경에는 서버 API 키와 Workers AI 바인딩을 넣지 않는다.
+  const toolEnv: Env = personal ? { DB: c.env.DB, AI_MODEL: c.env.AI_MODEL, AI: personal.ai ? personalWorkersAI(personal.ai) : undefined } : c.env;
   const needsXThread = source === 'full' && xStatusUrl(article.url);
   const linkedUrl = body.xUrl;
   if (linkedUrl !== undefined && (!needsXThread || typeof linkedUrl !== 'string' || !xStatusUrl(linkedUrl))) {
@@ -1499,20 +1506,23 @@ app.post('/api/articles/:id/translate', async (c) => {
   const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const html = full || article.content_html || (article.summary ? `<p>${escaped(article.summary)}</p>` : '');
   if (!html.trim() && !article.title.trim()) return c.json({ error: '번역할 본문이 없어요.' }, 422);
-  await ensureTranslationTable(c.env);
+  if (!personal) await ensureTranslationTable(c.env);
   const title = linkedThread ? 'X 게시물' : needsXThread ? article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, '') : article.title;
   const hash = await sourceHash(title, html);
   if (body.force !== true) {
-    const saved = await c.env.DB.prepare('SELECT title, content_html, provider, model FROM article_translations WHERE article_id=? AND target_lang=? AND source_kind=? AND source_hash=?')
-      .bind(article.id, 'KO', cacheSource, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
+    const saved = personal
+      ? await readPersonalToolResult<{ hash: string; title: string; content_html: string; provider: string; model: string }>(c.env.DB, user.id, article.id, `translate:KO:${cacheSource}`).then(row => row?.hash === hash ? row : null)
+      : await c.env.DB.prepare('SELECT title, content_html, provider, model FROM article_translations WHERE article_id=? AND target_lang=? AND source_kind=? AND source_hash=?')
+        .bind(article.id, 'KO', cacheSource, hash).first<{ title: string; content_html: string; provider: string; model: string }>();
     if (saved) return c.json({ title: saved.title, html: saved.content_html, provider: saved.provider, model: saved.model, bodySource, cached: true });
   }
-  let result;
-  try { result = await translateArticle(c.env, { title, html, mixedLanguages: needsXThread }); }
+  let result: TranslatedArticle;
+  try { result = await translateArticle(toolEnv, { title, html, mixedLanguages: needsXThread }, undefined, personal); }
   catch (error) { return c.json({ error: error instanceof TranslationError ? error.message : '번역하지 못했어요. 잠시 후 다시 시도해 주세요.' }, error instanceof TranslationError ? error.status as 502 : 502); }
   // 원글이 빠진 대화나 피드 글만 번역한 결과는 저장하지 않는다. 저장하면 완성된 대화의 번역을 덮어쓴다.
   if (!result.alreadyKorean && !xNotice) {
-    await c.env.DB.prepare(`INSERT INTO article_translations(article_id,target_lang,source_kind,source_hash,title,content_html,provider,model,created_at) VALUES(?,?,?,?,?,?,?,?,?)
+    if (personal) await savePersonalToolResult(c.env.DB, user.id, article.id, `translate:KO:${cacheSource}`, { hash, title: result.title, content_html: result.html, provider: result.provider, model: result.model });
+    else await c.env.DB.prepare(`INSERT INTO article_translations(article_id,target_lang,source_kind,source_hash,title,content_html,provider,model,created_at) VALUES(?,?,?,?,?,?,?,?,?)
       ON CONFLICT(article_id,target_lang,source_kind) DO UPDATE SET source_hash=excluded.source_hash,title=excluded.title,content_html=excluded.content_html,provider=excluded.provider,model=excluded.model,created_at=excluded.created_at`)
       .bind(article.id, 'KO', cacheSource, hash, result.title, result.html, result.provider, result.model, new Date().toISOString()).run();
   }
@@ -1521,7 +1531,10 @@ app.post('/api/articles/:id/translate', async (c) => {
 
 // 번역 설정. DeepL API 키는 운영자만 넣고 지운다. 키는 응답에 돌려주지 않는다.
 async function translationConfig(env: Env, user: UserRecord) {
-  if (!canManageX(env, user)) return { canManage: false };
+  if (!canManageX(env, user)) {
+    const personal = await readPersonalTools(env, user.id);
+    return { canManage: false, personal: { deepl: Boolean(personal.deepl), workersAi: Boolean(personal.ai), storage: personalToolStorage(env) } };
+  }
   const deepl = await readDeepLKey(env).catch(() => null);
   const chosen = deepl ? await readTranslationPreference(env).catch(() => 'deepl' as const) : 'workers-ai' as const;
   let usage: { used: number; limit: number } | null = null, problem: string | null = null;
@@ -1541,6 +1554,32 @@ app.get('/api/x-mirrors', async (c) => {
 app.get('/api/translation/config', async (c) => {
   c.header('Cache-Control', 'no-store');
   return c.json(await translationConfig(c.env, c.get('user')));
+});
+app.put('/api/translation/account/:service', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
+  const user = c.get('user'), service = c.req.param('service');
+  if (canManageX(c.env, user) || (service !== 'deepl' && service !== 'workers-ai')) return c.json({ error: '지원하지 않는 개인 연결입니다.' }, 404);
+  if (!personalToolStorage(c.env)) return c.json({ error: '서버에 개인 API 키를 저장할 준비가 되지 않았어요.' }, 503);
+  const body = await c.req.json<{ key?: unknown; accountId?: unknown; token?: unknown }>().catch(() => null);
+  if (service === 'deepl') {
+    const key = typeof body?.key === 'string' ? body.key.trim() : '';
+    if (!validDeepLKey(key)) return c.json({ error: 'DeepL 계정에서 발급받은 API 키를 입력해 주세요.' }, 400);
+    try { await deeplUsage(key); }
+    catch (error) { return c.json({ error: deeplProblem(error instanceof DeepLError ? error.status : 0) }, 400); }
+    await savePersonalTool(c.env, user.id, service, key);
+  } else {
+    const data = { accountId: typeof body?.accountId === 'string' ? body.accountId.trim() : '', token: typeof body?.token === 'string' ? body.token.trim() : '' };
+    if (!validPersonalAI(data)) return c.json({ error: 'Cloudflare 계정 ID와 Workers AI API 토큰을 확인해 주세요.' }, 400);
+    await savePersonalTool(c.env, user.id, service, data);
+  }
+  return c.json(await translationConfig(c.env, user));
+});
+app.delete('/api/translation/account/:service', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
+  const user = c.get('user'), service = c.req.param('service');
+  if (canManageX(c.env, user) || (service !== 'deepl' && service !== 'workers-ai')) return c.json({ error: '지원하지 않는 개인 연결입니다.' }, 404);
+  if (personalToolStorage(c.env)) await clearPersonalTool(c.env, user.id, service);
+  return c.json(await translationConfig(c.env, user));
 });
 app.put('/api/translation/deepl', async (c) => {
   if (!canManageX(c.env, c.get('user'))) return c.json({ error: '번역 설정은 feedex 운영자만 바꿀 수 있습니다.' }, 403);
@@ -1573,6 +1612,8 @@ app.delete('/api/translation/deepl', async (c) => {
 
 // 기사 요약은 번역과 마찬가지로 구독한 원문부터 확인한다.
 app.post('/api/articles/:id/summarize', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
+  const user = c.get('user');
   type SummaryRequest = { force?: boolean; phone?: boolean; xUrl?: unknown; xThread?: unknown };
   const body: SummaryRequest = await c.req.json<SummaryRequest>().catch(() => ({}));
   const article = await c.env.DB.prepare(
@@ -1583,14 +1624,26 @@ app.post('/api/articles/:id/summarize', async (c) => {
     full_content_html: string | null; ai_summary: string | null;
   }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
+  const owner = canManageX(c.env, user);
+  const personal = owner ? null : (await readPersonalTools(c.env, user.id, true)).ai;
+  if (!owner && !personal) return c.json({ error: '환경설정 → 번역·요약에서 내 Workers AI 계정을 연결해 주세요.', code: 'article_tool_account_required' }, 412);
+  const toolEnv: Env = personal ? { DB: c.env.DB, AI_MODEL: c.env.AI_MODEL, AI: personalWorkersAI(personal) } : c.env;
+  const ownSummary = (variant: string) => owner ? Promise.resolve(article.ai_summary)
+    : readPersonalToolResult<string>(c.env.DB, user.id, article.id, variant);
+  const saveSummary = (variant: string, result: string) => owner
+    ? c.env.DB.prepare('UPDATE articles SET ai_summary=? WHERE id=?').bind(result, article.id).run()
+    : savePersonalToolResult(c.env.DB, user.id, article.id, variant, result);
+  const summaryProblem = (message: string) => personal ? '요약하지 못했어요. 연결한 Workers AI 토큰의 권한과 사용량을 확인해 주세요.' : message;
   if (body.xUrl !== undefined || xStatusUrl(article.url)) {
     const url = body.xUrl === undefined ? article.url : body.xUrl;
     if (typeof url !== 'string' || !xStatusUrl(url) || !xStatusUrl(article.url)) {
       return c.json({ error: '요약할 X 글 주소를 확인해 주세요.' }, 400);
     }
     const samePost = url === article.url;
-    if (samePost && !body.force && isCurrentSummary(article.ai_summary, 'x')) {
-      return c.json({ aiSummary: article.ai_summary, cached: true });
+    const variant = `summary:ko:x:${new URL(url).pathname.split('/')[3]}`;
+    const cached = !body.force && (samePost || !owner) ? await ownSummary(variant) : null;
+    if (isCurrentSummary(cached, 'x')) {
+      return c.json({ aiSummary: cached, cached: true });
     }
     let html = verifiedXThread(c.env, url, body.xThread);
     if (!html) {
@@ -1611,9 +1664,9 @@ app.post('/api/articles/:id/summarize', async (c) => {
     const author = selected?.author;
     const includeSelectedReply = posts.some(post => post.kind === 'before') && Boolean(summaryText(selected?.body || ''));
     const title = author ? `X 대화 (${author})` : 'X 대화';
-    const result = await summarizeArticleWithAI(c.env, { title, text: parts.join('\n\n'), source: 'x', includeSelectedReply });
-    if (!result) return c.json({ error: 'X 글 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.' }, 502);
-    if (samePost) await c.env.DB.prepare('UPDATE articles SET ai_summary=? WHERE id=?').bind(result.summary, article.id).run();
+    const result = await summarizeArticleWithAI(toolEnv, { title, text: parts.join('\n\n'), source: 'x', includeSelectedReply });
+    if (!result) return c.json({ error: summaryProblem('X 글 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.') }, 502);
+    if (samePost || !owner) await saveSummary(variant, result.summary);
     return c.json({ aiSummary: result.summary, cached: false });
   }
   const full = await readerBodyForArticleTools(c.env, article, body.phone === true);
@@ -1623,12 +1676,14 @@ app.post('/api/articles/:id/summarize', async (c) => {
   if (text.length < 65) {
     return c.json({ error: '요약할 기사 본문을 충분히 가져오지 못했어요. 원문을 확인해 주세요.' }, 422);
   }
-  if (!body.force && isCurrentSummary(article.ai_summary, source)) {
-    return c.json({ aiSummary: article.ai_summary, cached: true });
+  const variant = `summary:ko:${source}`;
+  const cached = body.force ? null : await ownSummary(variant);
+  if (isCurrentSummary(cached, source)) {
+    return c.json({ aiSummary: cached, cached: true });
   }
-  const result = await summarizeArticleWithAI(c.env, { title: article.title, text, source });
-  if (!result) return c.json({ error: '기사 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.' }, 502);
-  await c.env.DB.prepare('UPDATE articles SET ai_summary=? WHERE id=?').bind(result.summary, article.id).run();
+  const result = await summarizeArticleWithAI(toolEnv, { title: article.title, text, source });
+  if (!result) return c.json({ error: summaryProblem('기사 요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.') }, 502);
+  await saveSummary(variant, result.summary);
   return c.json({ aiSummary: result.summary, cached: false });
 });
 

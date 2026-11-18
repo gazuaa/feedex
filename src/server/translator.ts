@@ -222,15 +222,16 @@ async function aiTranslate(env: Env, title: string, html: string): Promise<Trans
 
 // ── 번역 ─────────────────────────────────────────────────────────────────
 
-export async function translateArticle(env: Env, input: { title: string; html: string; mixedLanguages?: boolean }, fetcher: Fetcher = fetch): Promise<TranslatedArticle> {
+export async function translateArticle(env: Env, input: { title: string; html: string; mixedLanguages?: boolean }, fetcher: Fetcher = fetch, personal?: { deepl: string | null }): Promise<TranslatedArticle> {
   const { body } = parseHTML(`<!doctype html><html><body>${input.html}</body></html>`).document;
   const alreadyKorean = input.mixedLanguages
     ? mostlyKorean(input.title) && [...body.querySelectorAll('.text')].every(node => mostlyKorean(node.textContent || ''))
     : mostlyKorean(`${input.title} ${body.textContent || ''}`);
   if (alreadyKorean) return { title: input.title, html: input.html, provider: 'workers-ai', model: '', alreadyKorean: true };
-  const deepl = await readTranslationPreference(env) === 'workers-ai' ? null : await readDeepLKey(env);
-  if (deepl) {
-    try { return await deeplTranslate(deepl.key, input.title, input.html, fetcher); }
+  // 일반 계정 요청은 개인 키(또는 키 없음)만 쓴다. 운영자 설정을 조회하지 않는다.
+  const key = personal ? personal.deepl : await readTranslationPreference(env) === 'workers-ai' ? null : (await readDeepLKey(env))?.key;
+  if (key) {
+    try { return await deeplTranslate(key, input.title, input.html, fetcher); }
     catch (error) {
       // DeepL이 안 되면 Workers AI로 번역하고 이유를 알린다.
       const problem = deeplProblem(error instanceof DeepLError ? error.status : 0);

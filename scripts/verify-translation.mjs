@@ -119,7 +119,7 @@ try {
     } finally { console.error = quiet; }
     assert.match((await import('node:fs')).readFileSync('wrangler.toml', 'utf8'), /\[\[services\]\]\nbinding = "SLAP"\nservice = "slap"\nentrypoint = "ArticleInbox"/, 'FeedEx reaches Slap through a service binding, not a public address');
   }
-  assert.deepEqual(await (await call('/api/translation/config', { token: other.token })).json(), { canManage: false }, 'only the operator sees translation settings');
+  assert.deepEqual(await (await call('/api/translation/config', { token: other.token })).json(), { canManage: false, personal: { deepl: false, workersAi: false, storage: true } });
   assert.equal((await call('/api/translation/deepl', { token: other.token, method: 'PUT', body: { key: freeKey } })).status, 403);
   const before = await (await call('/api/translation/config', { token: owner.token })).json();
   assert.equal(before.provider, 'workers-ai'); assert.equal(before.storage, true);
@@ -256,6 +256,81 @@ try {
   const managed = await app.request('/api/translation/deepl', { method: 'PUT', headers: { 'content-type': 'application/json', authorization: `Bearer ${owner.token}` }, body: JSON.stringify({ key: freeKey }) }, managedEnv);
   assert.equal(managed.status, 400, 'a key managed by the server is not replaced from the screen');
 
+  // 같은 글을 구독해도 자기 자격 증명과 결과만 사용한다. 연결이 없거나 한도가 차도 운영자 계정은 쓰지 않는다.
+  const another = await login('another-reader@example.test');
+  for (const reader of [other, another]) {
+    await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind(reader.user.id, reader.user.id, 'feed', stamp).run();
+  }
+  const personalKey = '11111111-2222-3333-4444-555555555555:fx';
+  const aiAccount = 'a'.repeat(32), aiToken = 'test-token-a'.repeat(4);
+  let ownerRequests = 0, deeplRequests = 0, personalAIRequests = 0, quotaExceeded = false;
+  env.DEEPL_API_KEY = freeKey;
+  env.AI = { async run() { ownerRequests++; return { response: {} }; } };
+  globalThis.fetch = async (url, init) => {
+    const address = new URL(url);
+    if (address.hostname === 'api-free.deepl.com') {
+      if (init.headers.Authorization === `DeepL-Auth-Key ${freeKey}`) ownerRequests++;
+      assert.equal(init.headers.Authorization, `DeepL-Auth-Key ${personalKey}`);
+      if (address.pathname === '/v2/usage') return Response.json({ character_count: 0, character_limit: 500000 });
+      assert.equal(address.pathname, '/v2/translate'); deeplRequests++;
+      if (quotaExceeded) return new Response('', { status: 456 });
+      return Response.json({ translations: JSON.parse(init.body).text.map(text => ({ text: `개인 번역:${text}`, detected_source_language: 'EN' })) });
+    }
+    assert.equal(address.hostname, 'api.cloudflare.com');
+    assert.match(address.pathname, new RegExp(`^/client/v4/accounts/${aiAccount}/ai/run/@cf/`));
+    assert.equal(init.headers.Authorization, `Bearer ${aiToken}`);
+    assert.equal(init.redirect, 'manual');
+    personalAIRequests++;
+    const request = JSON.parse(init.body);
+    const subject = JSON.parse(request.messages[1].content);
+    return Response.json({ success: true, result: { response: Array.isArray(subject)
+      ? JSON.stringify(subject.map(text => `인공지능 번역: ${text}`))
+      : { overview: '도서관이 방문객을 위해 공용 컴퓨터를 설치했어요.', points: [] } } });
+  };
+  const assist = (reader, kind, body = { source: 'feed' }) => call(`/api/articles/art/${kind}`, { token: reader.token, method: 'POST', body });
+  const personalSetting = (reader, service, method, body) => call(`/api/translation/account/${service}`, { token: reader.token, method, body });
+  assert.equal((await assist(other, 'translate')).status, 412, '운영자의 저장된 번역과 API 키를 공동으로 쓰지 않는다.');
+  assert.equal((await assist(other, 'summarize')).status, 412);
+  const linkedDeepL = await personalSetting(other, 'deepl', 'PUT', { key: personalKey });
+  assert.equal(linkedDeepL.status, 200);
+  assert.match(linkedDeepL.headers.get('cache-control'), /no-store/);
+  assert.equal((await linkedDeepL.json()).personal.deepl, true);
+  const privateTranslation = await (await assist(other, 'translate')).json();
+  assert.equal(privateTranslation.html, '개인 번역:<p>Feed text</p>');
+  assert.equal((await (await assist(other, 'translate')).json()).cached, true);
+  assert.equal(deeplRequests, 1);
+  quotaExceeded = true;
+  assert.match((await (await assist(other, 'translate', { source: 'feed', force: true })).json()).error, /DeepL.*한도/);
+  assert.equal((await assist(another, 'translate')).status, 412);
+  assert.equal((await assist(other, 'summarize')).status, 412, 'DeepL 키만으로 운영자 AI 요약을 쓸 수 없다.');
+  const linkedAI = await personalSetting(other, 'workers-ai', 'PUT', { accountId: aiAccount, token: aiToken });
+  assert.equal(linkedAI.status, 200);
+  const linkedConfig = await linkedAI.text();
+  assert.equal(JSON.parse(linkedConfig).personal.workersAi, true);
+  assert.ok(!linkedConfig.includes(aiToken) && !linkedConfig.includes(aiAccount) && !linkedConfig.includes(personalKey));
+  const ciphertexts = await db.prepare('SELECT encrypted_value FROM user_article_tool_keys WHERE user_id=?').bind(other.user.id).all();
+  assert.equal(ciphertexts.results.length, 2);
+  assert.ok(!JSON.stringify(ciphertexts.results).includes(aiToken) && !JSON.stringify(ciphertexts.results).includes(personalKey));
+  assert.match((await (await assist(other, 'translate', { source: 'feed', force: true })).json()).html, /인공지능 번역/, 'DeepL 한도가 차면 같은 사용자의 AI만 쓴다.');
+  const readable = '<p>The library added several computers to give visitors access to online services.</p><p>Anyone can use the computers without making a reservation.</p>';
+  await db.prepare("UPDATE articles SET full_content_html=?,ai_summary=? WHERE id='art'").bind(readable, '**핵심 요약**\n운영자 계정의 예전 요약입니다.').run();
+  const otherList = await (await call('/api/articles?articleId=art', { token: other.token })).json();
+  assert.equal(otherList.articles[0].ai_summary, null);
+  const ownSummary = await (await assist(other, 'summarize')).json();
+  assert.match(ownSummary.aiSummary, /도서관이 방문객/);
+  assert.equal(ownSummary.cached, false);
+  assert.equal((await (await assist(other, 'summarize')).json()).cached, true);
+  assert.equal((await assist(another, 'summarize')).status, 412);
+  assert.equal(ownerRequests, 0);
+  assert.equal(personalAIRequests, 2);
+  assert.equal((await personalSetting(other, 'workers-ai', 'DELETE')).status, 200);
+  assert.equal((await assist(other, 'summarize')).status, 412);
+  assert.equal((await personalSetting(other, 'deepl', 'DELETE')).status, 200);
+  assert.equal((await assist(other, 'translate')).status, 412);
+  assert.equal((await db.prepare("SELECT ai_summary FROM articles WHERE id='art'").first()).ai_summary, '**핵심 요약**\n운영자 계정의 예전 요약입니다.');
+  delete env.DEEPL_API_KEY;
+  delete env.AI;
+
   // 화면: 모든 보기에 번역 버튼이 있고, 운영자 설정에는 엔진과 사용량이 보인다.
   Object.defineProperty(globalThis, 'DOMParser', { value: DOMParser, configurable: true });
   const { ArticleDrawer } = await vite.ssrLoadModule('/src/components/ArticleDrawer.tsx');
@@ -294,7 +369,10 @@ try {
   assert.match(deeplSetting, /title="DeepL 키가 저장돼 있어요\. 한도를 넘거나 키가 막히면 Workers AI로 번역해요\."/); assert.doesNotMatch(deeplSetting, /feedex-setting-message/, 'no paragraph under the row');
   const aiSetting = renderToStaticMarkup(React.createElement(TranslationSetting, { initial: { canManage: true, provider: 'workers-ai', managed: false, usage: null, storage: true } }));
   assert.match(aiSetting, /type="password"[^>]*aria-label="DeepL API 키"/); assert.match(aiSetting, /앱 구독과는 별개/);
-  assert.doesNotMatch(renderToStaticMarkup(React.createElement(TranslationSetting, { initial: { canManage: false } })), /번역/, 'other people see nothing');
+  const personalMarkup = renderToStaticMarkup(React.createElement(TranslationSetting, { initial: { canManage: false, personal: { deepl: false, workersAi: false, storage: true } } }));
+  assert.match(personalMarkup, /Cloudflare 계정 ID/);
+  assert.match(personalMarkup, /type="password"[^>]*aria-label="Workers AI API 토큰"/);
+  assert.match(personalMarkup, /type="password"[^>]*aria-label="DeepL API 키"/);
   // DeepL API 없이: 사용자의 DeepL 웹 번역기를 글이 채워진 채로 연다. auto는 글이 채워지지 않아 원문 언어를 짐작한다.
   const { guessSourceLanguage, htmlToText, deeplTranslatorUrl, DEEPL_LINK_LIMIT } = await vite.ssrLoadModule('/src/client/deeplWeb.ts');
   assert.equal(guessSourceLanguage('Bitcoin rises again'), 'en'); assert.equal(guessSourceLanguage('ビットコインが上昇'), 'ja');

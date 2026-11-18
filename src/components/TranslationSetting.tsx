@@ -13,6 +13,7 @@ export interface TranslationConfig {
   usage?: { used: number; limit: number } | null;
   problem?: string | null;
   storage?: boolean;
+  personal?: { deepl: boolean; workersAi: boolean; storage: boolean };
 }
 
 // 사용량은 '4.8만 / 100만자'처럼 짧게 적는다.
@@ -20,7 +21,7 @@ const COMPACT = new Intl.NumberFormat('ko-KR', { notation: 'compact', maximumFra
 const count = (value: number) => COMPACT.format(value);
 
 /**
- * 번역 설정. 운영자에게만 보인다. DeepL API 키를 넣으면 DeepL로, 없으면 Workers AI로 번역한다.
+ * 일반 사용자는 개인 서비스를 연결하고, 운영자는 기존 서버 설정을 사용한다.
  * 키는 서버에 암호화해 저장하고 화면에는 다시 보여 주지 않는다.
  */
 export function TranslationSetting({ initial }: { initial?: TranslationConfig }) {
@@ -43,7 +44,9 @@ export function TranslationSetting({ initial }: { initial?: TranslationConfig })
     panel?.addEventListener('toggle', load);
     return () => { active = false; panel?.removeEventListener('toggle', load); };
   }, [initial]);
-  if (!config?.canManage) return <span ref={probe} hidden />;
+  if (!config) return <span ref={probe} hidden />;
+  if (config.personal) return <PersonalArticleTools initial={config.personal} />;
+  if (!config.canManage) return null;
   const deepl = config.provider === 'deepl';
   const keySaved = config.keySaved ?? deepl;
   const run = async (request: () => Promise<TranslationConfig>, done: string) => {
@@ -83,6 +86,48 @@ export function TranslationSetting({ initial }: { initial?: TranslationConfig })
       <button type="submit" className="feedex-cache-clear" disabled={busy || !key.trim() || config.storage === false}>저장</button>
     </form>}
     {!keySaved && !config.managed && <p className="feedex-setting-message">{config.storage === false ? '서버에 키 저장 준비가 안 돼 있어요.' : 'DeepL 계정의 API Keys에서 복사해요. 앱 구독과는 별개예요.'}</p>}
+    {message && <p className="feedex-setting-message" role="status">{message}</p>}
+  </div>;
+}
+
+function PersonalArticleTools({ initial }: { initial: NonNullable<TranslationConfig['personal']> }) {
+  const [config, setConfig] = useState(initial);
+  const [accountId, setAccountId] = useState(''), [token, setToken] = useState(''), [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false), [message, setMessage] = useState('');
+  const change = async (service: 'deepl' | 'workers-ai', connect: boolean) => {
+    setBusy(true); setMessage('');
+    try {
+      const response = await apiRequest<TranslationConfig>(`/api/translation/account/${service}`, connect
+        ? { method: 'PUT', body: JSON.stringify(service === 'deepl' ? { key } : { accountId, token }) }
+        : { method: 'DELETE' });
+      if (response.personal) setConfig(response.personal);
+      if (service === 'deepl') setKey('');
+      else { setAccountId(''); setToken(''); }
+      setMessage(connect ? '개인 연결을 저장했어요.' : '개인 연결을 해제했어요.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : '설정을 저장하지 못했어요.'); }
+    finally { setBusy(false); }
+  };
+  return <div className="feedex-translation-setting">
+    <p className="feedex-setting-message">내 API 계정의 사용량으로 처리해요. Workers AI는 요약과 번역, DeepL은 번역에 쓰여요.</p>
+    {!config.storage && <p className="feedex-setting-message" role="status">서버에 개인 API 키를 저장할 준비가 되지 않았어요.</p>}
+    <div className="feedex-auto-refresh-setting">
+      <SettingLabel icon={Languages}>Workers AI <small>{config.workersAi ? '저장됨' : '요약·번역'}</small></SettingLabel>
+      {config.workersAi && <button type="button" className="feedex-cache-clear" aria-label="Workers AI 연결 해제" disabled={busy} onClick={() => void change('workers-ai', false)}>연결 해제</button>}
+    </div>
+    {!config.workersAi && <form className="feedex-personal-key-form" autoComplete="off" onSubmit={event => { event.preventDefault(); if (accountId.trim() && token.trim()) void change('workers-ai', true); }}>
+      <div className="feedex-translation-key"><input type="text" aria-label="Cloudflare 계정 ID" placeholder="Cloudflare 계정 ID" value={accountId} maxLength={32} disabled={busy || !config.storage} autoComplete="off" spellCheck={false} onChange={event => setAccountId(event.target.value)} /></div>
+      <div className="feedex-translation-key"><input type="password" aria-label="Workers AI API 토큰" placeholder="Workers AI API 토큰" value={token} maxLength={128} disabled={busy || !config.storage} autoComplete="new-password" spellCheck={false} onChange={event => setToken(event.target.value)} />
+        <button type="submit" className="feedex-cache-clear" disabled={busy || !config.storage || !accountId.trim() || !token.trim()}>저장</button></div>
+      <a className="feedex-setting-message underline" href="https://developers.cloudflare.com/workers-ai/get-started/rest-api/" target="_blank" rel="noopener noreferrer">Workers AI API 토큰 발급 방법</a>
+    </form>}
+    <div className="feedex-auto-refresh-setting">
+      <SettingLabel icon={Languages}>DeepL <small>{config.deepl ? '연결됨 · 번역에 우선 사용' : '번역 · 선택 사항'}</small></SettingLabel>
+      {config.deepl && <button type="button" className="feedex-cache-clear" aria-label="DeepL 연결 해제" disabled={busy} onClick={() => void change('deepl', false)}>연결 해제</button>}
+    </div>
+    {!config.deepl && <form className="feedex-translation-key" autoComplete="off" onSubmit={event => { event.preventDefault(); if (key.trim()) void change('deepl', true); }}>
+      <input type="password" aria-label="DeepL API 키" placeholder="DeepL API 키" value={key} maxLength={120} disabled={busy || !config.storage} autoComplete="new-password" spellCheck={false} onChange={event => setKey(event.target.value)} />
+      <button type="submit" className="feedex-cache-clear" disabled={busy || !config.storage || !key.trim()}>저장</button>
+    </form>}
     {message && <p className="feedex-setting-message" role="status">{message}</p>}
   </div>;
 }
