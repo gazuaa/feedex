@@ -934,6 +934,7 @@ const ARTICLES_FIRST_SUBSCRIPTIONS = 20;
 
 // 필터·검색·배치를 지원하며 글을 가져온다
 app.get('/api/articles', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
   const user = c.get('user');
   const { sequence: syncSequence } = await syncHead(c.env.DB);
   // 기록을 되살릴 때는 지금 걸러진·페이지로 나뉜 목록 밖의 읽은 글도 찾아야 한다.
@@ -1311,8 +1312,11 @@ app.post('/api/articles/:id/thumbnail', async (c) => {
 
 // 웹 보기: 원문 페이지를 리더 영역 안 프레임에 넣어도 되는가?
 app.get('/api/articles/:id/embeddable', async (c) => {
-  const article = await c.env.DB.prepare('SELECT url FROM articles WHERE id = ?')
-    .bind(c.req.param('id'))
+  c.header('Cache-Control', 'private, no-store');
+  // 프레임 검사 결과에도 원문 주소가 들어가므로 구독한 계정만 확인할 수 있다.
+  const article = await c.env.DB.prepare(`SELECT a.url FROM articles a WHERE a.id = ?
+    AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)`)
+    .bind(c.req.param('id'), c.get('user').id)
     .first<{ url: string }>();
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
   return c.json(await checkEmbeddable(article.url, new URL(c.req.url).origin));
@@ -1333,6 +1337,7 @@ app.get('/api/articles/:id/x-post', async (c) => {
 // 프레임을 거부하는 사이트의 웹 보기: 스크립트 없는 페이지 사본.
 // ?layout=phone은 받은 페이지가 데스크톱에만 맞을 때 휴대폰 폭으로 배치한 사본을 요청한다.
 app.get('/api/articles/:id/web-copy', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
   const article = await c.env.DB.prepare(
     'SELECT a.url, a.title, a.content_html FROM articles a WHERE a.id = ? AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.feed_id = a.feed_id AND s.user_id = ?)'
   )
@@ -1341,7 +1346,6 @@ app.get('/api/articles/:id/web-copy', async (c) => {
   if (!article) return c.json({ error: '아티클을 찾을 수 없습니다.' }, 404);
   // 공개 미러에서 못 받은 대화는 빈 x.com 사본으로 저장하지 않는다.
   if (xStatusUrl(article.url)) {
-    c.header('Cache-Control', 'no-store');
     try { return c.json(xThreadWithProof(c.env, await fetchXThread(article.url, article.content_html, c.env.DB, article.title))); }
     catch { return c.json({ error: 'X 대화를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.' }, 502); }
   }

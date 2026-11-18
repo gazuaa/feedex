@@ -148,9 +148,33 @@ try {
   // 프레임을 거부하는 사이트의 웹 보기 대체: 구독자에게만 주는 스크립트 없는 사본이며,
   // 링크는 새 탭에서 열린다.
   const stranger = await (await app.request('/api/auth/google/quick', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'stranger@example.test' }) }, env)).json();
+  // 웹 보기 검사도 기사 주소를 반환한다. 다른 계정에는 존재하지 않는 글과 똑같이 답하고 원문에 요청을 보내지 않는다.
+  const memberUrl = 'https://reader.example.test/members/reader-fixture';
+  await db.prepare('UPDATE articles SET url=? WHERE id=?').bind(memberUrl, row.id).run();
+  const frameCheck = (auth, id = row.id) => app.request(`/api/articles/${id}/embeddable`, { headers: { authorization: `Bearer ${auth}` } }, env);
+  const checked = [];
+  globalThis.fetch = async (target) => { checked.push(target); return new Response(html, { headers: { 'x-frame-options': 'DENY' } }); };
+  const denied = await frameCheck(stranger.token), missing = await frameCheck(stranger.token, 'missing');
+  assert.equal(denied.status, 404);
+  assert.equal(missing.status, 404);
+  assert.equal(await denied.text(), await missing.text());
+  assert.deepEqual(checked, []);
+  const strangerList = await (await app.request(`/api/articles?articleId=${row.id}`, { headers: { authorization: `Bearer ${stranger.token}` } }, env)).json();
+  assert.deepEqual(strangerList.articles, []);
+  const ownedFrame = await frameCheck(token);
+  assert.match(ownedFrame.headers.get('cache-control'), /private, no-store/);
+  assert.deepEqual(await ownedFrame.json(), { embeddable: false, url: memberUrl, reason: 'framing' });
+  assert.deepEqual(checked, [memberUrl]);
+  await db.prepare('DELETE FROM subscriptions WHERE id=?').bind('reader-sub').run();
+  assert.equal((await frameCheck(token)).status, 404);
+  assert.deepEqual(checked, [memberUrl]);
+  await db.prepare('INSERT INTO subscriptions(id,user_id,feed_id,created_at) VALUES(?,?,?,?)').bind('reader-sub', user.id, feed.feedId, new Date().toISOString()).run();
+  await db.prepare('UPDATE articles SET url=? WHERE id=?').bind(url, row.id).run();
   const copyRequest = (auth = token) => app.request(`/api/articles/${row.id}/web-copy`, { headers: { authorization: `Bearer ${auth}` } }, env);
   globalThis.fetch = async () => new Response(html, { headers: { 'x-frame-options': 'DENY' } });
-  const copy = await (await copyRequest()).json();
+  const copyResponse = await copyRequest();
+  assert.match(copyResponse.headers.get('cache-control'), /private, no-store/);
+  const copy = await copyResponse.json();
   const baseTag = copy.html.match(/<base [^>]*>/)?.[0] || '';
   assert.ok(baseTag.includes('href="https://reader.example.test/post"') && baseTag.includes('target="_blank"'), baseTag);
   assert.match(copy.html, /meaningful text/);
