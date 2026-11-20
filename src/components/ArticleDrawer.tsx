@@ -847,18 +847,21 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
    * Slap에 공유. 같은 이메일 앞으로 Slap에 기사를 맡긴다. 그러면 Slap을 어디서 열든(아이폰 홈 화면 앱 포함) 공유 창이 뜬다.
    * 그리고 기기에 맞게 Slap을 연다. 데스크톱은 설치한 Slap 앱을 전용 주소(web+slap:)로 바로 연다. 전용 주소에도 기사를 실어,
    * 맡기기에 실패해도 앱이 열리면 공유 창이 뜬다.
-   * 아이폰·아이패드의 홈 화면 Slap 앱은 링크로 열 수 없으므로, 누른 그 순간 링크 그대로 사파리에서 Slap 공유 창을 연다.
-   * 맡기기를 기다린 뒤 열면 사용자의 누름으로 인정되지 않아 막힌다. 사파리의 Slap은 주소로 받은 공유와 같은 맡긴 공유를 비운다.
+   * 아이폰·아이패드의 홈 화면 Slap 앱은 링크로 열 수 없다(https 링크도, webapp:// 주소도 브라우저로 간다. 2026-11 실기기 확인).
+   * 사파리로 Slap을 열면 앱이 아닌 웹이 떠서 헷갈리므로, 맡기기만 하고 홈 화면에서 Slap을 열라고 알린다.
    */
   const shareToSlap = async (close: () => void, linkEvent: React.MouseEvent<HTMLAnchorElement>) => {
     const bridge = nativeBridge();
     const appleTouch = !bridge && isAppleTouch(navigator.userAgent, navigator.maxTouchPoints);
-    if (!appleTouch) linkEvent.preventDefault();
+    linkEvent.preventDefault();
     close();
     const target = { title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url };
     const web = shareLinks(target).slap, app = slapAppLink(target);
     const left = await apiRequest<{ ok: boolean }>(`/api/articles/${article.id}/slap`, { method: 'POST', body: '{}' }).then(() => true, () => false);
-    if (appleTouch) return;
+    if (appleTouch) {
+      onNotice(left ? t('Slap에 보냈어요. 홈 화면에서 Slap을 열면 공유 창이 떠요.', 'Sent to Slap. Open Slap from your Home Screen to see the share sheet.') : t('Slap에 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.', 'Could not send to Slap. Please try again in a moment.'));
+      return;
+    }
     if (bridge) {
       // 맥·윈도우 앱: 이 컴퓨터에 설치한 Slap 앱이 있으면 그것을, 없으면 기본 브라우저의 Slap을 연다. 예전 앱은 브라우저로 연다.
       bridge.postMessage(nativeFeatures().includes('openSlap') ? { type: 'openSlap', url: app, fallback: web } : { type: 'openExternal', url: web });
@@ -875,7 +878,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
    */
   const shareOptions = (close: () => void) => {
     const option = 'flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left hover:bg-emerald-500/10';
-    // 리트윗 표시(RT by @…)는 빼고 공유한다. Slap 링크는 아이폰에서 그대로 열리므로 공유 창과 같은 제목을 쓴다.
+    // 리트윗 표시(RT by @…)는 빼고 공유한다. Slap 링크도 공유 창과 같은 제목을 쓴다.
     const links = shareLinks({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url });
     const phoneShare = isMobile && typeof navigator !== 'undefined' && typeof navigator.share === 'function'
       && typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true;
