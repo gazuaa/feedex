@@ -38,6 +38,7 @@ import { emptiesUnreadList, useMobileViewport, useScrollChrome } from './client/
 import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
 import { useMobileScrollRecovery } from './client/mobileScrollRecovery';
+import { useStatusBarTap } from './client/statusBarTap';
 import { mobileOriginalArticle, opensOriginalSeparately } from './client/originalWindow';
 import { NativeHandoff } from './components/NativeHandoff';
 import { inNativeApp, inNativeSignInWindow } from './client/nativeApp';
@@ -294,6 +295,7 @@ export const App: React.FC = () => {
   const isMobile = useMobileViewport();
   useMobileScrollRecovery(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId, `${user?.id}:${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${searchQuery}:${articleSort}`);
   const chromeHidden = useScrollChrome(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId, `${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${searchQuery}`);
+  useStatusBarTap(articleListRef, isMobile && Boolean(user) && !mobileSidebarOpen && !selectedArticleId);
   const [textSize] = useTextSize();
   useEffect(() => { document.documentElement.style.setProperty('--feedex-text-scale', String(textSize)); }, [textSize]);
   useMobileNavigation(isMobile && !authChecking ? user?.id ?? null : null, {

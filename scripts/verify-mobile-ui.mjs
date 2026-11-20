@@ -30,6 +30,15 @@ try {
     assert.equal(slap.searchParams.get('share'), '1');
     assert.equal(slapShare.get('share'), shared.url); assert.equal(slapShare.get('title'), shared.title);
     // Slap 앱: 데스크톱은 전용 주소(web+slap:)로 설치한 앱을 연다. 아이폰·아이패드 홈 화면 앱은 링크로 열 수 없다.
+    // 아이폰 상단 누르기: 문서를 1px 스크롤되게 두고, 손가락 없이 0으로 올라간 것만 상단 누르기로 본다.
+    const { isStatusBarTap } = await vite.ssrLoadModule('/src/client/statusBarTap.ts');
+    assert.equal(isStatusBarTap(0, false, 5000), true, 'a scroll to 0 with no finger is a status bar tap');
+    assert.equal(isStatusBarTap(0, true, 0), false, 'a finger dragging the page is not a status bar tap');
+    assert.equal(isStatusBarTap(0, false, 200), false, 'momentum right after a swipe is not a status bar tap');
+    assert.equal(isStatusBarTap(1, false, 5000), false, 'the parked page is not a status bar tap');
+    assert.match(readFileSync('src/index.css', 'utf8'), /html\.feedex-status-tap body \{ min-height: calc\(100dvh \+ 1px\); \}/);
+    assert.match(readFileSync('src/App.tsx', 'utf8'), /useStatusBarTap\(articleListRef, /, 'the article list returns to the top');
+    assert.match(readFileSync('src/components/ArticleDrawer.tsx', 'utf8'), /useStatusBarTap\(bodyRef, /, 'the reader returns to the top');
     const { slapAppLink, isAppleTouch, openSlapApp } = await vite.ssrLoadModule('/src/client/share.ts');
     const appLink = new URL(slapAppLink(shared));
     assert.equal(appLink.protocol, 'web+slap:'); assert.equal(appLink.searchParams.get('url'), shared.url); assert.equal(appLink.searchParams.get('title'), shared.title);
@@ -189,5 +198,5 @@ try {
   assert.match(loginView, /<p className="hidden lg:block /, 'phones skip the long intro'); assert.match(loginView, /<div className="hidden lg:grid /, 'phones skip the feature cards');
   const installCard = readFileSync(new URL('../src/components/PwaInstall.tsx', import.meta.url), 'utf8');
   assert.match(installCard, /onClick=\{prompt\.dismiss\}[^>]*className="[^"]*h-10 w-10/, 'the install card close button is finger sized');
-  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, share links, Slap sharing that opens the installed app (or tells iPhone to open it), phone-only system sharing that falls back to copying, a clipboard fallback, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
+  console.log('PASS: one filtered library entry, correct counts, context-specific settings, shared persistent text size, scroll direction thresholds, edge bounce, focused-input handling a brief bar peek after a framed site loads, Korean word wrapping, no keyboard pop in the exclusion dialog, a notch-safe swipe-to-close photo viewer, a one-line translation bar, readable selected text in both themes, share links, Slap sharing that opens the installed app (or tells iPhone to open it), status bar taps that return iPhone lists and articles to the top, phone-only system sharing that falls back to copying, a clipboard fallback, site headers in web copies that scroll away instead of following, and the AI summary in the top more menu.');
 } finally { await vite.close(); }

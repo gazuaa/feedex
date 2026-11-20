@@ -36,6 +36,7 @@ import {
 import { useCopyTheme } from '../client/copyTheme';
 import { useTextSize } from '../client/textSize';
 import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile';
+import { useStatusBarTap } from '../client/statusBarTap';
 import { sanitizeReaderMarkup } from '../client/articleMarkup';
 import { isCurrentSummary } from '../shared/aiSummary';
 import { isAppleTouch, openSlapApp, shareLinks, slapAppLink } from '../client/share';
@@ -415,6 +416,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   // 프레임 안 사이트의 스크롤은 손이 닿지 않으므로, 피드·리더·웹 사본만 막대를 숨긴다.
   const showingCopy = siteShown && frame?.articleId === article?.id && frame?.embeddable === false && webCopy?.articleId === article?.id && Boolean(webCopy?.html);
   const chromeHidden = useScrollChrome(bodyRef, isMobile && Boolean(article) && !mobileMenu, `${article?.id}:${mode}:${showingCopy}:${showTranslation}`, copyRef);
+  useStatusBarTap(bodyRef, isMobile && Boolean(article));
   // 맥 앱에서는 웹 보기 자리에 앱이 원문 화면을 겹쳐 띄운다. 사이트를 직접 연 화면이라 로그인이 유지되고
   // 프레임을 막는 사이트도 그대로 보인다. X 글은 공개 미러 사본으로 보여 준다.
   const nativeWeb = siteShown && Boolean(article) && !xPost && inNativeApp();
