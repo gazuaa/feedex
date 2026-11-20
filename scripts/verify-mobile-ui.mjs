@@ -88,9 +88,9 @@ try {
     assert.match(slapFlow, /apiRequest<\{ ok: boolean \}>\(`\/api\/articles\/\$\{article\.id\}\/slap`/, 'the article is left in Slap first');
     assert.ok(slapFlow.indexOf('/slap`') < slapFlow.indexOf('bridge.postMessage'), 'desktop apps open Slap only after the article is left');
     assert.match(slapFlow, /nativeFeatures\(\)\.includes\('openSlap'\) \? \{ type: 'openSlap', url: app, fallback: web \} : \{ type: 'openExternal', url: web \}/, 'new desktop apps open the Slap app, older ones the browser');
-    // 아이폰·아이패드의 홈 화면 Slap 앱은 링크로 열 수 없다. 사파리를 열지 않고 맡긴 뒤 홈 화면에서 Slap을 열라고 알린다.
-    assert.match(slapFlow, /const appleTouch = !bridge && isAppleTouch\(navigator\.userAgent, navigator\.maxTouchPoints\);\s*linkEvent\.preventDefault\(\);/, 'no device follows the Slap link to a browser tab');
-    assert.match(slapFlow, /if \(appleTouch\) \{\s*onNotice\(left \? t\('Slap에 보냈어요\. 홈 화면에서 Slap을 열면 공유 창이 떠요\.'/, 'iPhone and iPad leave the article and point to the home-screen app');
+    // 아이폰·아이패드는 누른 순간 링크 그대로 사파리에서 Slap 공유 창을 연다(기다린 뒤 열면 막힌다).
+    assert.match(slapFlow, /const appleTouch = !bridge && isAppleTouch\(navigator\.userAgent, navigator\.maxTouchPoints\);\s*if \(!appleTouch\) linkEvent\.preventDefault\(\);/, 'iPhone and iPad follow the Slap link to Safari right away');
+    assert.match(slapFlow, /if \(appleTouch\) return;/, 'iPhone and iPad still leave the article for the home-screen app');
     assert.match(slapFlow, /openSlapApp\(app, \(\) => onNotice\(/, 'desktop browsers open the installed app through web+slap:');
     assert.match(options, /onClick=\{\(event\) => void shareToSlap\(close, event\)\}/);
   }
