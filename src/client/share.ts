@@ -10,11 +10,18 @@ export function shareLinks({ title, url }: SharedArticle) {
     telegram: `https://t.me/share/url?${new URLSearchParams({ url, text: title })}`,
     // 텔레그램 앱을 바로 여는 주소. 아이폰 홈 화면 앱에서 t.me를 열면 앱 안 사파리 창이 텔레그램으로 넘긴 뒤 빈 창으로 남는다.
     telegramApp: `tg://msg_url?${new URLSearchParams({ url, text: title })}`,
-    // Grok에 묻기. 질문창에 글 주소만 채워 연다.
-    grok: `https://grok.com/?${new URLSearchParams({ q: url })}`,
     threads: `https://www.threads.com/intent/post?${new URLSearchParams({ text: `${title}\n${url}` })}`,
     email: `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${title}\n${url}`)}`,
   };
+}
+
+/**
+ * Grok에 묻기 주소. 질문창에 글 주소만 채운다. 휴대폰은 grok.com을 바로 열면 Grok 앱이 질문을 버리므로
+ * 피드엑스의 중간 페이지(/grok.html)를 거친다. 그 페이지는 grok.com으로만 넘긴다.
+ */
+export function grokLink(url: string, phone: boolean) {
+  const query = new URLSearchParams({ q: url });
+  return phone ? `/grok.html?${query}` : `https://grok.com/?${query}`;
 }
 
 /** Slap 데스크톱 앱(Chrome·Edge에 설치한 Slap)을 바로 여는 전용 주소. Slap 매니페스트의 protocol_handlers가 받는다. */

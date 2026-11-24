@@ -39,7 +39,8 @@ import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile
 import { useStatusBarTap } from '../client/statusBarTap';
 import { sanitizeReaderMarkup } from '../client/articleMarkup';
 import { isCurrentSummary } from '../shared/aiSummary';
-import { isAppleTouch, openAppLink, openClosingOnReturn, shareLinks, slapAppLink } from '../client/share';
+import { grokLink, isAppleTouch, openAppLink, openClosingOnReturn, shareLinks, slapAppLink } from '../client/share';
+import { GrokLogo } from './GrokLogo';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
 import { leavesForOriginal, mobileOriginalArticle, opensOriginalSeparately } from '../client/originalWindow';
@@ -60,13 +61,6 @@ import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 import { shownThumbnail } from '../client/thumbnails';
 import { inNativeApp, nativeBridge, nativeFeatures, nativePlatform, useNativeArticle } from '../client/nativeApp';
 import { t, locale } from '../shared/i18n';
-
-/** Grok 로고(비스듬한 선이 지나는 원). 공유 메뉴의 다른 아이콘과 같은 선 굵기로 그린다. */
-function GrokLogo({ size = 16 }: { size?: number }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-    <path d="M16.6 5.4A8 8 0 0 0 5.4 16.6" /><path d="M18.6 7.4A8 8 0 0 1 7.4 18.6" /><path d="M4 20 20 4" />
-  </svg>;
-}
 
 const VIEW_MODES = [
   { id: 'feed', label: t('피드', 'Feed'), title: t('피드 본문 — RSS에 담긴 내용', 'Feed text — what the RSS feed contains'), Icon: Rss },
@@ -851,10 +845,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
    * Grok에 묻기. 질문을 채운 grok.com 웹을 연다. 휴대폰에서 grok.com을 바로 열면 Grok 앱으로 넘어가며 질문이 빠지므로
    * 피드엑스의 중간 페이지(/grok.html)를 열고, 그 페이지가 스크립트로 grok.com에 넘긴다(앱으로 가로채이지 않는다).
    */
-  const askGrok = (links: ReturnType<typeof shareLinks>, phone: boolean, close: () => void) => {
-    const web = links.grok;
-    if (!phone || nativeBridge()) { openShareLink(web, close); return; }
-    window.open(`/grok.html?${new URLSearchParams({ q: new URL(web).searchParams.get('q') ?? '' })}`, '_blank', 'noopener,noreferrer');
+  const askGrok = (phone: boolean, close: () => void) => {
+    if (!phone || nativeBridge()) { openShareLink(grokLink(article.url, false), close); return; }
+    window.open(grokLink(article.url, true), '_blank', 'noopener,noreferrer');
     close();
   };
   const openShareLink = (url: string, close: () => void, linkEvent?: React.MouseEvent<HTMLAnchorElement>) => {
@@ -926,7 +919,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => void shareToSlap(close, event)}><MessageSquare size={16} aria-hidden="true" />{t('Slap에 공유', 'Share to Slap')}</a>
       {/* 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 한다. */}
       <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />{t('X에 공유', 'Share to X')}</button>
-      <button type="button" className={option} onClick={() => askGrok(links, isMobile && window.matchMedia?.('(pointer: coarse)').matches === true, close)}><GrokLogo />{t('Grok에 묻기', 'Ask Grok')}</button>
+      <button type="button" className={option} onClick={() => askGrok(isMobile && window.matchMedia?.('(pointer: coarse)').matches === true, close)}><GrokLogo />{t('Grok에 묻기', 'Ask Grok')}</button>
       <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />{t('Threads에 공유', 'Share to Threads')}</a>
       <button type="button" className={option} onClick={() => shareToTelegram(links, close)}><Send size={16} aria-hidden="true" />{t('텔레그램으로 공유', 'Share to Telegram')}</button>
       {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />{t('이메일로 공유', 'Share by email')}</a>}

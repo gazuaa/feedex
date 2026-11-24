@@ -50,7 +50,7 @@ import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './clie
 import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, startedAfterUpdate, startedFromReload, takeResumePoint, watchAppVersion } from './client/appVersion';
-import { copyText } from './client/share';
+import { copyText, grokLink } from './client/share';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { readRowsExpired, UnreadSession } from './client/unreadSession';
@@ -1288,13 +1288,14 @@ export const App: React.FC = () => {
 
   const pullDistance = usePullRefresh(isMobile && Boolean(user) && !selectedArticleId && !discoverOpen && !markReadTarget && !historyFeed && !renameFeed, refreshingFeeds, handleRefreshFeeds);
 
-  const askMarkRead = (side?: 'above' | 'below', keyboard = false) => {
+  /** 모두 읽음을 묻는다. side가 있으면 anchor 글(기본은 열린 글)보다 위나 아래만 읽음 처리한다. */
+  const askMarkRead = (side?: 'above' | 'below', keyboard = false, anchor: ArticleItem | null | undefined = selectedArticle) => {
     setMarkReadError(null);
     setMarkReadTarget({
       scope: activeScope, folderId: activeFolderId, feedId: activeFeedId,
       name: headerInfo.title, search: committedSearch.trim(), savedOnly: savedOnly && activeScope !== 'saved',
       excludedFeedIds: filterAllFeeds ? excludedFeedIds : undefined,
-      edge: side && selectedArticle ? { articleId: selectedArticle.id, side, older: (side === 'below') === (articleSort === 'newest') } : undefined,
+      edge: side && anchor ? { articleId: anchor.id, side, older: (side === 'below') === (articleSort === 'newest') } : undefined,
       keyboard,
     });
   };
@@ -1757,17 +1758,41 @@ export const App: React.FC = () => {
     const feed = target.feedId ? subscriptions.find((sub) => sub.feed_id === target.feedId) : null;
     const folder = target.folderId ? folders.find((item) => item.id === target.folderId) : null;
     if (article) {
-      items.push({ id: 'read', label: article.is_read ? t('안 읽음으로 표시', "Mark as unread") : t('읽음으로 표시', "Mark as read"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
-        { id: 'save', label: article.is_saved ? t('저장 취소', "Remove bookmark") : t('나중에 읽기', "Read later"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
-      // 휴대폰에서만 보인다(글 화면 공유 메뉴처럼 컴퓨터의 시스템 공유는 쓸모가 적다). 리트윗 표시(RT by @…)는 빼고 공유한다. 닫으면 아무것도 하지 않는다.
-      if (isMobile && typeof navigator.share === 'function' && window.matchMedia?.('(pointer: coarse)').matches) items.push({ id: 'share', label: t('공유', "Share"), run: () => navigator.share({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url }).catch((error) => { if (!(error instanceof Error && error.name === 'AbortError')) handleCopyLink(article.url); }) });
-      // 원문으로 바로 여는 피드를 다시 앱 안에서 열게 한다. 이 피드의 바로 열기를 끄므로 보이는 보기 탭대로 다음에도 앱에서 열린다.
-      if (opensOriginalFromList(article)) items.push({ id: 'open-in-app', label: t('앱에서 열기', "Open in FeedEx"), run: () => {
-        saveDirect(article.feed_id, false);
-        handleSelectArticle(articleCache.current.get(article.id) ?? article, true);
-      } });
-      items.push({ id: 'deepl-article', label: t('이 글 DeepL로 번역', "Translate this article in DeepL"), run: () => { const latest = articleCache.current.get(article.id) ?? article; openInDeepL(`${latest.title}\n\n${htmlToText(latest.full_content_html || latest.content_html || `<p>${latest.summary || ''}</p>`)}`); } });
-      items.push({ id: 'block-title', label: t('비슷한 글 숨기기…', "Hide similar articles…"), separator: true, run: () => setBlockDialog({ accountId: user.id, article }) });
+      const latest = () => articleCache.current.get(article.id) ?? article;
+      const phone = isMobile && window.matchMedia?.('(pointer: coarse)').matches === true;
+      const articleFeed = subscriptions.find((sub) => sub.feed_id === article.feed_id);
+      // 메뉴는 묶음으로 나눈다: 읽기 상태 → 공유 → 원문 → 위아래 읽음 → 피드.
+      const group = (...actions: (AppContextAction | false | null | undefined)[]) => {
+        const shown = actions.filter((action): action is AppContextAction => Boolean(action));
+        if (shown.length && items.length) shown[0] = { ...shown[0], separator: true };
+        items.push(...shown);
+      };
+      group(
+        { id: 'read', label: article.is_read ? t('안 읽음으로 표시', "Mark as unread") : t('읽음으로 표시', "Mark as read"), run: () => handleUpdateArticleState(latest(), { isRead: !latest().is_read }) },
+        { id: 'save', label: article.is_saved ? t('저장 취소', "Remove bookmark") : t('나중에 읽기', "Read later"), run: () => handleUpdateArticleState(latest(), { isSaved: !latest().is_saved }) },
+      );
+      group(
+        // 휴대폰에서만 보인다(컴퓨터의 시스템 공유는 쓸모가 적다). 리트윗 표시(RT by @…)는 빼고 공유한다. 닫으면 아무것도 하지 않는다.
+        phone && typeof navigator.share === 'function' && { id: 'share', label: t('공유', "Share"), run: () => navigator.share({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url }).catch((error) => { if (!(error instanceof Error && error.name === 'AbortError')) handleCopyLink(article.url); }) },
+        { id: 'copy-link', label: t('링크 복사', "Copy link"), run: () => handleCopyLink(article.url) },
+        { id: 'grok', label: t('Grok에 묻기', "Ask Grok"), run: () => { if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: grokLink(article.url, false) }); else window.open(grokLink(article.url, phone), '_blank', 'noopener,noreferrer'); } },
+        { id: 'deepl-article', label: t('DeepL로 번역', "Translate in DeepL"), run: () => { const current = latest(); openInDeepL(`${current.title}\n\n${htmlToText(current.full_content_html || current.content_html || `<p>${current.summary || ''}</p>`)}`); } },
+      );
+      group(
+        { id: 'open-original', label: phone ? t('원문 열기', "Open original") : t('원문 새 탭에서 열기', "Open original in new tab"), run: () => { window.open(article.url, '_blank', 'noopener,noreferrer'); } },
+        // 원문으로 바로 여는 피드를 다시 앱 안에서 열게 한다. 이 피드의 바로 열기를 끄므로 보이는 보기 탭대로 다음에도 앱에서 열린다.
+        opensOriginalFromList(article) && { id: 'open-in-app', label: t('앱에서 열기', "Open in FeedEx"), run: () => { saveDirect(article.feed_id, false); handleSelectArticle(latest(), true); } },
+      );
+      // 목록에서 이 글보다 위나 아래의 글을 한 번에 읽음 처리한다(확인을 받는다).
+      const at = listedArticles.findIndex((row) => row.id === article.id);
+      if (at >= 0) group(
+        at > 0 && { id: 'read-above', label: t('위 글 모두 읽음', "Mark all above as read"), run: () => askMarkRead('above', false, latest()) },
+        (at < listedArticles.length - 1 || hasMoreArticles) && { id: 'read-below', label: t('아래 글 모두 읽음', "Mark all below as read"), run: () => askMarkRead('below', false, latest()) },
+      );
+      group(
+        articleFeed && activeFeedId !== article.feed_id && { id: 'open-feed', label: t('이 피드 글 보기', 'View this feed'), run: () => openScope('feed', null, article.feed_id) },
+        { id: 'block-title', label: t('비슷한 글 숨기기…', "Hide similar articles…"), run: () => setBlockDialog({ accountId: user.id, article }) },
+      );
     } else if (feed) {
       if (feed.builder_id) items.push({ id: 'edit-builder', label: t('RSS 빌더 피드 수정…', "Edit RSS Builder feed…"), run: () => setBuilderEditor({ accountId: user.id, id: feed.builder_id! }) });
       items.push({ id: 'rename-feed', label: t('피드 이름 수정…', "Rename feed…"), run: () => setRenameFeed({ accountId: user.id, feed }) });
@@ -1782,7 +1807,8 @@ export const App: React.FC = () => {
         { id: 'mark-folder', label: t('폴더 모두 읽음', "Mark folder as read"), run: () => { setMarkReadError(null); setMarkReadTarget({ scope: 'folder', folderId: folder.id, feedId: null, name: folder.name, search: '', savedOnly: false }); } },
         { id: 'delete-folder', label: t('폴더 삭제…', "Delete folder…"), danger: true, separator: true, run: () => handleDeleteFolder(folder.id) });
     }
-    const url = target.link || article?.url || feed?.html_url;
+    // 글 메뉴는 원문 열기와 링크 복사를 위에서 이미 넣었다.
+    const url = target.link || (article ? null : feed?.html_url);
     if (url) items.push({ id: 'open-original', label: t('원문 새 탭에서 열기', "Open original in new tab"), separator: true, run: () => { window.open(url, '_blank', 'noopener,noreferrer'); } },
       { id: 'copy-link', label: t('링크 복사', "Copy link"), run: () => handleCopyLink(url) });
     if (!article && !feed && !folder) items.push({ id: 'all', label: t('전체 글 보기', "View all articles"), run: () => openScope('all') },
@@ -1792,7 +1818,14 @@ export const App: React.FC = () => {
 
   return (
     <>
-      <DesktopContextMenu enabled touch={isMobile} actions={contextActions} />
+      <DesktopContextMenu enabled touch={isMobile} actions={contextActions} heading={(target) => {
+        const article = target.articleId ? articleCache.current.get(target.articleId) : null;
+        if (article) return { title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), detail: article.feed_title };
+        const feed = target.feedId ? subscriptions.find((sub) => sub.feed_id === target.feedId) : null;
+        if (feed) return { title: feed.title };
+        const folder = target.folderId ? folders.find((item) => item.id === target.folderId) : null;
+        return folder ? { title: folder.name } : null;
+      }} />
       <ResizableWorkspace
         key={user.id}
         userId={user.id}
