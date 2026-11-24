@@ -22,7 +22,6 @@ import {
   MessageSquare,
   Link2,
   Send,
-  Bot,
   AtSign,
   RotateCw,
   X,
@@ -61,6 +60,13 @@ import { bindArticleImages, bodyShowsImage } from '../client/articleImages';
 import { shownThumbnail } from '../client/thumbnails';
 import { inNativeApp, nativeBridge, nativeFeatures, nativePlatform, useNativeArticle } from '../client/nativeApp';
 import { t, locale } from '../shared/i18n';
+
+/** Grok 로고(비스듬한 선이 지나는 원). 공유 메뉴의 다른 아이콘과 같은 선 굵기로 그린다. */
+function GrokLogo({ size = 16 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+    <path d="M16.6 5.4A8 8 0 0 0 5.4 16.6" /><path d="M18.6 7.4A8 8 0 0 1 7.4 18.6" /><path d="M4 20 20 4" />
+  </svg>;
+}
 
 const VIEW_MODES = [
   { id: 'feed', label: t('피드', 'Feed'), title: t('피드 본문 — RSS에 담긴 내용', 'Feed text — what the RSS feed contains'), Icon: Rss },
@@ -841,6 +847,19 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       if (shownArticleId.current === article.id) onCopyLink(article);
     });
   };
+  /**
+   * Grok에 묻기. 휴대폰은 grok.com 주소가 Grok 앱으로 넘어가며 붙여 둔 질문이 빠지므로, 시스템 공유 시트를 열어
+   * Grok 앱의 'Ask Grok'에 글 주소를 바로 넘기게 한다. 컴퓨터는 질문을 채운 grok.com을 연다.
+   */
+  const askGrok = (links: ReturnType<typeof shareLinks>, phoneShare: boolean, close: () => void) => {
+    const web = links.grok(t('이 글을 요약하고 설명해 줘.', 'Summarize and explain this.'));
+    if (!phoneShare) { openShareLink(web, close); return; }
+    let shared: Promise<void>;
+    try { shared = navigator.share({ title: article.title, url: article.url }); }
+    catch (error) { shared = Promise.reject(error); }
+    close();
+    void shared.catch((error) => { if (!(error instanceof Error && error.name === 'AbortError')) openShareLink(web, () => {}); });
+  };
   const openShareLink = (url: string, close: () => void, linkEvent?: React.MouseEvent<HTMLAnchorElement>) => {
     const bridge = nativeBridge();
     if (bridge && url.startsWith('https://')) {
@@ -910,7 +929,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => void shareToSlap(close, event)}><MessageSquare size={16} aria-hidden="true" />{t('Slap에 공유', 'Share to Slap')}</a>
       {/* 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 한다. */}
       <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />{t('X에 공유', 'Share to X')}</button>
-      <button type="button" className={option} onClick={() => openShareLink(links.grok(t('이 글을 요약하고 설명해 줘.', 'Summarize and explain this.')), close)}><Bot size={16} aria-hidden="true" />{t('Grok에 묻기', 'Ask Grok')}</button>
+      <button type="button" className={option} onClick={() => askGrok(links, phoneShare, close)}><GrokLogo />{t('Grok에 묻기', 'Ask Grok')}</button>
       <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />{t('Threads에 공유', 'Share to Threads')}</a>
       <button type="button" className={option} onClick={() => shareToTelegram(links, close)}><Send size={16} aria-hidden="true" />{t('텔레그램으로 공유', 'Share to Telegram')}</button>
       {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />{t('이메일로 공유', 'Share by email')}</a>}
