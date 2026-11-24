@@ -9,7 +9,8 @@
   <style>body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#fff;color:#64748b;font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;font-size:15px}@media (prefers-color-scheme:dark){body{background:#020617;color:#94a3b8}}</style>
   <!-- 휴대폰에서 Grok을 웹으로 연다. 사용자가 누른 링크로 grok.com을 열면 iOS가 Grok 앱으로 넘기면서 채워 둔 질문을 버린다.
        이 페이지가 스크립트로 넘기면 앱으로 넘어가지 않는다. grok.com으로만 보낸다. -->
+  <script src="/page-language.js" defer></script>
   <script src="/grok.js" defer></script>
 </head>
-<body><p>Grok으로 이동 중…</p></body>
+<body><main style="text-align:center"><p data-en="Opening Grok…">Grok으로 이동 중…</p><p><a id="back" href="/" style="color:#10b981;text-decoration:none;font-weight:600" data-en="Back to FeedEx">피드엑스로 돌아가기</a></p></main></body>
 </html>
