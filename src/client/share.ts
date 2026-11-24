@@ -41,6 +41,30 @@ export function openAppLink(link: string, onMissed: () => void, win: Pick<Window
 }
 
 /**
+ * 아이폰 홈 화면 앱에서 공유 링크를 연다. 홈 화면 앱은 바깥 주소를 앱 안 사파리 창으로 여는데, 그 주소가 다른 앱
+ * (Grok, 텔레그램, X 등)으로 넘어가면 돌아왔을 때 빈 흰 창만 남는다. 그래서 연 창을 기억해 두었다가, 다른 앱에 다녀와
+ * 이 앱이 다시 보이면 그 창을 닫는다. 연 사이트가 이 앱을 조작하지 못하게 opener는 바로 끊는다.
+ * 원문 읽기처럼 그 창에서 계속 읽는 링크에는 쓰지 않는다(다른 앱을 잠깐 보고 오면 닫혀 버린다).
+ */
+export function openClosingOnReturn(url: string, win: Pick<Window, 'open' | 'setTimeout'> & { document: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'> } = window, keepMs = 10 * 60_000) {
+  const opened = win.open(url, '_blank');
+  if (!opened) return false;
+  try { opened.opener = null; } catch { /* 이미 다른 출처로 넘어갔으면 브라우저가 막는다. */ }
+  let away = false;
+  const doc = win.document;
+  const stop = () => doc.removeEventListener('visibilitychange', changed);
+  function changed() {
+    if (doc.visibilityState === 'hidden') { away = true; return; }
+    if (!away) return;
+    stop();
+    try { if (!opened!.closed) opened!.close(); } catch { /* 닫을 수 없으면 그대로 둔다. */ }
+  }
+  doc.addEventListener('visibilitychange', changed);
+  win.setTimeout(stop, keepMs);
+  return true;
+}
+
+/**
  * 클립보드에 글을 넣는다. 권한이 막힌 화면(일부 앱 화면 등)에서는 예전 방식(숨긴 글상자를 선택해 복사)으로
  * 한 번 더 시도한다. 그 뒤에는 원래 누르던 곳으로 초점을 돌려준다.
  */

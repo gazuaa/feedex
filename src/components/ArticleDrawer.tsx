@@ -40,7 +40,7 @@ import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile
 import { useStatusBarTap } from '../client/statusBarTap';
 import { sanitizeReaderMarkup } from '../client/articleMarkup';
 import { isCurrentSummary } from '../shared/aiSummary';
-import { isAppleTouch, openAppLink, shareLinks, slapAppLink } from '../client/share';
+import { isAppleTouch, openAppLink, openClosingOnReturn, shareLinks, slapAppLink } from '../client/share';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
 import { leavesForOriginal, mobileOriginalArticle, opensOriginalSeparately } from '../client/originalWindow';
@@ -846,6 +846,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     if (bridge && url.startsWith('https://')) {
       linkEvent?.preventDefault();
       bridge.postMessage({ type: 'openExternal', url });
+    } else if (!bridge && url.startsWith('https://') && opensOriginalSeparately()) {
+      // 아이폰 홈 화면 앱: 공유 링크가 다른 앱으로 넘어가도 돌아왔을 때 빈 창이 남지 않게 한다.
+      linkEvent?.preventDefault();
+      if (!openClosingOnReturn(url)) window.open(url, '_blank', 'noopener,noreferrer');
     } else if (linkEvent) {
       // 사용자가 누른 원래 링크를 브라우저나 운영체제가 연다.
       window.setTimeout(close, 0);
@@ -862,7 +866,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const shareToTelegram = (links: ReturnType<typeof shareLinks>, close: () => void) => {
     if (nativeBridge() || !isAppleTouch(navigator.userAgent, navigator.maxTouchPoints)) { openShareLink(links.telegram, close); return; }
     close();
-    openAppLink(links.telegramApp, () => window.open(links.telegram, '_blank', 'noopener,noreferrer'), window, 2500);
+    openAppLink(links.telegramApp, () => { if (!(opensOriginalSeparately() && openClosingOnReturn(links.telegram))) window.open(links.telegram, '_blank', 'noopener,noreferrer'); }, window, 2500);
   };
   /**
    * Slap에 공유. 같은 이메일 앞으로 Slap에 기사를 맡긴다. 그러면 Slap을 어디서 열든(아이폰 홈 화면 앱 포함) 공유 창이 뜬다.

@@ -31,6 +31,16 @@ try {
     assert.equal(slapShare.get('share'), shared.url); assert.equal(slapShare.get('title'), shared.title);
     const grok = new URL(links.grok('Explain.'));
     assert.equal(grok.origin, 'https://grok.com'); assert.equal(grok.searchParams.get('q'), `Explain.\n\n${shared.title}\n${shared.url}`, 'Ask Grok fills the request, title and link');
+    // 홈 화면 앱의 공유 창: 다른 앱에 다녀와 돌아오면 닫고, 그냥 다시 보이기만 하면 그대로 둔다. 연 사이트와의 연결(opener)은 끊는다.
+    const { openClosingOnReturn } = await vite.ssrLoadModule('/src/client/share.ts');
+    const sheetWindow = () => { const listeners = []; const sheet = { opener: 'app', closed: false, close() { sheet.closed = true; } };
+      const win = { document: { visibilityState: 'visible', addEventListener: (_, fn) => listeners.push(fn), removeEventListener: (_, fn) => listeners.splice(listeners.indexOf(fn), 1) }, open: () => sheet, setTimeout: () => 0 };
+      const fire = (state) => { win.document.visibilityState = state; [...listeners].forEach((fn) => fn()); };
+      return { win, sheet, fire, listeners }; };
+    const shared1 = sheetWindow(); assert.equal(openClosingOnReturn('https://grok.com/', shared1.win), true); assert.equal(shared1.sheet.opener, null, 'the opened site cannot reach the app');
+    shared1.fire('visible'); assert.equal(shared1.sheet.closed, false, 'the sheet stays while the app never left');
+    shared1.fire('hidden'); shared1.fire('visible'); assert.equal(shared1.sheet.closed, true, 'coming back from another app closes the blank sheet'); assert.equal(shared1.listeners.length, 0);
+    const blocked = sheetWindow(); blocked.win.open = () => null; assert.equal(openClosingOnReturn('https://grok.com/', blocked.win), false);
     const telegramApp = new URL(links.telegramApp);
     assert.equal(telegramApp.protocol, 'tg:'); assert.equal(telegramApp.searchParams.get('url'), shared.url); assert.equal(telegramApp.searchParams.get('text'), shared.title);
     // Slap 앱: 데스크톱은 전용 주소(web+slap:)로 설치한 앱을 연다. 아이폰·아이패드 홈 화면 앱은 링크로 열 수 없다.
@@ -94,7 +104,8 @@ try {
     for (const label of ['Copy link', 'Share to Slap', 'Share to X', 'Ask Grok', 'Share to Threads', 'Share to Telegram', 'Share by email']) assert.ok(options.includes(label), label);
     assert.match(options, /<button type="button"[^\n]+openShareLink\(links\.x, close\)[^\n]+<\/button>/, 'the X action survives social share link filters');
     assert.match(options, /<button type="button"[^\n]+shareToTelegram\(links, close\)[^\n]+<\/button>/, 'the Telegram action survives social share link filters');
-    assert.match(drawerSource, /openAppLink\(links\.telegramApp, \(\) => window\.open\(links\.telegram/, 'iPhone opens the Telegram app directly and falls back to t.me');
+    assert.match(drawerSource, /openAppLink\(links\.telegramApp, \(\) => \{[^\n]*openClosingOnReturn\(links\.telegram\)/, 'iPhone opens the Telegram app directly and falls back to t.me');
+    assert.match(drawerSource, /opensOriginalSeparately\(\)\) \{[^}]*openClosingOnReturn\(url\)/, 'home screen share links close their blank sheet on return');
     for (const label of ['제목과 링크 복사', '요약과 함께 복사']) assert.ok(!drawerSource.includes(label), `${label} is not offered`);
     // 시스템 공유는 누른 순간 메뉴를 닫기 전에 연다. 열지 못하면 링크를 복사해 둔다.
     const device = drawerSource.slice(drawerSource.indexOf('const shareWithDevice = (close: () => void) => {'), drawerSource.indexOf('const shareOptions = (close'));
