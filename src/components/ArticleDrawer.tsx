@@ -39,7 +39,7 @@ import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile
 import { useStatusBarTap } from '../client/statusBarTap';
 import { sanitizeReaderMarkup } from '../client/articleMarkup';
 import { isCurrentSummary } from '../shared/aiSummary';
-import { isAppleTouch, openSlapApp, shareLinks, slapAppLink } from '../client/share';
+import { isAppleTouch, openAppLink, shareLinks, slapAppLink } from '../client/share';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
 import { leavesForOriginal, mobileOriginalArticle, opensOriginalSeparately } from '../client/originalWindow';
@@ -854,6 +854,15 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     close();
   };
   /**
+   * 텔레그램으로 공유. 아이폰·아이패드는 텔레그램 앱 주소로 바로 연다. t.me 주소는 홈 화면 앱에서 앱 안 사파리 창으로 열려
+   * 텔레그램으로 넘어간 뒤 돌아오면 빈 흰 창이 남는다. 앱이 열리지 않으면(설치 안 됨) 예전처럼 t.me로 연다.
+   */
+  const shareToTelegram = (links: ReturnType<typeof shareLinks>, close: () => void) => {
+    if (nativeBridge() || !isAppleTouch(navigator.userAgent, navigator.maxTouchPoints)) { openShareLink(links.telegram, close); return; }
+    close();
+    openAppLink(links.telegramApp, () => window.open(links.telegram, '_blank', 'noopener,noreferrer'), window, 2500);
+  };
+  /**
    * Slap에 공유. 같은 이메일 앞으로 Slap에 기사를 맡긴다. 그러면 Slap을 어디서 열든(아이폰 홈 화면 앱 포함) 공유 창이 뜬다.
    * 그리고 기기에 맞게 Slap을 연다. 데스크톱은 설치한 Slap 앱을 전용 주소(web+slap:)로 바로 연다. 전용 주소에도 기사를 실어,
    * 맡기기에 실패해도 앱이 열리면 공유 창이 뜬다.
@@ -876,7 +885,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     }
     // 안드로이드: 설치한 Slap 앱이 Slap 주소를 받아 연다.
     if (window.matchMedia?.('(pointer: coarse)').matches) { window.open(web, '_blank', 'noopener,noreferrer'); return; }
-    openSlapApp(app, () => onNotice(left ? t('Slap 앱이 열리지 않았어요. Slap을 열면 공유 창이 떠요.', 'The Slap app didn’t open. Open Slap to see the share sheet.') : t('Slap 앱이 열리지 않았어요. Chrome이나 Edge에 Slap 앱을 설치했는지 확인해 주세요.', 'The Slap app didn’t open. Check that the Slap app is installed in Chrome or Edge.')));
+    openAppLink(app, () => onNotice(left ? t('Slap 앱이 열리지 않았어요. Slap을 열면 공유 창이 떠요.', 'The Slap app didn’t open. Open Slap to see the share sheet.') : t('Slap 앱이 열리지 않았어요. Chrome이나 Edge에 Slap 앱을 설치했는지 확인해 주세요.', 'The Slap app didn’t open. Check that the Slap app is installed in Chrome or Edge.')));
   };
   /**
    * 공유 방법: 링크 복사 → Slap과 공유 사이트 → 이메일. 휴대폰(터치 화면)에서는 시스템 공유를 맨 위에 둔다.
@@ -896,7 +905,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       {/* 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 한다. */}
       <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />{t('X에 공유', 'Share to X')}</button>
       <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />{t('Threads에 공유', 'Share to Threads')}</a>
-      <button type="button" className={option} onClick={() => openShareLink(links.telegram, close)}><Send size={16} aria-hidden="true" />{t('텔레그램으로 공유', 'Share to Telegram')}</button>
+      <button type="button" className={option} onClick={() => shareToTelegram(links, close)}><Send size={16} aria-hidden="true" />{t('텔레그램으로 공유', 'Share to Telegram')}</button>
       {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />{t('이메일로 공유', 'Share by email')}</a>}
     </>;
   };

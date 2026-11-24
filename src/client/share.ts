@@ -8,6 +8,8 @@ export function shareLinks({ title, url }: SharedArticle) {
     slap: `https://slap.jyk.workers.dev/?share=1#${new URLSearchParams({ share: url, title })}`,
     x: `https://x.com/intent/tweet?${new URLSearchParams({ url, text: title })}`,
     telegram: `https://t.me/share/url?${new URLSearchParams({ url, text: title })}`,
+    // 텔레그램 앱을 바로 여는 주소. 아이폰 홈 화면 앱에서 t.me를 열면 앱 안 사파리 창이 텔레그램으로 넘긴 뒤 빈 창으로 남는다.
+    telegramApp: `tg://msg_url?${new URLSearchParams({ url, text: title })}`,
     threads: `https://www.threads.com/intent/post?${new URLSearchParams({ text: `${title}\n${url}` })}`,
     email: `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${title}\n${url}`)}`,
   };
@@ -20,10 +22,10 @@ export const slapAppLink = ({ title, url }: SharedArticle) => `web+slap:share?${
 export const isAppleTouch = (agent: string, touches: number) => /iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && touches > 1);
 
 /**
- * 전용 주소로 설치한 Slap 앱을 연다. 앱이 열리면 이 창이 포커스를 잃는다. 잠시 기다려도 그대로면 앱이 없거나 열리지
+ * 전용 주소로 설치한 앱(Slap, 텔레그램 등)을 연다. 앱이 열리면 이 창이 포커스를 잃는다. 잠시 기다려도 그대로면 앱이 없거나 열리지
  * 않은 것으로 보고 알린다. 새 탭을 대신 열지 않는다(처음 한 번 브라우저가 열기 허락을 물을 때 둘 다 열릴 수 있어서).
  */
-export function openSlapApp(link: string, onMissed: () => void, win: Pick<Window, 'addEventListener' | 'removeEventListener' | 'setTimeout' | 'location'> & { document: Pick<Document, 'addEventListener' | 'removeEventListener'> } = window, wait = 2000) {
+export function openAppLink(link: string, onMissed: () => void, win: Pick<Window, 'addEventListener' | 'removeEventListener' | 'setTimeout' | 'location'> & { document: Pick<Document, 'addEventListener' | 'removeEventListener'> } = window, wait = 2000) {
   let left = false;
   const away = () => { left = true; };
   win.addEventListener('blur', away);

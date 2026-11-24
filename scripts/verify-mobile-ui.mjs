@@ -29,6 +29,8 @@ try {
     assert.equal(slap.origin, 'https://slap.jyk.workers.dev');
     assert.equal(slap.searchParams.get('share'), '1');
     assert.equal(slapShare.get('share'), shared.url); assert.equal(slapShare.get('title'), shared.title);
+    const telegramApp = new URL(links.telegramApp);
+    assert.equal(telegramApp.protocol, 'tg:'); assert.equal(telegramApp.searchParams.get('url'), shared.url); assert.equal(telegramApp.searchParams.get('text'), shared.title);
     // Slap 앱: 데스크톱은 전용 주소(web+slap:)로 설치한 앱을 연다. 아이폰·아이패드 홈 화면 앱은 링크로 열 수 없다.
     // 아이폰 상단 누르기: 문서를 1px 스크롤되게 두고, 손가락 없이 0으로 올라간 것만 상단 누르기로 본다.
     const { isStatusBarTap } = await vite.ssrLoadModule('/src/client/statusBarTap.ts');
@@ -43,7 +45,7 @@ try {
     assert.match(readFileSync('src/index.css', 'utf8'), /html\.feedex-status-tap body \{ min-height: calc\(100dvh \+ 1px\); \}/);
     assert.match(readFileSync('src/App.tsx', 'utf8'), /useStatusBarTap\(articleListRef, /, 'the article list returns to the top');
     assert.match(readFileSync('src/components/ArticleDrawer.tsx', 'utf8'), /useStatusBarTap\(bodyRef, /, 'the reader returns to the top');
-    const { slapAppLink, isAppleTouch, openSlapApp } = await vite.ssrLoadModule('/src/client/share.ts');
+    const { slapAppLink, isAppleTouch, openAppLink } = await vite.ssrLoadModule('/src/client/share.ts');
     const appLink = new URL(slapAppLink(shared));
     assert.equal(appLink.protocol, 'web+slap:'); assert.equal(appLink.searchParams.get('url'), shared.url); assert.equal(appLink.searchParams.get('title'), shared.title);
     assert.equal(isAppleTouch('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 5), true);
@@ -55,11 +57,11 @@ try {
       return { handlers, timers, location: { href: '' }, addEventListener: add, removeEventListener: remove, document: { addEventListener: add, removeEventListener: remove }, setTimeout: (fn) => { timers.push(fn); return 1; } };
     };
     let missed = 0;
-    const opened = fakeWindow(); openSlapApp('web+slap:share?url=x', () => missed++, opened);
+    const opened = fakeWindow(); openAppLink('web+slap:share?url=x', () => missed++, opened);
     assert.equal(opened.location.href, 'web+slap:share?url=x'); opened.handlers.blur(); opened.timers[0]();
     assert.equal(missed, 0, 'the app opened, so the window lost focus and nothing is said');
     assert.equal(opened.handlers.blur, undefined, 'the focus watch is removed afterwards');
-    const notOpened = fakeWindow(); openSlapApp('web+slap:share?url=x', () => missed++, notOpened); notOpened.timers[0]();
+    const notOpened = fakeWindow(); openAppLink('web+slap:share?url=x', () => missed++, notOpened); notOpened.timers[0]();
     assert.equal(missed, 1, 'nothing took the address, so the reader is told instead of opening a second tab');
     assert.equal(new URL(links.x).searchParams.get('url'), shared.url); assert.equal(new URL(links.x).searchParams.get('text'), shared.title);
     assert.equal(new URL(links.telegram).origin, 'https://t.me'); assert.equal(new URL(links.telegram).searchParams.get('url'), shared.url);
@@ -89,7 +91,8 @@ try {
     assert.equal(options.match(/다른 앱으로 공유/g).length, 1, 'desktops do not list other apps at the bottom');
     for (const label of ['Copy link', 'Share to Slap', 'Share to X', 'Share to Threads', 'Share to Telegram', 'Share by email']) assert.ok(options.includes(label), label);
     assert.match(options, /<button type="button"[^\n]+openShareLink\(links\.x, close\)[^\n]+<\/button>/, 'the X action survives social share link filters');
-    assert.match(options, /<button type="button"[^\n]+openShareLink\(links\.telegram, close\)[^\n]+<\/button>/, 'the Telegram action survives social share link filters');
+    assert.match(options, /<button type="button"[^\n]+shareToTelegram\(links, close\)[^\n]+<\/button>/, 'the Telegram action survives social share link filters');
+    assert.match(drawerSource, /openAppLink\(links\.telegramApp, \(\) => window\.open\(links\.telegram/, 'iPhone opens the Telegram app directly and falls back to t.me');
     for (const label of ['제목과 링크 복사', '요약과 함께 복사']) assert.ok(!drawerSource.includes(label), `${label} is not offered`);
     // 시스템 공유는 누른 순간 메뉴를 닫기 전에 연다. 열지 못하면 링크를 복사해 둔다.
     const device = drawerSource.slice(drawerSource.indexOf('const shareWithDevice = (close: () => void) => {'), drawerSource.indexOf('const shareOptions = (close'));
@@ -104,7 +107,7 @@ try {
     // 아이폰·아이패드는 누른 순간 링크 그대로 사파리에서 Slap 공유 창을 연다(기다린 뒤 열면 막힌다).
     assert.match(slapFlow, /const appleTouch = !bridge && isAppleTouch\(navigator\.userAgent, navigator\.maxTouchPoints\);\s*if \(!appleTouch\) linkEvent\.preventDefault\(\);/, 'iPhone and iPad follow the Slap link to Safari right away');
     assert.match(slapFlow, /if \(appleTouch\) return;/, 'iPhone and iPad still leave the article for the home-screen app');
-    assert.match(slapFlow, /openSlapApp\(app, \(\) => onNotice\(/, 'desktop browsers open the installed app through web+slap:');
+    assert.match(slapFlow, /openAppLink\(app, \(\) => onNotice\(/, 'desktop browsers open the installed app through web+slap:');
     assert.match(options, /onClick=\{\(event\) => void shareToSlap\(close, event\)\}/);
   }
   assert.match(framedCopy('<!doctype html><html lang="ko"><head><base href="https://site.example.test/"></head><body></body></html>'), /^<!doctype html><html lang="ko"><style>html,body\{overflow-x:hidden!important\}[^<]*<\/style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">/, 'the copy document stays in place, and its policy comes before any page script');
