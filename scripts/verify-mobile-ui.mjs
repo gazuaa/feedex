@@ -29,6 +29,8 @@ try {
     assert.equal(slap.origin, 'https://slap.jyk.workers.dev');
     assert.equal(slap.searchParams.get('share'), '1');
     assert.equal(slapShare.get('share'), shared.url); assert.equal(slapShare.get('title'), shared.title);
+    const grok = new URL(links.grok('Explain.'));
+    assert.equal(grok.origin, 'https://grok.com'); assert.equal(grok.searchParams.get('q'), `Explain.\n\n${shared.title}\n${shared.url}`, 'Ask Grok fills the request, title and link');
     const telegramApp = new URL(links.telegramApp);
     assert.equal(telegramApp.protocol, 'tg:'); assert.equal(telegramApp.searchParams.get('url'), shared.url); assert.equal(telegramApp.searchParams.get('text'), shared.title);
     // Slap 앱: 데스크톱은 전용 주소(web+slap:)로 설치한 앱을 연다. 아이폰·아이패드 홈 화면 앱은 링크로 열 수 없다.
@@ -89,7 +91,7 @@ try {
     assert.match(options, /const phoneShare = isMobile && [^;]*navigator\.share === 'function'[^;]*\(pointer: coarse\)/, 'other apps appear only on touch phones');
     assert.match(options, /\{phoneShare && <button[^\n]*shareWithDevice[^\n]*<\/button>\}\s*<button[^\n]*onCopyLink/, 'on phones other apps come first');
     assert.equal(options.match(/다른 앱으로 공유/g).length, 1, 'desktops do not list other apps at the bottom');
-    for (const label of ['Copy link', 'Share to Slap', 'Share to X', 'Share to Threads', 'Share to Telegram', 'Share by email']) assert.ok(options.includes(label), label);
+    for (const label of ['Copy link', 'Share to Slap', 'Share to X', 'Ask Grok', 'Share to Threads', 'Share to Telegram', 'Share by email']) assert.ok(options.includes(label), label);
     assert.match(options, /<button type="button"[^\n]+openShareLink\(links\.x, close\)[^\n]+<\/button>/, 'the X action survives social share link filters');
     assert.match(options, /<button type="button"[^\n]+shareToTelegram\(links, close\)[^\n]+<\/button>/, 'the Telegram action survives social share link filters');
     assert.match(drawerSource, /openAppLink\(links\.telegramApp, \(\) => window\.open\(links\.telegram/, 'iPhone opens the Telegram app directly and falls back to t.me');

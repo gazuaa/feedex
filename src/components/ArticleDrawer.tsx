@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Link2,
   Send,
+  Bot,
   AtSign,
   RotateCw,
   X,
@@ -905,6 +906,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => void shareToSlap(close, event)}><MessageSquare size={16} aria-hidden="true" />{t('Slap에 공유', 'Share to Slap')}</a>
       {/* 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 한다. */}
       <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />{t('X에 공유', 'Share to X')}</button>
+      <button type="button" className={option} onClick={() => openShareLink(links.grok(t('이 글을 요약하고 설명해 줘.', 'Summarize and explain this.')), close)}><Bot size={16} aria-hidden="true" />{t('Grok에 묻기', 'Ask Grok')}</button>
       <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />{t('Threads에 공유', 'Share to Threads')}</a>
       <button type="button" className={option} onClick={() => shareToTelegram(links, close)}><Send size={16} aria-hidden="true" />{t('텔레그램으로 공유', 'Share to Telegram')}</button>
       {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />{t('이메일로 공유', 'Share by email')}</a>}

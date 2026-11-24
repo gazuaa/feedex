@@ -10,6 +10,8 @@ export function shareLinks({ title, url }: SharedArticle) {
     telegram: `https://t.me/share/url?${new URLSearchParams({ url, text: title })}`,
     // 텔레그램 앱을 바로 여는 주소. 아이폰 홈 화면 앱에서 t.me를 열면 앱 안 사파리 창이 텔레그램으로 넘긴 뒤 빈 창으로 남는다.
     telegramApp: `tg://msg_url?${new URLSearchParams({ url, text: title })}`,
+    // Grok에 묻기. 질문창에 요청과 글 제목·주소를 채워 연다(요청 문구는 화면 언어를 따른다).
+    grok: (ask: string) => `https://grok.com/?${new URLSearchParams({ q: `${ask}\n\n${title}\n${url}` })}`,
     threads: `https://www.threads.com/intent/post?${new URLSearchParams({ text: `${title}\n${url}` })}`,
     email: `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${title}\n${url}`)}`,
   };
