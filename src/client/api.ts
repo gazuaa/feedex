@@ -59,6 +59,8 @@ export type ArticleViewMode = 'feed' | 'reader' | 'web';
 
 export interface ArticleItem {
   id: string;
+  /** 화면에서만 쓴다. 같은 X 글을 여러 계정이 재게시해 하나로 묶었을 때 재게시한 계정 이름들. */
+  reposters?: string[];
   feed_id: string;
   feed_title: string;
   feed_favicon: string | null;

@@ -54,6 +54,7 @@ import { copyText } from './client/share';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { readRowsExpired, UnreadSession } from './client/unreadSession';
+import { groupReposts, withoutReposters } from './client/repostGroups';
 import { useSyncStatus } from './client/syncStatus';
 import { useAutoRefresh } from './client/autoRefresh';
 import { DEFAULT_AUTO_REFRESH_MINUTES } from './shared/preferences';
@@ -260,6 +261,10 @@ export const App: React.FC = () => {
   }, [includedArticles, isBlockedArticle]);
   const blockedArticleIds = useMemo(() => new Set(blockedArticles.map((article) => article.id)), [blockedArticles]);
   const visibleArticles = showBlockedArticles ? includedArticles : unblockedArticles;
+  // 여러 X 계정이 재게시한 같은 글은 목록에서 하나로 묶는다. 읽음·저장은 묶인 글 모두에 함께 적용한다.
+  const repostGroups = useMemo(() => groupReposts(visibleArticles), [visibleArticles]);
+  const listedArticles = repostGroups.rows;
+  const repostSiblings = useRef(repostGroups.siblings); repostSiblings.current = repostGroups.siblings;
   const [loadingArticles, setLoadingArticles] = useState(false);
   const [hasMoreArticles, setHasMoreArticles] = useState(false);
   const hasMoreArticlesRef = useRef(hasMoreArticles); hasMoreArticlesRef.current = hasMoreArticles;
@@ -935,7 +940,7 @@ export const App: React.FC = () => {
     handleSelectDesktopScope(activeScope === 'saved' ? 'all' : activeScope, activeFolderId, activeFeedId, tab, true);
   };
 
-  const handleUpdateArticleState = useCallback(
+  const updateOneArticleState = useCallback(
     async (
       article: ArticleItem,
       changes: { isRead?: boolean; isSaved?: boolean },
@@ -1008,6 +1013,19 @@ export const App: React.FC = () => {
     },
     [readerCache, scheduleBootstrap, fetchArticles, retainReadRows, unreadSession, unreadSessions, savedOnly, activeScope, unreadOnly, isBlockedArticle]
   );
+  /** 글 하나의 읽음·저장을 바꾼다. 재게시로 묶인 글이면 같은 묶음의 글도 함께 바꿔 다시 안 읽음으로 나오지 않게 한다. */
+  const handleUpdateArticleState = useCallback(
+    async (article: ArticleItem, changes: { isRead?: boolean; isSaved?: boolean }, persist?: () => Promise<unknown>) => {
+      const plain = articleCache.current.get(article.id) ?? withoutReposters(article);
+      const ids = repostSiblings.current.get(article.id);
+      if (!ids) return updateOneArticleState(plain, changes, persist);
+      await Promise.all(ids.map((id) => {
+        const member = id === article.id ? plain : articleCache.current.get(id);
+        return member ? updateOneArticleState(member, changes, id === article.id ? persist : undefined) : undefined;
+      }));
+    },
+    [updateOneArticleState]
+  );
 
   const handleScrollRead = (ids: string[]) => {
     const cache = readerCache, token = authenticatedToken.current;
@@ -1074,6 +1092,8 @@ export const App: React.FC = () => {
 
   const handleSelectArticle = useCallback(
     (article: ArticleItem, inApp = false) => {
+      // 목록의 묶인 행은 화면용 복사본이다. 캐시에는 원래 글을 둔다.
+      article = articleCache.current.get(article.id) ?? withoutReposters(article);
       articleCache.current.set(article.id, article);
       const original = isMobile && !inNativeApp() ? mobileOriginalArticle(article.url) : null;
       // 바로 열기 글은 목록에서 누르면 원문 페이지를 연다. 글을 보던 중 이전·다음 글로 옮길 때는 앱 안에서 이어 본다.
@@ -1538,8 +1558,8 @@ export const App: React.FC = () => {
   }, [user?.id, selectedSubscription, importedFeedViews]);
 
   const articleNeighbors = useMemo(
-    () => visibleArticleNeighbors(articles, visibleArticles, selectedArticleId),
-    [articles, visibleArticles, selectedArticleId]
+    () => visibleArticleNeighbors(listedArticles, listedArticles, selectedArticleId),
+    [listedArticles, selectedArticleId]
   );
 
   const handleNavigateRelative = useCallback(
@@ -1918,7 +1938,7 @@ export const App: React.FC = () => {
               accountId={user.id}
               onUpdateArticleFields={handleUpdateArticleFields}
               onPrepareArticle={handlePrepareArticle}
-              articles={visibleArticles}
+              articles={listedArticles}
               layout={layout}
               selectedArticleId={selectedArticleId}
               onSelectArticle={handleSelectArticle}

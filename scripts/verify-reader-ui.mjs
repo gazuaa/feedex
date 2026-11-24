@@ -110,7 +110,23 @@ try {
   for (const hit of ['[data-article-id]', 'button', 'a', '.feedex-block-bar', '.feedex-block-empty']) {
     assert.equal(shouldClearListSelection(fakeTarget([hit])), false, `clicking inside ${hit} keeps selection`);
   }
-  console.log('PASS: local feed-name/article-title notifications, fallback, permission/dedup/account boundaries; mobile long-press/scroll/ghost-click guards; zero-unread folders/feeds hidden; logo fallback; X rows inside mixed lists; oldest-first local ordering; empty-space selection clearing.');
+  // 여러 X 계정이 재게시한 같은 글은 한 행으로 묶고, 재게시한 사람을 모은다. 읽음·저장은 묶음 전체로 본다.
+  const { groupReposts, withoutReposters } = await vite.ssrLoadModule('/src/client/repostGroups.ts');
+  const post = (id, feed, title, url, extra = {}) => ({ id, feed_id: feed, feed_title: `${feed} (@${feed.toLowerCase()})`, feed_html_url: null, title, url, is_read: false, is_saved: false, ...extra });
+  const grouped = groupReposts([
+    post('a', 'Josh', 'RT by @josh: Where Ethereum stands', 'https://x.com/kevaundray/status/111', { is_read: true }),
+    post('n', 'News', 'Plain article', 'https://news.example/a'),
+    post('b', 'Ethereum', 'RT by @ethereum: Where Ethereum stands', 'https://x.com/kevaundray/status/111', { is_saved: true }),
+    post('c', 'Solo', 'Own post', 'https://x.com/solo/status/222'),
+  ]);
+  assert.deepEqual(grouped.rows.map((row) => row.id), ['a', 'n', 'c'], 'one row per reposted post, at its first place');
+  assert.deepEqual(grouped.rows[0].reposters, ['Josh', 'Ethereum']);
+  assert.equal(grouped.rows[0].is_read, false, 'the row stays unread while any copy is unread');
+  assert.equal(grouped.rows[0].is_saved, true, 'the row is saved when any copy is saved');
+  assert.deepEqual(grouped.siblings.get('b'), ['a', 'b'], 'reading the row reaches every copy');
+  assert.equal(grouped.siblings.has('c'), false); assert.equal('reposters' in withoutReposters(grouped.rows[0]), false);
+  const plain = [post('x', 'A', 't', 'https://x.com/a/status/1')]; assert.equal(groupReposts(plain).rows, plain, 'lists without duplicates are passed through unchanged');
+  console.log('PASS: local feed-name/article-title notifications, fallback, permission/dedup/account boundaries; mobile long-press/scroll/ghost-click guards; zero-unread folders/feeds hidden; logo fallback; X rows inside mixed lists; oldest-first local ordering; merged reposts; empty-space selection clearing.');
 } finally {
   for (const [key, descriptor] of Object.entries(originals)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
   await vite.close();

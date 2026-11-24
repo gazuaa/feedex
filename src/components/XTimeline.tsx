@@ -38,6 +38,8 @@ export function XTimeline({ articles, selectedArticleId, onSelectArticle, onUpda
 export type XRowVariant = 'timeline' | 'row' | 'card' | 'plain';
 export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectArticle, onUpdateArticleFields, isDark, tabIndex = 0, variant = 'timeline' }: { article: ArticleItem; post: XPost; avatarOf: (handle: string) => string | undefined; selected: boolean; blocked: boolean; tabIndex?: number; variant?: XRowVariant } & Pick<Props, 'onSelectArticle' | 'onUpdateArticleFields' | 'isDark'>) {
   const [brokenCard, setBrokenCard] = useState<string | null>(null);
+  // 여러 계정의 재게시를 하나로 묶은 행은 재게시한 사람을 모두 보여 준다.
+  const repostedBy = article.reposters?.length ? article.reposters.join(', ') : post.repostedBy;
   const refreshExpiredImage = (src: string) => {
     if (!onUpdateArticleFields || !src.includes('pbs.twimg.com/card_img/') || refreshedCards.has(article.id)) return;
     refreshedCards.add(article.id);
@@ -77,11 +79,11 @@ export function XPostRow({ article, post, avatarOf, selected, blocked, onSelectA
     className={`feedex-x-post flex gap-3 px-4 py-3 cursor-pointer transition ${frame} ${hover}`}
   >
     <div className="flex w-10 shrink-0 flex-col items-end gap-1">
-      {post.repostedBy && <Repeat2 aria-hidden="true" className="h-4 w-4 text-slate-500" />}
+      {repostedBy && <Repeat2 aria-hidden="true" className="h-4 w-4 text-slate-500" />}
       <Avatar post={post.avatar ? post : { ...post, avatar: avatarOf(post.handle) || null }} isDark={isDark} />
     </div>
     <div className="min-w-0 flex-1">
-      {post.repostedBy && <p className="-mt-0.5 mb-0.5 text-[13px] font-semibold text-slate-500">{t(`${post.repostedBy} 님이 재게시함`, `${post.repostedBy} reposted`)}</p>}
+      {repostedBy && <p className="-mt-0.5 mb-0.5 text-[13px] font-semibold text-slate-500">{t(`${repostedBy} 님이 재게시함`, `${repostedBy} reposted`)}</p>}
       <div className="flex min-w-0 items-center gap-1 text-[15px] leading-5">
         <ArticleBlockTag blocked={blocked} />
         <span className={`truncate font-bold ${strong}`}>{post.name}</span>
