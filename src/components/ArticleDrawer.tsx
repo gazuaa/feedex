@@ -848,17 +848,14 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     });
   };
   /**
-   * Grok에 묻기. 휴대폰은 grok.com 주소가 Grok 앱으로 넘어가며 붙여 둔 질문이 빠지므로, 시스템 공유 시트를 열어
-   * Grok 앱의 'Ask Grok'에 글 주소를 바로 넘기게 한다. 컴퓨터는 질문을 채운 grok.com을 연다.
+   * Grok에 묻기. 질문을 채운 grok.com 웹을 연다. 휴대폰에서 grok.com을 바로 열면 Grok 앱으로 넘어가며 질문이 빠지므로
+   * 피드엑스의 중간 페이지(/grok.html)를 열고, 그 페이지가 스크립트로 grok.com에 넘긴다(앱으로 가로채이지 않는다).
    */
-  const askGrok = (links: ReturnType<typeof shareLinks>, phoneShare: boolean, close: () => void) => {
+  const askGrok = (links: ReturnType<typeof shareLinks>, phone: boolean, close: () => void) => {
     const web = links.grok(t('이 글을 요약하고 설명해 줘.', 'Summarize and explain this.'));
-    if (!phoneShare) { openShareLink(web, close); return; }
-    let shared: Promise<void>;
-    try { shared = navigator.share({ title: article.title, url: article.url }); }
-    catch (error) { shared = Promise.reject(error); }
+    if (!phone || nativeBridge()) { openShareLink(web, close); return; }
+    window.open(`/grok.html?${new URLSearchParams({ q: new URL(web).searchParams.get('q') ?? '' })}`, '_blank', 'noopener,noreferrer');
     close();
-    void shared.catch((error) => { if (!(error instanceof Error && error.name === 'AbortError')) openShareLink(web, () => {}); });
   };
   const openShareLink = (url: string, close: () => void, linkEvent?: React.MouseEvent<HTMLAnchorElement>) => {
     const bridge = nativeBridge();
@@ -929,7 +926,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => void shareToSlap(close, event)}><MessageSquare size={16} aria-hidden="true" />{t('Slap에 공유', 'Share to Slap')}</a>
       {/* 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 한다. */}
       <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />{t('X에 공유', 'Share to X')}</button>
-      <button type="button" className={option} onClick={() => askGrok(links, phoneShare, close)}><GrokLogo />{t('Grok에 묻기', 'Ask Grok')}</button>
+      <button type="button" className={option} onClick={() => askGrok(links, isMobile && window.matchMedia?.('(pointer: coarse)').matches === true, close)}><GrokLogo />{t('Grok에 묻기', 'Ask Grok')}</button>
       <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />{t('Threads에 공유', 'Share to Threads')}</a>
       <button type="button" className={option} onClick={() => shareToTelegram(links, close)}><Send size={16} aria-hidden="true" />{t('텔레그램으로 공유', 'Share to Telegram')}</button>
       {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />{t('이메일로 공유', 'Share by email')}</a>}
