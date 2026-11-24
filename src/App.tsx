@@ -39,9 +39,9 @@ import { useTextSize } from './client/textSize';
 import { useMobileNavigation } from './client/navigation';
 import { useMobileScrollRecovery } from './client/mobileScrollRecovery';
 import { useStatusBarTap } from './client/statusBarTap';
-import { mobileOriginalArticle, opensOriginalSeparately } from './client/originalWindow';
+import { mobileOriginalArticle, opensOriginalSeparately, originalArticleUrl } from './client/originalWindow';
 import { NativeHandoff } from './components/NativeHandoff';
-import { inNativeApp, inNativeSignInWindow } from './client/nativeApp';
+import { inNativeApp, inNativeSignInWindow, nativeBridge } from './client/nativeApp';
 import { htmlToText, openInDeepL } from './client/deeplWeb';
 import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileChrome';
 import { MobileLibrary } from './components/MobileLibrary';
@@ -65,7 +65,7 @@ import { ReaderSync } from './client/readerSync';
 import { DesktopContextMenu, type AppContextAction, type AppContextTarget } from './components/DesktopContextMenu';
 import { ArticleResources } from './client/articleResources';
 import { maintainDeviceCache } from './client/deviceContent';
-import { readDevicePreferences, saveDevicePreferences, readFeedPreference, feedViewPreference } from './client/devicePreferences';
+import { readDevicePreferences, saveDevicePreferences, readFeedPreference, saveFeedPreference, feedViewPreference } from './client/devicePreferences';
 import { useListAnchor } from './client/listAnchor';
 import { nativeNotificationBridge } from './client/nativeNotifications';
 import { notifyNewArticles, useLocalNotifications } from './client/localNotifications';
@@ -1022,29 +1022,42 @@ export const App: React.FC = () => {
   useScrollRead(articleListRef, markReadOnScroll && Boolean(user) && !loadingArticles && !loadingBootstrap && !refreshingFeeds && !(isMobile && (mobileSidebarOpen || selectedArticleId)) && !discoverOpen && !markReadTarget && !blockDialog && !builderEditor && !historyFeed && !renameFeed,
     `${user?.id}:${activeScope}:${activeFolderId}:${activeFeedId}:${unreadOnly}:${savedOnly}:${committedSearch}:${layout}`, handleScrollRead);
 
+  /**
+   * 앱 안에서 보지 않고 원문 페이지를 바로 연다. 맥·윈도우 앱은 기본 브라우저로, 컴퓨터 브라우저는 새 탭으로 열고,
+   * 휴대폰은 이 창에서 넘어간다(iOS 홈 화면 앱은 따로 열어 닫으면 그대로 돌아온다).
+   */
+  const openOriginalDirectly = useCallback((article: ArticleItem, url = originalArticleUrl(article.url)) => {
+    if (!url) return false;
+    if (!article.is_read) {
+      void handleUpdateArticleState(article, { isRead: true }, () => apiRequest(`/api/articles/${article.id}/state`, {
+        method: 'POST', body: JSON.stringify({ isRead: true }), keepalive: true,
+      }));
+    }
+    if (inNativeApp()) { nativeBridge()?.postMessage({ type: 'openExternal', url: url.href }); return true; }
+    const separate = !isMobile || opensOriginalSeparately();
+    if (!separate) saveResumePoint(true);
+    if (separate) window.open(url.href, '_blank', 'noopener,noreferrer');
+    else window.location.assign(url.href);
+    return true;
+  }, [handleUpdateArticleState, isMobile, saveResumePoint]);
+
   const handleSelectArticle = useCallback(
-    (article: ArticleItem) => {
+    (article: ArticleItem, inApp = false) => {
       articleCache.current.set(article.id, article);
       const original = isMobile && !inNativeApp() ? mobileOriginalArticle(article.url) : null;
-      if (original && user && !selectedArticleId && feedViewPreference(user.id, article.feed_id, subscriptions.find(sub => sub.feed_id === article.feed_id)?.view_mode) === 'web') {
-        const separate = opensOriginalSeparately();
-        if (!separate) saveResumePoint(true);
-        if (!article.is_read) {
-          void handleUpdateArticleState(article, { isRead: true }, () => apiRequest(`/api/articles/${article.id}/state`, {
-            method: 'POST', body: JSON.stringify({ isRead: true }), keepalive: true,
-          }));
-        }
-        if (separate) window.open(original.href, '_blank', 'noopener,noreferrer');
-        else window.location.assign(original.href);
+      if (original && !inApp && user && !selectedArticleId && feedViewPreference(user.id, article.feed_id, subscriptions.find(sub => sub.feed_id === article.feed_id)?.view_mode) === 'web') {
+        openOriginalDirectly(article, original);
         return;
       }
+      // 바로 열기로 고른 피드는 목록에서 누르면 원문 페이지를 연다. 글을 보던 중 이전·다음 글로 옮길 때는 앱 안에서 이어 본다.
+      if (!inApp && user && !selectedArticleId && readFeedPreference(user.id, article.feed_id).direct && openOriginalDirectly(article)) return;
       setXPostTarget(null);
       setSelectedArticleId(article.id);
       if (!article.is_read) {
         handleUpdateArticleState(article, { isRead: true });
       }
     },
-    [handleUpdateArticleState, isMobile, saveResumePoint, selectedArticleId, subscriptions, user]
+    [isMobile, openOriginalDirectly, selectedArticleId, subscriptions, user]
   );
 
   const handleOpenXPost = (article: ArticleItem, rawUrl: string, hint?: XQuoteHint) => {
@@ -1144,8 +1157,17 @@ export const App: React.FC = () => {
       if (stateWrites.current.get(key) === work) { stateWrites.current.delete(key); feedIds.forEach((id) => confirmedFeedViews.current.delete(id)); }
     });
   };
+  // 바로 열기는 이 기기에만 저장하므로, 바꿨을 때 다시 그리도록 버전을 둔다.
+  const [, setDirectFeedsVersion] = useState(0);
   const handleChangeViewMode = (feedId: string, viewMode: ArticleViewMode) => {
+    if (user && readFeedPreference(user.id, feedId).direct) { saveFeedPreference(user.id, feedId, { direct: false }); setDirectFeedsVersion((value) => value + 1); }
     saveFeedViewMode(feedId, viewMode);
+  };
+  const handleOpenDirectly = (article: ArticleItem) => {
+    if (!user) return;
+    saveFeedPreference(user.id, article.feed_id, { direct: true });
+    setDirectFeedsVersion((value) => value + 1);
+    openOriginalDirectly(article);
   };
 
   // 안 읽음 목록이 붙잡아 두던 읽은 행을 놓는다. 열어 둔 글은 이어서 위아래로 옮겨 갈 수 있게 남긴다.
@@ -1672,6 +1694,8 @@ export const App: React.FC = () => {
     if (article) {
       items.push({ id: 'read', label: article.is_read ? t('안 읽음으로 표시', "Mark as unread") : t('읽음으로 표시', "Mark as read"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
         { id: 'save', label: article.is_saved ? t('저장 취소', "Remove bookmark") : t('나중에 읽기', "Read later"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
+      // 바로 열기로 고른 피드의 글도 앱 안에서 열 수 있게 한다. 거기서 다른 보기를 고르면 바로 열기가 풀린다.
+      if (readFeedPreference(user.id, article.feed_id).direct) items.push({ id: 'open-in-app', label: t('앱에서 열기', "Open in FeedEx"), run: () => handleSelectArticle(articleCache.current.get(article.id) ?? article, true) });
       items.push({ id: 'deepl-article', label: t('이 글 DeepL로 번역', "Translate this article in DeepL"), run: () => { const latest = articleCache.current.get(article.id) ?? article; openInDeepL(`${latest.title}\n\n${htmlToText(latest.full_content_html || latest.content_html || `<p>${latest.summary || ''}</p>`)}`); } });
       items.push({ id: 'block-title', label: t('비슷한 글 숨기기…', "Hide similar articles…"), separator: true, run: () => setBlockDialog({ accountId: user.id, article }) });
     } else if (feed) {
@@ -1775,6 +1799,8 @@ export const App: React.FC = () => {
               onUpdateArticleFields={handleUpdateArticleFields}
               viewMode={selectedViewMode}
               onChangeViewMode={(mode) => selectedArticle && handleChangeViewMode(selectedArticle.feed_id, mode)}
+              opensDirectly={Boolean(selectedArticle && readFeedPreference(user.id, selectedArticle.feed_id).direct)}
+              onOpenDirectly={() => selectedArticle && handleOpenDirectly(selectedArticle)}
               onNavigateRelative={handleNavigateRelative}
               onCopyLink={(article) => handleCopyLink(article.url)}
               onNotice={setNotice}

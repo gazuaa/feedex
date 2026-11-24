@@ -66,6 +66,8 @@ const VIEW_MODES = [
   { id: 'reader', label: t('리더', 'Reader'), title: t('전체 본문 — 원문에서 본문만 깔끔하게', 'Full text — just the article from the original'), Icon: BookOpen },
   { id: 'web', label: t('웹', 'Web'), title: t('웹 페이지 — 원본 사이트 그대로', 'Web page — the original site as is'), Icon: Globe },
 ] as const;
+/** 보기 방식 오른쪽의 바로 열기. 앱 안에서 보지 않고 원문 페이지를 바로 연다(4Pillars처럼). */
+const DIRECT_OPTION = { label: t('바로', 'Open'), title: t('원문 바로 열기 — 목록에서 누르면 원문 페이지를 바로 열어요', 'Open directly — tapping in the list opens the original page'), Icon: ExternalLink };
 
 // 웹 보기 확대 단계는 브라우저와 같다. 프레임 안 페이지는 다른 출처라서 바깥에서
 // 크기를 바꾼다: (영역 크기 ÷ 배율)로 배치한 뒤 scale(배율)을 건다.
@@ -194,6 +196,10 @@ interface ArticleDrawerProps {
   // 이 글의 피드에 기억된 본문 보기.
   viewMode: ViewMode;
   onChangeViewMode: (mode: ViewMode) => void;
+  /** 이 피드의 글을 목록에서 누르면 원문 페이지를 바로 여는지. */
+  opensDirectly?: boolean;
+  /** 바로 열기를 고른다. 이 피드를 바로 열기로 기억하고 지금 글의 원문을 연다. */
+  onOpenDirectly?: () => void;
   onNavigateRelative: (direction: 'prev' | 'next') => void;
   onCopyLink: (article: ArticleItem) => void;
   // 화면 아래에 잠깐 띄우는 안내.
@@ -264,6 +270,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   onUpdateArticleFields,
   viewMode,
   onChangeViewMode,
+  opensDirectly = false,
+  onOpenDirectly,
   onNavigateRelative,
   onCopyLink,
   onNotice,
@@ -912,7 +920,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       >
         <div ref={topRef} className="feedex-mobile-reader-top lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
           <button className="feedex-mobile-icon" onClick={onClose} aria-label={t('목록으로 돌아가기', 'Back to list')}><ChevronDown size={22} /></button>
-          <div role="radiogroup" aria-label={t('본문 보기 방식', 'Article view')} className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}<span>{label}</span></button>)}</div>
+          <div role="radiogroup" aria-label={t('본문 보기 방식', 'Article view')} className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={!opensDirectly && mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}<span>{label}</span></button>)}{onOpenDirectly && <button role="radio" aria-label={DIRECT_OPTION.title} aria-checked={opensDirectly} onClick={onOpenDirectly}><DIRECT_OPTION.Icon size={16} /><span>{DIRECT_OPTION.label}</span></button>}</div>
           <button className="feedex-mobile-icon" aria-label={t('본문 도구', 'Article tools')} aria-expanded={mobileMenu === 'tools'} onClick={() => setMobileMenu('tools')}><MoreHorizontal size={20} /></button>
         </div>
         {/* 상단 동작 막대 */}
@@ -1160,8 +1168,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
             }`}
           >
-            {VIEW_MODES.map(({ id, label, title, Icon }) => {
-              const selected = mode === id;
+            {[...VIEW_MODES, ...(onOpenDirectly ? [{ id: 'direct', ...DIRECT_OPTION } as const] : [])].map(({ id, label, title, Icon }) => {
+              const selected = id === 'direct' ? opensDirectly : !opensDirectly && mode === id;
               return (
                 <button
                   key={id}
@@ -1170,7 +1178,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                   aria-label={label}
                   aria-checked={selected}
                   title={title}
-                  onClick={() => chooseViewMode(id)}
+                  onClick={() => id === 'direct' ? onOpenDirectly?.() : chooseViewMode(id)}
                   className={`feedex-reader-view-option h-7 px-2 rounded-lg text-xs font-medium inline-flex items-center justify-center gap-1 transition cursor-pointer ${
                     selected
                       ? isDark
