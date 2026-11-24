@@ -1045,15 +1045,32 @@ export const App: React.FC = () => {
     return true;
   }, [handleUpdateArticleState, isMobile, saveResumePoint]);
 
+  // 바로 열기는 이 기기에만 저장하므로, 바꿨을 때 다시 그리도록 버전을 둔다.
+  const [, setDirectFeedsVersion] = useState(0);
+  // 원문 바로 열기는 기기마다 피드별로 둔다. X 계정은 보기 방식처럼 모든 X 계정이 하나의 설정을 함께 쓴다.
+  const directKey = useCallback((feedId: string) => isXProfileFeed(subscriptions.find((sub) => sub.feed_id === feedId)?.xml_url) ? 'x-accounts' : feedId, [subscriptions]);
+  const readDirect = useCallback((feedId: string) => {
+    if (!user) return undefined;
+    const key = directKey(feedId);
+    // 하나로 묶기 전에 X 계정 하나에 따로 켠 설정도 계속 따른다.
+    return readFeedPreference(user.id, key).direct ?? (key === feedId ? undefined : readFeedPreference(user.id, feedId).direct);
+  }, [directKey, user]);
+  const saveDirect = (feedId: string, direct: boolean) => {
+    if (!user) return;
+    const key = directKey(feedId);
+    saveFeedPreference(user.id, key, { direct });
+    if (key !== feedId && readFeedPreference(user.id, feedId).direct !== undefined) saveFeedPreference(user.id, feedId, { direct });
+    setDirectFeedsVersion((value) => value + 1);
+  };
   /** 목록에서 누르면 앱 안에서 보지 않고 원문을 바로 여는 글인지. 바로 열기로 고른 피드와 '웹' 보기의 4Pillars 연구 글. */
   const opensOriginalFromList = useCallback((article: ArticleItem) => {
     if (!user) return false;
-    const direct = readFeedPreference(user.id, article.feed_id).direct;
+    const direct = readDirect(article.feed_id);
     // '앱에서 열기'로 끈 피드(false)는 4Pillars라도 앱 안에서 연다.
     if (direct !== undefined) return direct;
     return isMobile && !inNativeApp() && Boolean(mobileOriginalArticle(article.url))
       && feedViewPreference(user.id, article.feed_id, subscriptions.find(sub => sub.feed_id === article.feed_id)?.view_mode) === 'web';
-  }, [isMobile, subscriptions, user]);
+  }, [isMobile, readDirect, subscriptions, user]);
 
   const handleSelectArticle = useCallback(
     (article: ArticleItem, inApp = false) => {
@@ -1167,10 +1184,8 @@ export const App: React.FC = () => {
       if (stateWrites.current.get(key) === work) { stateWrites.current.delete(key); feedIds.forEach((id) => confirmedFeedViews.current.delete(id)); }
     });
   };
-  // 바로 열기는 이 기기에만 저장하므로, 바꿨을 때 다시 그리도록 버전을 둔다.
-  const [, setDirectFeedsVersion] = useState(0);
   const handleChangeViewMode = (feedId: string, viewMode: ArticleViewMode) => {
-    if (user && readFeedPreference(user.id, feedId).direct) { saveFeedPreference(user.id, feedId, { direct: false }); setDirectFeedsVersion((value) => value + 1); }
+    if (readDirect(feedId)) saveDirect(feedId, false);
     saveFeedViewMode(feedId, viewMode);
   };
   // 바로 열기를 처음 켤 때 앞으로 어떻게 되는지와 되돌리는 법을 한 번 묻는다.
@@ -1189,15 +1204,14 @@ export const App: React.FC = () => {
   };
   const handleOpenDirectly = (article: ArticleItem) => {
     if (!user) return;
-    if (readFeedPreference(user.id, article.feed_id).direct) { openDirectlyFromReader(article); return; }
+    if (readDirect(article.feed_id)) { openDirectlyFromReader(article); return; }
     setDirectConfirm(article);
   };
   const confirmOpenDirectly = () => {
     const article = directConfirm;
     setDirectConfirm(null);
     if (!user || !article) return;
-    saveFeedPreference(user.id, article.feed_id, { direct: true });
-    setDirectFeedsVersion((value) => value + 1);
+    saveDirect(article.feed_id, true);
     openDirectlyFromReader(article);
   };
 
@@ -1727,8 +1741,7 @@ export const App: React.FC = () => {
         { id: 'save', label: article.is_saved ? t('저장 취소', "Remove bookmark") : t('나중에 읽기', "Read later"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
       // 원문으로 바로 여는 피드를 다시 앱 안에서 열게 한다. 이 피드의 바로 열기를 끄므로 보이는 보기 탭대로 다음에도 앱에서 열린다.
       if (opensOriginalFromList(article)) items.push({ id: 'open-in-app', label: t('앱에서 열기', "Open in FeedEx"), run: () => {
-        saveFeedPreference(user.id, article.feed_id, { direct: false });
-        setDirectFeedsVersion((value) => value + 1);
+        saveDirect(article.feed_id, false);
         handleSelectArticle(articleCache.current.get(article.id) ?? article, true);
       } });
       items.push({ id: 'deepl-article', label: t('이 글 DeepL로 번역', "Translate this article in DeepL"), run: () => { const latest = articleCache.current.get(article.id) ?? article; openInDeepL(`${latest.title}\n\n${htmlToText(latest.full_content_html || latest.content_html || `<p>${latest.summary || ''}</p>`)}`); } });
@@ -1834,7 +1847,7 @@ export const App: React.FC = () => {
               onUpdateArticleFields={handleUpdateArticleFields}
               viewMode={selectedViewMode}
               onChangeViewMode={(mode) => selectedArticle && handleChangeViewMode(selectedArticle.feed_id, mode)}
-              opensDirectly={Boolean(selectedArticle && readFeedPreference(user.id, selectedArticle.feed_id).direct)}
+              opensDirectly={Boolean(selectedArticle && readDirect(selectedArticle.feed_id))}
               onOpenDirectly={() => selectedArticle && handleOpenDirectly(selectedArticle)}
               onNavigateRelative={handleNavigateRelative}
               onCopyLink={(article) => handleCopyLink(article.url)}
