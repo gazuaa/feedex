@@ -185,12 +185,13 @@ export function startedAfterUpdate(): boolean {
   return updatedOnLoad ??= takeAppUpdated();
 }
 /**
- * 이 페이지가 새로 고쳐 뜬 것인지(업데이트, 직접 새로 고침, 휴대폰이 메모리 때문에 다시 띄운 경우).
- * 안 읽음 목록은 새로 고치면 붙잡아 두던 읽은 행이 빠져서, 예전 스크롤 위치가 더 아래 글을 가리킨다.
- * 그 자리로 돌아가면 그 사이의 안 읽은 글을 지나친 것으로 보고 읽음 처리할 수 있으므로 맨 위에서 시작한다.
+ * 휴대폰에서 목록을 맨 위부터 보여 줄지. 원문 사이트에서 뒤로 돌아온 경우(back_forward)만 보던 자리를 되살린다.
+ * 업데이트·직접 새로 고침·iOS가 메모리 때문에 다시 띄운 경우는 모두 새로 뜬 것으로 본다. 다시 띄운 경우는 기록에 'reload'로
+ * 남지 않을 수 있어서, 새로 고친 것을 알아내는 대신 뒤로 돌아온 것만 골라낸다. 안 읽음 목록은 새로 뜨면 붙잡아 두던 읽은 행이
+ * 빠져서 예전 스크롤 위치가 더 아래 글을 가리키고, 그 자리로 가면 그 사이의 안 읽은 글을 건너뛴다.
  */
-export function startedFromReload(): boolean {
-  try { return (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'reload'; } catch { return false; }
+export function startListAtTop(): boolean {
+  try { return (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type !== 'back_forward'; } catch { return true; }
 }
 // 탭 안에만 남는 저장소에 글과 목록 식별자, 스크롤 위치만 둔다. 본문이나 토큰은 넣지 않는다.
 export function keepResumePoint(point: ResumePoint, storage = session()) {
