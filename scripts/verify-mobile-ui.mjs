@@ -36,6 +36,10 @@ try {
     assert.equal(isStatusBarTap(0, true, 0), false, 'a finger dragging the page is not a status bar tap');
     assert.equal(isStatusBarTap(0, false, 200), false, 'momentum right after a swipe is not a status bar tap');
     assert.equal(isStatusBarTap(1, false, 5000), false, 'the parked page is not a status bar tap');
+    const { deferRows } = await vite.ssrLoadModule('/src/client/mobileScrollRecovery.ts');
+    assert.equal(deferRows(200, false), true, 'long lists defer offscreen rows on other browsers');
+    assert.equal(deferRows(200, true), false, 'iOS keeps every row rendered so scrolling up does not jump');
+    assert.equal(deferRows(50, false), false, 'short lists render every row');
     assert.match(readFileSync('src/index.css', 'utf8'), /html\.feedex-status-tap body \{ min-height: calc\(100dvh \+ 1px\); \}/);
     assert.match(readFileSync('src/App.tsx', 'utf8'), /useStatusBarTap\(articleListRef, /, 'the article list returns to the top');
     assert.match(readFileSync('src/components/ArticleDrawer.tsx', 'utf8'), /useStatusBarTap\(bodyRef, /, 'the reader returns to the top');

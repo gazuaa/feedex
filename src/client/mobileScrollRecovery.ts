@@ -6,6 +6,13 @@ const clamp = (value: number, max: number) => Math.max(0, Math.min(max, value));
 export const rebuildingScroll = (root: HTMLElement) => Boolean(root.hasAttribute?.(rebuilding));
 export const needsMobileScrollRecovery = (agent: string, touches: number) => /iPhone|iPad|iPod/.test(agent) || /Macintosh/.test(agent) && touches > 1;
 
+/*
+ * 긴 목록은 화면 밖 행의 배치·그리기를 미룬다(content-visibility). 다만 iOS 사파리는 위쪽 행의 높이가 바뀌어도
+ * 스크롤 위치를 보정하지 않아서, 위로 올리다 미뤄 둔 행이 실제 높이로 그려질 때마다 화면이 크게 튄다. 그래서 iOS에서는 미루지 않는다.
+ */
+const appleTouch = typeof navigator !== 'undefined' && needsMobileScrollRecovery(navigator.userAgent, navigator.maxTouchPoints);
+export const deferRows = (count: number, apple = appleTouch) => count >= 120 && !apple;
+
 /** DOM과 기사 캐시는 유지하고, iOS의 스크롤 계층만 두 프레임 동안 없앴다가 다시 만든다. */
 export function rebuildScrollSurface(root: HTMLElement, requestedTop?: number) {
   rebuildingRoots.get(root)?.();

@@ -5,6 +5,7 @@ import { apiRequest, type ArticleItem } from '../client/api';
 import { parseXPost, xTime, type XMedia, type XPost } from '../client/xTimeline';
 import { useXAvatars } from '../client/xAvatars';
 import { t } from '../shared/i18n';
+import { deferRows } from '../client/mobileScrollRecovery';
 
 // 만료된 X 카드 이미지(pbs.twimg.com/card_img/...)는 글마다 한 번만 미러에서 새 주소를 받아온다.
 const refreshedCards = new Set<string>();
@@ -27,7 +28,7 @@ export function XTimeline({ articles, selectedArticleId, onSelectArticle, onUpda
   const posts = useMemo(() => new Map(articles.map((article) => [article.id, parseXPost(article)])), [articles]);
   const tabStop = articles.some((article) => article.id === selectedArticleId) ? selectedArticleId : articles[0]?.id;
   const avatarOf = useXAvatars([...posts.values()].flatMap((post) => [post.quote?.handle || '', post.avatar ? '' : post.handle]));
-  return <div ref={listRef} data-render-deferred={articles.length >= 120 || undefined} className={`feedex-list-items feedex-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
+  return <div ref={listRef} data-render-deferred={deferRows(articles.length) || undefined} className={`feedex-list-items feedex-x-timeline mx-auto w-full max-w-[600px] min-h-full sm:border-x ${isDark ? 'border-slate-800' : 'border-slate-200 bg-white'}`} data-retain-read={retainReadRows || undefined}>
     {articles.map((article) => <XPostRow tabIndex={tabStop === article.id ? 0 : -1} blocked={Boolean(blockedArticleIds?.has(article.id))} key={article.id} article={article} post={posts.get(article.id) || parseXPost(article)} avatarOf={avatarOf} selected={selectedArticleId === article.id} onSelectArticle={onSelectArticle} onUpdateArticleFields={onUpdateArticleFields} isDark={isDark} />)}
   </div>;
 }
