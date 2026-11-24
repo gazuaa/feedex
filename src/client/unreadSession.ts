@@ -2,7 +2,7 @@ import type { ArticleItem } from './api';
 
 // 잠깐 다른 앱을 본 정도면 읽은 행을 그대로 둔다. 이보다 오래 떠났거나, 돌아왔을 때 스크롤이
 // 맨 위라 읽은 행만 먼저 보이면 새로 읽는 것으로 보고 뺀다.
-const READ_ROWS_AWAY_MS = 5 * 60_000;
+const READ_ROWS_AWAY_MS = 15 * 60_000;
 export const readRowsExpired = (awayMs: number, listTop: number) => awayMs >= READ_ROWS_AWAY_MS || listTop < 8;
 
 // 안 읽은 목록은 읽는 동안, 다시 확인하는 중에도 흔들리지 않는다.

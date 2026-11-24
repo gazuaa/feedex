@@ -50,8 +50,8 @@ try {
 
   const { UnreadSession, readRowsExpired } = await vite.ssrLoadModule('/src/client/unreadSession.ts');
   assert.equal(readRowsExpired(5_000, 1200), false, 'a quick look at another app keeps the read rows in place');
-  assert.equal(readRowsExpired(299_999, 1200), false, 'coming back within five minutes keeps the read rows in place');
-  assert.equal(readRowsExpired(300_000, 1200), true, 'locking the phone for five minutes starts a new reading');
+  assert.equal(readRowsExpired(899_999, 1200), false, 'coming back within fifteen minutes keeps the read rows in place');
+  assert.equal(readRowsExpired(900_000, 1200), true, 'locking the phone for fifteen minutes starts a new reading');
   assert.equal(readRowsExpired(1_000, 0), true, 'coming back at the top would only show read rows');
   const article = (id, is_read = false) => ({ id, published_at: `2026-10-27T0${id === 'a' ? 2 : 1}:00:00Z`, is_read, is_saved: false, title: id });
   const session = new UnreadSession();
