@@ -50,6 +50,9 @@ function install(win: Window) {
     if (!isStatusBarTap(win.scrollY, touches > 0, performance.now() - lastTouch)) { if (win.scrollY < 1) repark(800); return; }
     const target = currentTarget();
     if (target && target.scrollTop > 0) target.scrollTo({ top: 0, behavior: 'smooth' });
+    // 웹 보기 사본(X 글 포함)은 열린 글 안의 프레임이 스크롤한다. 피드엑스가 만든 사본만 이 신호를 받아 맨 위로 올라간다.
+    // 원문 사이트를 그대로 띄운 프레임은 다른 사이트라 움직일 수 없다.
+    if (target) for (const frame of doc.querySelectorAll<HTMLIFrameElement>('.feedex-article-reader iframe')) frame.contentWindow?.postMessage({ sfeedScrollTop: 1 }, '*');
     // iOS의 맨 위로 가기 움직임이 끝난 뒤 다시 1에 세운다. 바로 세우면 iOS가 0으로 다시 끌어간다.
     win.clearTimeout(restoring);
     restoring = win.setTimeout(park, 400);
