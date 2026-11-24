@@ -8,6 +8,8 @@ export function isBackSwipe(start: Point, end: Point) {
 export const COMMIT_SHARE = 0.4;
 const PARALLAX = 0.3;
 export const DURATION = 220;
+/** 피드엑스 밀기를 마친 뒤 iOS 자체 뒤로 가기가 먼저 일어나는지 지켜보는 시간. */
+const NATIVE_BACK_WAIT = 260;
 const EASING = 'cubic-bezier(.2, .8, .2, 1)';
 
 export interface SwipeNavigation {
@@ -97,6 +99,9 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
   let forwardClaimed = false;
   let stage: ReturnType<typeof present> | null = null;
   let settling = false;
+  // 기록이 바뀐 횟수와 이번 밀기를 시작할 때의 값. 홈 화면 앱에서는 iOS의 뒤로 가기 밀기가 같은 손짓으로
+  // 함께 움직일 수 있어, 그쪽이 먼저 뒤로 갔으면 여기서 또 가지 않는다. 두 번 가면 목록을 지나 보관함이 열린다.
+  let pops = 0, gesturePops = 0;
   const cancel = () => { start = null; last = null; claimed = false; forwardClaimed = false; };
   const point = (touch: Touch, time: number): Point => ({ x: touch.clientX, y: touch.clientY, time });
   // 끌던 화면을 제자리로 되돌리고, 끝나면 인라인 스타일을 지운다.
@@ -115,20 +120,24 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
     if (!current) { navigation.back(); return; }
     settling = true;
     current.place(current.width, true);
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      view.removeEventListener('popstate', settle);
+      settling = false;
+      current.clear();
+    };
+    const settle = () => view.requestAnimationFrame(() => view.requestAnimationFrame(finish));
+    view.addEventListener('popstate', settle);
     view.setTimeout(() => {
       current.clearUnder();
-      let done = false;
-      const finish = () => {
-        if (done) return;
-        done = true;
-        view.removeEventListener('popstate', settle);
-        settling = false;
-        current.clear();
-      };
-      const settle = () => view.requestAnimationFrame(() => view.requestAnimationFrame(finish));
-      view.addEventListener('popstate', settle);
-      view.setTimeout(finish, 800);
-      navigation.back();
+      // iOS의 밀기는 손을 뗀 뒤 자기 애니메이션을 마치고 뒤로 간다. 그만큼 조금 더 기다려 보고 아무도 가지 않았을 때만 간다.
+      view.setTimeout(() => {
+        if (pops !== gesturePops) { settle(); return; }
+        view.setTimeout(finish, 800);
+        navigation.back();
+      }, NATIVE_BACK_WAIT);
     }, DURATION);
   };
   const begin = (event: TouchEvent) => {
@@ -145,6 +154,7 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
     if (touch.clientX <= 24 || touch.clientX >= view.innerWidth - 24) return;
     start = point(touch, event.timeStamp);
     last = start;
+    gesturePops = pops;
   };
   const move = (event: TouchEvent) => {
     if (!start) return;
@@ -202,7 +212,7 @@ export function bindSwipeBack(document: Document, navigation: SwipeNavigation) {
   document.addEventListener('touchend', end, { passive: false, capture: true });
   document.addEventListener('touchcancel', abort, { passive: true, capture: true });
   // 네이티브 뒤로가기가 밀기를 중단해도 목록에 변형·합성 레이어가 남지 않게 한다.
-  const historyChanged = () => { cancel(); stage?.clear(); stage = null; };
+  const historyChanged = () => { pops++; cancel(); stage?.clear(); stage = null; };
   view.addEventListener('popstate', historyChanged);
   return () => {
     document.removeEventListener('touchstart', begin, { capture: true });
