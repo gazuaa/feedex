@@ -196,7 +196,11 @@ try {
     assert.ok(!braveHelp.includes('Chrome·Edge의 주소창'), 'iOS Brave must not get desktop install instructions');
   } finally { if (previousAgent) Object.defineProperty(navigator, 'userAgent', previousAgent); else delete navigator.userAgent; }
   // 열어 둔 탭·홈 화면 앱은 다시 나타날 때 새 배포를 확인하고, 읽던 자리를 남긴 뒤 새로 고친다.
-  const { shellBundle, runningBundle, shellVersion, runningVersion, watchAppVersion, AppVersionWatch, keepResumePoint, takeResumePoint, takeAppUpdated } = await vite.ssrLoadModule('/src/client/appVersion.ts');
+  const { shellBundle, runningBundle, shellVersion, runningVersion, watchAppVersion, AppVersionWatch, keepResumePoint, takeResumePoint, takeAppUpdated, quietForSwap } = await vite.ssrLoadModule('/src/client/appVersion.ts');
+  // 읽는 도중에는 새로 고치지 않는다. 마지막 손길 뒤 90초가 지났거나 다른 앱에서 막 돌아왔을 때만 바꾼다.
+  assert.equal(quietForSwap(1_000_000, 1_000_000 - 10_000, 0), false, 'scrolling through the list postpones the update');
+  assert.equal(quietForSwap(1_000_000, 1_000_000 - 90_000, 0), true, 'ninety quiet seconds allow the update');
+  assert.equal(quietForSwap(1_000_000, 1_000_000 - 1_000, 1_000_000 - 2_000), true, 'coming back from another app updates right away');
   const built = readFileSync('dist/index.html', 'utf8'), builtBundle = shellBundle(built);
   assert.match(builtBundle, /^\/assets\/index-[\w-]+\.js$/, 'the built shell names its entry bundle');
   assert.equal(shellBundle('<script type="module" src="/src/main.tsx"></script>'), null, 'the dev server has no bundle to compare');

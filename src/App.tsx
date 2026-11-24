@@ -49,7 +49,7 @@ import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type Art
 import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './client/readerPreload';
 import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
-import { keepResumePoint, startedAfterUpdate, takeResumePoint, watchAppVersion } from './client/appVersion';
+import { keepResumePoint, startedAfterUpdate, startedFromReload, takeResumePoint, watchAppVersion } from './client/appVersion';
 import { copyText } from './client/share';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
@@ -312,7 +312,7 @@ export const App: React.FC = () => {
     setSelectedArticleId(location.articleId);
     setMobileSidebarOpen(location.library);
     setDiscoverOpen(false);
-  }, () => articleListRef.current?.scrollTop ?? 0, startedAfterUpdate());
+  }, () => articleListRef.current?.scrollTop ?? 0, startedAfterUpdate() || startedFromReload());
   const closeReader = useCallback(() => {
     setXPostTarget(null);
     setSelectedArticleId(null);

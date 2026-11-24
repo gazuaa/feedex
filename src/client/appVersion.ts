@@ -100,13 +100,24 @@ export class AppVersionWatch {
   }
 }
 
+// 목록을 넘기며 읽는 도중에 새로 고치면 읽던 흐름이 끊기고 스크롤 읽음 처리가 엉뚱한 글에 걸린다.
+// 그래서 마지막 손길 뒤 이만큼 조용할 때나, 다른 앱에 다녀와 막 돌아왔을 때만 새로 고친다.
+export const SWAP_QUIET_MS = 90_000;
+export const RETURN_WINDOW_MS = 5_000;
+/** 지금 새로 고쳐도 읽기를 방해하지 않는지. `shownAt`은 앱이 다시 보이게 된 시각, `lastInput`은 마지막 스크롤·터치·키 입력 시각. */
+export function quietForSwap(now: number, lastInput: number, shownAt: number) {
+  return now - shownAt < RETURN_WINDOW_MS || now - lastInput >= SWAP_QUIET_MS;
+}
+
 /** 화면을 켜 둔 맥 앱에서도 새 배포를 확인한다. 숨겨진 동안에는 요청하지 않는다. */
 export function watchAppVersion(options: Pick<AppVersionOptions, 'canSwap' | 'beforeSwap'>): () => void {
   const current = runningVersion(document); if (!current) return () => {};
   let active = true;
+  let lastInput = -Infinity, shownAt = Date.now();
+  const input = () => { lastInput = Date.now(); };
   const watch = new AppVersionWatch({
     ...options, current, storage: session(),
-    canSwap: () => active && document.visibilityState === 'visible' && options.canSwap(),
+    canSwap: () => active && document.visibilityState === 'visible' && quietForSwap(Date.now(), lastInput, shownAt) && options.canSwap(),
     reload: () => window.location.reload(),
     loadShell: async () => {
       const response = await fetch('/', { cache: 'no-store', credentials: 'same-origin' });
@@ -115,13 +126,16 @@ export function watchAppVersion(options: Pick<AppVersionOptions, 'canSwap' | 'be
     },
   });
   const visible = () => { if (active && document.visibilityState === 'visible') void watch.check(); };
+  const returned = () => { if (document.visibilityState === 'visible') shownAt = Date.now(); visible(); };
+  const inputs = ['touchstart', 'pointerdown', 'keydown', 'wheel', 'scroll'] as const;
   const shown = (event: PageTransitionEvent) => { if (event.persisted) visible(); };
   let settled: ReturnType<typeof setTimeout> | undefined;
   // 다른 입력칸으로 옮기는 도중에는 새로 고치지 않는다. 새 포커스가 정해진 다음 확인한다.
   const afterInput = () => { clearTimeout(settled); settled = setTimeout(visible, 0); };
   const interval = window.setInterval(visible, CHECK_GAP);
-  document.addEventListener('visibilitychange', visible);
+  document.addEventListener('visibilitychange', returned);
   document.addEventListener('focusout', afterInput);
+  for (const name of inputs) document.addEventListener(name, input, { passive: true, capture: true });
   window.addEventListener('pageshow', shown);
   window.addEventListener('focus', visible);
   window.addEventListener('online', visible);
@@ -130,8 +144,9 @@ export function watchAppVersion(options: Pick<AppVersionOptions, 'canSwap' | 'be
     active = false;
     clearTimeout(settled);
     window.clearInterval(interval);
-    document.removeEventListener('visibilitychange', visible);
+    document.removeEventListener('visibilitychange', returned);
     document.removeEventListener('focusout', afterInput);
+    for (const name of inputs) document.removeEventListener(name, input, { capture: true });
     window.removeEventListener('pageshow', shown);
     window.removeEventListener('focus', visible);
     window.removeEventListener('online', visible);
@@ -168,6 +183,14 @@ let updatedOnLoad: boolean | undefined;
 /** 이 페이지가 새 버전으로 바꾸느라 새로 고쳐 뜬 것인지. 페이지마다 처음 물을 때 한 번 읽는다. */
 export function startedAfterUpdate(): boolean {
   return updatedOnLoad ??= takeAppUpdated();
+}
+/**
+ * 이 페이지가 새로 고쳐 뜬 것인지(업데이트, 직접 새로 고침, 휴대폰이 메모리 때문에 다시 띄운 경우).
+ * 안 읽음 목록은 새로 고치면 붙잡아 두던 읽은 행이 빠져서, 예전 스크롤 위치가 더 아래 글을 가리킨다.
+ * 그 자리로 돌아가면 그 사이의 안 읽은 글을 지나친 것으로 보고 읽음 처리할 수 있으므로 맨 위에서 시작한다.
+ */
+export function startedFromReload(): boolean {
+  try { return (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type === 'reload'; } catch { return false; }
 }
 // 탭 안에만 남는 저장소에 글과 목록 식별자, 스크롤 위치만 둔다. 본문이나 토큰은 넣지 않는다.
 export function keepResumePoint(point: ResumePoint, storage = session()) {
