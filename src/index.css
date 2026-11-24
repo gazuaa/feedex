@@ -56,14 +56,6 @@ html.dark .feedex-feed-list .feedex-x-post:is([data-x-variant="row"], [data-x-va
 .feedex-block-bar .feedex-filter-manage { margin-left: auto; padding-inline: 8px; border-color: transparent; font-weight: 400; }
 .feedex-block-chip { position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
 .feedex-block-chip[data-pressing] { transform: scale(0.96); transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.feedex-shield-progress { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; flex-shrink: 0; transition: transform 0.15s ease; }
-.feedex-shield-progress svg { position: absolute; inset: 0; width: 15px; height: 15px; }
-.feedex-shield-progress .feedex-shield-base { opacity: 0.65; }
-.feedex-shield-progress .feedex-shield-fill-wrap { position: absolute; inset: 0; clip-path: inset(100% 0 0 0); transition: clip-path 0.15s ease-out; }
-.feedex-shield-progress .feedex-shield-fill { color: #059669; fill: #10b98144; stroke: #059669; }
-html.dark .feedex-shield-progress .feedex-shield-fill { color: #34d399; fill: #34d39944; stroke: #34d399; }
-.feedex-block-chip[data-pressing] .feedex-shield-progress .feedex-shield-fill-wrap { clip-path: inset(0% 0 0 0); transition: clip-path 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.feedex-block-chip[data-pressing] .feedex-shield-progress { transform: scale(1.15); transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .feedex-block-empty button { color: #059669; cursor: pointer; font-weight: 600; }
 html.dark .feedex-block-bar .feedex-filter-chip:is([data-active], [aria-pressed="true"]), html.dark .feedex-filter-chip:is([data-active], [aria-pressed="true"]) .feedex-filter-count { color: #34d399; }
 .feedex-block-bar button > svg { flex-shrink: 0; }

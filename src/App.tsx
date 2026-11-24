@@ -83,71 +83,13 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 // 워커는 응답 뒤에 30초까지 일한다. 그 뒤에 받은 글을 한 번 더 맞춘다.
 const REFRESH_FOLLOW_UP_MS = 31_000;
 
-function BlockedArticlesChip({ showBlockedArticles, blockedCount, onToggle, onManage }: {
-  showBlockedArticles: boolean;
-  blockedCount: number;
-  onToggle: () => void;
-  onManage: () => void;
-}) {
-  const [pressing, setPressing] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const firedRef = useRef(false);
-
-  const start = () => {
-    firedRef.current = false;
-    setPressing(true);
-    timerRef.current = setTimeout(() => {
-      firedRef.current = true;
-      setPressing(false);
-      try { navigator.vibrate?.([30, 40, 40]); } catch {}
-      onManage();
-    }, 500);
-  };
-
-  const cancel = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    setPressing(false);
-  };
-
-  const handleClick = (e: React.MouseEvent) => {
-    if (firedRef.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      firedRef.current = false;
-      return;
-    }
-    onToggle();
-  };
-
+/** 차단 규칙 칩. 누르면 차단 규칙을 관리하는 창을 연다. 숫자는 이 목록에서 규칙 때문에 숨겨진 글 수다. */
+function BlockedArticlesChip({ blockedCount, onManage }: { blockedCount: number; onManage: () => void }) {
   return (
-    <button
-      type="button"
-      className="feedex-filter-chip feedex-block-chip"
-      data-pressing={pressing || undefined}
-      aria-pressed={showBlockedArticles}
-      title={t("누르면 차단된 글을 보거나 숨겨요. 길게 누르면 차단 규칙을 관리해요.", "Tap to show or hide blocked articles. Press and hold to manage rules.")}
-      onPointerDown={(e) => {
-        if (e.button !== 0) return;
-        start();
-      }}
-      onPointerUp={cancel}
-      onPointerCancel={cancel}
-      onPointerLeave={cancel}
-      onClick={handleClick}
-      // 길게 누르는 동안 휴대폰의 길게 누르기 메뉴(안드로이드 메뉴, 아이폰 글자 선택)가 뜨지 않게 한다.
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <span className="feedex-shield-progress" aria-hidden="true">
-        <ShieldBan size={15} className="feedex-shield-base" />
-        <span className="feedex-shield-fill-wrap">
-          <ShieldBan size={15} className="feedex-shield-fill" />
-        </span>
-      </span>
-      <span>{showBlockedArticles ? t('차단 글 숨기기', "Hide blocked") : t('차단 글 보기', "Show blocked")}</span>
-      <span className="feedex-filter-count" aria-label={t(`${blockedCount}개`, `${blockedCount} blocked`)}>{blockedCount}</span>
+    <button type="button" className="feedex-filter-chip feedex-block-chip" onClick={onManage} title={t('차단 규칙을 보고 바꿔요', 'View and edit block rules')}>
+      <ShieldBan size={15} aria-hidden="true" />
+      <span>{t('차단 규칙', 'Block rules')}</span>
+      <span className="feedex-filter-count" aria-label={t(`${blockedCount}개 숨김`, `${blockedCount} hidden`)}>{blockedCount}</span>
     </button>
   );
 }
@@ -1959,15 +1901,10 @@ export const App: React.FC = () => {
             <Filter size={15} aria-hidden="true" /><span>{t("필터", "Filter")}</span>{excludedSubscriptionCount > 0 && <span className="feedex-filter-count" aria-label={t(`${excludedSubscriptionCount}개`, `${excludedSubscriptionCount} excluded`)}>{excludedSubscriptionCount}</span>}
           </button>}
           {articleBlocks.some(rule => rule.enabled) && (
-            <BlockedArticlesChip
-              showBlockedArticles={showBlockedArticles}
-              blockedCount={blockedArticles.length}
-              onToggle={() => setShowBlockedArticles(value => !value)}
-              onManage={onManageArticleBlocks}
-            />
+            <BlockedArticlesChip blockedCount={blockedArticles.length} onManage={onManageArticleBlocks} />
           )}
         </div>}
-        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>{t("표시할 글이 없습니다.", "No articles to show.")}</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>{t("제외한 피드 변경", "Change excluded feeds")}</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap && !(hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3)) ? <div className="feedex-block-empty"><p>{t("이 페이지의 글이 모두 차단 규칙에 해당합니다.", "Block rules matched every article on this page.")}</p><p>{t("차단된 글을 보거나 이전 글을 더 불러올 수 있습니다.", "Show blocked articles or load older articles.")}</p><button type="button" onClick={() => setShowBlockedArticles(true)}>{t(`차단 글 보기 (${blockedArticles.length}개)`, `Show blocked (${blockedArticles.length})`)}</button></div> : (
+        {filterAllFeeds && excludedFeedIds.length > 0 && !articles.length && !loadingArticles && !loadingBootstrap ? <div className="feedex-block-empty"><p>{t("표시할 글이 없습니다.", "No articles to show.")}</p><button type="button" onClick={() => setFeedExclusionsOpen(true)}>{t("제외한 피드 변경", "Change excluded feeds")}</button></div> : !showBlockedArticles && blockedArticles.length > 0 && !visibleArticles.length && !loadingArticles && !loadingBootstrap && !(hasMoreArticles && (loadingMoreArticles || autoMoreCount.current < 3)) ? <div className="feedex-block-empty"><p>{t("이 페이지의 글이 모두 차단 규칙에 해당합니다.", "Block rules matched every article on this page.")}</p><p>{t("차단 규칙을 바꾸거나 이전 글을 더 불러올 수 있습니다.", "Change the block rules or load older articles.")}</p><button type="button" onClick={onManageArticleBlocks}>{t(`차단 규칙 보기 (${blockedArticles.length}개 숨김)`, `View block rules (${blockedArticles.length} hidden)`)}</button></div> : (
           <ErrorBoundary fallbackTitle={t("글 목록을 표시하는 중 오류가 발생했습니다", "Could not display the article list")} onReset={() => void fetchArticles()}>
             <ArticleList
               accountId={user.id}
