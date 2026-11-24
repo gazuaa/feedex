@@ -631,7 +631,10 @@ export const App: React.FC = () => {
   }, [isMobile, mobileSidebarOpen, unreadSessions, unreadSession, retainReadRows, selectedArticleId]);
   // 최신순에서 화면을 잠갔다가 돌아오면 읽은 행을 빼고 맨 위부터 보여 준다. 글을 보던 중이면 돌아갈 목록 위치가
   // 달라지므로 그대로 두고, 읽은 행이 없으면 훑어보던 자리일 수 있으니 옮기지 않는다.
+  // 원문을 따로 열어 읽으러 간 동안. 돌아왔을 때 오래 떠난 것으로 보고 방금 읽은 행을 빼지 않는다.
+  const readingOriginal = useRef(false);
   afterAway.current = (away) => {
+    if (readingOriginal.current) { readingOriginal.current = false; return; }
     const list = articleListRef.current;
     if (inNativeApp() || articleSort === 'oldest' || !retainReadRows || selectedArticleId || !readRowsExpired(away, list?.scrollTop ?? 0)) return;
     unreadSessions.forEach((session) => session.dropRead());
@@ -1033,6 +1036,7 @@ export const App: React.FC = () => {
         method: 'POST', body: JSON.stringify({ isRead: true }), keepalive: true,
       }));
     }
+    readingOriginal.current = true;
     if (inNativeApp()) { nativeBridge()?.postMessage({ type: 'openExternal', url: url.href }); return true; }
     const separate = !isMobile || opensOriginalSeparately();
     if (!separate) saveResumePoint(true);

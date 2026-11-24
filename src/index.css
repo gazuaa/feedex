@@ -123,7 +123,6 @@ html[data-feedex-native-notice-above] .feedex-notice[data-native] { top: max(8px
 .feedex-context-menu > button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; padding: 7px 11px; border-radius: 8px; text-align: left; font-size: 13px; cursor: pointer; outline: none; }
 .feedex-context-menu > button > svg { flex: 0 0 auto; }
 .feedex-context-menu > button:hover, .feedex-context-menu > button:focus-visible { background: var(--feedex-background); color: #10b981; }
-.feedex-reader-view-option[data-direct-on] { color: #10b981; }
 .feedex-context-menu > button[data-danger] { color: #f43f5e; }
 .feedex-context-menu > button[data-separator] { border-top: 1px solid var(--feedex-border); margin-top: 4px; padding-top: 11px; border-radius: 0 0 8px 8px; }
 .feedex-context-notice { position: fixed; z-index: 201; right: 20px; bottom: 24px; padding: 12px 16px; border: 1px solid var(--feedex-border); border-radius: 12px; background: var(--feedex-panel); color: var(--feedex-text); font-size: 13px; box-shadow: 0 8px 24px #0002; }
@@ -483,9 +482,6 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-mobile-body-modes { display: flex; padding: 3px; border-radius: 20px; background: var(--feedex-mobile-raised); }
   .feedex-mobile-body-modes button { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 50px; height: 32px; padding: 0 8px; border-radius: 17px; color: var(--feedex-mobile-muted); font-size: 10.5px; }
   .feedex-mobile-body-modes button[aria-checked=true] { color: #059669; background: var(--feedex-mobile-surface); box-shadow: 0 1px 5px #0001; }
-  /* 바로 열기가 켜진 피드: 선택한 보기와 구별해 초록 글씨로만 알린다. */
-  .feedex-mobile-body-modes button[data-direct-on] { color: #059669; }
-  html.dark .feedex-mobile-body-modes button[data-direct-on] { color: #34d399; }
   .feedex-reader-menu-backdrop { position: absolute; inset: 0; z-index: 62; }
   .feedex-mobile-reader-menu { position: absolute; z-index: 63; right: 10px; top: var(--feedex-reader-top-height, calc(50px + env(safe-area-inset-top))); width: 220px; border: 1px solid var(--feedex-mobile-line); border-radius: 20px; padding: 8px; background: var(--feedex-mobile-surface); box-shadow: 0 8px 30px #0003; }
   .feedex-mobile-share-menu { max-height: calc(100dvh - 150px - env(safe-area-inset-bottom)); overflow-y: auto; }

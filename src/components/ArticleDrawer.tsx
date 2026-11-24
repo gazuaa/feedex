@@ -1179,7 +1179,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             }`}
           >
             {[...VIEW_MODES, ...(onOpenDirectly ? [{ id: 'direct', ...DIRECT_OPTION } as const] : [])].map(({ id, label, title, Icon }) => {
-              // 선택 표시는 지금 보이는 보기를 따른다. 바로 열기는 목록에서 누를 때의 동작이라 켜져 있으면 초록 글씨로만 알린다.
+              // 선택 표시는 지금 보이는 보기를 따른다. 원문 바로 열기는 목록에서 누를 때의 동작이라 선택으로 보이지 않게 하고, 켜져 있는지는 설명으로만 알린다.
               const selected = id !== 'direct' && mode === id;
               const directOn = id === 'direct' && opensDirectly;
               return (
