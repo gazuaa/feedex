@@ -33,14 +33,21 @@ function install(win: Window) {
   installed = true;
   const doc = win.document;
   doc.documentElement.classList.add(CLASS);
-  let touches = 0, lastTouch = -Infinity, restoring = 0;
-  const park = () => { if (win.scrollY < 1) win.scrollTo(0, 1); };
-  const touch = (event: TouchEvent) => { touches = event.touches.length; lastTouch = performance.now(); };
+  let touches = 0, lastTouch = -Infinity, restoring = 0, reparking = 0;
+  // 입력칸에 초점이 있는 동안에는 iOS가 칸을 보이게 문서를 옮기므로 건드리지 않는다. 손가락이 닿아 있을 때도 기다린다.
+  const typing = () => Boolean((doc.activeElement as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]'));
+  const park = () => { if (win.scrollY < 1 && !typing() && touches === 0) win.scrollTo(0, 1); };
+  // 상단 누르기가 아닌 이유(입력칸 초점, 키보드, 손으로 민 문서)로 0이 되면 끝난 뒤 다시 세운다. 그대로 두면 다음 상단 누르기가 아무 일도 하지 않는다.
+  const repark = (delay: number) => { win.clearTimeout(reparking); reparking = win.setTimeout(park, delay); };
+  const touch = (event: TouchEvent) => {
+    touches = event.touches.length; lastTouch = performance.now();
+    if (!touches && win.scrollY < 1) repark(800);
+  };
   win.addEventListener('touchstart', touch, { passive: true, capture: true });
   win.addEventListener('touchend', touch, { passive: true, capture: true });
   win.addEventListener('touchcancel', touch, { passive: true, capture: true });
   win.addEventListener('scroll', () => {
-    if (!isStatusBarTap(win.scrollY, touches > 0, performance.now() - lastTouch)) return;
+    if (!isStatusBarTap(win.scrollY, touches > 0, performance.now() - lastTouch)) { if (win.scrollY < 1) repark(800); return; }
     const target = currentTarget();
     if (target && target.scrollTop > 0) target.scrollTo({ top: 0, behavior: 'smooth' });
     // iOS의 맨 위로 가기 움직임이 끝난 뒤 다시 1에 세운다. 바로 세우면 iOS가 0으로 다시 끌어간다.
@@ -48,7 +55,10 @@ function install(win: Window) {
     restoring = win.setTimeout(park, 400);
   }, { passive: true });
   // 화면 크기가 바뀌거나(키보드, 회전) 앱으로 돌아오면 1px 자리가 사라질 수 있어 다시 세운다.
-  win.addEventListener('resize', () => win.setTimeout(park, 100));
+  win.addEventListener('resize', () => repark(100));
+  // iOS 키보드는 창 크기(resize)가 아니라 보이는 영역 크기만 바꾼다. 입력을 마치고 키보드가 내려간 뒤 다시 세운다.
+  win.visualViewport?.addEventListener('resize', () => repark(300));
+  doc.addEventListener('focusout', () => repark(300));
   doc.addEventListener('visibilitychange', () => { if (!doc.hidden) park(); });
   win.requestAnimationFrame(park);
 }
