@@ -1759,6 +1759,8 @@ export const App: React.FC = () => {
     if (article) {
       items.push({ id: 'read', label: article.is_read ? t('안 읽음으로 표시', "Mark as unread") : t('읽음으로 표시', "Mark as read"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
         { id: 'save', label: article.is_saved ? t('저장 취소', "Remove bookmark") : t('나중에 읽기', "Read later"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
+      // 휴대폰에서만 보인다(글 화면 공유 메뉴처럼 컴퓨터의 시스템 공유는 쓸모가 적다). 리트윗 표시(RT by @…)는 빼고 공유한다. 닫으면 아무것도 하지 않는다.
+      if (isMobile && typeof navigator.share === 'function' && window.matchMedia?.('(pointer: coarse)').matches) items.push({ id: 'share', label: t('공유', "Share"), run: () => navigator.share({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url }).catch((error) => { if (!(error instanceof Error && error.name === 'AbortError')) handleCopyLink(article.url); }) });
       // 원문으로 바로 여는 피드를 다시 앱 안에서 열게 한다. 이 피드의 바로 열기를 끄므로 보이는 보기 탭대로 다음에도 앱에서 열린다.
       if (opensOriginalFromList(article)) items.push({ id: 'open-in-app', label: t('앱에서 열기', "Open in FeedEx"), run: () => {
         saveDirect(article.feed_id, false);
