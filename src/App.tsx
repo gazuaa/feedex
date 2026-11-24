@@ -1041,23 +1041,27 @@ export const App: React.FC = () => {
     return true;
   }, [handleUpdateArticleState, isMobile, saveResumePoint]);
 
+  /** 목록에서 누르면 앱 안에서 보지 않고 원문을 바로 여는 글인지. 바로 열기로 고른 피드와 '웹' 보기의 4Pillars 연구 글. */
+  const opensOriginalFromList = useCallback((article: ArticleItem) => {
+    if (!user) return false;
+    if (readFeedPreference(user.id, article.feed_id).direct) return true;
+    return isMobile && !inNativeApp() && Boolean(mobileOriginalArticle(article.url))
+      && feedViewPreference(user.id, article.feed_id, subscriptions.find(sub => sub.feed_id === article.feed_id)?.view_mode) === 'web';
+  }, [isMobile, subscriptions, user]);
+
   const handleSelectArticle = useCallback(
     (article: ArticleItem, inApp = false) => {
       articleCache.current.set(article.id, article);
       const original = isMobile && !inNativeApp() ? mobileOriginalArticle(article.url) : null;
-      if (original && !inApp && user && !selectedArticleId && feedViewPreference(user.id, article.feed_id, subscriptions.find(sub => sub.feed_id === article.feed_id)?.view_mode) === 'web') {
-        openOriginalDirectly(article, original);
-        return;
-      }
-      // 바로 열기로 고른 피드는 목록에서 누르면 원문 페이지를 연다. 글을 보던 중 이전·다음 글로 옮길 때는 앱 안에서 이어 본다.
-      if (!inApp && user && !selectedArticleId && readFeedPreference(user.id, article.feed_id).direct && openOriginalDirectly(article)) return;
+      // 바로 열기 글은 목록에서 누르면 원문 페이지를 연다. 글을 보던 중 이전·다음 글로 옮길 때는 앱 안에서 이어 본다.
+      if (!inApp && !selectedArticleId && opensOriginalFromList(article) && openOriginalDirectly(article, original ?? undefined)) return;
       setXPostTarget(null);
       setSelectedArticleId(article.id);
       if (!article.is_read) {
         handleUpdateArticleState(article, { isRead: true });
       }
     },
-    [isMobile, openOriginalDirectly, selectedArticleId, subscriptions, user]
+    [isMobile, openOriginalDirectly, opensOriginalFromList, selectedArticleId]
   );
 
   const handleOpenXPost = (article: ArticleItem, rawUrl: string, hint?: XQuoteHint) => {
@@ -1695,7 +1699,7 @@ export const App: React.FC = () => {
       items.push({ id: 'read', label: article.is_read ? t('안 읽음으로 표시', "Mark as unread") : t('읽음으로 표시', "Mark as read"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isRead: !(articleCache.current.get(article.id) ?? article).is_read }) },
         { id: 'save', label: article.is_saved ? t('저장 취소', "Remove bookmark") : t('나중에 읽기', "Read later"), run: () => handleUpdateArticleState(articleCache.current.get(article.id) ?? article, { isSaved: !(articleCache.current.get(article.id) ?? article).is_saved }) });
       // 바로 열기로 고른 피드의 글도 앱 안에서 열 수 있게 한다. 거기서 다른 보기를 고르면 바로 열기가 풀린다.
-      if (readFeedPreference(user.id, article.feed_id).direct) items.push({ id: 'open-in-app', label: t('앱에서 열기', "Open in FeedEx"), run: () => handleSelectArticle(articleCache.current.get(article.id) ?? article, true) });
+      if (opensOriginalFromList(article)) items.push({ id: 'open-in-app', label: t('앱에서 열기', "Open in FeedEx"), run: () => handleSelectArticle(articleCache.current.get(article.id) ?? article, true) });
       items.push({ id: 'deepl-article', label: t('이 글 DeepL로 번역', "Translate this article in DeepL"), run: () => { const latest = articleCache.current.get(article.id) ?? article; openInDeepL(`${latest.title}\n\n${htmlToText(latest.full_content_html || latest.content_html || `<p>${latest.summary || ''}</p>`)}`); } });
       items.push({ id: 'block-title', label: t('비슷한 글 숨기기…', "Hide similar articles…"), separator: true, run: () => setBlockDialog({ accountId: user.id, article }) });
     } else if (feed) {

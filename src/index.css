@@ -22,6 +22,8 @@ html.dark ::selection { background: #10b9814d; color: #d1fae5; }
 .feedex-feed-list { padding-bottom: env(safe-area-inset-bottom); }
 /* 목록의 글은 선택 동작을 막고, 별도 본문 영역에서는 텍스트 선택을 유지한다. */
 .feedex-feed-list [data-article-id] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; transition-property: opacity, color; }
+/* iOS는 오래 누른 사진과 링크를 끌어 옮길 수 있게 들어 올려, 그 사진이 길게 누르기 메뉴 위에 떠 보인다. 목록에서는 끌기를 막는다. */
+.feedex-feed-list [data-article-id] :is(img, a), .feedex-mobile-library :is(img, a) { -webkit-user-drag: none; }
 /* 선택 표시는 목록과 본문을 함께 보는 화면에서만 그린다. 휴대폰에서는 뒤로 돌아올 때 선택이 풀리며 깜빡이지 않게 한다. */
 .feedex-feed-list [data-article-id]:focus { outline: none; }
 .feedex-feed-list [data-article-id]:focus-visible { outline: 1px solid #10b981; outline-offset: -1px; border-color: #10b981; background: #ecfdf5; }
