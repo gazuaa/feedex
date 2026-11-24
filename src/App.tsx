@@ -1167,11 +1167,32 @@ export const App: React.FC = () => {
     if (user && readFeedPreference(user.id, feedId).direct) { saveFeedPreference(user.id, feedId, { direct: false }); setDirectFeedsVersion((value) => value + 1); }
     saveFeedViewMode(feedId, viewMode);
   };
+  // 바로 열기를 처음 켤 때 앞으로 어떻게 되는지와 되돌리는 법을 한 번 묻는다.
+  const [directConfirm, setDirectConfirm] = useState<ArticleItem | null>(null);
+  /**
+   * 원문을 열고 글 화면은 닫는다. 원문에서 돌아오면 웹뷰가 아니라 목록이 보이게 한다.
+   * 따로 여는 경우(홈 화면 앱·컴퓨터·맥/윈도우 앱)는 누름이 살아 있을 때 먼저 열고, 이 창에서 넘어가는 경우는
+   * 글을 닫고 기록이 목록으로 돌아간 뒤 넘어가서 돌아왔을 때 글이 다시 열리지 않게 한다.
+   */
+  const openDirectlyFromReader = (article: ArticleItem) => {
+    // 컴퓨터 화면은 목록이 옆에 그대로 보이므로 글 칸을 닫지 않는다.
+    if (!isMobile) { openOriginalDirectly(article); return; }
+    if (inNativeApp() || opensOriginalSeparately()) { openOriginalDirectly(article); closeReader(); return; }
+    closeReader();
+    window.setTimeout(() => openOriginalDirectly(article), 400);
+  };
   const handleOpenDirectly = (article: ArticleItem) => {
     if (!user) return;
+    if (readFeedPreference(user.id, article.feed_id).direct) { openDirectlyFromReader(article); return; }
+    setDirectConfirm(article);
+  };
+  const confirmOpenDirectly = () => {
+    const article = directConfirm;
+    setDirectConfirm(null);
+    if (!user || !article) return;
     saveFeedPreference(user.id, article.feed_id, { direct: true });
     setDirectFeedsVersion((value) => value + 1);
-    openOriginalDirectly(article);
+    openDirectlyFromReader(article);
   };
 
   // 안 읽음 목록이 붙잡아 두던 읽은 행을 놓는다. 열어 둔 글은 이어서 위아래로 옮겨 갈 수 있게 남긴다.
@@ -1954,6 +1975,21 @@ export const App: React.FC = () => {
         />
       )}
 
+      {directConfirm && (
+        <ConfirmDialog
+          title={t('이 피드는 원문으로 바로 열까요?', 'Open this feed on the original site?')}
+          confirmLabel={t('바로 열기', 'Open directly')}
+          isDark={isDark}
+          busy={false}
+          error={null}
+          focusConfirm
+          onCancel={() => setDirectConfirm(null)}
+          onConfirm={confirmOpenDirectly}
+        >
+          <p>{t('앞으로 이 피드 글을 누르면 원문 페이지가 바로 열려요.', 'From now on, tapping this feed’s articles opens the original page.')}</p>
+          <p className="mt-2">{t('되돌리려면 글을 길게 눌러 ‘앱에서 열기’ → 다른 보기를 고르세요.', 'To undo, long-press an article, choose “Open in FeedEx”, then pick another view.')}</p>
+        </ConfirmDialog>
+      )}
       {deleteTarget && (
         <ConfirmDialog
           title={deleteTarget.kind === 'folder' ? t('폴더를 삭제할까요?', "Delete this folder?") : t('구독을 취소할까요?', "Unsubscribe from this feed?")}
