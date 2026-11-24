@@ -67,7 +67,7 @@ const VIEW_MODES = [
   { id: 'web', label: t('웹', 'Web'), title: t('웹 페이지 — 원본 사이트 그대로', 'Web page — the original site as is'), Icon: Globe },
 ] as const;
 /** 보기 방식 오른쪽의 바로 열기. 앱 안에서 보지 않고 원문 페이지를 바로 연다(4Pillars처럼). */
-const DIRECT_OPTION = { label: t('바로', 'Open'), title: t('원문 바로 열기 — 목록에서 누르면 원문 페이지를 바로 열어요', 'Open directly — tapping in the list opens the original page'),
+const DIRECT_OPTION = { label: t('원문', 'Site'), title: t('원문 바로 열기 — 목록에서 누르면 원문 페이지를 바로 열어요', 'Open directly — tapping in the list opens the original page'),
   onTitle: t('원문 바로 열기 켜짐 — 다른 보기를 고르면 꺼져요', 'Open directly is on — choose another view to turn it off'), Icon: ExternalLink };
 
 // 웹 보기 확대 단계는 브라우저와 같다. 프레임 안 페이지는 다른 출처라서 바깥에서
