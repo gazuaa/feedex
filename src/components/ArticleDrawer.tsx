@@ -852,7 +852,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
    * 피드엑스의 중간 페이지(/grok.html)를 열고, 그 페이지가 스크립트로 grok.com에 넘긴다(앱으로 가로채이지 않는다).
    */
   const askGrok = (links: ReturnType<typeof shareLinks>, phone: boolean, close: () => void) => {
-    const web = links.grok(t('이 글을 요약하고 설명해 줘.', 'Summarize and explain this.'));
+    const web = links.grok;
     if (!phone || nativeBridge()) { openShareLink(web, close); return; }
     window.open(`/grok.html?${new URLSearchParams({ q: new URL(web).searchParams.get('q') ?? '' })}`, '_blank', 'noopener,noreferrer');
     close();

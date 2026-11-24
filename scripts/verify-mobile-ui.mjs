@@ -29,8 +29,8 @@ try {
     assert.equal(slap.origin, 'https://slap.jyk.workers.dev');
     assert.equal(slap.searchParams.get('share'), '1');
     assert.equal(slapShare.get('share'), shared.url); assert.equal(slapShare.get('title'), shared.title);
-    const grok = new URL(links.grok('Explain.'));
-    assert.equal(grok.origin, 'https://grok.com'); assert.equal(grok.searchParams.get('q'), `Explain.\n\n${shared.title}\n${shared.url}`, 'Ask Grok fills the request, title and link');
+    const grok = new URL(links.grok);
+    assert.equal(grok.origin, 'https://grok.com'); assert.equal(grok.searchParams.get('q'), `${shared.title}\n${shared.url}`, 'Ask Grok fills only the title and link');
     // 홈 화면 앱의 공유 창: 다른 앱에 다녀와 돌아오면 닫고, 그냥 다시 보이기만 하면 그대로 둔다. 연 사이트와의 연결(opener)은 끊는다.
     const { openClosingOnReturn } = await vite.ssrLoadModule('/src/client/share.ts');
     const sheetWindow = () => { const listeners = []; const sheet = { opener: 'app', closed: false, close() { sheet.closed = true; } };
