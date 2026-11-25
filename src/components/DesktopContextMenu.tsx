@@ -84,6 +84,18 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
     try { void Promise.resolve(item.run()).catch(() => setNotice(t('작업을 완료하지 못했습니다. 다시 시도해 주세요.', 'Could not finish that. Please try again.'))); }
     catch { setNotice(t('작업을 완료하지 못했습니다. 다시 시도해 주세요.', 'Could not finish that. Please try again.')); }
   };
+  // 시트를 띄운 뒤에도 손가락이 눌려 있으면 iOS가 그 자리의 글자를 고르고 복사·번역 막대를 띄운다.
+  // 시트가 열린 동안에는 화면 전체에서 글자 선택을 막고, 생긴 선택은 바로 지운다.
+  const sheetOpen = Boolean(menu?.sheet);
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const root = document.documentElement;
+    const clear = () => { const selection = window.getSelection(); if (selection && !selection.isCollapsed) selection.removeAllRanges(); };
+    root.classList.add('feedex-sheet-open');
+    clear();
+    document.addEventListener('selectionchange', clear);
+    return () => { root.classList.remove('feedex-sheet-open'); document.removeEventListener('selectionchange', clear); };
+  }, [sheetOpen]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 3000); return () => clearTimeout(timer); }, [notice]);
   return <>
     {enabled && menu?.sheet && <div className="feedex-context-backdrop" aria-hidden="true" />}
