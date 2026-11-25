@@ -88,7 +88,8 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       setMenu(null);
     };
     const swallow = (event: MouseEvent) => { if (Date.now() < swallowUntil) { swallowUntil = 0; event.preventDefault(); event.stopPropagation(); } };
-    const scroll = (event: Event) => { if (!ref.current?.contains(event.target as Node)) setMenu(null); };
+    // 컴퓨터 메뉴는 뒤 화면을 스크롤하면 닫는다. 휴대폰 시트는 누른 채 끌다가 뒤 문서가 조금 움직여도 닫지 않는다(닫기는 바깥 누르기로).
+    const scroll = (event: Event) => { if (ref.current?.dataset.sheet === undefined && !ref.current?.contains(event.target as Node)) setMenu(null); };
     const close = () => setMenu(null);
     const unbindTouch = touch ? bindLongPress(document, (target, x, y) => open(target, x, y, () => {}, true)) : () => {};
     document.addEventListener('contextmenu', context); document.addEventListener('keydown', keyboard); document.addEventListener('pointerdown', outside); document.addEventListener('click', swallow, true);
