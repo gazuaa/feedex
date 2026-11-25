@@ -25,6 +25,13 @@ export function contextMenuIcon(item: Pick<AppContextAction, 'id' | 'label'>): L
   return MENU_ICONS[item.id] || Rss;
 }
 
+/** 구분선(separator)이 붙은 항목에서 새 묶음을 시작한다. 휴대폰 시트는 묶음마다 둥근 카드로 그린다. */
+function groups(items: AppContextAction[]) {
+  const result: AppContextAction[][] = [];
+  for (const item of items) { if (item.separator || !result.length) result.push([item]); else result[result.length - 1].push(item); }
+  return result;
+}
+
 /**
  * 오른쪽 클릭·길게 누르기 메뉴. 휴대폰에서 길게 누르면 손가락 옆의 작은 상자 대신 화면 아래에서 올라오는 시트로 띄운다.
  * 시트는 폭이 넓어 누르기 쉽고, 맨 위에 어떤 글의 메뉴인지 보여 준다.
@@ -89,7 +96,8 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       if (next !== null) { event.preventDefault(); buttons[next]?.focus(); }
     }}>{menu.heading && <div className="feedex-context-heading"><strong>{menu.heading.title}</strong>{menu.heading.detail && <small>{menu.heading.detail}</small>}</div>}
       {menu.sheet && menu.items.some((item) => item.quick) && <div className="feedex-context-quick">{menu.items.filter((item) => item.quick).map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" aria-label={item.label} onClick={() => choose(item)}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span></button>; })}</div>}
-      {menu.items.filter((item) => !(menu.sheet && item.quick)).map((item, index) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} data-separator={(item.separator && index > 0) || undefined} onClick={() => choose(item)}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>}
+      {menu.sheet ? groups(menu.items.filter((item) => !item.quick)).map((group) => <div key={group[0].id} className="feedex-context-group" role="group">{group.map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} onClick={() => choose(item)}><Icon size={19} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>)
+        : menu.items.map((item, index) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} data-separator={(item.separator && index > 0) || undefined} onClick={() => choose(item)}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>}
     {notice && <div role="status" className="feedex-context-notice">{notice}</div>}
   </>;
 }

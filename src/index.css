@@ -119,19 +119,26 @@ html[data-feedex-native-notice-above] .feedex-notice[data-native] { top: max(8px
 .feedex-context-menu > button[data-separator] { border-top: 1px solid var(--feedex-border); margin-top: 4px; padding-top: 11px; border-radius: 0 0 8px 8px; }
 /* 휴대폰에서 길게 누르면 화면 아래에서 올라오는 시트. 폭이 넓어 누르기 쉽고 손가락이 가리지 않는다. */
 .feedex-context-backdrop { position: fixed; inset: 0; z-index: 199; background: #0f172a59; animation: feedex-fade-in 160ms ease-out; }
-.feedex-context-menu[data-sheet] { left: 8px; right: 8px; top: auto; bottom: calc(8px + env(safe-area-inset-bottom)); min-width: 0; max-width: 560px; margin: 0 auto; max-height: min(78dvh, calc(100dvh - 72px)); padding: 6px; border-radius: 20px; box-shadow: 0 -8px 40px #0004; animation: feedex-sheet-up 200ms cubic-bezier(.2,.8,.2,1); }
-.feedex-context-menu[data-sheet] > button { min-height: 40px; padding: 8px 12px; gap: 12px; font-size: 14.5px; border-radius: 10px; }
-.feedex-context-menu[data-sheet] > button[data-separator] { margin-top: 3px; padding-top: 10px; border-radius: 0 0 10px 10px; }
-.feedex-context-menu[data-sheet] > button:hover { background: none; color: inherit; }
-.feedex-context-menu[data-sheet] > button > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.feedex-context-menu[data-sheet] > button:active { background: var(--feedex-background); }
-.feedex-context-heading { display: grid; gap: 1px; padding: 6px 12px 8px; border-bottom: 1px solid var(--feedex-border); }
-.feedex-context-heading strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13.5px; font-weight: 600; line-height: 1.4; }
-/* 공유·링크·Grok·번역은 아이콘 한 줄로 모아 시트 높이를 줄인다. */
-.feedex-context-quick { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; padding: 8px 2px; border-bottom: 1px solid var(--feedex-border); margin-bottom: 3px; }
-.feedex-context-quick > button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 2px 7px; border-radius: 12px; background: var(--feedex-background); font-size: 11.5px; color: var(--feedex-text); }
-.feedex-context-quick > button:active { opacity: .7; }
+.feedex-context-menu[data-sheet] { --sheet-bg: #f1f5f9; --sheet-card: #fff; --sheet-line: #e2e8f0; left: 8px; right: 8px; top: auto; bottom: calc(8px + env(safe-area-inset-bottom)); min-width: 0; max-width: 560px; margin: 0 auto; max-height: min(80dvh, calc(100dvh - 64px)); padding: 6px 10px 10px; border: 0; border-radius: 22px; background: var(--sheet-bg); box-shadow: 0 -10px 40px #0f172a33; animation: feedex-sheet-up 220ms cubic-bezier(.2,.8,.2,1); }
+html.dark .feedex-context-menu[data-sheet] { --sheet-bg: #0b1120; --sheet-card: #172033; --sheet-line: #263247; }
+/* 위쪽 손잡이 막대 */
+.feedex-context-menu[data-sheet]::before { content: ''; display: block; width: 36px; height: 5px; margin: 0 auto 8px; border-radius: 3px; background: var(--feedex-border); }
+.feedex-context-heading { display: grid; gap: 2px; padding: 0 6px 10px; }
+.feedex-context-heading strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; font-weight: 650; line-height: 1.35; }
 .feedex-context-heading small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; color: var(--feedex-muted); }
+/* 공유·링크·Grok·번역은 아이콘 한 줄로 모은다. */
+.feedex-context-quick { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin-bottom: 8px; }
+.feedex-context-quick > button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 2px 9px; border-radius: 14px; background: var(--sheet-card); font-size: 11.5px; font-weight: 500; color: var(--feedex-text); }
+.feedex-context-quick > button:active { opacity: .65; }
+/* 나머지는 묶음마다 둥근 카드로 나누고, 카드 안 줄 사이에는 옅은 선만 둔다. */
+.feedex-context-group { overflow: hidden; border-radius: 14px; background: var(--sheet-card); }
+.feedex-context-group + .feedex-context-group { margin-top: 8px; }
+.feedex-context-group > button { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 44px; padding: 0 14px; text-align: left; font-size: 15px; color: var(--feedex-text); }
+.feedex-context-group > button + button { box-shadow: inset 44px 0 0 var(--sheet-card), inset 0 1px 0 var(--sheet-line); }
+.feedex-context-group > button > svg { flex: 0 0 auto; color: var(--feedex-muted); }
+.feedex-context-group > button > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.feedex-context-group > button[data-danger], .feedex-context-group > button[data-danger] > svg { color: #f43f5e; }
+.feedex-context-group > button:active { background: var(--sheet-line); }
 @keyframes feedex-sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes feedex-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .feedex-context-backdrop, .feedex-context-menu[data-sheet] { animation: none; } }
