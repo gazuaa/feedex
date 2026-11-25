@@ -5,7 +5,9 @@ import { t } from '../shared/i18n';
 import { GrokLogo } from './GrokLogo';
 
 export interface AppContextTarget { articleId?: string; folderId?: string; feedId?: string; link?: string; selection?: string }
-export interface AppContextAction { id: string; label: string; run: () => void | Promise<unknown>; danger?: boolean; separator?: boolean }
+export interface AppContextAction { id: string; label: string; run: () => void | Promise<unknown>; danger?: boolean; separator?: boolean;
+  /** 휴대폰 시트에서 제목 아래 아이콘 한 줄로 모아 보일 항목과 그때 쓸 짧은 이름. 컴퓨터 메뉴에서는 보통 줄로 보인다. */
+  quick?: string }
 /** 메뉴 맨 위에 보이는 대상 설명(글 제목과 피드 이름 등). 휴대폰 시트에서만 보인다. */
 export interface AppContextHeading { title: string; detail?: string }
 
@@ -70,6 +72,11 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
     if (x !== menu.x || y !== menu.y) setMenu({ ...menu, x, y });
     ref.current.querySelector<HTMLButtonElement>('button')?.focus();
   }, [menu]);
+  const choose = (item: AppContextAction) => {
+    setMenu(null);
+    try { void Promise.resolve(item.run()).catch(() => setNotice(t('작업을 완료하지 못했습니다. 다시 시도해 주세요.', 'Could not finish that. Please try again.'))); }
+    catch { setNotice(t('작업을 완료하지 못했습니다. 다시 시도해 주세요.', 'Could not finish that. Please try again.')); }
+  };
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 3000); return () => clearTimeout(timer); }, [notice]);
   return <>
     {enabled && menu?.sheet && <div className="feedex-context-backdrop" aria-hidden="true" />}
@@ -80,11 +87,9 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       if (event.key === 'Escape' || event.key === 'Tab') { setMenu(null); if (event.key === 'Escape') { event.preventDefault(); previousFocus.current?.focus(); } return; }
       const next = event.key === 'ArrowDown' ? (index + 1) % buttons.length : event.key === 'ArrowUp' ? (index + buttons.length - 1) % buttons.length : event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : null;
       if (next !== null) { event.preventDefault(); buttons[next]?.focus(); }
-    }}>{menu.heading && <div className="feedex-context-heading"><strong>{menu.heading.title}</strong>{menu.heading.detail && <small>{menu.heading.detail}</small>}</div>}{menu.items.map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} data-separator={item.separator || undefined} onClick={() => {
-      setMenu(null);
-      try { void Promise.resolve(item.run()).catch(() => setNotice(t('작업을 완료하지 못했습니다. 다시 시도해 주세요.', 'Could not finish that. Please try again.'))); }
-      catch { setNotice(t('작업을 완료하지 못했습니다. 다시 시도해 주세요.', 'Could not finish that. Please try again.')); }
-    }}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>}
+    }}>{menu.heading && <div className="feedex-context-heading"><strong>{menu.heading.title}</strong>{menu.heading.detail && <small>{menu.heading.detail}</small>}</div>}
+      {menu.sheet && menu.items.some((item) => item.quick) && <div className="feedex-context-quick">{menu.items.filter((item) => item.quick).map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" aria-label={item.label} onClick={() => choose(item)}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span></button>; })}</div>}
+      {menu.items.filter((item) => !(menu.sheet && item.quick)).map((item, index) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} data-separator={(item.separator && index > 0) || undefined} onClick={() => choose(item)}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>}
     {notice && <div role="status" className="feedex-context-notice">{notice}</div>}
   </>;
 }

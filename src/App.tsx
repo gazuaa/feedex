@@ -1715,10 +1715,10 @@ export const App: React.FC = () => {
       );
       group(
         // 휴대폰에서만 보인다(컴퓨터의 시스템 공유는 쓸모가 적다). 리트윗 표시(RT by @…)는 빼고 공유한다. 닫으면 아무것도 하지 않는다.
-        phone && typeof navigator.share === 'function' && { id: 'share', label: t('공유', "Share"), run: () => navigator.share({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url }).catch((error) => { if (!(error instanceof Error && error.name === 'AbortError')) handleCopyLink(article.url); }) },
-        { id: 'copy-link', label: t('링크 복사', "Copy link"), run: () => handleCopyLink(article.url) },
-        { id: 'grok', label: t('Grok에 묻기', "Ask Grok"), run: () => { if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: grokLink(article.url, false) }); else window.open(grokLink(article.url, phone), '_blank', 'noopener,noreferrer'); } },
-        { id: 'deepl-article', label: t('DeepL로 번역', "Translate in DeepL"), run: () => { const current = latest(); openInDeepL(`${current.title}\n\n${htmlToText(current.full_content_html || current.content_html || `<p>${current.summary || ''}</p>`)}`); } },
+        phone && typeof navigator.share === 'function' && { id: 'share', label: t('공유', "Share"), quick: t('공유', 'Share'), run: () => navigator.share({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url }).catch((error) => { if (!(error instanceof Error && error.name === 'AbortError')) handleCopyLink(article.url); }) },
+        { id: 'copy-link', label: t('링크 복사', "Copy link"), quick: t('링크', 'Link'), run: () => handleCopyLink(article.url) },
+        { id: 'grok', label: t('Grok에 묻기', "Ask Grok"), quick: 'Grok', run: () => { if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: grokLink(article.url, false) }); else window.open(grokLink(article.url, phone), '_blank', 'noopener,noreferrer'); } },
+        { id: 'deepl-article', label: t('DeepL로 번역', "Translate in DeepL"), quick: t('번역', 'Translate'), run: () => { const current = latest(); openInDeepL(`${current.title}\n\n${htmlToText(current.full_content_html || current.content_html || `<p>${current.summary || ''}</p>`)}`); } },
       );
       group(
         { id: 'open-original', label: phone ? t('원문 열기', "Open original") : t('원문 새 탭에서 열기', "Open original in new tab"), run: () => { window.open(article.url, '_blank', 'noopener,noreferrer'); } },
