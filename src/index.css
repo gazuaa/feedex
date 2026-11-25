@@ -134,8 +134,10 @@ html.dark .feedex-context-menu[data-sheet] { --sheet-bg: #0b1120; --sheet-card: 
 /* 나머지는 묶음마다 둥근 카드로 나누고, 카드 안 줄 사이에는 옅은 선만 둔다. */
 .feedex-context-group { overflow: hidden; border-radius: 14px; background: var(--sheet-card); }
 .feedex-context-group + .feedex-context-group { margin-top: 8px; }
-.feedex-context-group > button { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 44px; padding: 0 14px; text-align: left; font-size: 15px; color: var(--feedex-text); }
-.feedex-context-group > button + button { box-shadow: inset 44px 0 0 var(--sheet-card), inset 0 1px 0 var(--sheet-line); }
+.feedex-context-group > button { position: relative; display: flex; align-items: center; gap: 13px; width: 100%; min-height: 44px; padding: 0 14px; text-align: left; font-size: 15px; color: var(--feedex-text); }
+/* 줄 사이 선은 아이콘 뒤에서 시작한다. 누른 줄은 왼쪽 끝까지 색이 들어가도록 선을 따로 그린다. */
+.feedex-context-group > button + button::before { content: ''; position: absolute; top: 0; left: 46px; right: 0; height: 1px; background: var(--sheet-line); }
+.feedex-context-group > button:active::before, .feedex-context-group > button:active + button::before { opacity: 0; }
 .feedex-context-group > button > svg { flex: 0 0 auto; color: var(--feedex-muted); }
 .feedex-context-group > button > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .feedex-context-group > button[data-danger], .feedex-context-group > button[data-danger] > svg { color: #f43f5e; }
