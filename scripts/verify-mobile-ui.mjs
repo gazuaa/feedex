@@ -51,6 +51,8 @@ try {
     const chatPhone = new URL(askLink('chatgpt', shared.url, true), 'https://feedex.example');
     assert.equal(new URL(askLink('claude', shared.url, false)).href.startsWith('https://claude.ai/new?q='), true, 'Ask Claude opens a new Claude chat');
     assert.equal(new URL(askLink('claude', shared.url, true), 'https://feedex.example').searchParams.get('to'), 'claude');
+    const { askNeedsPaste } = await vite.ssrLoadModule('/src/client/share.ts');
+    assert.equal(new URL(askLink('gemini', shared.url, false)).origin, 'https://gemini.google.com'); assert.equal(askNeedsPaste('gemini'), true, 'Gemini takes the link by paste'); assert.equal(askNeedsPaste('claude'), false);
     assert.equal(chatPhone.pathname, '/grok.html'); assert.equal(chatPhone.searchParams.get('to'), 'chatgpt'); assert.equal(chatPhone.searchParams.get('q'), shared.url);
     const grokWindow = () => { const w = { opened: [], timers: [], location: { href: 'https://feedex.example/' }, open(url) { w.opened.push(url); return null; }, setTimeout(fn) { w.timers.push(fn); return 1; } }; return w; };
     const home = grokWindow(); openGrok(shared.url, true, true, home);

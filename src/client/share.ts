@@ -15,9 +15,11 @@ export function shareLinks({ title, url }: SharedArticle) {
   };
 }
 
-/** 글을 넘겨 물어볼 AI. 중간 페이지(/grok.html)도 이 세 곳으로만 넘긴다. */
-export type AskService = 'grok' | 'chatgpt' | 'claude';
-const ASK_BASE: Record<AskService, string> = { grok: 'https://grok.com/', chatgpt: 'https://chatgpt.com/', claude: 'https://claude.ai/new' };
+/** 글을 넘겨 물어볼 AI. 중간 페이지(/grok.html)도 이 네 곳으로만 넘긴다. */
+export type AskService = 'grok' | 'chatgpt' | 'claude' | 'gemini';
+const ASK_BASE: Record<AskService, string> = { grok: 'https://grok.com/', chatgpt: 'https://chatgpt.com/', claude: 'https://claude.ai/new', gemini: 'https://gemini.google.com/app' };
+/** 주소로 질문을 받지 않는 서비스. 링크를 클립보드에 넣어 두고 열어서 붙여넣게 한다. */
+export const askNeedsPaste = (service: AskService) => service === 'gemini';
 
 /**
  * AI에 묻기 주소. 질문창에 글 주소만 채운다. 휴대폰은 서비스 주소를 바로 열면 그 앱이 질문을 버리므로

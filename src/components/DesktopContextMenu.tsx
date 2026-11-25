@@ -5,6 +5,7 @@ import { t } from '../shared/i18n';
 import { GrokLogo } from './GrokLogo';
 import { ChatGptLogo } from './ChatGptLogo';
 import { ClaudeLogo } from './ClaudeLogo';
+import { GeminiLogo } from './GeminiLogo';
 
 export interface AppContextTarget { articleId?: string; folderId?: string; feedId?: string; link?: string; selection?: string }
 export interface AppContextAction { id: string; label: string; run: () => void | Promise<unknown>; danger?: boolean; separator?: boolean;
@@ -19,7 +20,7 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   'open-feed': Newspaper, 'mark-feed': CheckCheck, 'move-feed': FolderInput, updates: Pause,
   unsubscribe: UserRoundMinus, 'open-folder': FolderOpen, 'mark-folder': CheckCheck, 'delete-folder': FolderX,
   'open-original': ExternalLink, 'copy-link': Link2, all: Archive, refresh: RefreshCw, add: Plus,
-  'deepl-selection': Languages, 'deepl-article': Languages, 'open-in-app': BookOpen, share: Share2, 'read-above': ArrowUpToLine, 'read-below': ArrowDownToLine, grok: GrokLogo as unknown as LucideIcon, chatgpt: ChatGptLogo as unknown as LucideIcon, claude: ClaudeLogo as unknown as LucideIcon, summary: Sparkles,
+  'deepl-selection': Languages, 'deepl-article': Languages, 'open-in-app': BookOpen, share: Share2, 'read-above': ArrowUpToLine, 'read-below': ArrowDownToLine, grok: GrokLogo as unknown as LucideIcon, chatgpt: ChatGptLogo as unknown as LucideIcon, claude: ClaudeLogo as unknown as LucideIcon, gemini: GeminiLogo as unknown as LucideIcon, summary: Sparkles,
 };
 export function contextMenuIcon(item: Pick<AppContextAction, 'id' | 'label'>): LucideIcon {
   if (item.id === 'updates' && (item.label.includes('다시') || item.label.startsWith('Resume'))) return Play;

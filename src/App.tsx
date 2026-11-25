@@ -50,7 +50,7 @@ import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './clie
 import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, startedAfterUpdate, startListAtTop, takeResumePoint, watchAppVersion } from './client/appVersion';
-import { askLink, copyText, openAsk, tookExternalTrip, type AskService } from './client/share';
+import { askLink, askNeedsPaste, copyText, openAsk, tookExternalTrip, type AskService } from './client/share';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { readRowsExpired, UnreadSession } from './client/unreadSession';
@@ -1707,7 +1707,11 @@ export const App: React.FC = () => {
       const latest = () => articleCache.current.get(article.id) ?? article;
       const phone = isMobile && window.matchMedia?.('(pointer: coarse)').matches === true;
       const articleFeed = subscriptions.find((sub) => sub.feed_id === article.feed_id);
-      const ask = (service: AskService) => { if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: askLink(service, article.url, false) }); else openAsk(service, article.url, phone, opensOriginalSeparately()); };
+      const ask = (service: AskService) => {
+        // Gemini는 주소로 질문을 받지 않아 링크를 복사해 두고 열어서 붙여넣게 한다. 복사는 누른 그 순간에 해야 허락된다.
+        if (askNeedsPaste(service)) { void copyText(article.url).then((copied) => { if (copied) setNotice(t('링크를 복사했어요. Gemini에 붙여넣어 주세요.', 'Link copied. Paste it into Gemini.')); }); }
+        if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: askLink(service, article.url, false) }); else openAsk(service, article.url, phone, opensOriginalSeparately());
+      };
       // 메뉴는 묶음으로 나눈다: 읽기 상태 → 공유 → 원문 → 위아래 읽음 → 피드.
       const group = (...actions: (AppContextAction | false | null | undefined)[]) => {
         const shown = actions.filter((action): action is AppContextAction => Boolean(action));
@@ -1725,6 +1729,7 @@ export const App: React.FC = () => {
         { id: 'grok', label: t('Grok에 묻기', "Ask Grok"), quick: 'Grok', run: () => ask('grok') },
         { id: 'chatgpt', label: t('ChatGPT에 묻기', "Ask ChatGPT"), quick: 'ChatGPT', run: () => ask('chatgpt') },
         { id: 'claude', label: t('Claude에 묻기', "Ask Claude"), quick: 'Claude', run: () => ask('claude') },
+        { id: 'gemini', label: t('Gemini에 묻기', "Ask Gemini"), quick: 'Gemini', run: () => ask('gemini') },
         // 글을 앱 안에서 열고 피드엑스 AI 요약을 바로 펼친다.
         { id: 'summary', label: t('AI 요약 보기', "AI summary"), quick: t('요약', 'Summary'), run: () => { setSummarizeArticleId(article.id); handleSelectArticle(latest(), true); } },
         { id: 'deepl-article', label: t('DeepL로 번역', "Translate in DeepL"), quick: t('번역', 'Translate'), run: () => { const current = latest(); openInDeepL(`${current.title}\n\n${htmlToText(current.full_content_html || current.content_html || `<p>${current.summary || ''}</p>`)}`); } },
