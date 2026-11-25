@@ -44,6 +44,15 @@ try {
     shared1.fire('visible'); assert.equal(shared1.sheet.closed, false, 'the sheet stays while the app never left');
     shared1.fire('hidden'); shared1.fire('visible'); assert.equal(shared1.sheet.closed, true, 'coming back from another app closes the blank sheet'); assert.equal(shared1.listeners.length, 0);
     const blocked = sheetWindow(); blocked.win.open = () => null; assert.equal(openClosingOnReturn('https://grok.com/', blocked.win), false);
+    // Grok: 홈 화면 앱은 피드엑스 페이지를 떠나지 않고 잠깐 뒤 grok.com으로 넘긴다(중간 페이지가 피드엑스를 대신하지 않게).
+    const { openGrok, tookExternalTrip } = await vite.ssrLoadModule('/src/client/share.ts');
+    const grokWindow = () => { const w = { opened: [], timers: [], location: { href: 'https://feedex.example/' }, open(url) { w.opened.push(url); return null; }, setTimeout(fn) { w.timers.push(fn); return 1; } }; return w; };
+    const home = grokWindow(); openGrok(shared.url, true, true, home);
+    assert.equal(home.opened.length, 0, 'the home screen app does not open the forwarding page over FeedEx'); home.timers[0]();
+    assert.equal(home.location.href, `https://grok.com/?q=${encodeURIComponent(shared.url).replace(/%20/g, '+')}`);
+    assert.equal(tookExternalTrip(), true, 'coming back from Grok keeps the read rows'); assert.equal(tookExternalTrip(), false, 'the trip is reported once');
+    const browserPhone = grokWindow(); openGrok(shared.url, true, false, browserPhone); assert.match(browserPhone.opened[0], /^\/grok\.html\?q=/);
+    const desk = grokWindow(); openGrok(shared.url, false, false, desk); assert.match(desk.opened[0], /^https:\/\/grok\.com\/\?q=/); tookExternalTrip();
     const telegramApp = new URL(links.telegramApp);
     assert.equal(telegramApp.protocol, 'tg:'); assert.equal(telegramApp.searchParams.get('url'), shared.url); assert.equal(telegramApp.searchParams.get('text'), shared.title);
     // Slap 앱: 데스크톱은 전용 주소(web+slap:)로 설치한 앱을 연다. 아이폰·아이패드 홈 화면 앱은 링크로 열 수 없다.

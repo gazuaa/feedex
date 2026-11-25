@@ -24,6 +24,31 @@ export function grokLink(url: string, phone: boolean) {
   return phone ? `/grok.html?${query}` : `https://grok.com/?${query}`;
 }
 
+// 다른 앱(Grok 등)으로 다녀오는 중인지. 돌아왔을 때 오래 떠나 있었다고 보고 읽은 행을 빼지 않게 한다.
+let externalTrip = 0;
+export const noteExternalTrip = (now = Date.now()) => { externalTrip = now; };
+/** 다른 앱에 다녀온 길인지 한 번만 알려 준다. */
+export function tookExternalTrip(now = Date.now(), within = 60 * 60_000) {
+  const yes = externalTrip > 0 && now - externalTrip < within;
+  externalTrip = 0;
+  return yes;
+}
+
+/**
+ * Grok에 묻기를 연다(맥·윈도우 앱은 부르는 쪽에서 기본 브라우저로 연다).
+ * - 컴퓨터: 질문을 채운 grok.com을 새 탭으로 연다.
+ * - 아이폰 홈 화면 앱: 피드엑스 페이지를 떠나지 않고 그 자리에서 스크립트로 grok.com을 열어 Grok 앱에 넘긴다.
+ *   예전처럼 중간 페이지를 열면 그 페이지가 피드엑스를 대신해서, 돌아올 때 피드엑스가 처음부터 다시 떠 읽은 행이 사라졌다.
+ *   누름과 이어지지 않게 잠깐 뒤에 넘겨야 Grok 앱이 질문까지 받는다.
+ * - 그 밖의 휴대폰: 중간 페이지를 새 탭으로 연다.
+ */
+export function openGrok(url: string, phone: boolean, standalone: boolean, win: Pick<Window, 'open' | 'setTimeout' | 'location'> = window) {
+  noteExternalTrip();
+  if (!phone) { win.open(grokLink(url, false), '_blank', 'noopener,noreferrer'); return; }
+  if (standalone) { const target = grokLink(url, false); win.setTimeout(() => { win.location.href = target; }, 60); return; }
+  win.open(grokLink(url, true), '_blank', 'noopener,noreferrer');
+}
+
 /** Slap 데스크톱 앱(Chrome·Edge에 설치한 Slap)을 바로 여는 전용 주소. Slap 매니페스트의 protocol_handlers가 받는다. */
 export const slapAppLink = ({ title, url }: SharedArticle) => `web+slap:share?${new URLSearchParams({ url, title })}`;
 

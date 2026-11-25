@@ -61,15 +61,22 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
       if (event.target instanceof Element) { const box = event.target.getBoundingClientRect(); open(event.target, box.left + 16, box.top + 16, () => event.preventDefault()); }
     };
-    const outside = (event: PointerEvent) => { if (!ref.current?.contains(event.target as Node)) setMenu(null); };
+    // 바깥을 눌러 메뉴를 닫으면 그 누름이 뒤에 있는 글이나 버튼을 누르지 않게 이어지는 클릭 한 번을 막는다.
+    let swallowUntil = 0;
+    const outside = (event: PointerEvent) => {
+      if (ref.current?.contains(event.target as Node)) return;
+      if (ref.current) swallowUntil = Date.now() + 700;
+      setMenu(null);
+    };
+    const swallow = (event: MouseEvent) => { if (Date.now() < swallowUntil) { swallowUntil = 0; event.preventDefault(); event.stopPropagation(); } };
     const scroll = (event: Event) => { if (!ref.current?.contains(event.target as Node)) setMenu(null); };
     const close = () => setMenu(null);
     const unbindTouch = touch ? bindLongPress(document, (target, x, y) => open(target, x, y, () => {}, true)) : () => {};
-    document.addEventListener('contextmenu', context); document.addEventListener('keydown', keyboard); document.addEventListener('pointerdown', outside);
+    document.addEventListener('contextmenu', context); document.addEventListener('keydown', keyboard); document.addEventListener('pointerdown', outside); document.addEventListener('click', swallow, true);
     document.addEventListener('scroll', scroll, true); window.addEventListener('resize', close); window.addEventListener('blur', close);
     return () => {
       unbindTouch();
-      document.removeEventListener('contextmenu', context); document.removeEventListener('keydown', keyboard); document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('contextmenu', context); document.removeEventListener('keydown', keyboard); document.removeEventListener('pointerdown', outside); document.removeEventListener('click', swallow, true);
       document.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', close); window.removeEventListener('blur', close);
     };
   }, [enabled, touch]);

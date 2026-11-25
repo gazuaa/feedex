@@ -50,7 +50,7 @@ import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './clie
 import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, startedAfterUpdate, startListAtTop, takeResumePoint, watchAppVersion } from './client/appVersion';
-import { copyText, grokLink } from './client/share';
+import { copyText, grokLink, openGrok, tookExternalTrip } from './client/share';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { readRowsExpired, UnreadSession } from './client/unreadSession';
@@ -581,7 +581,9 @@ export const App: React.FC = () => {
   // 원문을 따로 열어 읽으러 간 동안. 돌아왔을 때 오래 떠난 것으로 보고 방금 읽은 행을 빼지 않는다.
   const readingOriginal = useRef(false);
   afterAway.current = (away) => {
-    if (readingOriginal.current) { readingOriginal.current = false; return; }
+    // 원문이나 Grok 같은 다른 앱에 다녀온 길이면 읽은 행을 그대로 둔다.
+    const trip = tookExternalTrip();
+    if (readingOriginal.current || trip) { readingOriginal.current = false; return; }
     const list = articleListRef.current;
     if (inNativeApp() || articleSort === 'oldest' || !retainReadRows || selectedArticleId || !readRowsExpired(away, list?.scrollTop ?? 0)) return;
     unreadSessions.forEach((session) => session.dropRead());
@@ -1717,7 +1719,7 @@ export const App: React.FC = () => {
         // 휴대폰에서만 보인다(컴퓨터의 시스템 공유는 쓸모가 적다). 리트윗 표시(RT by @…)는 빼고 공유한다. 닫으면 아무것도 하지 않는다.
         phone && typeof navigator.share === 'function' && { id: 'share', label: t('공유', "Share"), quick: t('공유', 'Share'), run: () => navigator.share({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url }).catch((error) => { if (!(error instanceof Error && error.name === 'AbortError')) handleCopyLink(article.url); }) },
         { id: 'copy-link', label: t('링크 복사', "Copy link"), quick: t('링크', 'Link'), run: () => handleCopyLink(article.url) },
-        { id: 'grok', label: t('Grok에 묻기', "Ask Grok"), quick: 'Grok', run: () => { if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: grokLink(article.url, false) }); else window.open(grokLink(article.url, phone), '_blank', 'noopener,noreferrer'); } },
+        { id: 'grok', label: t('Grok에 묻기', "Ask Grok"), quick: 'Grok', run: () => { if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: grokLink(article.url, false) }); else openGrok(article.url, phone, opensOriginalSeparately()); } },
         { id: 'deepl-article', label: t('DeepL로 번역', "Translate in DeepL"), quick: t('번역', 'Translate'), run: () => { const current = latest(); openInDeepL(`${current.title}\n\n${htmlToText(current.full_content_html || current.content_html || `<p>${current.summary || ''}</p>`)}`); } },
       );
       group(

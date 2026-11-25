@@ -39,7 +39,7 @@ import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile
 import { useStatusBarTap } from '../client/statusBarTap';
 import { sanitizeReaderMarkup } from '../client/articleMarkup';
 import { isCurrentSummary } from '../shared/aiSummary';
-import { grokLink, isAppleTouch, openAppLink, openClosingOnReturn, shareLinks, slapAppLink } from '../client/share';
+import { grokLink, isAppleTouch, openAppLink, openClosingOnReturn, openGrok, shareLinks, slapAppLink } from '../client/share';
 import { GrokLogo } from './GrokLogo';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
@@ -847,7 +847,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
    */
   const askGrok = (phone: boolean, close: () => void) => {
     if (!phone || nativeBridge()) { openShareLink(grokLink(article.url, false), close); return; }
-    window.open(grokLink(article.url, true), '_blank', 'noopener,noreferrer');
+    openGrok(article.url, true, opensOriginalSeparately());
     close();
   };
   const openShareLink = (url: string, close: () => void, linkEvent?: React.MouseEvent<HTMLAnchorElement>) => {
