@@ -200,7 +200,7 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     </p>}
     {activeSummary?.open && <div className="feedex-web-summary">
       <AiSummaryCard isDark={isDark} summarizing={activeSummary.pending} summary={activeSummary.text} error={activeSummary.error || ''}
-        loadingLabel={t('X 글을 요약하는 중…', 'Summarizing the X post…')} onRegenerate={loadSummary} onClose={toggleSummary} />
+        loadingLabel={t('X 글을 요약하는 중…', 'Summarizing the X post…')} onRegenerate={loadSummary} onClose={toggleSummary} compact />
     </div>}
     <WebPager enabled={isMobile} onBack={back} closes={trail.length <= 1}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
       {isReady && (

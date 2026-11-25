@@ -235,9 +235,9 @@ function SummaryText({ text }: { text: string }) {
   return <>{text.split(/\*\*(.+?)\*\*/g).map((part, index) => index % 2 ? <strong key={index}>{part}</strong> : part)}</>;
 }
 
-export function AiSummaryCard({ isDark, summarizing, summary, error, onRegenerate, onClose, loadingLabel = t('기사 본문을 요약하는 중…', 'Summarizing the article…') }: { isDark: boolean; summarizing: boolean; summary?: string | null; error: string; onRegenerate: () => void; onClose?: () => void; loadingLabel?: string }) {
-  // 웹 보기의 칸(onClose가 있는 경우)은 사이트를 덜 가리게 여백과 제목을 줄인다.
-  return <div className={`${onClose ? 'p-3.5' : 'p-5'} rounded-2xl border relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
+export function AiSummaryCard({ isDark, summarizing, summary, error, onRegenerate, onClose, compact = false, loadingLabel = t('기사 본문을 요약하는 중…', 'Summarizing the article…') }: { isDark: boolean; summarizing: boolean; summary?: string | null; error: string; onRegenerate: () => void; onClose?: () => void; compact?: boolean; loadingLabel?: string }) {
+  // 웹 보기의 칸(compact)은 사이트를 덜 가리게 여백을 줄인다. 닫기 버튼은 어느 보기에서나 둔다.
+  return <div className={`${compact ? 'p-3.5' : 'p-5'} rounded-2xl border relative overflow-hidden ${isDark ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
     <div className="flex items-center justify-between gap-2 mb-3">
       <div className="flex min-w-0 items-center gap-2">
         <div className="shrink-0 p-1.5 rounded-lg bg-emerald-500 text-slate-950"><Sparkles className="w-4 h-4" /></div>
@@ -1245,7 +1245,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           <div ref={webViewRef} className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
             {/* 웹 보기에서는 사이트 위에 요약을 접을 수 있는 칸으로 둔다. 길면 이 칸 안에서 스크롤한다. */}
             {aiOpen && (currentAiSummary || summarizing || summaryError) && <div className="feedex-web-summary">
-              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} loadingLabel={xPost ? t('X 대화를 요약하는 중…', 'Summarizing the X conversation…') : undefined} />
+              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} compact loadingLabel={xPost ? t('X 대화를 요약하는 중…', 'Summarizing the X conversation…') : undefined} />
             </div>}
             {translationFeedback}
             {nativeWeb ? (<>
@@ -1481,7 +1481,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
           </div>}
 
           {/* Cloudflare Workers AI 요약 카드 */}
-          {aiOpen && (currentAiSummary || summarizing || summaryError) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} loadingLabel={xPost ? t('X 대화를 요약하는 중…', 'Summarizing the X conversation…') : undefined} />}
+          {aiOpen && (currentAiSummary || summarizing || summaryError) && <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} loadingLabel={xPost ? t('X 대화를 요약하는 중…', 'Summarizing the X conversation…') : undefined} />}
 
           {/* 대표 썸네일 이미지 (contentHtml에 이미 들어 있지 않을 때). X 대화 번역은 작성자 줄과 사진을 본문에 함께 보여 주므로 넣지 않는다. */}
           {article.thumbnail_url && !showingXTranslation &&
