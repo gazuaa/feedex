@@ -650,7 +650,9 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-status > div > div > * { padding-block: 4px; }
   .feedex-web-status[data-scroll-hidden] { transform: translateY(calc(-100% - var(--feedex-reader-top-height, 58px))); }
   .feedex-web-view > .feedex-web-status:first-child + [data-native-article] { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
-  .feedex-web-view > .feedex-web-summary { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
+  /* 글 화면 머리줄 아래 자리는 바깥 여백이 아니라 요약 칸의 안쪽 여백으로 둔다. 웹 보기 틀은 투명해서, 머리줄이 숨으면
+     바깥 여백 자리로 뒤에 깔린 목록 머리줄이 비쳐 보였다. */
+  .feedex-web-view > .feedex-web-summary { --feedex-summary-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); padding-top: calc(var(--feedex-summary-top) + 12px); max-height: calc(40% + var(--feedex-summary-top)); }
   .feedex-web-view > .feedex-translation-feedback:first-child { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top) + 6px); }
   .feedex-web-view > :is([data-web-loading], .feedex-web-fill) { padding-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
 
