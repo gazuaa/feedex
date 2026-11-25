@@ -5,7 +5,9 @@
   var q = params.get('q') || '';
   var bases = { chatgpt: 'https://chatgpt.com/', claude: 'https://claude.ai/new', gemini: 'https://gemini.google.com/app' };
   var base = bases[params.get('to')] || 'https://grok.com/';
-  var target = base + (q ? '?' + new URLSearchParams({ q: q.slice(0, 4000) }).toString() : '');
+  var query = { q: q.slice(0, 4000) };
+  if (params.get('to') === 'gemini') query.prompt = query.q;
+  var target = base + (q ? '?' + new URLSearchParams(query).toString() : '');
   // 이 페이지가 Grok·ChatGPT·Claude 앱으로 넘어가고 나면 돌아왔을 때 이 페이지가 남아 있으므로 돌아오면 이 페이지가 남아 있으므로
   // 다른 앱에 다녀온 것을 알아채면 피드엑스로 되돌아간다(새 창이면 닫고, 아니면 앞 화면으로 간다).
   var away = false, returning = false;

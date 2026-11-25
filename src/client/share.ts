@@ -26,7 +26,8 @@ export const askNeedsPaste = (service: AskService) => service === 'gemini';
  * 피드엑스의 중간 페이지(/grok.html)를 거친다.
  */
 export function askLink(service: AskService, url: string, phone: boolean) {
-  const query = new URLSearchParams({ q: url });
+  // Gemini는 공식 지원이 없어 확장 프로그램들이 쓰는 이름(q, prompt)을 둘 다 붙여 본다. 안 붙으면 복사해 둔 링크를 붙여넣는다.
+  const query = new URLSearchParams(service === 'gemini' ? { q: url, prompt: url } : { q: url });
   if (!phone) return `${ASK_BASE[service]}?${query}`;
   return `/grok.html?${service === 'grok' ? '' : `to=${service}&`}${query}`;
 }
