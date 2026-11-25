@@ -7,11 +7,12 @@ export function bindLongPress(doc: Document, open: (target: Element, x: number, 
     const target = event.target as Element | null;
     if (event.touches.length !== 1 || !target?.closest?.('[data-article-id],[data-feed-id],[data-folder-id]') || target.closest('input,textarea,select,[contenteditable="true"],.feedex-reader-content,dialog')) return;
     const touch = event.touches[0]; start = { target, x: touch.clientX, y: touch.clientY };
-    timer = setTimeout(() => { if (start) { fired = true; open(start.target, start.x, start.y); } }, 450);
+    // iOS 돋보기(약 0.5초)보다 먼저 피드엑스 메뉴를 띄운다.
+    timer = setTimeout(() => { if (start) { fired = true; open(start.target, start.x, start.y); } }, 380);
   };
   // 메뉴를 띄운 뒤에도 같은 손가락이 끌면 뒤 목록이 스크롤된다. 손을 뗄 때까지 그 끌기는 막는다.
   const hold = (event: TouchEvent) => { if (fired && event.cancelable) event.preventDefault(); };
-  const move = (event: TouchEvent) => { if (start && (event.touches.length !== 1 || Math.hypot(event.touches[0].clientX - start.x, event.touches[0].clientY - start.y) > 10)) cancel(); };
+  const move = (event: TouchEvent) => { if (start && (event.touches.length !== 1 || Math.hypot(event.touches[0].clientX - start.x, event.touches[0].clientY - start.y) > 12)) cancel(); };
   const end = (event: TouchEvent) => { cancel(); if (fired) { if (event.cancelable) event.preventDefault(); suppressUntil = Date.now() + 700; fired = false; } };
   const abort = () => { cancel(); fired = false; };
   const click = (event: MouseEvent) => { if ((event.target as Element | null)?.closest?.('.feedex-context-menu')) return; if (Date.now() < suppressUntil) { event.preventDefault(); event.stopPropagation(); } };
