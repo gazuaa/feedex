@@ -49,6 +49,9 @@ function findScene(document: Document, navigation: SwipeNavigation): SwipeScene 
 function present(document: Document, scene: SwipeScene) {
   const width = document.defaultView?.innerWidth || 1;
   const root = document.documentElement;
+  // 글 화면을 밀어 닫는 동안은 'reader'로 표시한다. 글 안의 칸 스크롤(요약 칸 등)을 꺼서 iOS가 그 칸을 따로 그린 층이
+  // 글 화면을 따라가지 못하고 목록 위에 남아 누르기를 가로막지 않게 한다(index.css 참고).
+  if (!scene.revealLibrary) root.dataset.sfeedSwipe = 'reader';
   if (scene.revealLibrary) {
     root.dataset.sfeedSwipe = 'library';
     // 보통은 보관함이 목록을 덮는다. 아래에 드러나 있는 동안에는 목록이 위에 남는다.
