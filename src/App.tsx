@@ -50,7 +50,7 @@ import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './clie
 import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, startedAfterUpdate, startListAtTop, takeResumePoint, watchAppVersion } from './client/appVersion';
-import { askLink, askNeedsPaste, copyText, openAsk, tookExternalTrip, type AskService } from './client/share';
+import { askLink, copyText, openAsk, tookExternalTrip, type AskService } from './client/share';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { readRowsExpired, UnreadSession } from './client/unreadSession';
@@ -1708,8 +1708,6 @@ export const App: React.FC = () => {
       const phone = isMobile && window.matchMedia?.('(pointer: coarse)').matches === true;
       const articleFeed = subscriptions.find((sub) => sub.feed_id === article.feed_id);
       const ask = (service: AskService) => {
-        // Gemini는 주소로 질문을 받지 않아 링크를 복사해 두고 열어서 붙여넣게 한다. 복사는 누른 그 순간에 해야 허락된다.
-        if (askNeedsPaste(service)) { void copyText(article.url).then((copied) => { if (copied) setNotice(t('링크를 복사했어요. Gemini에 붙여넣어 주세요.', 'Link copied. Paste it into Gemini.')); }); }
         if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: askLink(service, article.url, false) }); else openAsk(service, article.url, phone, opensOriginalSeparately());
       };
       // 메뉴는 묶음으로 나눈다: 읽기 상태 → 공유 → 원문 → 위아래 읽음 → 피드.

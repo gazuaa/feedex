@@ -18,17 +18,14 @@ export function shareLinks({ title, url }: SharedArticle) {
 /** 글을 넘겨 물어볼 AI. 중간 페이지(/grok.html)도 이 네 곳으로만 넘긴다. */
 export type AskService = 'grok' | 'chatgpt' | 'claude' | 'gemini';
 const ASK_BASE: Record<AskService, string> = { grok: 'https://grok.com/', chatgpt: 'https://chatgpt.com/', claude: 'https://claude.ai/new', gemini: 'https://gemini.google.com/app' };
-/** 주소로 질문을 받지 않는 서비스. 링크를 클립보드에 넣어 두고 열어서 붙여넣게 한다. */
-export const askNeedsPaste = (service: AskService) => service === 'gemini';
 
 /**
  * AI에 묻기 주소. 질문창에 글 주소만 채운다. 휴대폰은 서비스 주소를 바로 열면 그 앱이 질문을 버리므로
  * 피드엑스의 중간 페이지(/grok.html)를 거친다.
  */
 export function askLink(service: AskService, url: string, phone: boolean) {
-  // Gemini는 공식 지원이 없다. prompt로 넘기면 링크가 붙지만 바로 보내 버려서, 보내지 말라는 표시(autosubmit·send)도 함께 붙여 본다.
-  // 그래도 안 되면 복사해 둔 링크를 붙여넣는다.
-  const query = new URLSearchParams(service === 'gemini' ? { q: url, prompt: url, autosubmit: 'false', send: 'false' } : { q: url });
+  // Gemini는 공식 지원은 없지만 prompt로 넘기면 링크가 붙고 바로 보낸다(보내지 말라는 표시는 무시한다, 2026-11-25 실기기 확인).
+  const query = new URLSearchParams(service === 'gemini' ? { prompt: url } : { q: url });
   if (!phone) return `${ASK_BASE[service]}?${query}`;
   return `/grok.html?${service === 'grok' ? '' : `to=${service}&`}${query}`;
 }
