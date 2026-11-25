@@ -56,17 +56,50 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
   const [editingQuick, setEditingQuick] = useState(false);
   const addQuick = (id: string) => setQuickIds((ids) => { const next = ids.includes(id) ? ids : [...ids, id]; saveQuick(next); return next; });
   const removeQuick = (id: string) => setQuickIds((ids) => { const next = ids.filter((item) => item !== id); saveQuick(next); return next; });
-  // 편집 중인 빠른 실행 줄은 항목을 좌우로 끌어 순서를 바꾼다. 끄는 동안 손가락이 지난 자리로 바로 옮기고, 손을 떼면 남긴다.
+  // 편집 중인 빠른 실행 줄은 항목을 좌우로 끌어 순서를 바꾼다. 끄는 항목은 손가락을 그대로 따라가고,
+  // 자리가 바뀐 다른 항목은 새 자리로 미끄러져 간다(이전 자리에서 새 자리로 옮기는 FLIP 방식).
   const quickRow = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const drag = useRef<{ id: string; grab: number; x: number } | null>(null);
+  const slots = useRef(new Map<string, number>());
+  const SLIDE = 'transform 200ms cubic-bezier(.2,.8,.2,1), box-shadow 150ms ease';
+  // 끄는 항목을 손가락 자리에 둔다. 레이아웃 위치(offsetLeft)는 변형과 상관없이 지금 칸의 자리다.
+  const follow = (chip: HTMLElement) => {
+    const current = drag.current, row = quickRow.current;
+    if (!current || !row) return;
+    chip.style.transition = 'box-shadow 150ms ease';
+    chip.style.transform = `translateX(${current.x - current.grab - row.getBoundingClientRect().left - chip.offsetLeft}px) scale(1.08)`;
+  };
+  useLayoutEffect(() => {
+    const row = quickRow.current;
+    if (!row) { slots.current.clear(); return; }
+    for (const chip of row.querySelectorAll<HTMLElement>('[data-quick-id]')) {
+      const id = chip.dataset.quickId!, left = chip.offsetLeft, before = slots.current.get(id);
+      slots.current.set(id, left);
+      if (drag.current?.id === id) { follow(chip); continue; }
+      if (before === undefined || before === left) continue;
+      chip.style.transition = 'none';
+      chip.style.transform = `translateX(${before - left}px)`;
+      requestAnimationFrame(() => { chip.style.transition = SLIDE; chip.style.transform = ''; });
+    }
+  }, [quickIds, editingQuick, dragging]);
   const startDrag = (id: string, visible: string[]) => (event: React.PointerEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('[data-remove]') || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    const row = quickRow.current, chip = event.currentTarget;
+    if (!row) return;
     event.preventDefault();
+    drag.current = { id, grab: event.clientX - row.getBoundingClientRect().left - chip.offsetLeft, x: event.clientX };
     setDragging(id);
+    follow(chip);
     const shownIds = new Set(visible);
     const move = (moved: PointerEvent) => {
-      const chips = [...(quickRow.current?.querySelectorAll<HTMLElement>('[data-quick-id]') ?? [])].filter((chip) => chip.dataset.quickId !== id);
-      const index = chips.filter((chip) => { const box = chip.getBoundingClientRect(); return box.left + box.width / 2 < moved.clientX; }).length;
+      if (!drag.current) return;
+      drag.current.x = moved.clientX;
+      follow(chip);
+      // 다른 항목의 칸 가운데(변형 전 자리)와 손가락 아래 항목의 가운데를 견줘 들어갈 자리를 정한다.
+      const left = row.getBoundingClientRect().left, center = moved.clientX - drag.current.grab + chip.offsetWidth / 2;
+      const others = [...row.querySelectorAll<HTMLElement>('[data-quick-id]')].filter((other) => other !== chip);
+      const index = others.filter((other) => left + other.offsetLeft + other.offsetWidth / 2 < center).length;
       setQuickIds((ids) => {
         const order = ids.filter((item) => shownIds.has(item) && item !== id);
         order.splice(index, 0, id);
@@ -75,6 +108,10 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       });
     };
     const finish = () => {
+      drag.current = null;
+      // 손을 떼면 끌던 항목이 자기 칸으로 미끄러져 들어간다.
+      chip.style.transition = SLIDE;
+      chip.style.transform = '';
       setDragging(null);
       setQuickIds((ids) => { saveQuick(ids); return ids; });
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', finish); window.removeEventListener('pointercancel', finish);
