@@ -198,11 +198,13 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
     {(translating || translationError || (translated && result)) && <p role={translationError ? 'alert' : 'status'} className="px-4 py-2 text-sm text-slate-500">
       {translationError || (translating ? t('한국어로 번역하는 중…', 'Translating to English…') : alreadyTranslated ? t('이미 한국어로 된 글이에요.', 'This post is already in English.') : result?.notice || t(`${result?.provider === 'deepl' ? 'DeepL' : 'Workers AI'} 번역`, `Translated by ${result?.provider === 'deepl' ? 'DeepL' : 'Workers AI'}`))}
     </p>}
+    {/* 요약 칸은 밀리는 판 안(글 바로 위)에 둔다. 판 밖에 두면 밀 때 요약과 글이 한 박자 어긋나 흔들려 보인다. */}
+    <WebPager enabled={isMobile} onBack={back} closes={trail.length <= 1}><div className="flex flex-1 min-h-0 w-full flex-col">
     {activeSummary?.open && <div className="feedex-web-summary">
       <AiSummaryCard isDark={isDark} summarizing={activeSummary.pending} summary={activeSummary.text} error={activeSummary.error || ''}
         loadingLabel={t('X 글을 요약하는 중…', 'Summarizing the X post…')} onRegenerate={loadSummary} onClose={toggleSummary} compact />
     </div>}
-    <WebPager enabled={isMobile} onBack={back} closes={trail.length <= 1}><div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
+    <div className="relative flex-1 min-h-0 w-full overflow-hidden feedex-web-frame">
       {isReady && (
         <iframe
           key={`${url}:ready`}
@@ -231,6 +233,6 @@ export function XPostPanel({ accountId, source, target, onBack, isDark }: { acco
           className="absolute inset-0 h-full w-full border-0 feedex-web-frame"
         />
       )}
-    </div></WebPager>
+    </div></div></WebPager>
   </section>;
 }

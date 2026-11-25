@@ -274,7 +274,7 @@ html.dark .feedex-translation-bar { background: #10b98124; color: #6ee7b7; }
 .feedex-translation-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; flex-shrink: 0; padding: 6px 14px; border: 1px solid var(--feedex-border); border-radius: 10px; background: var(--feedex-panel); color: var(--feedex-text); font-size: 13px; }
 .feedex-translation-feedback > button { min-height: 32px; color: inherit; font-weight: 600; cursor: pointer; }
 .feedex-translation-feedback > button:hover { text-decoration: underline; }
-.feedex-web-view > .feedex-translation-feedback { margin: 6px 12px; }
+:is(.feedex-web-view, .feedex-web-page) > .feedex-translation-feedback { margin: 6px 12px; }
 /* 웹 보기의 AI 요약 칸. 사이트를 너무 가리지 않게 높이를 줄이고, 긴 요약은 칸 안에서 스크롤한다. */
 .feedex-web-summary { flex-shrink: 0; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; border-bottom: 1px solid var(--feedex-border); background: var(--feedex-background); }
 /* 글 화면을 밀어 닫는 동안 요약 칸의 칸 안 스크롤을 끈다. iOS가 스크롤 칸을 따로 그린 층이 목록 위에 남아 누르기를 막는 일을 막는다. */
@@ -652,8 +652,8 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
   .feedex-web-view > .feedex-web-status:first-child + [data-native-article] { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
   /* 글 화면 머리줄 아래 자리는 바깥 여백이 아니라 요약 칸의 안쪽 여백으로 둔다. 웹 보기 틀은 투명해서, 머리줄이 숨으면
      바깥 여백 자리로 뒤에 깔린 목록 머리줄이 비쳐 보였다. */
-  .feedex-web-view > .feedex-web-summary { --feedex-summary-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); padding-top: calc(var(--feedex-summary-top) + 12px); max-height: calc(40% + var(--feedex-summary-top)); }
-  .feedex-web-view > .feedex-translation-feedback:first-child { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top) + 6px); }
+  :is(.feedex-web-view, .feedex-web-page) > .feedex-web-summary { --feedex-summary-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); padding-top: calc(var(--feedex-summary-top) + 12px); max-height: calc(40% + var(--feedex-summary-top)); }
+  :is(.feedex-web-view, .feedex-web-page) > .feedex-translation-feedback:first-child { margin-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top) + 6px); }
   .feedex-web-view > :is([data-web-loading], .feedex-web-fill) { padding-top: calc(var(--feedex-reader-top-height, 58px) + var(--feedex-web-status-height) - env(safe-area-inset-top)); }
 
   .feedex-web-pager { display: flex; flex: 1; min-height: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }

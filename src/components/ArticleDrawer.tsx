@@ -937,6 +937,16 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     </>;
   };
 
+  // 웹 보기에서 사이트 위에 접을 수 있는 요약 칸과 번역 안내 칸. 요약이 길면 그 칸 안에서 스크롤한다.
+  // 휴대폰에서 사이트가 밀리는 판(WebPager) 안에 보이면 이 칸도 판 안에 넣는다. 판 밖에 두면 iOS가 옮기는 사이트를
+  // 피드엑스가 한 박자 늦게 따라 옮겨서, 밀 때 위(요약)·아래(사이트) 칸이 서로 미세하게 흔들려 보인다.
+  const webTop = <>
+    {aiOpen && (currentAiSummary || summarizing || summaryError) && <div className="feedex-web-summary">
+              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} compact loadingLabel={xPost ? t('X 대화를 요약하는 중…', 'Summarizing the X conversation…') : undefined} />
+            </div>}
+    {translationFeedback}
+  </>;
+  const webTopInPager = siteShown && !nativeWeb && !mobileOriginal && (webCopyShown || Boolean(frame && frame.articleId === article.id && frame.embeddable));
   return (
     <div className="feedex-article-reader fixed inset-0 z-50 lg:relative lg:inset-auto lg:z-auto h-full min-w-0 min-h-0 flex justify-end">
       {/* 배경 */}
@@ -1243,11 +1253,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
 
         {siteShown ? (
           <div ref={webViewRef} className="feedex-web-view relative flex-1 min-h-0 flex flex-col" data-scroll-hidden={barsHidden || undefined} data-framed={framed || undefined}>
-            {/* 웹 보기에서는 사이트 위에 요약을 접을 수 있는 칸으로 둔다. 길면 이 칸 안에서 스크롤한다. */}
-            {aiOpen && (currentAiSummary || summarizing || summaryError) && <div className="feedex-web-summary">
-              <AiSummaryCard isDark={isDark} summarizing={summarizing} summary={currentAiSummary} error={summaryError} onRegenerate={() => handleSummarizeAI(true)} onClose={toggleAiSummary} compact loadingLabel={xPost ? t('X 대화를 요약하는 중…', 'Summarizing the X conversation…') : undefined} />
-            </div>}
-            {translationFeedback}
+            {/* 사이트가 밀리는 판 안에 보일 때는 요약·번역 안내 칸도 판 안(사이트 바로 위)에 둔다. 여기는 판을 쓰지 않는 경우다. */}
+            {!webTopInPager && webTop}
             {nativeWeb ? (<>
               <WebStatusBar key={article.id} url={article.url} isDark={isDark} hidden={false} canLogin={false} notice={article.url} shortNotice={siteHost(article.url)}>
                 <button type="button" onClick={() => nativeBridge()?.postMessage({ type: 'openExternal', url: article.url })} className="inline-flex items-center gap-1 hover:underline">
@@ -1290,6 +1297,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             {webCopyShown ? (
               <>
                 <WebPager enabled={isMobile} onBack={onClose}>
+                <div className="feedex-web-page flex flex-1 min-h-0 flex-col">
+                {webTop}
                 <div className="relative flex-1 min-h-0 overflow-hidden feedex-web-frame">
                   {/*
                     * 스크립트는 스크롤 알림용으로만 돈다. 사본은 정리돼 있고 보안 정책이 나머지를 막는다.
@@ -1357,6 +1366,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     </div>
                   )}
                 </div>
+                </div>
                 </WebPager>
               </>
             ) : !frame || frame.articleId !== article.id ? (
@@ -1364,6 +1374,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             ) : frame.embeddable ? (
               <>
                 <WebPager enabled={isMobile && (!mobileTableSite || fitOriginalTable)} onBack={onClose}>
+                <div className="feedex-web-page flex flex-1 min-h-0 flex-col">
+                {webTop}
                 <div ref={framePaneRef} data-wide-frame={mobileTableSite && !fitOriginalTable || undefined} className="relative flex-1 min-h-0 overflow-hidden feedex-web-frame">
                   <iframe
                     key={`${article.id}:${frameReloads}`}
@@ -1377,6 +1389,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                     referrerPolicy="strict-origin-when-cross-origin"
                   />
                   {frameLoading && <WebLoading overlay />}
+                </div>
                 </div>
                 </WebPager>
               </>
