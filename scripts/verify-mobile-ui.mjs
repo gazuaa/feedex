@@ -46,6 +46,10 @@ try {
     const blocked = sheetWindow(); blocked.win.open = () => null; assert.equal(openClosingOnReturn('https://grok.com/', blocked.win), false);
     // Grok: 홈 화면 앱은 피드엑스 페이지를 떠나지 않고 잠깐 뒤 grok.com으로 넘긴다(중간 페이지가 피드엑스를 대신하지 않게).
     const { openGrok, tookExternalTrip } = await vite.ssrLoadModule('/src/client/share.ts');
+    const { askLink } = await vite.ssrLoadModule('/src/client/share.ts');
+    assert.equal(new URL(askLink('chatgpt', shared.url, false)).origin, 'https://chatgpt.com', 'Ask ChatGPT opens chatgpt.com');
+    const chatPhone = new URL(askLink('chatgpt', shared.url, true), 'https://feedex.example');
+    assert.equal(chatPhone.pathname, '/grok.html'); assert.equal(chatPhone.searchParams.get('to'), 'chatgpt'); assert.equal(chatPhone.searchParams.get('q'), shared.url);
     const grokWindow = () => { const w = { opened: [], timers: [], location: { href: 'https://feedex.example/' }, open(url) { w.opened.push(url); return null; }, setTimeout(fn) { w.timers.push(fn); return 1; } }; return w; };
     const home = grokWindow(); openGrok(shared.url, true, true, home);
     assert.equal(home.opened.length, 0, 'the home screen app does not open the forwarding page over FeedEx'); home.timers[0]();

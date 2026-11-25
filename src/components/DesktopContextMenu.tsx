@@ -3,6 +3,7 @@ import { Archive, ArrowDownToLine, ArrowUpToLine, Bookmark, BookOpen, Share2, Ch
 import { bindLongPress } from '../client/longPress';
 import { t } from '../shared/i18n';
 import { GrokLogo } from './GrokLogo';
+import { ChatGptLogo } from './ChatGptLogo';
 
 export interface AppContextTarget { articleId?: string; folderId?: string; feedId?: string; link?: string; selection?: string }
 export interface AppContextAction { id: string; label: string; run: () => void | Promise<unknown>; danger?: boolean; separator?: boolean;
@@ -17,13 +18,23 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   'open-feed': Newspaper, 'mark-feed': CheckCheck, 'move-feed': FolderInput, updates: Pause,
   unsubscribe: UserRoundMinus, 'open-folder': FolderOpen, 'mark-folder': CheckCheck, 'delete-folder': FolderX,
   'open-original': ExternalLink, 'copy-link': Link2, all: Archive, refresh: RefreshCw, add: Plus,
-  'deepl-selection': Languages, 'deepl-article': Languages, 'open-in-app': BookOpen, share: Share2, 'read-above': ArrowUpToLine, 'read-below': ArrowDownToLine, grok: GrokLogo as unknown as LucideIcon,
+  'deepl-selection': Languages, 'deepl-article': Languages, 'open-in-app': BookOpen, share: Share2, 'read-above': ArrowUpToLine, 'read-below': ArrowDownToLine, grok: GrokLogo as unknown as LucideIcon, chatgpt: ChatGptLogo as unknown as LucideIcon,
 };
 export function contextMenuIcon(item: Pick<AppContextAction, 'id' | 'label'>): LucideIcon {
   if (item.id === 'updates' && (item.label.includes('다시') || item.label.startsWith('Resume'))) return Play;
   if (item.id === 'read' && (item.label.startsWith('안 읽음') || item.label.startsWith('Mark as unread'))) return Circle;
   return MENU_ICONS[item.id] || Rss;
 }
+
+// 휴대폰 시트 위쪽 빠른 실행 줄에 보일 항목과 순서. 사용자가 편집하면 이 기기에 남긴다.
+const QUICK_KEY = 'feedex_quick_actions';
+const QUICK_DEFAULT = ['share', 'copy-link', 'grok', 'chatgpt'];
+const QUICK_MAX = 5;
+function readQuick(): string[] {
+  try { const saved = JSON.parse(localStorage.getItem(QUICK_KEY) || 'null'); if (Array.isArray(saved) && saved.every((id) => typeof id === 'string')) return saved.slice(0, QUICK_MAX); } catch { /* 기본값을 쓴다. */ }
+  return QUICK_DEFAULT;
+}
+function saveQuick(ids: string[]) { try { localStorage.setItem(QUICK_KEY, JSON.stringify(ids)); } catch { /* 이번 화면에서만 쓴다. */ } }
 
 /** 구분선(separator)이 붙은 항목에서 새 묶음을 시작한다. 휴대폰 시트는 묶음마다 둥근 카드로 그린다. */
 function groups(items: AppContextAction[]) {
@@ -41,6 +52,14 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
   const latestHeading = useRef(heading); latestHeading.current = heading;
   const [menu, setMenu] = useState<{ x: number; y: number; items: AppContextAction[]; sheet: boolean; heading: AppContextHeading | null } | null>(null);
   const [notice, setNotice] = useState('');
+  const [quickIds, setQuickIds] = useState<string[]>(readQuick);
+  const [editingQuick, setEditingQuick] = useState(false);
+  const toggleQuick = (id: string) => setQuickIds((ids) => {
+    // 개수 제한은 화면에서 막는다(이 기기에 없는 후보는 세지 않는다).
+    const next = ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id];
+    saveQuick(next);
+    return next;
+  });
   const ref = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -95,7 +114,7 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
   // 시트가 열린 동안에는 화면 전체에서 글자 선택을 막고, 생긴 선택은 바로 지운다.
   const sheetOpen = Boolean(menu?.sheet);
   useEffect(() => {
-    if (!sheetOpen) return;
+    if (!sheetOpen) { setEditingQuick(false); return; }
     const root = document.documentElement;
     const clear = () => { const selection = window.getSelection(); if (selection && !selection.isCollapsed) selection.removeAllRanges(); };
     root.classList.add('feedex-sheet-open');
@@ -113,8 +132,17 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       if (event.key === 'Escape' || event.key === 'Tab') { setMenu(null); if (event.key === 'Escape') { event.preventDefault(); previousFocus.current?.focus(); } return; }
       const next = event.key === 'ArrowDown' ? (index + 1) % buttons.length : event.key === 'ArrowUp' ? (index + buttons.length - 1) % buttons.length : event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : null;
       if (next !== null) { event.preventDefault(); buttons[next]?.focus(); }
-    }}>{menu.heading && <div className="feedex-context-heading"><strong>{menu.heading.title}</strong>{menu.heading.detail && <small>{menu.heading.detail}</small>}</div>}
-      {menu.sheet && menu.items.some((item) => item.quick) && <div className="feedex-context-quick">{menu.items.filter((item) => item.quick).map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" aria-label={item.label} onClick={() => choose(item)}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span></button>; })}</div>}
+    }}>{(() => {
+      // 빠른 실행 후보 중 사용자가 고른 것만 고른 순서대로 위쪽 줄에 보인다. 고르지 않은 후보는 시트에 나오지 않는다.
+      const candidates = menu.sheet ? menu.items.filter((item) => item.quick) : [];
+      const shown = quickIds.map((id) => candidates.find((item) => item.id === id)).filter((item): item is AppContextAction => Boolean(item));
+      // 번호와 개수 제한은 이 기기에 있는 후보만 센다(시스템 공유가 없는 브라우저 등).
+      return <>
+        {menu.heading && <div className="feedex-context-heading"><div><strong>{menu.heading.title}</strong>{menu.heading.detail && <small>{menu.heading.detail}</small>}</div>{candidates.length > 0 && <button type="button" className="feedex-context-edit" aria-pressed={editingQuick} onClick={() => setEditingQuick((value) => !value)}>{editingQuick ? t('완료', 'Done') : t('편집', 'Edit')}</button>}</div>}
+        {editingQuick && candidates.length > 0 ? <div className="feedex-context-quick-edit"><p>{t(`위에 보일 항목을 누른 순서대로 골라요 (최대 ${QUICK_MAX}개)`, `Pick the shortcuts to show, in order (up to ${QUICK_MAX})`)}</p><div>{candidates.map((item) => { const Icon = contextMenuIcon(item); const order = shown.indexOf(item); return <button key={item.id} type="button" aria-pressed={order >= 0} disabled={order < 0 && shown.length >= QUICK_MAX} onClick={() => toggleQuick(item.id)}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span>{order >= 0 && <b aria-hidden="true">{order + 1}</b>}</button>; })}</div></div>
+          : shown.length > 0 && <div className="feedex-context-quick">{shown.map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" aria-label={item.label} onClick={() => choose(item)}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span></button>; })}</div>}
+      </>;
+    })()}
       {menu.sheet ? groups(menu.items.filter((item) => !item.quick)).map((group) => <div key={group[0].id} className="feedex-context-group" role="group">{group.map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} onClick={() => choose(item)}><Icon size={19} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>)
         : menu.items.map((item, index) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" data-danger={item.danger || undefined} data-separator={(item.separator && index > 0) || undefined} onClick={() => choose(item)}><Icon size={17} strokeWidth={1.8} aria-hidden="true" /><span>{item.label}</span></button>; })}</div>}
     {notice && <div role="status" className="feedex-context-notice">{notice}</div>}

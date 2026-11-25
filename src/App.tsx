@@ -50,7 +50,7 @@ import { feedCacheVersion, preloadArticleQueries, ReaderPreloader } from './clie
 import { filteredPage, matchesPage, mergeOldestWindow, sameListOtherTab } from './client/syncPages';
 import { usePullRefresh } from './client/pullRefresh';
 import { keepResumePoint, startedAfterUpdate, startListAtTop, takeResumePoint, watchAppVersion } from './client/appVersion';
-import { copyText, grokLink, openGrok, tookExternalTrip } from './client/share';
+import { askLink, copyText, openAsk, tookExternalTrip, type AskService } from './client/share';
 import { PullRefreshIndicator } from './components/PullRefreshIndicator';
 import { useScrollRead } from './client/scrollRead';
 import { readRowsExpired, UnreadSession } from './client/unreadSession';
@@ -1705,6 +1705,7 @@ export const App: React.FC = () => {
       const latest = () => articleCache.current.get(article.id) ?? article;
       const phone = isMobile && window.matchMedia?.('(pointer: coarse)').matches === true;
       const articleFeed = subscriptions.find((sub) => sub.feed_id === article.feed_id);
+      const ask = (service: AskService) => { if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: askLink(service, article.url, false) }); else openAsk(service, article.url, phone, opensOriginalSeparately()); };
       // 메뉴는 묶음으로 나눈다: 읽기 상태 → 공유 → 원문 → 위아래 읽음 → 피드.
       const group = (...actions: (AppContextAction | false | null | undefined)[]) => {
         const shown = actions.filter((action): action is AppContextAction => Boolean(action));
@@ -1719,7 +1720,8 @@ export const App: React.FC = () => {
         // 휴대폰에서만 보인다(컴퓨터의 시스템 공유는 쓸모가 적다). 리트윗 표시(RT by @…)는 빼고 공유한다. 닫으면 아무것도 하지 않는다.
         phone && typeof navigator.share === 'function' && { id: 'share', label: t('공유', "Share"), quick: t('공유', 'Share'), run: () => navigator.share({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url }).catch((error) => { if (!(error instanceof Error && error.name === 'AbortError')) handleCopyLink(article.url); }) },
         { id: 'copy-link', label: t('링크 복사', "Copy link"), quick: t('링크', 'Link'), run: () => handleCopyLink(article.url) },
-        { id: 'grok', label: t('Grok에 묻기', "Ask Grok"), quick: 'Grok', run: () => { if (inNativeApp()) nativeBridge()?.postMessage({ type: 'openExternal', url: grokLink(article.url, false) }); else openGrok(article.url, phone, opensOriginalSeparately()); } },
+        { id: 'grok', label: t('Grok에 묻기', "Ask Grok"), quick: 'Grok', run: () => ask('grok') },
+        { id: 'chatgpt', label: t('ChatGPT에 묻기', "Ask ChatGPT"), quick: 'ChatGPT', run: () => ask('chatgpt') },
         { id: 'deepl-article', label: t('DeepL로 번역', "Translate in DeepL"), quick: t('번역', 'Translate'), run: () => { const current = latest(); openInDeepL(`${current.title}\n\n${htmlToText(current.full_content_html || current.content_html || `<p>${current.summary || ''}</p>`)}`); } },
       );
       group(

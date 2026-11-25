@@ -15,14 +15,20 @@ export function shareLinks({ title, url }: SharedArticle) {
   };
 }
 
+/** 글을 넘겨 물어볼 AI. 중간 페이지(/grok.html)도 이 두 곳으로만 넘긴다. */
+export type AskService = 'grok' | 'chatgpt';
+const ASK_BASE: Record<AskService, string> = { grok: 'https://grok.com/', chatgpt: 'https://chatgpt.com/' };
+
 /**
- * Grok에 묻기 주소. 질문창에 글 주소만 채운다. 휴대폰은 grok.com을 바로 열면 Grok 앱이 질문을 버리므로
- * 피드엑스의 중간 페이지(/grok.html)를 거친다. 그 페이지는 grok.com으로만 넘긴다.
+ * AI에 묻기 주소. 질문창에 글 주소만 채운다. 휴대폰은 서비스 주소를 바로 열면 그 앱이 질문을 버리므로
+ * 피드엑스의 중간 페이지(/grok.html)를 거친다.
  */
-export function grokLink(url: string, phone: boolean) {
+export function askLink(service: AskService, url: string, phone: boolean) {
   const query = new URLSearchParams({ q: url });
-  return phone ? `/grok.html?${query}` : `https://grok.com/?${query}`;
+  if (!phone) return `${ASK_BASE[service]}?${query}`;
+  return `/grok.html?${service === 'grok' ? '' : `to=${service}&`}${query}`;
 }
+export const grokLink = (url: string, phone: boolean) => askLink('grok', url, phone);
 
 // 다른 앱(Grok 등)으로 다녀오는 중인지. 돌아왔을 때 오래 떠나 있었다고 보고 읽은 행을 빼지 않게 한다.
 let externalTrip = 0;
@@ -35,19 +41,20 @@ export function tookExternalTrip(now = Date.now(), within = 60 * 60_000) {
 }
 
 /**
- * Grok에 묻기를 연다(맥·윈도우 앱은 부르는 쪽에서 기본 브라우저로 연다).
+ * AI(Grok·ChatGPT)에 묻기를 연다(맥·윈도우 앱은 부르는 쪽에서 기본 브라우저로 연다).
  * - 컴퓨터: 질문을 채운 grok.com을 새 탭으로 연다.
  * - 아이폰 홈 화면 앱: 피드엑스 페이지를 떠나지 않고 그 자리에서 스크립트로 grok.com을 열어 Grok 앱에 넘긴다.
  *   예전처럼 중간 페이지를 열면 그 페이지가 피드엑스를 대신해서, 돌아올 때 피드엑스가 처음부터 다시 떠 읽은 행이 사라졌다.
  *   누름과 이어지지 않게 잠깐 뒤에 넘겨야 Grok 앱이 질문까지 받는다.
  * - 그 밖의 휴대폰: 중간 페이지를 새 탭으로 연다.
  */
-export function openGrok(url: string, phone: boolean, standalone: boolean, win: Pick<Window, 'open' | 'setTimeout' | 'location'> = window) {
+export function openAsk(service: AskService, url: string, phone: boolean, standalone: boolean, win: Pick<Window, 'open' | 'setTimeout' | 'location'> = window) {
   noteExternalTrip();
-  if (!phone) { win.open(grokLink(url, false), '_blank', 'noopener,noreferrer'); return; }
-  if (standalone) { const target = grokLink(url, false); win.setTimeout(() => { win.location.href = target; }, 60); return; }
-  win.open(grokLink(url, true), '_blank', 'noopener,noreferrer');
+  if (!phone) { win.open(askLink(service, url, false), '_blank', 'noopener,noreferrer'); return; }
+  if (standalone) { const target = askLink(service, url, false); win.setTimeout(() => { win.location.href = target; }, 60); return; }
+  win.open(askLink(service, url, true), '_blank', 'noopener,noreferrer');
 }
+export const openGrok = (url: string, phone: boolean, standalone: boolean, win?: Pick<Window, 'open' | 'setTimeout' | 'location'>) => openAsk('grok', url, phone, standalone, win);
 
 /** Slap 데스크톱 앱(Chrome·Edge에 설치한 Slap)을 바로 여는 전용 주소. Slap 매니페스트의 protocol_handlers가 받는다. */
 export const slapAppLink = ({ title, url }: SharedArticle) => `web+slap:share?${new URLSearchParams({ url, title })}`;
