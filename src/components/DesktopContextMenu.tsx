@@ -65,6 +65,9 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
   const [dragging, setDragging] = useState<string | null>(null);
   const drag = useRef<{ id: string; grabX: number; grabY: number; x: number; y: number } | null>(null);
   const slots = useRef(new Map<string, [number, number]>());
+  // 순서를 바꾸기 직전에 각 칸이 실제로 보이던 자리. 미끄러지는 도중에 또 바뀌어도 보이는 자리에서 이어 움직인다.
+  const seen = useRef(new Map<string, [number, number]>());
+  const quickIdsNow = useRef(quickIds); quickIdsNow.current = quickIds;
   const SLIDE = 'transform 200ms cubic-bezier(.2,.8,.2,1), box-shadow 150ms ease';
   // 끄는 항목을 손가락 자리에 둔다. 레이아웃 위치(offsetLeft·offsetTop)는 변형과 상관없이 지금 칸의 자리다.
   const follow = (chip: HTMLElement) => {
@@ -78,7 +81,7 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
     const row = quickRow.current;
     if (!row) { slots.current.clear(); return; }
     for (const chip of row.querySelectorAll<HTMLElement>('[data-quick-id]')) {
-      const id = chip.dataset.quickId!, left = chip.offsetLeft, top = chip.offsetTop, before = slots.current.get(id);
+      const id = chip.dataset.quickId!, left = chip.offsetLeft, top = chip.offsetTop, before = seen.current.get(id) ?? slots.current.get(id);
       slots.current.set(id, [left, top]);
       if (drag.current?.id === id) { follow(chip); continue; }
       if (!before || (before[0] === left && before[1] === top)) continue;
@@ -86,6 +89,7 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       chip.style.transform = `translate(${before[0] - left}px, ${before[1] - top}px)`;
       requestAnimationFrame(() => { chip.style.transition = SLIDE; chip.style.transform = ''; });
     }
+    seen.current.clear();
   }, [quickIds, editingQuick, dragging]);
   const startDrag = (id: string, visible: string[]) => (event: React.PointerEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('[data-remove]') || (event.pointerType === 'mouse' && event.button !== 0)) return;
@@ -102,25 +106,26 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       if (!current) return;
       current.x = moved.clientX; current.y = moved.clientY;
       follow(chip);
-      // 끄는 항목의 가운데에서 가장 가까운 다른 칸을 찾고, 그 칸보다 오른쪽이면 뒤에, 왼쪽이면 앞에 넣는다.
+      // 들어갈 자리는 바뀌지 않는 격자(한 줄 4칸)로 정한다. 다른 칸의 지금 위치를 기준으로 삼으면 칸이 비켜날 때마다
+      // 기준도 바뀌어 두 자리 사이에서 왔다 갔다 한다.
       const area = row.getBoundingClientRect();
-      const cx = moved.clientX - current.grabX + chip.offsetWidth / 2, cy = moved.clientY - current.grabY + chip.offsetHeight / 2;
-      const others = [...row.querySelectorAll<HTMLElement>('[data-quick-id]')].filter((other) => other !== chip);
-      if (!others.length) return;
-      let nearest = 0, best = Infinity;
-      others.forEach((other, index) => {
-        const ox = area.left + other.offsetLeft + other.offsetWidth / 2, oy = area.top + other.offsetTop + other.offsetHeight / 2;
-        const distance = Math.hypot(ox - cx, oy - cy);
-        if (distance < best) { best = distance; nearest = index; }
-      });
-      const target = others[nearest];
-      const index = nearest + (cx > area.left + target.offsetLeft + target.offsetWidth / 2 ? 1 : 0);
-      setQuickIds((ids) => {
-        const order = ids.filter((item) => shownIds.has(item) && item !== id);
-        order.splice(index, 0, id);
-        const next = [...order, ...ids.filter((item) => !shownIds.has(item))];
-        return next.join() === ids.join() ? ids : next;
-      });
+      const cx = moved.clientX - current.grabX + chip.offsetWidth / 2 - area.left, cy = moved.clientY - current.grabY + chip.offsetHeight / 2 - area.top;
+      const gap = 8, cellWidth = (row.clientWidth + gap) / 4, cellHeight = chip.offsetHeight + gap;
+      const column = Math.min(3, Math.max(0, Math.floor(cx / cellWidth))), line = Math.max(0, Math.floor(cy / cellHeight));
+      const ids = quickIdsNow.current;
+      const order = ids.filter((item) => shownIds.has(item) && item !== id);
+      const index = Math.min(order.length, line * 4 + column);
+      order.splice(index, 0, id);
+      const next = [...order, ...ids.filter((item) => !shownIds.has(item))];
+      if (next.join() === ids.join()) return;
+      // 바꾸기 직전의 보이는 자리를 남긴다.
+      for (const other of row.querySelectorAll<HTMLElement>('[data-quick-id]')) {
+        if (other === chip) continue;
+        const box = other.getBoundingClientRect();
+        seen.current.set(other.dataset.quickId!, [box.left - area.left, box.top - area.top]);
+      }
+      quickIdsNow.current = next;
+      setQuickIds(next);
     };
     const finish = () => {
       drag.current = null;
