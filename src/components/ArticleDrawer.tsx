@@ -202,6 +202,8 @@ interface ArticleDrawerProps {
   opensDirectly?: boolean;
   /** 바로 열기를 고른다. 이 피드를 바로 열기로 기억하고 지금 글의 원문을 연다. */
   onOpenDirectly?: () => void;
+  /** 열자마자 AI 요약을 펼친다(길게 누르기 메뉴의 '요약'). */
+  summarizeOnOpen?: boolean;
   onNavigateRelative: (direction: 'prev' | 'next') => void;
   onCopyLink: (article: ArticleItem) => void;
   // 화면 아래에 잠깐 띄우는 안내.
@@ -274,6 +276,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   onChangeViewMode,
   opensDirectly = false,
   onOpenDirectly,
+  summarizeOnOpen = false,
   onNavigateRelative,
   onCopyLink,
   onNotice,
@@ -301,8 +304,12 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const summaryScope = `${accountId}:${article?.id || ''}`;
   const currentSummaryScope = useRef(summaryScope); currentSummaryScope.current = summaryScope;
   const [summaryError, setSummaryError] = useState('');
+  // '요약'으로 연 글은 요약을 바로 펼친다(저장된 요약이 없으면 새로 만든다). 요약 함수는 아래에서 정해 참조로 부른다.
+  const openSummary = useRef<() => void>(() => {});
+  const summarizeNow = useRef(summarizeOnOpen); summarizeNow.current = summarizeOnOpen;
   useEffect(() => {
     setAiOpen(Boolean(currentAiSummary) && mode !== 'web'); setSummarizing(false); setSummaryError('');
+    if (summarizeNow.current && article) openSummary.current();
     return () => { summaryRequest.current?.abort(); summaryRequest.current = null; };
   }, [summaryScope]);
   // 번역. 피드 보기는 피드 본문을, 리더·웹 보기는 원문 본문을 번역해 같은 자리에 보여 준다.
@@ -799,6 +806,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     } finally {
       if (summaryRequest.current === controller) { summaryRequest.current = null; setSummarizing(false); }
     }
+  };
+  openSummary.current = () => {
+    setAiOpen(true);
+    if (!currentAiSummary || (!xPost && mode !== 'feed' && !isCurrentSummary(currentAiSummary, 'full'))) void handleSummarizeAI();
   };
   const toggleAiSummary = () => {
     if (aiOpen || summaryRequest.current) {

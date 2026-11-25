@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Archive, ArrowDownToLine, ArrowUpToLine, Bookmark, BookOpen, Share2, CheckCheck, CheckCircle2, Circle, Copy, ExternalLink, FolderInput, FolderOpen, FolderX, History, Languages, Link2, ListFilter, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, UserRoundMinus, type LucideIcon } from 'lucide-react';
+import { Archive, Sparkles, ArrowDownToLine, ArrowUpToLine, Bookmark, BookOpen, Share2, CheckCheck, CheckCircle2, Circle, Copy, ExternalLink, FolderInput, FolderOpen, FolderX, History, Languages, Link2, ListFilter, Newspaper, Pause, Pencil, Play, Plus, RefreshCw, Rss, UserRoundMinus, type LucideIcon } from 'lucide-react';
 import { bindLongPress } from '../client/longPress';
 import { t } from '../shared/i18n';
 import { GrokLogo } from './GrokLogo';
 import { ChatGptLogo } from './ChatGptLogo';
+import { ClaudeLogo } from './ClaudeLogo';
 
 export interface AppContextTarget { articleId?: string; folderId?: string; feedId?: string; link?: string; selection?: string }
 export interface AppContextAction { id: string; label: string; run: () => void | Promise<unknown>; danger?: boolean; separator?: boolean;
@@ -18,7 +19,7 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   'open-feed': Newspaper, 'mark-feed': CheckCheck, 'move-feed': FolderInput, updates: Pause,
   unsubscribe: UserRoundMinus, 'open-folder': FolderOpen, 'mark-folder': CheckCheck, 'delete-folder': FolderX,
   'open-original': ExternalLink, 'copy-link': Link2, all: Archive, refresh: RefreshCw, add: Plus,
-  'deepl-selection': Languages, 'deepl-article': Languages, 'open-in-app': BookOpen, share: Share2, 'read-above': ArrowUpToLine, 'read-below': ArrowDownToLine, grok: GrokLogo as unknown as LucideIcon, chatgpt: ChatGptLogo as unknown as LucideIcon,
+  'deepl-selection': Languages, 'deepl-article': Languages, 'open-in-app': BookOpen, share: Share2, 'read-above': ArrowUpToLine, 'read-below': ArrowDownToLine, grok: GrokLogo as unknown as LucideIcon, chatgpt: ChatGptLogo as unknown as LucideIcon, claude: ClaudeLogo as unknown as LucideIcon, summary: Sparkles,
 };
 export function contextMenuIcon(item: Pick<AppContextAction, 'id' | 'label'>): LucideIcon {
   if (item.id === 'updates' && (item.label.includes('다시') || item.label.startsWith('Resume'))) return Play;

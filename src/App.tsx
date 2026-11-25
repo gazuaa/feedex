@@ -1009,6 +1009,8 @@ export const App: React.FC = () => {
 
   // 바로 열기는 이 기기에만 저장하므로, 바꿨을 때 다시 그리도록 버전을 둔다.
   const [, setDirectFeedsVersion] = useState(0);
+  // 길게 누르기 메뉴의 '요약'으로 연 글. 그 글 화면이 열리면 AI 요약을 바로 펼친다.
+  const [summarizeArticleId, setSummarizeArticleId] = useState<string | null>(null);
   // 원문 바로 열기는 기기마다 피드별로 둔다. X 계정은 보기 방식처럼 모든 X 계정이 하나의 설정을 함께 쓴다.
   const directKey = useCallback((feedId: string) => isXProfileFeed(subscriptions.find((sub) => sub.feed_id === feedId)?.xml_url) ? 'x-accounts' : feedId, [subscriptions]);
   const readDirect = useCallback((feedId: string) => {
@@ -1722,6 +1724,9 @@ export const App: React.FC = () => {
         { id: 'copy-link', label: t('링크 복사', "Copy link"), quick: t('링크', 'Link'), run: () => handleCopyLink(article.url) },
         { id: 'grok', label: t('Grok에 묻기', "Ask Grok"), quick: 'Grok', run: () => ask('grok') },
         { id: 'chatgpt', label: t('ChatGPT에 묻기', "Ask ChatGPT"), quick: 'ChatGPT', run: () => ask('chatgpt') },
+        { id: 'claude', label: t('Claude에 묻기', "Ask Claude"), quick: 'Claude', run: () => ask('claude') },
+        // 글을 앱 안에서 열고 피드엑스 AI 요약을 바로 펼친다.
+        { id: 'summary', label: t('AI 요약 보기', "AI summary"), quick: t('요약', 'Summary'), run: () => { setSummarizeArticleId(article.id); handleSelectArticle(latest(), true); } },
         { id: 'deepl-article', label: t('DeepL로 번역', "Translate in DeepL"), quick: t('번역', 'Translate'), run: () => { const current = latest(); openInDeepL(`${current.title}\n\n${htmlToText(current.full_content_html || current.content_html || `<p>${current.summary || ''}</p>`)}`); } },
       );
       group(
@@ -1849,6 +1854,7 @@ export const App: React.FC = () => {
               viewMode={selectedViewMode}
               onChangeViewMode={(mode) => selectedArticle && handleChangeViewMode(selectedArticle.feed_id, mode)}
               opensDirectly={Boolean(selectedArticle && readDirect(selectedArticle.feed_id))}
+              summarizeOnOpen={Boolean(selectedArticle && summarizeArticleId === selectedArticle.id)}
               onOpenDirectly={() => selectedArticle && handleOpenDirectly(selectedArticle)}
               onNavigateRelative={handleNavigateRelative}
               onCopyLink={(article) => handleCopyLink(article.url)}
