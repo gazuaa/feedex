@@ -54,12 +54,33 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
   const [notice, setNotice] = useState('');
   const [quickIds, setQuickIds] = useState<string[]>(readQuick);
   const [editingQuick, setEditingQuick] = useState(false);
-  const toggleQuick = (id: string) => setQuickIds((ids) => {
-    // 개수 제한은 화면에서 막는다(이 기기에 없는 후보는 세지 않는다).
-    const next = ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id];
-    saveQuick(next);
-    return next;
-  });
+  const addQuick = (id: string) => setQuickIds((ids) => { const next = ids.includes(id) ? ids : [...ids, id]; saveQuick(next); return next; });
+  const removeQuick = (id: string) => setQuickIds((ids) => { const next = ids.filter((item) => item !== id); saveQuick(next); return next; });
+  // 편집 중인 빠른 실행 줄은 항목을 좌우로 끌어 순서를 바꾼다. 끄는 동안 손가락이 지난 자리로 바로 옮기고, 손을 떼면 남긴다.
+  const quickRow = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const startDrag = (id: string, visible: string[]) => (event: React.PointerEvent<HTMLDivElement>) => {
+    if ((event.target as Element).closest('[data-remove]') || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    event.preventDefault();
+    setDragging(id);
+    const shownIds = new Set(visible);
+    const move = (moved: PointerEvent) => {
+      const chips = [...(quickRow.current?.querySelectorAll<HTMLElement>('[data-quick-id]') ?? [])].filter((chip) => chip.dataset.quickId !== id);
+      const index = chips.filter((chip) => { const box = chip.getBoundingClientRect(); return box.left + box.width / 2 < moved.clientX; }).length;
+      setQuickIds((ids) => {
+        const order = ids.filter((item) => shownIds.has(item) && item !== id);
+        order.splice(index, 0, id);
+        const next = [...order, ...ids.filter((item) => !shownIds.has(item))];
+        return next.join() === ids.join() ? ids : next;
+      });
+    };
+    const finish = () => {
+      setDragging(null);
+      setQuickIds((ids) => { saveQuick(ids); return ids; });
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', finish); window.removeEventListener('pointercancel', finish);
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', finish); window.addEventListener('pointercancel', finish);
+  };
   const ref = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -140,7 +161,11 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       // 번호와 개수 제한은 이 기기에 있는 후보만 센다(시스템 공유가 없는 브라우저 등).
       return <>
         {menu.heading && <div className="feedex-context-heading"><div><strong>{menu.heading.title}</strong>{menu.heading.detail && <small>{menu.heading.detail}</small>}</div>{candidates.length > 0 && <button type="button" className="feedex-context-edit" aria-pressed={editingQuick} onClick={() => setEditingQuick((value) => !value)}>{editingQuick ? t('완료', 'Done') : t('편집', 'Edit')}</button>}</div>}
-        {editingQuick && candidates.length > 0 ? <div className="feedex-context-quick-edit"><p>{t(`위에 보일 항목을 누른 순서대로 골라요 (최대 ${QUICK_MAX}개)`, `Pick the shortcuts to show, in order (up to ${QUICK_MAX})`)}</p><div>{candidates.map((item) => { const Icon = contextMenuIcon(item); const order = shown.indexOf(item); return <button key={item.id} type="button" aria-pressed={order >= 0} disabled={order < 0 && shown.length >= QUICK_MAX} onClick={() => toggleQuick(item.id)}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span>{order >= 0 && <b aria-hidden="true">{order + 1}</b>}</button>; })}</div></div>
+        {editingQuick && candidates.length > 0 ? <div className="feedex-context-quick-edit">
+          <p>{t('끌어서 순서를 바꾸고, −를 눌러 빼요', 'Drag to reorder, tap − to remove')}</p>
+          <div ref={quickRow} className="feedex-context-quick feedex-quick-chosen">{shown.map((item) => { const Icon = contextMenuIcon(item); return <div key={item.id} data-quick-id={item.id} data-dragging={dragging === item.id || undefined} onPointerDown={startDrag(item.id, shown.map((entry) => entry.id))}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span><button type="button" data-remove aria-label={t(`${item.label} 빼기`, `Remove ${item.label}`)} onClick={() => removeQuick(item.id)}>−</button></div>; })}</div>
+          {candidates.some((item) => !shown.includes(item)) && <><p>{t(`더할 수 있는 항목 (최대 ${QUICK_MAX}개)`, `More shortcuts (up to ${QUICK_MAX})`)}</p><div className="feedex-quick-more">{candidates.filter((item) => !shown.includes(item)).map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" disabled={shown.length >= QUICK_MAX} aria-label={t(`${item.label} 더하기`, `Add ${item.label}`)} onClick={() => addQuick(item.id)}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span><b aria-hidden="true">+</b></button>; })}</div></>}
+        </div>
           : shown.length > 0 && <div className="feedex-context-quick">{shown.map((item) => { const Icon = contextMenuIcon(item); return <button key={item.id} type="button" role="menuitem" aria-label={item.label} onClick={() => choose(item)}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span></button>; })}</div>}
       </>;
     })()}
