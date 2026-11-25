@@ -164,7 +164,8 @@ export function bindWebPager(pager: HTMLElement, onBack: () => void, closes: () 
       slide = presentReaderSlide(pager.ownerDocument);
       const reader = pager.closest<HTMLElement>('.feedex-article-reader');
       const background = reader ? view.getComputedStyle(reader).backgroundColor : '';
-      canTrail = background === 'transparent' || /^rgba\(.*,\s*0\)$/.test(background);
+      // 사이트 위에 요약·번역 안내 칸이 떠 있으면 리더를 뒤에 두지 않는다. 그 칸은 리더에 붙어 있어 사이트보다 뒤처져 어긋나 보인다.
+      canTrail = (background === 'transparent' || /^rgba\(.*,\s*0\)$/.test(background)) && !reader?.querySelector('.feedex-web-summary, .feedex-translation-feedback');
     }
     if (slide) {
       const behind = trailing && canTrail ? Math.max(0, dx - READER_LEAD) : dx;
