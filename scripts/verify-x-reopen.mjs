@@ -66,10 +66,11 @@ try{
   assert.ok([...window.document.querySelectorAll('iframe')].some(frame => (frame.getAttribute('srcdoc') ?? frame.getAttribute('srcDoc') ?? '').includes('Original parent and reply')),
     '원글이 빠진 사본을 받으면 사용자가 다시 누르기 전에 원글을 다시 받는다.');
   const originalFetch = globalThis.fetch;
-  let submitted;
+  let submitted, translationRequests = 0, consumed = 0;
   try {
     globalThis.fetch = async (url, init) => {
       assert.equal(url, `/api/articles/${reply.id}/translate`);
+      translationRequests++;
       submitted = JSON.parse(init.body);
       const html = [
         '<article class="post before"><p>원글 작성자</p><p>원글 본문 번역</p><div class="quote"><a href="https://x.com/quoted/status/3">' + '원글에 달린 긴 인용글의 번역입니다. '.repeat(12) + '</a></div></article>',
@@ -78,11 +79,19 @@ try{
       ].join('');
       return Response.json({ title: '번역 제목', html, provider: 'deepl', bodySource: 'full' });
     };
-    await act(async () => { window.document.querySelector('button[aria-label="번역"]').click(); });
+    const onTranslateOnOpen = () => { consumed++; renderReply(undefined); };
+    const renderReply = (request) => root.render(React.createElement(ArticleDrawer, { ...props, resources: retryResources, key: reply.id, article: reply, onTranslateOnOpen: request }));
+    await act(async () => { renderReply(onTranslateOnOpen); });
+    assert.equal(consumed, 1);
     assert.deepEqual(submitted.xThread, { html: readyThread.html, proof: readyThread.translationProof });
     const translatedBody = window.document.querySelector('.feedex-article-content');
     assert.match(translatedBody.textContent, /^원글 작성자원글 본문 번역원글에 달린 긴 인용글[\s\S]*중간 댓글 번역선택한 댓글 번역/,
       '긴 인용글이 링크여도 원글을 삭제하지 않고 대화 순서대로 보여 준다.');
+    await act(async () => { window.document.querySelector('.feedex-translation-bar button').click(); });
+    assert.equal(window.document.querySelector('.feedex-translation-bar'), null);
+    await act(async () => { window.document.querySelector('button[aria-label="번역"]').click(); });
+    assert.ok(window.document.querySelector('.feedex-translation-bar'));
+    assert.equal(translationRequests, 1, '원문으로 돌아갔다가 다시 번역을 켜도 같은 번역을 쓴다.');
   } finally { globalThis.fetch = originalFetch; }
   const { XPostPanel } = await vite.ssrLoadModule('/src/components/XPostPanel.tsx');
   const quotedUrl = 'https://x.com/quoted/status/42';

@@ -3,7 +3,7 @@ import { parseHTML } from 'linkedom';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { xVideoHtml } from '../shared/xMedia';
 import { originalUrl, providers, readFeed, restProvider, restingUntil } from './xFeed';
-import { X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
+import { xThreadAuthorLink, X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
 import { lang, t } from '../shared/i18n';
 export { isXStatusUrl as xStatusUrl } from '../shared/xFeed';
 
@@ -206,7 +206,7 @@ export function xThreadTranslationBody(html: string): string {
   const { document } = parseHTML(html);
   const main = document.querySelector('main');
   if (!main?.querySelector('article.post.main')) return '';
-  main.querySelectorAll('.avatar, .mini, .stats, .replying, .more, .empty').forEach(node => node.remove());
+  main.querySelectorAll('.avatar-link, .avatar, .mini, .stats, .replying, .more, .empty').forEach(node => node.remove());
   main.querySelectorAll('.who').forEach(node => node.setAttribute('translate', 'no'));
   for (const text of main.querySelectorAll('.text')) {
     if (text.querySelector('p')) continue;
@@ -226,8 +226,8 @@ export function xThreadSummaryPosts(html: string) {
     kind: post.classList.contains('main') ? 'selected' : post.classList.contains('before') ? 'before' : 'after',
     body: post.querySelector('.body > .text')?.innerHTML || '',
     quote: post.querySelector('.quote-post .text')?.innerHTML || '',
-    author: post.querySelector('.body > .who > span')?.textContent?.trim() || '',
-    quoteAuthor: post.querySelector('.quote-post .who > span')?.textContent?.trim() || '',
+    author: post.querySelector('.body > .who span')?.textContent?.trim() || '',
+    quoteAuthor: post.querySelector('.quote .who span')?.textContent?.trim() || '',
   } as const));
 }
 
@@ -238,7 +238,7 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     const mapped = originalUrl(value.replace(/#m$/, ''), provider, hosts).replace(/#m$/, '');
     return /^https?:\/\//i.test(mapped) ? mapped : null;
   };
-  // 글 본문은 글자·링크·줄바꿈만 남긴다. 인용 글은 상자 전체가 링크라 그 안의 링크는 글자로 둔다.
+  // 글 본문은 글자·링크·줄바꿈만 남긴다. 인용 글 본문은 하나의 링크라 그 안의 링크는 글자로 둔다.
   // 링크 안에 링크를 넣으면 브라우저가 바깥 링크를 거기서 닫아, 나머지 글이 상자 밖으로 흘러나온다.
   const rich = (element: Element | null, inLink = false): string => {
     if (!element) return '';
@@ -286,11 +286,13 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     const box = item.querySelector('.quote');
     if (!box) return '';
     const href = link(box.querySelector('.quote-link')?.getAttribute('href') || null);
-    const name = escape(box.querySelector('.fullname')?.textContent?.trim() || ''), user = escape(box.querySelector('.username')?.textContent?.trim() || '');
+    const name = escape(box.querySelector('.fullname')?.textContent?.trim() || ''), user = box.querySelector('.username')?.textContent?.trim() || '';
     const attachments = box.querySelector('.quote-media-container, .attachments');
     const avatar = link(box.querySelector('img.avatar')?.getAttribute('src') || null);
     const quoteMedia = (attachments ? media(box, href || statusUrl, kind, attachments) : '') || (kind === 'main' ? feedQuoteMedia(feedHtml) : '');
-    return `<div class="quote"><a class="quote-post" href="${escape(href || statusUrl)}"><span class="who">${avatar ? `<img class="mini" src="${escape(avatar)}" alt=""${lazy(kind)}>` : ''}<b>${name}</b> <span>${user}</span></span><span class="text">${rich(box.querySelector('.quote-text'), true)}</span></a>${quoteMedia}</div>`;
+    const author = xThreadAuthorLink(user, `${avatar ? `<img class="mini" src="${escape(avatar)}" alt=""${lazy(kind)}>` : ''}<b>${name}</b> <span>${escape(user)}</span>`);
+    const text = rich(box.querySelector('.quote-text'), true) || t('인용 글 열기', 'Open quoted post');
+    return `<div class="quote"><span class="who">${author}</span><a class="quote-post" href="${escape(href || statusUrl)}"><span class="text">${text}</span></a>${quoteMedia}</div>`;
   };
   const stats = (item: Element) => {
     const labels: Record<string, string> = { 'icon-comment': t('댓글', 'Replies'), 'icon-retweet': t('재게시', 'Reposts'), 'icon-quote': t('인용', 'Quotes'), 'icon-heart': t('좋아요', 'Likes'), 'icon-views': t('조회', 'Views') };
@@ -305,7 +307,7 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     const header = item.querySelector('.tweet-header');
     const avatar = link(header?.querySelector('img.avatar')?.getAttribute('src') || null);
     const name = escape(header?.querySelector('.fullname')?.textContent?.trim() || '');
-    const user = escape(header?.querySelector('.username')?.textContent?.trim() || '');
+    const user = header?.querySelector('.username')?.textContent?.trim() || '';
     const date = header?.querySelector('.tweet-date a');
     const href = link(date?.getAttribute('href') || null) || statusUrl;
     const when = escape(kind === 'main' ? item.querySelector('.tweet-published')?.textContent?.trim() || date?.getAttribute('title') || '' : date?.textContent?.trim() || '');
@@ -322,8 +324,10 @@ function threadDocument(document: Element, main: Element, provider: string, stat
           : escape(feedQuote).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}">${u}</a>`).replace(/\n/g, '<br>');
       }
     }
-    return `<article class="post ${kind}">${avatar ? `<img class="avatar" src="${escape(avatar)}" alt=""${lazy(kind)}>` : '<span class="avatar"></span>'}<div class="body">`
-      + `<p class="who"><b>${name}</b> <span>${user}</span> · <a href="${escape(href)}" title="${escape(date?.getAttribute('title') || '')}">${when}</a></p>`
+    const portrait = avatar ? xThreadAuthorLink(user, `<img class="avatar" src="${escape(avatar)}" alt=""${lazy(kind)}>`, true) : '<span class="avatar"></span>';
+    const author = xThreadAuthorLink(user, `<b>${name}</b> <span>${escape(user)}</span>`);
+    return `<article class="post ${kind}">${portrait}<div class="body">`
+      + `<p class="who">${author} · <a href="${escape(href)}" title="${escape(date?.getAttribute('title') || '')}">${when}</a></p>`
       + (replying ? `<p class="replying">${rich(replying)}</p>` : '')
       + `<div class="text">${contentHtml}</div>${media(item, href, kind)}${card(item, kind)}${quote(item, kind)}${stats(item)}</div></article>`;
   };

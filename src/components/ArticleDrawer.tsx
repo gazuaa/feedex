@@ -210,6 +210,8 @@ interface ArticleDrawerProps {
   onOpenDirectly?: () => void;
   /** 열자마자 AI 요약을 펼친다(길게 누르기 메뉴의 '요약'). */
   summarizeOnOpen?: boolean;
+  /** 목록에서 번역으로 열면 본문 번역을 시작하고 요청을 비운다. */
+  onTranslateOnOpen?: () => void;
   onNavigateRelative: (direction: 'prev' | 'next') => void;
   onCopyLink: (article: ArticleItem) => void;
   // 화면 아래에 잠깐 띄우는 안내.
@@ -283,6 +285,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   opensDirectly = false,
   onOpenDirectly,
   summarizeOnOpen = false,
+  onTranslateOnOpen,
   onNavigateRelative,
   onCopyLink,
   onNotice,
@@ -328,12 +331,24 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const [translated, setTranslated] = useState(false);
   const [translationError, setTranslationError] = useState('');
   const translateRequest = useRef<AbortController | null>(null);
+  const openTranslation = useRef<() => void>(() => {});
   const translationSource: 'full' | 'feed' = mode === 'feed' ? 'feed' : 'full';
   const showTranslation = translated && Boolean(article) && translation?.articleId === article?.id && translation?.source === translationSource;
   useEffect(() => {
     setTranslated(false); setTranslating(false); setTranslationError('');
     return () => { translateRequest.current?.abort(); translateRequest.current = null; };
   }, [summaryScope, translationSource]);
+  useEffect(() => {
+    if (!onTranslateOnOpen) return;
+    let active = true;
+    // 개발 모드에서 첫 효과를 다시 실행할 때도 요청은 한 번만 시작한다.
+    queueMicrotask(() => {
+      if (!active) return;
+      openTranslation.current();
+      onTranslateOnOpen();
+    });
+    return () => { active = false; };
+  }, [onTranslateOnOpen, summaryScope, translationSource]);
   // 웹 보기에서 번역을 보여 주는 동안은 사이트 대신 글을 그린다.
   const siteShown = mode === 'web' && !showTranslation;
   const isMobile = useMobileViewport();
@@ -764,13 +779,17 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       if (translateRequest.current === controller) { translateRequest.current = null; setTranslating(false); }
     }
   };
-  const toggleTranslation = () => {
-    if (translating) { translateRequest.current?.abort(); translateRequest.current = null; setTranslating(false); return; }
-    if (showTranslation) { setTranslated(false); return; }
+  openTranslation.current = () => {
+    if (translateRequest.current || showTranslation) return;
     // 이미 받아 둔 번역은 다시 요청하지 않는다.
     const sameThread = !xPost || translationSource === 'feed' || !completeThread?.translationProof || completeThread.translationProof === translation?.threadProof;
     if (translation?.articleId === article.id && translation.source === translationSource && sameThread) { setTranslated(true); return; }
     void handleTranslate();
+  };
+  const toggleTranslation = () => {
+    if (translating) { translateRequest.current?.abort(); translateRequest.current = null; setTranslating(false); return; }
+    if (showTranslation) { setTranslated(false); return; }
+    openTranslation.current();
   };
   const translateAction = translating ? t('번역 취소', 'Cancel translation') : showTranslation ? t('원문 보기', 'Show original') : t('번역', 'Translate');
   const canOpenArticleInDeepL = !xPost || translationSource === 'feed' || Boolean(completeThread);

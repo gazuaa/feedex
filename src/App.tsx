@@ -42,7 +42,7 @@ import { useStatusBarTap } from './client/statusBarTap';
 import { mobileOriginalArticle, opensOriginalSeparately, originalArticleUrl } from './client/originalWindow';
 import { NativeHandoff } from './components/NativeHandoff';
 import { inNativeApp, inNativeSignInWindow, nativeBridge } from './client/nativeApp';
-import { htmlToText, openInDeepL } from './client/deeplWeb';
+import { openInDeepL } from './client/deeplWeb';
 import { MobileHeader, MobileDock, type LibraryTab } from './components/MobileChrome';
 import { MobileLibrary } from './components/MobileLibrary';
 import { ReaderCache, articlePageKey, updateCounts, updateSubscription, type ArticlePage } from './client/readerCache';
@@ -172,6 +172,8 @@ export const App: React.FC = () => {
   // 글 목록과 리더 상태
   const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+  const [translateArticleId, setTranslateArticleId] = useState<string | null>(null);
+  const consumeTranslationRequest = useCallback(() => setTranslateArticleId(null), []);
   const articleCache = useRef(new Map<string, ArticleItem>());
   const [showBlockedArticles, setShowBlockedArticles] = useState(false);
   const [xPostTarget, setXPostTarget] = useState<XPostTarget | null>(null);
@@ -250,6 +252,7 @@ export const App: React.FC = () => {
     search: searchQuery, unread: unreadOnly, saved: savedOnly, articleId: selectedArticleId, library: mobileSidebarOpen,
   }, (location, scroll) => {
     pendingScroll.current = scroll;
+    setTranslateArticleId(null);
     setActiveScope(location.scope);
     setActiveFolderId(location.folderId);
     setActiveFeedId(location.feedId);
@@ -263,6 +266,7 @@ export const App: React.FC = () => {
   const closeReader = useCallback(() => {
     setXPostTarget(null);
     setSelectedArticleId(null);
+    setTranslateArticleId(null);
   }, []);
   const [markReadTarget, setMarkReadTarget] = useState<{
     scope: ScopeType;
@@ -1037,13 +1041,14 @@ export const App: React.FC = () => {
   }, [isMobile, readDirect, subscriptions, user]);
 
   const handleSelectArticle = useCallback(
-    (article: ArticleItem, inApp = false) => {
+    (article: ArticleItem, openWith: 'default' | 'in-app' | 'translation' = 'default') => {
       // 목록의 묶인 행은 화면용 복사본이다. 캐시에는 원래 글을 둔다.
       article = articleCache.current.get(article.id) ?? withoutReposters(article);
       articleCache.current.set(article.id, article);
       const original = isMobile && !inNativeApp() ? mobileOriginalArticle(article.url) : null;
       // 바로 열기 글은 목록에서 누르면 원문 페이지를 연다. 글을 보던 중 이전·다음 글로 옮길 때는 앱 안에서 이어 본다.
-      if (!inApp && !selectedArticleId && opensOriginalFromList(article) && openOriginalDirectly(article, original ?? undefined)) return;
+      if (openWith === 'default' && !selectedArticleId && opensOriginalFromList(article) && openOriginalDirectly(article, original ?? undefined)) return;
+      setTranslateArticleId(openWith === 'translation' ? article.id : null);
       setXPostTarget(null);
       setSelectedArticleId(article.id);
       if (!article.is_read) {
@@ -1729,13 +1734,13 @@ export const App: React.FC = () => {
         { id: 'claude', label: t('Claude에 묻기', "Ask Claude"), quick: 'Claude', run: () => ask('claude') },
         { id: 'gemini', label: t('Gemini에 묻기', "Ask Gemini"), quick: 'Gemini', run: () => ask('gemini') },
         // 글을 앱 안에서 열고 피드엑스 AI 요약을 바로 펼친다.
-        { id: 'summary', label: t('AI 요약 보기', "AI summary"), quick: t('요약', 'Summary'), run: () => { setSummarizeArticleId(article.id); handleSelectArticle(latest(), true); } },
-        { id: 'deepl-article', label: t('DeepL로 번역', "Translate in DeepL"), quick: t('번역', 'Translate'), run: () => { const current = latest(); openInDeepL(`${current.title}\n\n${htmlToText(current.full_content_html || current.content_html || `<p>${current.summary || ''}</p>`)}`); } },
+        { id: 'summary', label: t('AI 요약 보기', "AI summary"), quick: t('요약', 'Summary'), run: () => { setSummarizeArticleId(article.id); handleSelectArticle(latest(), 'in-app'); } },
+        { id: 'deepl-article', label: t('번역', 'Translate'), quick: t('번역', 'Translate'), run: () => handleSelectArticle(latest(), 'translation') },
       );
       group(
         { id: 'open-original', label: phone ? t('원문 열기', "Open original") : t('원문 새 탭에서 열기', "Open original in new tab"), run: () => { window.open(article.url, '_blank', 'noopener,noreferrer'); } },
         // 원문으로 바로 여는 피드를 다시 앱 안에서 열게 한다. 이 피드의 바로 열기를 끄므로 보이는 보기 탭대로 다음에도 앱에서 열린다.
-        opensOriginalFromList(article) && { id: 'open-in-app', label: t('앱에서 열기', "Open in FeedEx"), run: () => { saveDirect(article.feed_id, false); handleSelectArticle(latest(), true); } },
+        opensOriginalFromList(article) && { id: 'open-in-app', label: t('앱에서 열기', "Open in FeedEx"), run: () => { saveDirect(article.feed_id, false); handleSelectArticle(latest(), 'in-app'); } },
       );
       // 목록에서 이 글보다 위나 아래의 글을 한 번에 읽음 처리한다(확인을 받는다).
       const at = listedArticles.findIndex((row) => row.id === article.id);
@@ -1858,6 +1863,7 @@ export const App: React.FC = () => {
               onChangeViewMode={(mode) => selectedArticle && handleChangeViewMode(selectedArticle.feed_id, mode)}
               opensDirectly={Boolean(selectedArticle && readDirect(selectedArticle.feed_id))}
               summarizeOnOpen={Boolean(selectedArticle && summarizeArticleId === selectedArticle.id)}
+              onTranslateOnOpen={selectedArticle && translateArticleId === selectedArticle.id ? consumeTranslationRequest : undefined}
               onOpenDirectly={() => selectedArticle && handleOpenDirectly(selectedArticle)}
               onNavigateRelative={handleNavigateRelative}
               onCopyLink={(article) => handleCopyLink(article.url)}

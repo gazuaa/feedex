@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { createHash } from 'node:crypto';
+import { parseHTML } from 'linkedom';
 import { createServer } from 'vite';
 
 const vite = await createServer({ configFile: false, server: { middlewareMode: true, ws: false }, appType: 'custom', logLevel: 'silent' });
@@ -311,9 +312,16 @@ try {
   const mainPart = copyHtml.slice(copyHtml.indexOf('<article class="post main">'), copyHtml.indexOf('<section class="replies">'));
   assert.match(mainPart, /<img class="avatar" src="[^"]+" alt="">/); assert.match(mainPart, /<a class="photo" [^>]+><img src="[^"]+" alt="">/);
   assert.doesNotMatch(mainPart, /loading="lazy"/, 'the first screen does not wait to load its pictures');
-  assert.match(copyHtml.slice(copyHtml.indexOf('<section class="replies">')), /<article class="post reply"><img class="avatar" src="[^"]+" alt="" loading="lazy">/, 'reply pictures still load lazily');
-  // 인용 글 상자 전체가 링크이므로, 그 안의 링크는 글자로 둔다. 링크가 겹치면 남은 글이 상자 밖으로 흘러나온다.
-  assert.match(copyHtml, /<div class="quote"><a class="quote-post" href="https:\/\/x\.com\/quoted\/status\/1999">(?:(?!<a |<\/a>)[\s\S])*<span class="link">@HSBC<\/span>’s rest of quote<\/span><\/a><div class="media">/);
+  const { document: thread } = parseHTML(copyHtml);
+  for (const [selector, handle] of [['.post.main > .avatar-link', 'nasa'], ['.post.main .who > a:first-child', 'nasa'], ['.post.reply > .avatar-link', 'fan'], ['.post.reply .who > a:first-child', 'fan'], ['.quote .who a', 'quoted']]) {
+    const profile = thread.querySelector(selector);
+    assert.equal(profile?.getAttribute('href'), `https://x.com/${handle}`);
+    assert.equal(profile?.getAttribute('target'), '_blank');
+    assert.equal(profile?.getAttribute('rel'), 'noopener noreferrer');
+  }
+  assert.equal(thread.querySelector('.post.reply .avatar')?.getAttribute('loading'), 'lazy');
+  // 인용 글 본문의 링크는 글자로 둬서 프로필 링크와 글 링크가 겹치지 않게 한다.
+  assert.match(copyHtml, /<a class="quote-post" href="https:\/\/x\.com\/quoted\/status\/1999">(?:(?!<a |<\/a>)[\s\S])*<span class="link">@HSBC<\/span>’s rest of quote<\/span><\/a><div class="media">/);
   assert.ok(copyHtml.includes('data-hls-src="https://video.twimg.com/amplify_video/99/pl/movie.m3u8?tag=1"'));
   assert.ok(copyHtml.includes('controls preload="none" playsinline'));
   assert.ok(copyHtml.includes((await vite.ssrLoadModule('/src/shared/xThreadStyle.ts')).X_THREAD_MARK), '지금 방식의 사본이라는 표시를 단다.');
@@ -352,7 +360,7 @@ try {
   } finally { Date.now = pagelessNow; }
   await assert.rejects(fetchXThread('https://x.com/nasa'), /X 글 주소/);
   // 인용한 글의 글쓴이 사진도 넣는다.
-  assert.match(copyHtml, /<span class="who"><img class="mini" src="https:\/\/pbs\.twimg\.com\/profile_images\/q\/quoted_mini\.jpg"/);
+  assert.equal(thread.querySelector('.quote .who a img.mini')?.getAttribute('src'), 'https://pbs.twimg.com/profile_images/q/quoted_mini.jpg');
   // 답글인데 미러가 원글을 못 불러오면 다른 미러를 보고, 그래도 없으면 안내를 단 사본을 저장하지 말라고 알린다.
   const parentNow = Date.now; Date.now = () => parentNow() + 2 * 3600_000;
   try {

@@ -1,13 +1,24 @@
+import { xProfile } from './xFeed';
+
 // X 글 웹 사본의 모양. 서버가 만든 사본과 기기가 먼저 그리는 미리보기가 같이 쓴다.
 // 사본을 만드는 방식이 바뀌면 숫자를 올린다. 기기는 이 표시가 없는 저장 사본을 버리고 새로 받는다.
-export const X_THREAD_MARK = '<meta name="sfeed-x-thread" content="7">';
+export const X_THREAD_MARK = '<meta name="sfeed-x-thread" content="8">';
+
+/** 검증된 계정으로 연결한다. HTML은 호출하는 쪽에서 먼저 이스케이프한다. */
+export function xThreadAuthorLink(handle: string, html: string, avatar = false): string {
+  const profile = xProfile(`@${handle.replace(/^@/, '')}`);
+  if (!profile) return html;
+  const imageLink = avatar ? ` class="avatar-link" aria-label="@${profile.username}"` : '';
+  return `<a${imageLink} href="${profile.url}" target="_blank" rel="noopener noreferrer">${html}</a>`;
+}
+
 export const X_THREAD_STYLE = `
 *{box-sizing:border-box}body{margin:0;background:#fff;color:#0f1419;font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
 main{max-width:640px;margin:0 auto;padding:8px 16px 32px}a{color:#1d9bf0;text-decoration:none}a:hover{text-decoration:underline}
 .quote,.card,.photo{text-decoration:none!important}
 .post{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #eff3f4}.post.main{padding:16px 0}.post.main .text{font-size:19px;line-height:1.4}
 .thread .post+.post{border-top:0}.thread{border-bottom:1px solid #eff3f4}.thread .post{border-bottom:0}
-.avatar{width:40px;height:40px;border-radius:50%;flex:none;background:#eff3f4;object-fit:cover}.body{min-width:0;flex:1}
+.avatar{width:40px;height:40px;border-radius:50%;flex:none;background:#eff3f4;object-fit:cover}.avatar-link{flex:none;align-self:flex-start}.avatar-link .avatar{display:block}.body{min-width:0;flex:1}
 .who{margin:0 0 2px;color:#536471;font-size:14px;overflow-wrap:anywhere}.who b{color:#0f1419}.who a{color:#536471}
 .replying{margin:0 0 4px;color:#536471;font-size:14px}.text{white-space:pre-wrap;overflow-wrap:anywhere}
 .media{display:grid;gap:4px;margin-top:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.media img,.media video{width:100%;max-height:520px;object-fit:cover;border-radius:14px;border:1px solid #eff3f4;display:block}

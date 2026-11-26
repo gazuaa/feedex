@@ -418,7 +418,8 @@ try {
   assert.doesNotMatch(link, /%0A%0A$/, 'cut at a paragraph boundary');
   const appSource = (await import('node:fs')).readFileSync('src/App.tsx', 'utf8');
   assert.match(appSource, /id: 'deepl-selection', label: t\([^\n]+\), run: \(\) => openInDeepL\(target\.selection!\)/, 'selected text can go to DeepL from the right-click menu');
-  assert.match(appSource, /id: 'deepl-article', label: t\([^\n]+\), run: \(\) => [^\n]+openInDeepL/, 'a whole article can go to DeepL from the right-click menu');
+  assert.match(appSource, /id: 'deepl-article'[^\n]+run: \(\) => handleSelectArticle\(latest\(\), 'translation'\)/, 'the article menu opens the in-app translation');
+  assert.match(appSource, /onTranslateOnOpen=\{selectedArticle && translateArticleId === selectedArticle.id \? consumeTranslationRequest : undefined\}/, 'only the requested article starts translated');
   assert.match((await import('node:fs')).readFileSync('src/client/deeplWeb.ts', 'utf8'), /bridge\.postMessage\(\{ type: 'openExternal', url \}\)/, 'the Mac and Windows apps open DeepL in the default browser');
 
   console.log('PASS: DeepL endpoint, auth header, HTML handling, escaped titles, size-limited parts in order; Workers AI paragraph translation with model fallback, code and Korean left alone; DeepL quota falls back to Workers AI; Korean articles cost nothing; subscribed-only translations saved per source and redone when the article changes; operator-only encrypted DeepL key that is checked before saving and never returned; translate button in every view and the operator setting; X conversation translations without a repeated heading and with boxed quotes; articles left in Slap for the same e-mail; DeepL web hand-off for selections and whole articles without the API.');

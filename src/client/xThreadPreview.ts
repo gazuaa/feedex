@@ -1,7 +1,7 @@
 import type { ArticleItem } from './api';
 import { parseXPost } from './xTimeline';
 import { xAvatarOf } from './xAvatars';
-import { X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
+import { xThreadAuthorLink, X_THREAD_MARK, X_THREAD_STYLE, X_VIDEO_STYLE } from '../shared/xThreadStyle';
 import { lang, t } from '../shared/i18n';
 
 const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -24,12 +24,15 @@ export function xThreadPreview(article: ArticleItem, failed = false, Parser?: ty
     : `<a class="photo" href="${escape(item.src)}"><img src="${escape(item.src)}" alt=""></a>`).join('');
   const card = post.card ? `<a class="card" href="${escape(post.card.href)}">${post.card.image ? `<img src="${escape(post.card.image)}" alt="">` : ''}<span><strong>${escape(post.card.title)}</strong></span></a>` : '';
   const quoteMedia = post.quote ? post.quote.media.map((item) => item.video ? `<a class="photo video" href="${escape(post.quote!.href)}"><img src="${escape(item.src)}" alt=""><span>${t('동영상 열기', 'Open video')}</span></a>` : `<a class="photo" href="${escape(item.src)}"><img src="${escape(item.src)}" alt=""></a>`).join('') : '';
-  const quote = post.quote ? `<div class="quote"><a class="quote-post" href="${escape(post.quote.href)}"><span class="who">${quoteAvatar ? `<img class="mini" src="${escape(quoteAvatar)}" alt="">` : ''}<b>${escape(post.quote.name)}</b> <span>${post.quote.handle ? `@${escape(post.quote.handle)}` : ''}</span></span><span class="text">${escape(post.quote.text)}</span></a>${quoteMedia ? `<div class="media">${quoteMedia}</div>` : ''}</div>` : '';
+  const quoteAuthor = post.quote ? xThreadAuthorLink(post.quote.handle, `${quoteAvatar ? `<img class="mini" src="${escape(quoteAvatar)}" alt="">` : ''}<b>${escape(post.quote.name)}</b> <span>${post.quote.handle ? `@${escape(post.quote.handle)}` : ''}</span>`) : '';
+  const quote = post.quote ? `<div class="quote"><span class="who">${quoteAuthor}</span><a class="quote-post" href="${escape(post.quote.href)}"><span class="text">${escape(post.quote.text || t('인용 글 열기', 'Open quoted post'))}</span></a>${quoteMedia ? `<div class="media">${quoteMedia}</div>` : ''}</div>` : '';
+  const portrait = avatar ? xThreadAuthorLink(post.handle, `<img class="avatar" src="${escape(avatar)}" alt="">`, true) : '<span class="avatar"></span>';
+  const author = xThreadAuthorLink(post.handle, `<b>${escape(post.name)}</b> <span>@${escape(post.handle)}</span>`);
   return `<!doctype html><html lang="${lang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(article.url)}" target="_blank">${X_THREAD_MARK}<title>${escape(`${post.name} (@${post.handle}) ${t('X 글', 'X post')}`)}</title><style>${X_THREAD_STYLE}${X_VIDEO_STYLE}</style></head><body><main>`
     // 답글은 원글이 사본과 함께 오므로, 원글이 놓일 자리를 먼저 잡아 둔다.
     + (post.replyTo ? `<article class="post before"><span class="avatar"></span><div class="body"><p class="who"><span>@${escape(post.replyTo)}</span></p><p class="empty${failed ? '' : ' loading'}">${failed ? t('원글을 불러오지 못했어요.', 'Could not load the original post.') : t('원글을 불러오는 중이에요.', 'Loading the original post…')}</p></div></article>` : '')
-    + `<article class="post main">${avatar ? `<img class="avatar" src="${escape(avatar)}" alt="">` : '<span class="avatar"></span>'}<div class="body">`
-    + `<p class="who"><b>${escape(post.name)}</b> <span>@${escape(post.handle)}</span>${when ? ` · <a href="${escape(article.url)}">${escape(when)}</a>` : ''}</p>`
+    + `<article class="post main">${portrait}<div class="body">`
+    + `<p class="who">${author}${when ? ` · <a href="${escape(article.url)}">${escape(when)}</a>` : ''}</p>`
     + (post.replyTo ? `<p class="replying">${t(`@${escape(post.replyTo)} 님에게 보내는 답글`, `Replying to @${escape(post.replyTo)}`)}</p>` : '')
     + `<div class="text">${linked(post.text)}</div>${media ? `<div class="media">${media}</div>` : ''}${card}${quote}</div></article>`
     + `<section class="replies"><h2>${t('댓글', 'Replies')}</h2><p class="empty${failed ? '' : ' loading'}">${failed ? t('댓글을 불러오지 못했어요. 위의 다시 시도를 누르거나 X에서 열어 보세요.', 'Could not load replies. Try again or open the post on X.') : t('댓글을 불러오는 중이에요.', 'Loading replies…')}</p></section>`
