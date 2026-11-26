@@ -1,5 +1,5 @@
 import { ArticleBlockTag } from './ArticleBlockTag';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Play, Repeat2 } from 'lucide-react';
 import { apiRequest, type ArticleItem } from '../client/api';
 import { parseXPost, xTime, type XMedia, type XPost } from '../client/xTimeline';
@@ -120,6 +120,25 @@ function Avatar({ post, isDark, size = 'full' }: { post: Pick<XPost, 'name' | 'h
 
 // X처럼 사진 1장은 크게, 2~4장은 격자로 놓는다. 동영상은 썸네일에 재생 표시만 단다.
 // compact는 인용 글 안이다. 테두리 없이 낮게 놓는다.
+/**
+ * 목록의 GIF. iOS 사파리는 소리가 꺼진 영상만 자동 재생하는데, React는 muted를 HTML 속성으로 쓰지 않아 자동 재생이 막힌다.
+ * 그래서 처음부터 소리 끔을 속성까지 걸고 직접 재생하며, 화면에 보이는 동안만 재생하고 벗어나면 멈춘다.
+ */
+function GifVideo({ src, poster, className }: { src: string; poster: string; className: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    video.muted = true; video.defaultMuted = true; video.setAttribute('muted', ''); video.setAttribute('playsinline', '');
+    const play = () => { void video.play().catch(() => { /* 저전력 모드 등으로 막히면 미리보기 그림이 보인다. */ }); };
+    if (typeof IntersectionObserver === 'undefined') { play(); return; }
+    const observer = new IntersectionObserver(([entry]) => { if (entry?.isIntersecting) play(); else video.pause(); }, { threshold: 0.2 });
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [src]);
+  return <video ref={ref} src={src} poster={poster} muted loop playsInline preload="metadata" aria-label="GIF" className={className} />;
+}
+
 function MediaGrid({ media = [], line, compact = false, onImageError }: { media?: XMedia[]; line: string; compact?: boolean; onImageError?: (src: string) => void }) {
   const [broken, setBroken] = useState<string[]>([]);
   const items = (media || []).filter((item) => item?.src && !broken.includes(item.src)).slice(0, 4);
@@ -129,7 +148,7 @@ function MediaGrid({ media = [], line, compact = false, onImageError }: { media?
     {items.map((item, index) => <div key={item.src} className={`relative min-h-0 ${items.length === 3 && index === 0 ? 'row-span-2' : ''}`}>
       {item.gif
         // GIF는 X처럼 소리 없이 반복 재생한다. 재생을 못 하면 미리보기 그림이 보인다.
-        ? <video src={item.gif} poster={item.src} autoPlay muted loop playsInline preload="metadata" aria-label="GIF" className={many ? 'h-full w-full object-cover' : `${compact ? 'max-h-[320px]' : 'max-h-[510px]'} w-full object-cover`} />
+        ? <GifVideo src={item.gif} poster={item.src} className={many ? 'h-full w-full object-cover' : `${compact ? 'max-h-[320px]' : 'max-h-[510px]'} w-full object-cover`} />
         : <img src={item.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken((prev) => [...prev, item.src]); onImageError?.(item.src); }} className={many ? 'h-full w-full object-cover' : `${compact ? 'max-h-[320px]' : 'max-h-[510px]'} w-full object-cover`} />}
       {item.gif && <span className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-white">GIF</span>}
       {item.video && <span className="absolute inset-0 flex items-center justify-center"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/90 text-white"><Play className="ml-0.5 h-6 w-6 fill-current" /></span></span>}
