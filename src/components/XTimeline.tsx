@@ -121,22 +121,40 @@ function Avatar({ post, isDark, size = 'full' }: { post: Pick<XPost, 'name' | 'h
 // X처럼 사진 1장은 크게, 2~4장은 격자로 놓는다. 동영상은 썸네일에 재생 표시만 단다.
 // compact는 인용 글 안이다. 테두리 없이 낮게 놓는다.
 /**
- * 목록의 GIF. iOS 사파리는 소리가 꺼진 영상만 자동 재생하는데, React는 muted를 HTML 속성으로 쓰지 않아 자동 재생이 막힌다.
- * 그래서 처음부터 소리 끔을 속성까지 걸고 직접 재생하며, 화면에 보이는 동안만 재생하고 벗어나면 멈춘다.
+ * 목록의 GIF. 두 가지를 피해야 재생된다.
+ * - X 영상 서버는 다른 사이트 주소(Referer)가 붙은 요청을 막는다(403). 영상 태그는 그 표시를 뺄 수 없어서,
+ *   표시 없이 직접 받아(이 서버는 교차 요청을 허용한다) 기기 안 주소로 재생한다. 받지 못하면 미리보기 그림이 남는다.
+ * - iOS 사파리는 소리가 꺼진 영상만 자동 재생하는데 React는 muted를 속성으로 쓰지 않는다. 소리 끔을 속성까지 건다.
+ * 화면에 보일 때만 받고 재생하며, 벗어나면 멈춘다.
  */
 function GifVideo({ src, poster, className }: { src: string; poster: string; className: string }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const [local, setLocal] = useState<string | null>(null);
+  const visible = useRef(false);
   useEffect(() => {
     const video = ref.current;
     if (!video) return;
     video.muted = true; video.defaultMuted = true; video.setAttribute('muted', ''); video.setAttribute('playsinline', '');
-    const play = () => { void video.play().catch(() => { /* 저전력 모드 등으로 막히면 미리보기 그림이 보인다. */ }); };
-    if (typeof IntersectionObserver === 'undefined') { play(); return; }
-    const observer = new IntersectionObserver(([entry]) => { if (entry?.isIntersecting) play(); else video.pause(); }, { threshold: 0.2 });
-    observer.observe(video);
-    return () => observer.disconnect();
+    let url: string | null = null, loading = false, alive = true;
+    const play = () => { if (video.src) void video.play().catch(() => { /* 저전력 모드 등으로 막히면 미리보기 그림이 보인다. */ }); };
+    const load = () => {
+      if (loading) return;
+      loading = true;
+      void fetch(src, { referrerPolicy: 'no-referrer', credentials: 'omit' })
+        .then((response) => response.ok ? response.blob() : Promise.reject(new Error(String(response.status))))
+        .then((blob) => { if (!alive) return; url = URL.createObjectURL(blob); setLocal(url); })
+        .catch(() => { /* 미리보기 그림을 그대로 둔다. */ });
+    };
+    const observer = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(([entry]) => {
+      visible.current = Boolean(entry?.isIntersecting);
+      if (visible.current) { load(); play(); } else video.pause();
+    }, { threshold: 0.2, rootMargin: '200px 0px' });
+    if (observer) observer.observe(video); else { visible.current = true; load(); }
+    return () => { alive = false; observer?.disconnect(); if (url) URL.revokeObjectURL(url); };
   }, [src]);
-  return <video ref={ref} src={src} poster={poster} muted loop playsInline preload="metadata" aria-label="GIF" className={className} />;
+  // 받은 영상이 붙으면 보이는 동안 바로 재생한다.
+  useEffect(() => { const video = ref.current; if (local && video && visible.current) void video.play().catch(() => {}); }, [local]);
+  return <video ref={ref} src={local ?? undefined} poster={poster} muted loop playsInline preload="auto" aria-label="GIF" className={className} />;
 }
 
 function MediaGrid({ media = [], line, compact = false, onImageError }: { media?: XMedia[]; line: string; compact?: boolean; onImageError?: (src: string) => void }) {
