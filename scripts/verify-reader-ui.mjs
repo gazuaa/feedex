@@ -49,6 +49,9 @@ try {
   const menuClick = new Event('click', { cancelable: true });
   Object.defineProperty(menuClick, 'target', { value: { closest: (selector) => selector === '.feedex-context-menu' ? {} : null } });
   doc.dispatchEvent(menuClick); assert.equal(menuClick.defaultPrevented, false, 'a menu item can be tapped immediately after a long press');
+  target.control = true; touch('touchstart', 100, 200); touch('touchend', 100, 200); target.control = false;
+  const newTap = new Event('click', { cancelable: true }); doc.dispatchEvent(newTap);
+  assert.equal(newTap.defaultPrevented, false, 'a new tap in the reader is not blocked by the previous long press');
   touch('touchstart', 100, 200); touch('touchmove', 100, 230); await new Promise((resolve) => setTimeout(resolve, 480)); assert.equal(opened, 1, 'scrolling cancels a long press');
   target.control = true; touch('touchstart', 100, 200); target.control = false;
   cleanup(); await new Promise((resolve) => setTimeout(resolve, 480)); assert.equal(opened, 1);

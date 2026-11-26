@@ -4,6 +4,8 @@ export function bindLongPress(doc: Document, open: (target: Element, x: number, 
   const cancel = () => { clearTimeout(timer); start = null; };
   const begin = (event: TouchEvent) => {
     cancel(); fired = false;
+    // 다시 누른 동작은 앞서 길게 누른 손을 뗄 때 생긴 클릭이 아니다.
+    suppressUntil = 0;
     const target = event.target as Element | null;
     if (event.touches.length !== 1 || !target?.closest?.('[data-article-id],[data-feed-id],[data-folder-id]') || target.closest('input,textarea,select,[contenteditable="true"],.feedex-reader-content,dialog')) return;
     const touch = event.touches[0]; start = { target, x: touch.clientX, y: touch.clientY };
