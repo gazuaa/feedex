@@ -936,4 +936,6 @@ html.dark .feedex-share-editor-head button { color: #34d399; }
 .feedex-share-editor li[data-dragging] { z-index: 2; box-shadow: 0 8px 22px #0f172a33; }
 .feedex-share-editor input[type="checkbox"] { flex: 0 0 auto; width: 18px; height: 18px; accent-color: #10b981; }
 .feedex-share-grip { flex: 0 0 auto; padding: 10px 8px; color: var(--feedex-muted); cursor: grab; touch-action: none; }
-.feedex-share-edit { color: var(--feedex-muted); }
+.feedex-share-edit { grid-column: 1 / -1; display: flex; justify-content: flex-end; padding: 2px 4px 0; }
+.feedex-share-edit > button { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 999px; color: var(--feedex-muted); opacity: .7; }
+.feedex-share-edit > button:is(:hover, :active, :focus-visible) { opacity: 1; background: #10b9811a; color: #10b981; }

@@ -967,7 +967,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       onChange={(order, hidden) => { const next = { order, hidden }; setShareMenu(next); saveShareMenu(next); }} onDone={() => setShareEditing(false)} />;
     return <>
       {ordered.filter((entry) => !shareMenu.hidden.includes(entry.id)).map((entry) => <React.Fragment key={entry.id}>{entry.node}</React.Fragment>)}
-      <button type="button" className={`${option} feedex-share-edit`} onClick={() => setShareEditing(true)}><Pencil size={16} aria-hidden="true" />{t('편집', 'Edit')}</button>
+      {/* 편집은 메뉴 항목처럼 보이지 않게 오른쪽 아래 작은 아이콘으로 둔다. 메뉴의 줄 스타일이 붙지 않게 한 겹 감싼다. */}
+      <div className="feedex-share-edit"><button type="button" aria-label={t('공유 메뉴 편집', 'Edit share menu')} title={t('공유 메뉴 편집', 'Edit share menu')} onClick={() => setShareEditing(true)}><Pencil size={14} aria-hidden="true" /></button></div>
     </>;
   };
 
