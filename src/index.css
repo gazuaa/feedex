@@ -936,7 +936,9 @@ html.dark .feedex-share-editor-head button { color: #34d399; }
 .feedex-share-editor li[data-dragging] { z-index: 2; box-shadow: 0 8px 22px #0f172a33; }
 .feedex-share-editor input[type="checkbox"] { flex: 0 0 auto; width: 18px; height: 18px; accent-color: #10b981; }
 .feedex-share-grip { flex: 0 0 auto; padding: 10px 8px; color: var(--feedex-muted); cursor: grab; touch-action: none; }
-/* 편집 아이콘은 줄을 따로 차지하지 않고 마지막 항목 줄의 오른쪽 빈자리에 겹쳐 둔다. */
-.feedex-share-edit { grid-column: 1 / -1; position: relative; height: 0; }
-.feedex-share-edit > button { position: absolute; right: 6px; bottom: 7px; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 999px; color: var(--feedex-muted); opacity: .7; }
+/* 편집 아이콘은 메뉴 항목처럼 보이지 않게 작게 둔다. 컴퓨터 공유 창에서는 맨 아래 오른쪽, 휴대폰 메뉴에서는 오른쪽 위 모서리에 띄운다. */
+.feedex-share-edit { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.feedex-mobile-share-menu > .feedex-share-edit { display: block; height: 0; }
+.feedex-share-edit > button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 999px; color: var(--feedex-muted); opacity: .7; }
+.feedex-mobile-share-menu > .feedex-share-edit > button { position: absolute; top: 4px; right: 4px; }
 .feedex-share-edit > button:is(:hover, :active, :focus-visible) { opacity: 1; background: #10b9811a; color: #10b981; }
