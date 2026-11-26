@@ -6,6 +6,7 @@ import { revealCopyImages } from './articleImages';
 import { publicDeviceArticle } from '../shared/publicWebPage';
 import { isXStatusUrl } from '../shared/xFeed';
 import { X_THREAD_MARK } from '../shared/xThreadStyle';
+import { hasBrokenCopySvg } from '../shared/copySvg';
 import { loadPublicWebCopy, PublicWebCopyError } from './publicWebCopy';
 
 type ReaderResult = { fullContentHtml: string; publishedAt?: string };
@@ -44,10 +45,11 @@ export class ArticleResources {
   async cachedWeb(article: ArticleItem): Promise<WebResult | undefined> {
     const stored = await readContent(this.account, `web:${article.id}`);
     // 예전 X 글 사본은 댓글 자리만 회색으로 남은 x.com 화면이거나, 인용 글 상자가 깨진 사본이다. 지금 방식의 사본을 새로 받게 한다.
-    // 대리 경로(/page-asset/) 없이 http 그림·스타일이 그대로 남은 사본이나, 유튜브 임베드 변환 전에 만든 http 사본도 다시 받는다.
+    // 깨진 SVG나 대리 경로(/page-asset/) 없이 http 그림·스타일이 남은 사본도 다시 받는다.
     if (!stored || !('html' in stored.data)
       || (isXStatusUrl(article.url) && (!stored.data.thread || stored.data.partial || !stored.data.html.includes(X_THREAD_MARK)
         || (/<html\s+lang="(ko|en)"/i.exec(stored.data.html)?.[1] ?? 'ko') !== lang()))
+      || hasBrokenCopySvg(stored.data.html)
       || /<(?:link|img)\b[^>]+(?:href|src)=["']http:\/\//i.test(stored.data.html)
       || (/^http:\/\//i.test(article.url) && stored.data.html.includes('<base ') && !stored.data.html.includes('data-sfeed-copy="2"'))) {
       this.preparedCopies.delete(article.id);

@@ -1159,7 +1159,7 @@ export const App: React.FC = () => {
     if (readDirect(feedId)) saveDirect(feedId, false);
     saveFeedViewMode(feedId, viewMode);
   };
-  // 바로 열기를 처음 켤 때 앞으로 어떻게 되는지와 되돌리는 법을 한 번 묻는다.
+  // 글 화면에서는 지금 한 번 열거나, 이 피드의 원문 열기를 켤 수 있다.
   const [directConfirm, setDirectConfirm] = useState<ArticleItem | null>(null);
   /**
    * 원문을 열고 글 화면은 닫는다. 원문에서 돌아오면 웹뷰가 아니라 목록이 보이게 한다.
@@ -1175,13 +1175,13 @@ export const App: React.FC = () => {
   };
   const handleOpenDirectly = (article: ArticleItem) => {
     if (!user) return;
-    if (readDirect(article.feed_id)) { openDirectlyFromReader(article); return; }
     setDirectConfirm(article);
   };
-  const confirmOpenDirectly = () => {
+  const confirmOpenDirectly = (always: boolean) => {
     const article = directConfirm;
     setDirectConfirm(null);
     if (!user || !article) return;
+    if (!always) { openOriginalDirectly(article); return; }
     saveDirect(article.feed_id, true);
     openDirectlyFromReader(article);
   };
@@ -2011,16 +2011,16 @@ export const App: React.FC = () => {
 
       {directConfirm && (
         <ConfirmDialog
-          title={t('이 피드는 원문으로 바로 열까요?', 'Open this feed on the original site?')}
-          confirmLabel={t('바로 열기', 'Open directly')}
+          title={t('원문을 어떻게 열까요?', 'How should the original open?')}
+          confirmLabel={t('항상 원문으로 열기', 'Always open the original')}
+          alternative={{ label: t('이번만 열기', 'Open just once'), onClick: () => confirmOpenDirectly(false) }}
           isDark={isDark}
           busy={false}
           error={null}
-          focusConfirm
           onCancel={() => setDirectConfirm(null)}
-          onConfirm={confirmOpenDirectly}
+          onConfirm={() => confirmOpenDirectly(true)}
         >
-          <p>{t('앞으로 이 피드 글을 누르면 원문 페이지가 바로 열려요.', 'From now on, tapping this feed’s articles opens the original page.')}</p>
+          <p>{t('‘항상’을 선택하면 앞으로 이 피드의 글은 원문에서 바로 열려요.', 'Choose “Always” to open future articles from this feed on the original site.')}</p>
           <p className="mt-2">{t('되돌리려면 글을 길게 눌러 ‘앱에서 열기’를 고르세요.', 'To undo, long-press an article and choose “Open in FeedEx”.')}</p>
         </ConfirmDialog>
       )}

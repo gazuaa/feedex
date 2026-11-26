@@ -74,7 +74,7 @@ const VIEW_MODES = [
   { id: 'web', label: t('웹', 'Web'), title: t('웹 페이지 — 원본 사이트 그대로', 'Web page — the original site as is'), Icon: Globe },
 ] as const;
 /** 보기 방식 오른쪽의 바로 열기. 앱 안에서 보지 않고 원문 페이지를 바로 연다(4Pillars처럼). */
-const DIRECT_OPTION = { label: t('원문', 'Site'), title: t('원문 바로 열기 — 목록에서 누르면 원문 페이지를 바로 열어요', 'Open directly — tapping in the list opens the original page'),
+const DIRECT_OPTION = { label: t('원문', 'Site'), title: t('원문 열기 옵션', 'Original page options'),
   onTitle: t('원문 바로 열기 켜짐 — 다른 보기를 고르면 꺼져요', 'Open directly is on — choose another view to turn it off'), Icon: ExternalLink };
 
 // 웹 보기 확대 단계는 브라우저와 같다. 프레임 안 페이지는 다른 출처라서 바깥에서
@@ -206,7 +206,7 @@ interface ArticleDrawerProps {
   onChangeViewMode: (mode: ViewMode) => void;
   /** 이 피드의 글을 목록에서 누르면 원문 페이지를 바로 여는지. */
   opensDirectly?: boolean;
-  /** 바로 열기를 고른다. 이 피드를 바로 열기로 기억하고 지금 글의 원문을 연다. */
+  /** 원문을 이번만 열지 다음에도 바로 열지 묻는다. */
   onOpenDirectly?: () => void;
   /** 열자마자 AI 요약을 펼친다(길게 누르기 메뉴의 '요약'). */
   summarizeOnOpen?: boolean;
@@ -1022,7 +1022,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       >
         <div ref={topRef} className="feedex-mobile-reader-top lg:hidden" data-scroll-hidden={barsHidden || undefined} inert={barsHidden || undefined} aria-hidden={barsHidden || undefined} onPointerDown={keepPeeking}>
           <button className="feedex-mobile-icon" onClick={onClose} aria-label={t('목록으로 돌아가기', 'Back to list')}><ChevronDown size={22} /></button>
-          <div role="radiogroup" aria-label={t('본문 보기 방식', 'Article view')} className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}<span>{label}</span></button>)}{onOpenDirectly && <button role="radio" aria-label={opensDirectly ? DIRECT_OPTION.onTitle : DIRECT_OPTION.title} aria-checked={false} data-direct-on={opensDirectly || undefined} onClick={onOpenDirectly}><DIRECT_OPTION.Icon size={16} /><span>{DIRECT_OPTION.label}</span></button>}</div>
+          <div role="radiogroup" aria-label={t('본문 보기 방식', 'Article view')} className="feedex-mobile-body-modes">{VIEW_MODES.map(({ id, label, Icon }) => <button key={id} role="radio" aria-label={label} aria-checked={mode === id} onClick={() => chooseViewMode(id)}>{id === 'reader' && scrapingReader ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}<span>{label}</span></button>)}{onOpenDirectly && <button type="button" aria-haspopup="dialog" aria-label={DIRECT_OPTION.title} title={opensDirectly ? DIRECT_OPTION.onTitle : DIRECT_OPTION.title} data-direct-on={opensDirectly || undefined} onClick={onOpenDirectly}><DIRECT_OPTION.Icon size={16} /><span>{DIRECT_OPTION.label}</span></button>}</div>
           <button className="feedex-mobile-icon" aria-label={t('본문 도구', 'Article tools')} aria-expanded={mobileMenu === 'tools'} onClick={() => setMobileMenu('tools')}><MoreHorizontal size={20} /></button>
         </div>
         {/* 상단 동작 막대 */}
@@ -1278,9 +1278,10 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
                 <button
                   key={id}
                   type="button"
-                  role="radio"
-                  aria-label={label}
-                  aria-checked={selected}
+                  role={id === 'direct' ? undefined : 'radio'}
+                  aria-haspopup={id === 'direct' ? 'dialog' : undefined}
+                  aria-label={id === 'direct' ? DIRECT_OPTION.title : label}
+                  aria-checked={id === 'direct' ? undefined : selected}
                   title={directOn ? DIRECT_OPTION.onTitle : title}
                   data-direct-on={directOn || undefined}
                   onClick={() => id === 'direct' ? onOpenDirectly?.() : chooseViewMode(id)}

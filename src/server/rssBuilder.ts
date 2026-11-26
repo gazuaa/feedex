@@ -6,6 +6,7 @@ import { revealLazyImages } from '../shared/lazyImages';
 import { replaceYouTubeIframesWithCards } from '../shared/youtubeEmbed';
 import { dropEmptySlots } from '../shared/emptySlots';
 import { plainCopyStyles } from '../shared/copyStyles';
+import { repairCopySvg } from '../shared/copySvg';
 import { proxyPageAssets, type AssetProxy } from './pageAssets';
 import { dropSidebars } from '../shared/sidebars';
 import { dropConsentBanners } from '../shared/consentBanners';
@@ -81,6 +82,7 @@ function pageCopy(html: string, pageUrl: string, { minLinks = 0, linkTarget, art
   const { document } = parseHTML(html);
   if (articleOnly) replaceYouTubeIframesWithCards(document, pageUrl);
   stripActiveContent(document);
+  if (articleOnly) repairCopySvg(document);
   if (document.querySelectorAll('a[href]').length < minLinks) return undefined;
   revealLazyImages(document);
   dropEmptySlots(document);

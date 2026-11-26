@@ -13,13 +13,14 @@ interface ConfirmDialogProps {
   error: string | null;
   onCancel: () => void;
   onConfirm: () => void;
+  alternative?: { label: string; onClick: () => void };
   /** 키보드 단축키로 물을 때는 확인 버튼에 먼저 초점을 두어 Enter로 확인하게 한다. */
   focusConfirm?: boolean;
 }
 
 /** 예/아니오를 묻는 모달. 초점은 취소에서 시작하고, 처리 중이 아니면 Esc로 취소한다. */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
-  title, children, confirmLabel, busyLabel = t('처리 중…', 'Working…'), tone = 'primary', isDark, busy, error, onCancel, onConfirm, focusConfirm = false,
+  title, children, confirmLabel, busyLabel = t('처리 중…', 'Working…'), tone = 'primary', isDark, busy, error, onCancel, onConfirm, alternative, focusConfirm = false,
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -50,11 +51,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         {children}
       </div>
       {error && <p role="alert" className="mt-3 text-sm text-rose-400">{error}</p>}
-      <div className="mt-6 flex justify-end gap-2">
+      <div className="mt-6 flex flex-wrap justify-end gap-2">
         <button ref={cancelRef} type="button" onClick={onCancel} disabled={busy}
           className={`rounded-xl px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-50 ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-100 hover:bg-slate-200'}`}>
           {t('취소', 'Cancel')}
         </button>
+        {alternative && <button type="button" onClick={alternative.onClick} disabled={busy}
+          className={`rounded-xl border px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-50 ${isDark ? 'border-slate-700 bg-slate-800 hover:bg-slate-700' : 'border-slate-200 bg-white hover:bg-slate-100'}`}>
+          {alternative.label}
+        </button>}
         <button ref={confirmRef} type="button" onClick={onConfirm} disabled={busy}
           className={`rounded-xl px-4 py-2 text-sm font-semibold cursor-pointer disabled:opacity-50 ${tone === 'danger' ? 'bg-rose-500 hover:bg-rose-400 text-white' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'}`}>
           {busy ? busyLabel : confirmLabel}

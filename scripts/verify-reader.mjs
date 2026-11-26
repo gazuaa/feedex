@@ -66,6 +66,23 @@ try {
   // 사진으로 시작하고 같은 사진을 캡션 달린 figure로 되풀이하는 피드(보안뉴스)는 한 번만 보여 준다.
   const { dropRepeatedImages } = await vite.ssrLoadModule('/src/client/articleImages.ts');
   const { parseHTML } = await import('linkedom');
+  // 잘못 변환된 글꼴과 기울임 태그가 SVG를 중간에서 닫는 비탈릭 도표를 재현한다.
+  const { hasBrokenCopySvg } = await vite.ssrLoadModule('/src/shared/copySvg.ts');
+  const diagramPage = `<html><body><article><svg width="500" height="500"><defs>
+    <span class="citation" data-cites="font-face">@font-face</span>{font-family:‘DejaVu
+    Sans';font-weight:bold;font-style:normal;src:url(data:font/woff;base64,d09GRgAB) format(‘woff');}
+    <span data-cites="font-face">@font-face</span>{font-family:'Unsafe';font-weight:bold;font-style:normal;src:url(https://elsewhere.example.test/font.woff) format('woff');}
+    <linearGradient id="fill"><stop offset="0%" stop-color="#fff"/></linearGradient>
+    </defs><rect width="500" height="500" fill="url(#fill)"/><text>Part <em>12</em></text></svg><p>End</p></article></body></html>`;
+  assert.equal(hasBrokenCopySvg(diagramPage), true);
+  const diagramCopy = webCopy(diagramPage, url);
+  assert.equal(hasBrokenCopySvg(diagramCopy), false);
+  const { document: diagram } = parseHTML(diagramCopy);
+  assert.match(diagram.querySelector('svg defs style')?.textContent, /@font-face\{font-family:'DejaVu Sans'/);
+  assert.equal(diagram.querySelector('svg text > tspan[font-style="italic"]')?.textContent, '12');
+  assert.ok(diagram.querySelector('svg defs #fill') && diagram.querySelector('svg rect') && diagram.querySelector('svg + p'));
+  assert.doesNotMatch(diagramCopy, /data-cites|elsewhere\.example\.test/);
+
   const photo = 'https://cdn.example.test/news/photo/202610/146842_129483_520.jpg';
   const { document: repeated } = parseHTML(`<div id="body"><img src="${photo}" class="type:primaryImage"><p>Lead paragraph.</p><div style="text-align:center"><figure><img src="${photo}"><figcaption>Caption</figcaption></figure></div><p><img src="https://cdn.example.test/news/photo/202610/146842_129484_100.jpg"></p><p><a href="/x"><img src="https://cdn.example.test/news/photo/202610/146842_129484_100.jpg"></a></p></div>`);
   dropRepeatedImages(repeated.getElementById('body'));
