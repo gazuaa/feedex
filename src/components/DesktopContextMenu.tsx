@@ -199,7 +199,15 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
     root.classList.add('feedex-sheet-open');
     clear();
     document.addEventListener('selectionchange', clear);
-    return () => { root.classList.remove('feedex-sheet-open'); document.removeEventListener('selectionchange', clear); };
+    // 시트가 열린 동안 뒤 목록은 스크롤되지 않게 한다. 시트 내용이 짧아 스크롤할 게 없으면 iOS가 그 끌기를 뒤 목록으로 넘긴다.
+    // 시트 안이 실제로 스크롤될 때만 끌기를 허용한다(빠른 실행 칸 끌어 옮기기는 포인터 이벤트라 영향이 없다).
+    const lock = (event: TouchEvent) => {
+      const sheet = ref.current, target = event.target as Node | null;
+      if (sheet && target && sheet.contains(target) && sheet.scrollHeight > sheet.clientHeight + 1) return;
+      if (event.cancelable) event.preventDefault();
+    };
+    document.addEventListener('touchmove', lock, { passive: false, capture: true });
+    return () => { root.classList.remove('feedex-sheet-open'); document.removeEventListener('selectionchange', clear); document.removeEventListener('touchmove', lock, { capture: true }); };
   }, [sheetOpen]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 3000); return () => clearTimeout(timer); }, [notice]);
   return <>
@@ -217,7 +225,10 @@ export function DesktopContextMenu({ enabled, touch = false, actions, heading }:
       const shown = quickIds.map((id) => candidates.find((item) => item.id === id)).filter((item): item is AppContextAction => Boolean(item));
       // 번호와 개수 제한은 이 기기에 있는 후보만 센다(시스템 공유가 없는 브라우저 등).
       return <>
-        {menu.heading && <div className="feedex-context-heading"><div><strong>{menu.heading.title}</strong>{menu.heading.detail && <small>{menu.heading.detail}</small>}</div>{candidates.length > 0 && <button type="button" className="feedex-context-edit" aria-pressed={editingQuick} onClick={() => setEditingQuick((value) => !value)}>{editingQuick ? t('완료', 'Done') : t('편집', 'Edit')}</button>}</div>}
+        {menu.heading && <div className="feedex-context-heading"><div><strong>{menu.heading.title}</strong>{menu.heading.detail && <small>{menu.heading.detail}</small>}</div>{candidates.length > 0 && (editingQuick
+          ? <button type="button" className="feedex-context-edit" aria-pressed onClick={() => setEditingQuick(false)}>{t('완료', 'Done')}</button>
+          // 편집은 글자 대신 작은 연필 동그라미로 둔다(글 화면 공유 메뉴와 같은 모양).
+          : <button type="button" className="feedex-context-edit-icon" aria-label={t('빠른 실행 편집', 'Edit shortcuts')} title={t('빠른 실행 편집', 'Edit shortcuts')} onClick={() => setEditingQuick(true)}><Pencil size={14} aria-hidden="true" /></button>)}</div>}
         {editingQuick && candidates.length > 0 ? <div className="feedex-context-quick-edit">
           <p>{t('끌어서 순서를 바꾸고, −를 눌러 빼요', 'Drag to reorder, tap − to remove')}</p>
           <div ref={quickRow} className="feedex-context-quick feedex-quick-chosen">{shown.map((item) => { const Icon = contextMenuIcon(item); return <div key={item.id} data-quick-id={item.id} data-dragging={dragging === item.id || undefined} onPointerDown={startDrag(item.id, shown.map((entry) => entry.id))}><Icon size={20} strokeWidth={1.8} aria-hidden="true" /><span>{item.quick}</span><button type="button" data-remove aria-label={t(`${item.label} 빼기`, `Remove ${item.label}`)} onClick={() => removeQuick(item.id)}>−</button></div>; })}</div>
