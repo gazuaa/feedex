@@ -381,7 +381,10 @@ aside.fixed { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-ar
    */
   .feedex-workspace { position: fixed; inset: 0; height: auto; }
   .feedex-workspace[data-inactive] { pointer-events: none; }
-  .feedex-workspace-header { position: absolute; inset: 0 0 auto; z-index: 10; }
+  /* 머리줄 틀은 목록 위에 겹쳐 있다. 머리줄이 스크롤로 숨어도 틀은 그 자리에 투명하게 남아 맨 위 글의 누르기·길게 누르기를
+     가로챘다(글이 안 열리고 iOS 돋보기만 뜸). 틀은 누르기를 통과시키고, 보이는 머리줄만 누르기를 받는다. */
+  .feedex-workspace-header { position: absolute; inset: 0 0 auto; z-index: 10; pointer-events: none; }
+  .feedex-workspace-header .feedex-mobile-header:not([data-scroll-hidden]) { pointer-events: auto; }
   html { --feedex-mobile-surface: #fff; --feedex-mobile-raised: #f1f5f9; --feedex-mobile-glass: #ffffffed; --feedex-mobile-muted: #64748b; --feedex-mobile-line: #e2e8f0; --feedex-mobile-selected: #d1fae5; }
   html.dark { --feedex-mobile-surface: #0f172a; --feedex-mobile-raised: #1e293b; --feedex-mobile-glass: #1e293be8; --feedex-mobile-muted: #94a3b8; --feedex-mobile-line: #29364c; --feedex-mobile-selected: #064e3b; }
   .feedex-pull-refresh { position: fixed; z-index: 70; top: var(--feedex-mobile-header-height); left: 50%; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--feedex-mobile-line); border-radius: 24px; background: var(--feedex-mobile-surface); color: var(--feedex-text); box-shadow: 0 5px 18px #0002; font-size: 13px; white-space: nowrap; pointer-events: none; }
