@@ -1,13 +1,15 @@
 import { t } from '../shared/i18n';
+export const articleTableLabel = () => t('표 가로 스크롤', 'Scroll table horizontally');
+
 /** 본문 폭을 넘는 표는 표 안에서만 옆으로 밀 수 있게 한다. */
-export function wrapArticleTables(root: ParentNode) {
+export function wrapArticleTables(root: ParentNode, label: string) {
   for (const table of root.querySelectorAll('table')) {
     if (table.closest('.feedex-table-scroll') || table.parentElement?.closest('table') || table.getAttribute('role') === 'presentation') continue;
     const wrapper = table.ownerDocument.createElement('div');
     wrapper.className = 'feedex-table-scroll';
     wrapper.tabIndex = 0;
     wrapper.setAttribute('role', 'region');
-    wrapper.setAttribute('aria-label', t('표 가로 스크롤', "Scroll table horizontally"));
+    wrapper.setAttribute('aria-label', label);
     table.before(wrapper);
     wrapper.append(table);
   }

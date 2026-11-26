@@ -3,8 +3,9 @@ import { COPY_THEME_MARKUP } from './copyTheme';
 import { xFrameTools } from './xPostFrame';
 import { COPY_PHOTO_SCRIPT } from './photoTap';
 import { X_THREAD_MARK } from '../shared/xThreadStyle';
+import { publicCoinDeskArticle } from '../shared/publicWebPage';
 import { useEffect, useState, useSyncExternalStore, type RefObject } from 'react';
-import { ARTICLE_TABLE_STYLE, wrapArticleTables } from './articleTables';
+import { ARTICLE_TABLE_STYLE, articleTableLabel, wrapArticleTables } from './articleTables';
 const query = '(max-width: 1023px)';
 const subscribe = (callback: () => void) => { const media = window.matchMedia(query); media.addEventListener('change', callback); return () => media.removeEventListener('change', callback); };
 export const useMobileViewport = () => useSyncExternalStore(subscribe, () => window.matchMedia(query).matches, () => false);
@@ -75,7 +76,7 @@ export function useScrollChrome(ref: RefObject<HTMLElement | null>, enabled: boo
 // 고정 요소 안에서 화면 밖으로 조금 삐져나온 장식(빈 알림 상자 등)은 고정일 때는 문서 폭에 들지 않지만, 문서에 놓이면
 // 문서를 몇 px 넓힌다. iOS는 그만큼만 넓어도 사본을 좌우로 밀고 튕기게 하므로, 푼 요소의 가로 넘침은 잘라 둔다.
 export const UNPIN_SCRIPT = `const sfeedUnpin=()=>{const b=document.body;if(!b)return;const pinned=[];for(const e of b.getElementsByTagName('*')){const s=getComputedStyle(e),p=s.position;if(p==='fixed'||p==='sticky')pinned.push([e,p,s.overflowX])}for(const[e,p,x]of pinned){if(p==='fixed'){e.style.setProperty('position','absolute','important');if(x==='visible')e.style.setProperty('overflow-x','clip','important')}else{e.style.setProperty('position','relative','important');e.style.setProperty('top','auto','important');e.style.setProperty('bottom','auto','important')}}};addEventListener('DOMContentLoaded',sfeedUnpin);addEventListener('load',sfeedUnpin);`;
-const COPY_PREAMBLE = `<style>html,body{overflow-x:hidden!important}${ARTICLE_TABLE_STYLE}</style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">for(const type of ['touchstart','touchend','touchcancel'])addEventListener(type,e=>parent.postMessage({sfeedTouchCount:e.touches.length},'*'),{passive:true,capture:true});addEventListener('pagehide',()=>parent.postMessage({sfeedTouchCount:0},'*'));addEventListener('scroll',()=>{const d=document.scrollingElement||document.documentElement;parent.postMessage({sfeedScroll:[d.scrollTop,d.scrollHeight-innerHeight,innerHeight],sfeedXPositioning:document.documentElement.hasAttribute('data-sfeed-x-positioning')},'*')},{passive:true});addEventListener('message',e=>{if(e.data?.sfeedScrollTop)scrollTo({top:0,behavior:'smooth'});const s=e.data?.sfeedInset;if(Array.isArray(s)){const b=document.body;if(b){b.style.paddingTop=(s[0]||0)+'px';b.style.paddingBottom=(s[1]||0)+'px'}}});parent.postMessage({sfeedReady:1},'*');let sfeedSent;const sfeedFit=()=>{let n=0,s=0;for(const p of document.querySelectorAll('p')){const l=p.textContent.trim().length,w=p.getBoundingClientRect().width;if(l>79&&w){n+=l;s+=l*w}}if(!sfeedSent&&innerWidth<700&&n>400&&s/n<innerWidth/2){sfeedSent=1;parent.postMessage({sfeedSqueezed:1},'*')}};addEventListener('load',sfeedFit);setTimeout(sfeedFit,4000);addEventListener('DOMContentLoaded',()=>{if(innerWidth<1024)(${wrapArticleTables.toString()})(document)});${UNPIN_SCRIPT}</script>`;
+const copyPreamble = () => `<style>html,body{overflow-x:hidden!important}${ARTICLE_TABLE_STYLE}</style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">for(const type of ['touchstart','touchend','touchcancel'])addEventListener(type,e=>parent.postMessage({sfeedTouchCount:e.touches.length},'*'),{passive:true,capture:true});addEventListener('pagehide',()=>parent.postMessage({sfeedTouchCount:0},'*'));addEventListener('scroll',()=>{const d=document.scrollingElement||document.documentElement;parent.postMessage({sfeedScroll:[d.scrollTop,d.scrollHeight-innerHeight,innerHeight],sfeedXPositioning:document.documentElement.hasAttribute('data-sfeed-x-positioning')},'*')},{passive:true});addEventListener('message',e=>{if(e.data?.sfeedScrollTop)scrollTo({top:0,behavior:'smooth'});const s=e.data?.sfeedInset;if(Array.isArray(s)){const b=document.body;if(b){b.style.paddingTop=(s[0]||0)+'px';b.style.paddingBottom=(s[1]||0)+'px'}}});parent.postMessage({sfeedReady:1},'*');let sfeedSent;const sfeedFit=()=>{let n=0,s=0;for(const p of document.querySelectorAll('p')){const l=p.textContent.trim().length,w=p.getBoundingClientRect().width;if(l>79&&w){n+=l;s+=l*w}}if(!sfeedSent&&innerWidth<700&&n>400&&s/n<innerWidth/2){sfeedSent=1;parent.postMessage({sfeedSqueezed:1},'*')}};addEventListener('load',sfeedFit);setTimeout(sfeedFit,4000);addEventListener('DOMContentLoaded',()=>{if(innerWidth<1024)(${wrapArticleTables.toString()})(document,${JSON.stringify(articleTableLabel())})});${UNPIN_SCRIPT}</script>`;
 // 원문 스크립트가 없는 CoinDesk 사본에서는 접힌 공유 패널을 숨기고 기사 열을 프레임 폭에 맞춘다.
 const COINDESK_MOBILE_WIDTH = `<style data-feedex-coindesk-width>
 html, body { width: 100%; min-width: 0; max-width: 100%; margin-inline: 0; }
@@ -90,5 +91,29 @@ html, body { width: 100%; min-width: 0; max-width: 100%; margin-inline: 0; }
 [class~="group/strip"] > div { box-sizing: border-box; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 </style>`;
 
-export const framedCopy = (html: string, fitCoinDesk = false) => html.replace(/^(\s*<!doctype[^>]*>)?(\s*<html[^>]*>)?/i,
-  (start) => start + COPY_PREAMBLE + COPY_THEME_MARKUP + xFrameTools(html) + (html.includes(X_THREAD_MARK) ? '' : COPY_PHOTO_SCRIPT) + (fitCoinDesk ? COINDESK_MOBILE_WIDTH : ''));
+// 비탈릭 블로그는 세로 방향이면 제목을 4rem, 본문을 1.8rem으로 키운다. 휴대폰 폭에서는 본문과 도표가 들어갈 여백을 확보한다.
+const VITALIK_MOBILE_STYLE = `<style data-feedex-vitalik-mobile>
+#doc.markdown-body { box-sizing: border-box; max-width: 100%; padding: 16px 18px 28px; font-size: 1.0625rem; line-height: 1.65; overflow-wrap: anywhere; }
+#doc.markdown-body :is(p, li, div, span, code, table) { font-size: inherit; }
+#doc.markdown-body > h1 { font-size: clamp(1.625rem, 7.5vw, 2rem); line-height: 1.2; margin-top: 0; }
+#doc.markdown-body h2 { font-size: 1.375rem; }
+#doc.markdown-body h3 { font-size: 1.1875rem; }
+#doc.markdown-body small { font-size: .875rem; }
+#doc.markdown-body > br:has(+ h1),
+#doc.markdown-body > h1 + small + small + br + br,
+#doc.markdown-body > h1 + small + small + br + br + br { display: none; }
+#doc.markdown-body > h1 + small + small + br { clear: both; }
+</style>`;
+
+function mobileCopyStyle(url?: string) {
+  if (!url) return '';
+  if (publicCoinDeskArticle(url)) return COINDESK_MOBILE_WIDTH;
+  try {
+    const site = new URL(url);
+    if (/^https?:$/.test(site.protocol) && /^(?:vitalik\.eth\.limo|(?:www\.)?vitalik\.ca)$/i.test(site.host)) return VITALIK_MOBILE_STYLE;
+  } catch { /* 주소를 읽지 못하면 기기 보정을 적용하지 않는다. */ }
+  return '';
+}
+
+export const framedCopy = (html: string, mobileUrl?: string) => html.replace(/^(\s*<!doctype[^>]*>)?(\s*<html[^>]*>)?/i,
+  (start) => start + copyPreamble() + COPY_THEME_MARKUP + xFrameTools(html) + (html.includes(X_THREAD_MARK) ? '' : COPY_PHOTO_SCRIPT) + mobileCopyStyle(mobileUrl));

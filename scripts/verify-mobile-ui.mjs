@@ -153,6 +153,11 @@ try {
   assert.match(framedCopy('<!doctype html><html lang="ko"><head><base href="https://site.example.test/"></head><body></body></html>'), /^<!doctype html><html lang="ko"><style>html,body\{overflow-x:hidden!important\}[^<]*<\/style><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-sfeed-scroll'"><script nonce="sfeed-scroll">/, 'the copy document stays in place, and its policy comes before any page script');
   assert.ok(framedCopy('<p>bare</p>').startsWith('<style>'));
   assert.match(framedCopy('<p>bare</p>'), /sfeedSqueezed/, 'a copy laid out for a desktop says so');
+  assert.match(framedCopy('<p>copy</p>', 'https://vitalik.eth.limo/general/post.html'), /data-feedex-vitalik-mobile/);
+  assert.match(framedCopy('<p>copy</p>', 'https://vitalik.ca/general/post.html'), /data-feedex-vitalik-mobile/);
+  assert.doesNotMatch(framedCopy('<p>copy</p>', 'https://vitalik.eth.limo.example.test/'), /data-feedex-vitalik-mobile/);
+  assert.doesNotMatch(framedCopy('<p>copy</p>'), /data-feedex-vitalik-mobile/, 'desktop copies preserve the original sizing');
+  assert.match(framedCopy('<p>copy</p>', 'https://www.coindesk.com/tech/2026/11/26/story'), /data-feedex-coindesk-width/);
   // 사본에는 사이트 스크립트가 없어 고정 머리말이 글 위에 붙어 따라온다. 고정 요소를 문서와 함께 스크롤되게 푼다.
   assert.ok(framedCopy('<p>bare</p>').includes(UNPIN_SCRIPT), 'every copy unpins fixed and sticky parts');
   {

@@ -50,7 +50,7 @@ import { GrokLogo } from './GrokLogo';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
 import { leavesForOriginal, mobileOriginalArticle, opensOriginalSeparately } from '../client/originalWindow';
-import { prefersMobileTableCopy, wrapArticleTables } from '../client/articleTables';
+import { articleTableLabel, prefersMobileTableCopy, wrapArticleTables } from '../client/articleTables';
 import type { ArticleResources, WebResult } from '../client/articleResources';
 import { readFeedPreference, saveFeedPreference } from '../client/devicePreferences';
 import { WebLabel, WebStatusBar } from './WebStatusBar';
@@ -131,7 +131,7 @@ function ArticleBody({ html, base, title, className, style, onOpenXPost, xThread
     const content = sanitizeReaderMarkup(html, base, xThread);
     ref.current.replaceChildren(...(content ? [content] : []));
     if (title) dropArticleChrome(ref.current, [titleKey(title)]);
-    wrapArticleTables(ref.current);
+    wrapArticleTables(ref.current, articleTableLabel());
     return bindArticleImages(ref.current, base);
   }, [html, base, title, xThread]);
   return <div ref={ref} style={style} className={className} onClick={(event) => {
@@ -372,7 +372,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const peeked = resources.peekCachedWeb?.(article);
     return peeked ? { articleId: article.id, ...peeked } : null;
   });
-  const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html, fitCoinDesk && !webCopy.textOnly) : undefined, [webCopy?.html, webCopy?.textOnly, fitCoinDesk]);
+  const mobileCopyUrl = isMobile && !webCopy?.textOnly ? article?.url : undefined;
+  const copyHtml = useMemo(() => webCopy?.html ? framedCopy(webCopy.html, mobileCopyUrl) : undefined, [webCopy?.html, mobileCopyUrl]);
   // X 글은 미러에서 사본을 받는 몇 초 동안, 피드로 받은 글을 사본과 같은 모양으로 같은 프레임에 먼저 그린다.
   // 사본을 받지 못하면 그 자리에 남기고 댓글 칸에만 알린다. 미러 대신 받은 x.com 화면 사본은 글도 댓글도
   // 비어 있으므로 받지 못한 것으로 본다.
