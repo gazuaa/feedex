@@ -122,6 +122,7 @@ export async function refreshXCardImages(url: string, contentHtml: string | null
 }
 
 type XThread = { html: string; url: string; thread: true; partial?: true };
+type ParentState = 'visible' | 'missing' | 'unconfirmed';
 
 /** `partial`은 답글인데 미러가 원글을 불러오지 못한 사본이다. 기기는 저장하지 않는다. */
 export async function fetchXThread(url: string, feedHtml?: string | null, db?: D1DatabaseLike, feedTitle?: string): Promise<XThread> {
@@ -157,11 +158,14 @@ export async function fetchXThread(url: string, feedHtml?: string | null, db?: D
         continue;
       }
       const page = document as unknown as Element;
-      const missing = missingParent(page, main, /^R to @[a-z\d_]{1,15}:/i.test(feedTitle || ''));
-      const result = { html: threadDocument(page, main, provider, url, feedHtml, missing), url, thread: true as const };
+      const before = page.querySelector('.main-thread .before-tweet');
+      // 미러의 'Replying to'는 계정만 가리킬 때도 있다. 앞 글 영역의 표시나 RSS의 답글 표기가 있어야 누락으로 본다.
+      const expectsParent = /^R to @[a-z\d_]{1,15}:/i.test(feedTitle || '') || Boolean(before?.querySelector('.timeline-item:is(.unavailable, .earlier-replies)'));
+      const parent: ParentState = before?.querySelector('.timeline-item .tweet-header') ? 'visible' : expectsParent ? 'missing' : 'unconfirmed';
+      const result = { html: threadDocument(page, main, provider, url, feedHtml, parent), url, thread: true as const };
       // 답글인데 원글이 없으면 그 미러가 대화를 불러오지 못한 것이다. 다른 미러를 한 번 더 보고, 그래도 없으면 원글 없이 보여 준다.
       pageMissed.delete(provider);
-      if (!missing) return result;
+      if (parent !== 'missing') return result;
       partial ??= { ...result, partial: true };
       failures.push(`${new URL(provider).host} 원글 없음`);
     } catch (error) {
@@ -174,10 +178,6 @@ export async function fetchXThread(url: string, feedHtml?: string | null, db?: D
   if (partial) return partial;
   throw new Error('X 글 페이지를 받지 못했습니다.');
 }
-
-// 이 글 자신이 답글인데(인용한 글의 답글 표시가 아니라) 위쪽 대화에 글이 하나도 없다.
-const missingParent = (document: Element, main: Element, feedReply: boolean) => (feedReply || [...main.querySelectorAll('.replying-to')].some((node) => !node.matches('.quote *')))
-  && !document.querySelector('.main-thread .before-tweet .timeline-item .tweet-header');
 
 // 화면에 보인 사본을 번역에서 그대로 쓰되, 서버가 만들지 않은 HTML은 번역기에 보내지 않는다.
 // 원글 없이 받은 사본은 증표를 따로 만들어, 그런 사본을 받아도 되는 곳(번역)에서만 쓰게 한다.
@@ -231,7 +231,7 @@ export function xThreadSummaryPosts(html: string) {
   } as const));
 }
 
-function threadDocument(document: Element, main: Element, provider: string, statusUrl: string, feedHtml: string | null | undefined, parentMissing: boolean): string {
+function threadDocument(document: Element, main: Element, provider: string, statusUrl: string, feedHtml: string | null | undefined, parent: ParentState): string {
   const hosts = new Set([new URL(provider).hostname]);
   const link = (value: string | null) => {
     if (!value) return null;
@@ -311,7 +311,7 @@ function threadDocument(document: Element, main: Element, provider: string, stat
     const date = header?.querySelector('.tweet-date a');
     const href = link(date?.getAttribute('href') || null) || statusUrl;
     const when = escape(kind === 'main' ? item.querySelector('.tweet-published')?.textContent?.trim() || date?.getAttribute('title') || '' : date?.textContent?.trim() || '');
-    const replying = own(item, '.replying-to');
+    const replying = kind !== 'main' || parent !== 'unconfirmed' ? own(item, '.replying-to') : null;
     const contentNode = own(item, '.tweet-content');
     let contentHtml = rich(contentNode);
     if (kind === 'main') {
@@ -338,7 +338,7 @@ function threadDocument(document: Element, main: Element, provider: string, stat
   const header = main.querySelector('.tweet-header');
   const title = escape(`${header?.querySelector('.fullname')?.textContent?.trim() || 'X'} (${header?.querySelector('.username')?.textContent?.trim() || ''}) ${t('X 글', 'X post')}`);
   return `<!doctype html><html lang="${lang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base href="${escape(statusUrl)}" target="_blank">${X_THREAD_MARK}<title>${title}</title><style>${X_THREAD_STYLE}${X_VIDEO_STYLE}</style></head><body><main>`
-    + (parentMissing ? `<p class="empty parent-missing">${t('공개 미러가 이 답글의 원글을 불러오지 못했어요. 위의 다시 시도를 누르거나 X에서 열어 보세요.', 'The public mirror did not return the original post. Try again or open it on X.')}</p>` : items('.main-thread .before-tweet .timeline-item', 'before')) + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
+    + (parent === 'missing' ? `<p class="empty parent-missing">${t('공개 미러가 이 답글의 원글을 불러오지 못했어요. 위의 다시 시도를 누르거나 X에서 열어 보세요.', 'The public mirror did not return the original post. Try again or open it on X.')}</p>` : items('.main-thread .before-tweet .timeline-item', 'before')) + post(main, 'main') + items('.main-thread .after-tweet .timeline-item', 'after')
     + `<section class="replies"><h2>${t('댓글', 'Replies')}</h2>${replies || `<p class="empty">${t('아직 보이는 댓글이 없어요.', 'No replies to show yet.')}</p>`}</section>`
     + `<p class="more"><a data-x-external href="${escape(statusUrl)}">${more ? t('댓글 더 보기 · ', 'More replies · ') : ''}${t('X에서 열기 (로그인한 상태로 보기·반응)', 'Open on X to view or react while signed in')}</a></p>`
     + '</main></body></html>';

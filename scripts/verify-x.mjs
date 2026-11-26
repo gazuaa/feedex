@@ -176,6 +176,8 @@ try {
       if (pageMode === 'mie-down' && url.hostname === 'nitter.mie.foundation') return new Response('', { status: 503 });
       // 답글 글 페이지: orphan은 두 미러 모두 원글을 못 불러오고, orphan-one은 첫 미러만 못 불러온다.
       if (pageMode === 'orphan' || pageMode === 'orphan-one') return new Response(replyPage(pageMode === 'orphan-one' && url.hostname === 'ruf.st'));
+      if (pageMode === 'unavailable-parent') return new Response(replyPage(false).replace('<div id="m" class="main-tweet">', '<div class="before-tweet"><div class="timeline-item unavailable"><a class="unavailable-box" href="/parent/status/100">Unavailable</a></div></div><div id="m" class="main-tweet">'));
+      if (pageMode === 'profile-mention') return new Response(replyPage(false).replace('href="/parent">@parent</a></div><div class="tweet-content media-body">', 'href="/Gemini">@Gemini</a></div><div class="tweet-content media-body"><a href="/Gemini">@Gemini</a> '));
       if (pageMode === 'quote-no-media') return new Response(statusPage(url.pathname.split('/')[1]).replace(/<div class="quote-media-container">[\s\S]*?<\/div>/, ''));
       if (pageMode === 'card-refresh') return new Response(statusPage(url.pathname.split('/')[1]).replace('<p class="tweet-published">', '<div class="card large"><a class="card-container" href="https://hark.com/"><div class="card-image-container"><div class="card-image"><img src="/pic/card_img%2F2117762426506768385%2FJUwJy2wG%3Fformat%3Djpg%26name%3D800x419"></div></div></a></div><p class="tweet-published">'));
       return new Response(statusPage(url.pathname.split('/')[1]));
@@ -365,12 +367,23 @@ try {
   const parentNow = Date.now; Date.now = () => parentNow() + 2 * 3600_000;
   try {
     pageMode = 'orphan-one'; pagesBefore = pageCalls();
-    const whole = await fetchXThread('https://x.com/nasa/status/2000000000000000008');
+    const whole = await fetchXThread('https://x.com/nasa/status/2000000000000000008', null, undefined, 'R to @parent: A reply');
     assert.equal(whole.partial, undefined); assert.equal(pageCalls(), pagesBefore + 2, '원글이 빠지면 다른 미러를 한 번 더 본다.');
     assert.match(whole.html, /<article class="post before">[\s\S]*Parent text[\s\S]*<article class="post main">/); assert.doesNotMatch(whole.html, /earlier replies/);
     pageMode = 'orphan';
-    const orphan = await fetchXThread('https://x.com/nasa/status/2000000000000000009');
+    const orphan = await fetchXThread('https://x.com/nasa/status/2000000000000000009', null, undefined, 'R to @parent: A reply');
     assert.equal(orphan.partial, true); assert.match(orphan.html, /parent-missing/); assert.doesNotMatch(orphan.html, /class="post before"/);
+    pageMode = 'unavailable-parent';
+    const linkedReply = await fetchXThread('https://x.com/nasa/status/2000000000000000009');
+    assert.equal(linkedReply.partial, true, 'RSS 제목이 없는 인용글 화면에서도 앞 글이 보이지 않는다는 표시를 읽는다.');
+    pageMode = 'profile-mention'; pagesBefore = pageCalls();
+    const mention = await fetchXThread('https://x.com/tonymargarit/status/2125328654737805646', null, undefined, '@Gemini once again leading the charge');
+    const mentionDocument = parseHTML(mention.html).document;
+    assert.equal(mention.partial, undefined);
+    assert.equal(pageCalls(), pagesBefore + 1, '계정 멘션만 있으면 다른 미러를 기다리지 않는다.');
+    assert.equal(mentionDocument.querySelector('.post.main .replying, .parent-missing'), null);
+    assert.equal(mentionDocument.querySelector('.post.main .text a')?.getAttribute('href'), 'https://x.com/Gemini');
+    assert.ok(mentionDocument.querySelector('.post.main .quote-post'));
     pageMode = 'quote-no-media';
     const withQuoteCard = await fetchXThread('https://x.com/sama/status/2111130577789493706', '<p>Very happy to see this from Nick!</p><hr/><blockquote><b>Nick (@nickcammarata)</b><p><a href="https://already-clean.goodfire.com/"><img src="https://pbs.twimg.com/card_img/2115826775871668224/FxVmcikG?format=jpg&amp;name=800x419" /></a></p></blockquote>');
     assert.match(withQuoteCard.html, /<div class="quote">[\s\S]*<a class="photo" href="https:\/\/pbs\.twimg\.com\/card_img\/2115826775871668224\/FxVmcikG\?format=jpg&amp;name=800x419"><img src="https:\/\/pbs\.twimg\.com\/card_img\/2115826775871668224\/FxVmcikG\?format=jpg&amp;name=800x419"/, '미러 글 페이지에서 빠진 인용 글 카드 이미지는 RSS 본문에서 채운다.');

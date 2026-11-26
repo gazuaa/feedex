@@ -35,12 +35,13 @@ try {
   setLocalNotifications('owner', true); await notifyNewArticles('owner', [{ id: 'c', title: 'Old session' }], undefined, () => false); assert.equal(notifications.length, 5, 'logout cancels late notifications');
 
   const { bindLongPress } = await vite.ssrLoadModule('/src/client/longPress.ts');
-  const doc = new EventTarget(); let opened = 0;
-  const target = { control: false, closest(selector) { return selector.startsWith('[data-') ? {} : this.control ? {} : null; } };
+  const doc = Object.assign(new EventTarget(), { defaultView: { navigator: { userAgent: 'iPhone', maxTouchPoints: 5 } } }); let opened = 0;
+  const target = { control: false, row: true, closest(selector) { return selector.startsWith('[data-') ? this.row : selector.startsWith('.feedex-feed-list') || this.control; } };
   const cleanup = bindLongPress(doc, () => opened++);
   const touch = (type, x, y, fingers = 1) => {
     const event = new Event(type, { cancelable: true });
-    Object.defineProperties(event, { target: { value: target }, touches: { value: type === 'touchend' ? [] : Array.from({ length: fingers }, () => ({ clientX: x, clientY: y })) } });
+    const points = Array.from({ length: fingers }, () => ({ clientX: x, clientY: y }));
+    Object.defineProperties(event, { target: { value: target }, touches: { value: type === 'touchend' ? [] : points }, changedTouches: { value: points } });
     doc.dispatchEvent(event); return event;
   };
   touch('touchstart', 100, 200); await new Promise((resolve) => setTimeout(resolve, 480)); assert.equal(opened, 1);
@@ -53,8 +54,27 @@ try {
   const newTap = new Event('click', { cancelable: true }); doc.dispatchEvent(newTap);
   assert.equal(newTap.defaultPrevented, false, 'a new tap in the reader is not blocked by the previous long press');
   touch('touchstart', 100, 200); touch('touchmove', 100, 230); await new Promise((resolve) => setTimeout(resolve, 480)); assert.equal(opened, 1, 'scrolling cancels a long press');
+  target.row = false;
+  assert.equal(touch('touchstart', 40, 200).defaultPrevented, false, 'an ordinary tap in the list gutter is untouched');
+  touch('touchend', 40, 200);
+  assert.equal(touch('touchstart', 44, 203).defaultPrevented, true, 'a rapid second touch in the list gutter cannot start the iOS loupe');
+  touch('touchcancel', 44, 203);
+  touch('touchstart', 40, 200); touch('touchend', 40, 200);
+  assert.equal(touch('touchstart', 40, 235).defaultPrevented, false, 'a touch elsewhere can still scroll');
+  touch('touchmove', 40, 260); touch('touchend', 40, 260);
+  assert.equal(touch('touchstart', 40, 260).defaultPrevented, false, 'a scroll does not count as a tap');
+  touch('touchend', 40, 260);
+  target.control = true;
+  assert.equal(touch('touchstart', 40, 260).defaultPrevented, false, 'the input and reader keep their normal touch behavior');
+  touch('touchend', 40, 260); target.control = false;
+  target.row = true;
+  touch('touchstart', 100, 200); touch('touchend', 100, 200);
+  assert.equal(touch('touchstart', 101, 200).defaultPrevented, true);
+  await new Promise((resolve) => setTimeout(resolve, 480));
+  assert.equal(opened, 2, 'the app menu still opens after a quick tap followed by a hold');
+  assert.equal(touch('touchend', 101, 200).defaultPrevented, true);
   target.control = true; touch('touchstart', 100, 200); target.control = false;
-  cleanup(); await new Promise((resolve) => setTimeout(resolve, 480)); assert.equal(opened, 1);
+  cleanup(); await new Promise((resolve) => setTimeout(resolve, 480)); assert.equal(opened, 2);
 
   // 메뉴는 손가락 아래에 뜨므로 메뉴 글자를 고를 수 없어야 iOS 글자 선택이 이어지지 않는다.
   const css = readFileSync('src/index.css', 'utf8');
