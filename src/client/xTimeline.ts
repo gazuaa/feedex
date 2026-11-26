@@ -10,7 +10,8 @@ export function xFolderIds(folders: FolderItem[], subscriptions: SubscriptionIte
   }).map((folder) => folder.id));
 }
 
-export interface XMedia { src: string; video: boolean }
+/** `gif`는 X의 GIF(실제로는 소리 없는 반복 mp4) 주소. 있으면 목록에서 바로 재생한다. */
+export interface XMedia { src: string; video: boolean; gif?: string }
 export interface XPost {
   /** 글을 쓴 계정. 재게시면 원래 글쓴이다. */
   name: string; handle: string; avatar: string | null;
@@ -59,7 +60,16 @@ export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | unde
     copy.querySelectorAll('br').forEach((br) => br.replaceWith('\u2028'));
     return (copy.textContent || '').replace(/[ \t]*[\r\n]+[ \t]*/g, '').replace(/[ \t]*\u2028[ \t]*/g, '\n').trim();
   };
-  const mediaOf = (node: Element) => [...node.querySelectorAll('img')].flatMap((image): XMedia[] => {
+  // 그림과 영상은 본문 순서대로 모은다. GIF와 일부 영상은 미러가 <video poster="미리보기"><source src="mp4">로 보낸다.
+  const mediaOf = (node: Element) => [...node.querySelectorAll('img, video')].flatMap((image): XMedia[] => {
+    if (image.tagName === 'VIDEO') {
+      const poster = image.getAttribute('poster') || '';
+      if (!/^https:\/\/pbs\.twimg\.com\//.test(poster)) return [];
+      const mp4 = image.querySelector('source')?.getAttribute('src') || image.getAttribute('src') || '';
+      // X의 GIF는 tweet_video 경로의 mp4다. 목록에서 GIF처럼 소리 없이 반복 재생한다. 다른 영상은 재생 표시만 붙인다.
+      const gif = /^https:\/\/video\.twimg\.com\/tweet_video\//.test(mp4) ? mp4 : undefined;
+      return [{ src: poster, video: !gif, ...(gif ? { gif } : {}) }];
+    }
     const src = image.getAttribute('src') || '';
     if (!/^https:\/\/pbs\.twimg\.com\//.test(src)) return [];
     // 동영상은 글 링크 안에 "Video" 글자와 썸네일로 들어온다.
@@ -67,7 +77,8 @@ export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | unde
     return [{ src, video: /video_thumb/.test(src) || (holder?.tagName === 'A' && /\bVideo\b/.test(holder.textContent || '')) }];
   });
   const paragraphs = [...main.querySelectorAll('p')].map(textOf).filter(Boolean);
-  post.text = paragraphs.join('\n\n') || post.text;
+  // 글 없이 그림·GIF만 올린 글은 미러가 제목을 'Gif'·'Media'·'Video'로 채운다. 그 낱말은 글로 보이지 않는다.
+  post.text = paragraphs.join('\n\n') || (/^(?:Gif|Media|Video|Image|Photo)$/i.test(post.text.trim()) && main.querySelector('img, video') ? '' : post.text);
   post.media = mediaOf(main);
   // 미러는 인용 글을 <p> 안에 <p>로 감싸 보내서, 읽고 나면 빈 문단과 글 문단이 나란히 남는다.
   const quote = extra?.querySelector('blockquote');
@@ -80,7 +91,7 @@ export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | unde
     copy.querySelector('b')?.remove();
     copy.querySelector('cite')?.remove();
     copy.querySelector('footer')?.remove();
-    copy.querySelectorAll('img').forEach((img) => img.remove());
+    copy.querySelectorAll('img, video').forEach((img) => img.remove());
     copy.querySelectorAll('br').forEach((br) => br.replaceWith('\u2028'));
     const allP = [...quote.querySelectorAll('p')].map(textOf).filter(Boolean).join('\n\n');
     const directText = (copy.textContent || '').replace(/[ \t]*[\r\n]+[ \t]*/g, '\n').replace(/[ \t]*\u2028[ \t]*/g, '\n').trim();

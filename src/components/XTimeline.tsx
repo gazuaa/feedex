@@ -127,7 +127,11 @@ function MediaGrid({ media = [], line, compact = false, onImageError }: { media?
   const many = items.length > 1;
   return <div className={`overflow-hidden ${compact ? 'mt-2 rounded-xl' : `mt-3 rounded-2xl border ${line}`} ${many ? `grid aspect-[16/9] grid-cols-2 gap-0.5 ${items.length > 2 ? 'grid-rows-2' : ''}` : ''}`}>
     {items.map((item, index) => <div key={item.src} className={`relative min-h-0 ${items.length === 3 && index === 0 ? 'row-span-2' : ''}`}>
-      <img src={item.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken((prev) => [...prev, item.src]); onImageError?.(item.src); }} className={many ? 'h-full w-full object-cover' : `${compact ? 'max-h-[320px]' : 'max-h-[510px]'} w-full object-cover`} />
+      {item.gif
+        // GIF는 X처럼 소리 없이 반복 재생한다. 재생을 못 하면 미리보기 그림이 보인다.
+        ? <video src={item.gif} poster={item.src} autoPlay muted loop playsInline preload="metadata" aria-label="GIF" className={many ? 'h-full w-full object-cover' : `${compact ? 'max-h-[320px]' : 'max-h-[510px]'} w-full object-cover`} />
+        : <img src={item.src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => { setBroken((prev) => [...prev, item.src]); onImageError?.(item.src); }} className={many ? 'h-full w-full object-cover' : `${compact ? 'max-h-[320px]' : 'max-h-[510px]'} w-full object-cover`} />}
+      {item.gif && <span className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-white">GIF</span>}
       {item.video && <span className="absolute inset-0 flex items-center justify-center"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/90 text-white"><Play className="ml-0.5 h-6 w-6 fill-current" /></span></span>}
     </div>)}
   </div>;
