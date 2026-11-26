@@ -919,3 +919,17 @@ html.dark .feedex-exclusions-count button { color: #34d399; }
 }
 
 .feedex-web-frame { background: var(--feedex-panel); }
+
+/* 글 화면 공유 메뉴 편집: 줄마다 켜고 끄는 스위치와 끌어 옮기는 손잡이. */
+.feedex-share-editor { grid-column: 1 / -1; display: grid; gap: 6px; padding: 2px; }
+.feedex-share-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px; font-size: 12px; line-height: 1.4; color: var(--feedex-muted); }
+.feedex-share-editor-head button { flex: 0 0 auto; padding: 4px 11px; border-radius: 999px; background: #10b9811f; font-size: 12.5px; font-weight: 600; color: #059669; }
+html.dark .feedex-share-editor-head button { color: #34d399; }
+.feedex-share-editor ul { position: relative; display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.feedex-share-editor li { position: relative; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px 0 12px; border-radius: 10px; background: var(--feedex-panel); font-size: 13.5px; will-change: transform; }
+.feedex-share-editor li > span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.feedex-share-editor li[data-off] > :is(span, svg) { opacity: .45; }
+.feedex-share-editor li[data-dragging] { z-index: 2; box-shadow: 0 8px 22px #0f172a33; }
+.feedex-share-editor input[type="checkbox"] { flex: 0 0 auto; width: 18px; height: 18px; accent-color: #10b981; }
+.feedex-share-grip { flex: 0 0 auto; padding: 10px 8px; color: var(--feedex-muted); cursor: grab; touch-action: none; }
+.feedex-share-edit { color: var(--feedex-muted); }

@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Link2,
   Send,
+  Pencil,
   AtSign,
   RotateCw,
   X,
@@ -39,7 +40,12 @@ import { useMobileViewport, useScrollChrome, framedCopy } from '../client/mobile
 import { useStatusBarTap } from '../client/statusBarTap';
 import { sanitizeReaderMarkup } from '../client/articleMarkup';
 import { isCurrentSummary } from '../shared/aiSummary';
-import { grokLink, isAppleTouch, openAppLink, openClosingOnReturn, openGrok, shareLinks, slapAppLink } from '../client/share';
+import { askLink, isAppleTouch, openAppLink, openAsk, openClosingOnReturn, shareLinks, slapAppLink, type AskService } from '../client/share';
+import { orderShareItems, readShareMenu, saveShareMenu } from '../client/shareMenu';
+import { ShareMenuEditor, type ShareMenuItem } from './ShareMenuEditor';
+import { ChatGptLogo } from './ChatGptLogo';
+import { ClaudeLogo } from './ClaudeLogo';
+import { GeminiLogo } from './GeminiLogo';
 import { GrokLogo } from './GrokLogo';
 import { dropArticleChrome, titleKey } from '../shared/articleChrome';
 import { bindWebPager } from '../client/webPager';
@@ -304,6 +310,9 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   const summaryScope = `${accountId}:${article?.id || ''}`;
   const currentSummaryScope = useRef(summaryScope); currentSummaryScope.current = summaryScope;
   const [summaryError, setSummaryError] = useState('');
+  // 공유 메뉴의 순서·숨김 설정과 편집 중인지. 메뉴를 닫으면 편집도 끝난다.
+  const [shareMenu, setShareMenu] = useState(readShareMenu);
+  const [shareEditing, setShareEditing] = useState(false);
   // '요약'으로 연 글은 요약을 바로 펼친다(저장된 요약이 없으면 새로 만든다). 요약 함수는 아래에서 정해 참조로 부른다.
   const openSummary = useRef<() => void>(() => {});
   const summarizeNow = useRef(summarizeOnOpen); summarizeNow.current = summarizeOnOpen;
@@ -376,7 +385,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
   }, [xWaiting, holdingPreview]);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const shareDialogRef = useRef<HTMLDialogElement>(null);
-  const closeShareDialog = () => setShareDialogOpen(false);
+  const closeShareDialog = () => { setShareDialogOpen(false); setShareEditing(false); };
   useEffect(() => { setShareDialogOpen(false); }, [article?.id]);
   useLayoutEffect(() => {
     const dialog = shareDialogRef.current;
@@ -385,7 +394,7 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     return () => { dialog.close(); };
   }, [shareDialogOpen]);
   const [mobileMenu, setMobileMenu] = useState<'tools' | 'assist' | 'share' | null>(null);
-  const closeMobileMenu = () => setMobileMenu(null);
+  const closeMobileMenu = () => { setMobileMenu(null); setShareEditing(false); };
   const openShare = () => {
     if (isMobile && !inNativeApp() && window.matchMedia('(pointer: coarse)').matches) setMobileMenu('share');
     else setShareDialogOpen(true);
@@ -856,9 +865,11 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
    * Grok에 묻기. 질문을 채운 grok.com 웹을 연다. 휴대폰에서 grok.com을 바로 열면 Grok 앱으로 넘어가며 질문이 빠지므로
    * 피드엑스의 중간 페이지(/grok.html)를 열고, 그 페이지가 스크립트로 grok.com에 넘긴다(앱으로 가로채이지 않는다).
    */
-  const askGrok = (phone: boolean, close: () => void) => {
-    if (!phone || nativeBridge()) { openShareLink(grokLink(article.url, false), close); return; }
-    openGrok(article.url, true, opensOriginalSeparately());
+  // AI에 묻기. 컴퓨터와 맥·윈도우 앱은 질문을 채운 주소를 열고, 휴대폰은 앱으로 넘기는 방식을 쓴다(client/share.ts의 openAsk).
+  const askAI = (service: AskService, close: () => void) => {
+    const phone = isMobile && window.matchMedia?.('(pointer: coarse)').matches === true;
+    if (!phone || nativeBridge()) { openShareLink(askLink(service, article.url, false), close); return; }
+    openAsk(service, article.url, true, opensOriginalSeparately());
     close();
   };
   const openShareLink = (url: string, close: () => void, linkEvent?: React.MouseEvent<HTMLAnchorElement>) => {
@@ -924,16 +935,39 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
     const links = shareLinks({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url });
     const phoneShare = isMobile && typeof navigator !== 'undefined' && typeof navigator.share === 'function'
       && typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true;
+    // 공유 방법 목록. 순서와 숨김은 사용자가 '편집'에서 바꾸고 이 기기에 남는다(client/shareMenu.ts).
+    // 휴대폰(터치 화면)만 시스템 공유를 둔다. 컴퓨터의 시스템 공유는 이메일 정도만 떠서 쓸모가 없다. 맥 앱은 메일 주소를 열지 않으므로 이메일을 뺀다.
+    // 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 X 등은 버튼으로 둔다.
+    const entries = ([
+      phoneShare && { id: 'device', label: t('다른 앱으로 공유', 'Share to another app'), icon: <Share2 size={16} aria-hidden="true" />,
+        node: <button type="button" className={option} onClick={() => shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />{t('다른 앱으로 공유', 'Share to another app')}</button> },
+      { id: 'copy-link', label: t('링크 복사', 'Copy link'), icon: <Link2 size={16} aria-hidden="true" />,
+        node: <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />{t('링크 복사', 'Copy link')}</button> },
+      { id: 'slap', label: t('Slap에 공유', 'Share to Slap'), icon: <MessageSquare size={16} aria-hidden="true" />,
+        node: <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => void shareToSlap(close, event)}><MessageSquare size={16} aria-hidden="true" />{t('Slap에 공유', 'Share to Slap')}</a> },
+      { id: 'x', label: t('X에 공유', 'Share to X'), icon: <ExternalLink size={16} aria-hidden="true" />,
+        node: <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />{t('X에 공유', 'Share to X')}</button> },
+      { id: 'grok', label: t('Grok에 묻기', 'Ask Grok'), icon: <GrokLogo />,
+        node: <button type="button" className={option} onClick={() => askAI('grok', close)}><GrokLogo />{t('Grok에 묻기', 'Ask Grok')}</button> },
+      { id: 'chatgpt', label: t('ChatGPT에 묻기', 'Ask ChatGPT'), icon: <ChatGptLogo />,
+        node: <button type="button" className={option} onClick={() => askAI('chatgpt', close)}><ChatGptLogo />{t('ChatGPT에 묻기', 'Ask ChatGPT')}</button> },
+      { id: 'claude', label: t('Claude에 묻기', 'Ask Claude'), icon: <ClaudeLogo />,
+        node: <button type="button" className={option} onClick={() => askAI('claude', close)}><ClaudeLogo />{t('Claude에 묻기', 'Ask Claude')}</button> },
+      { id: 'gemini', label: t('Gemini에 묻기', 'Ask Gemini'), icon: <GeminiLogo />,
+        node: <button type="button" className={option} onClick={() => askAI('gemini', close)}><GeminiLogo />{t('Gemini에 묻기', 'Ask Gemini')}</button> },
+      { id: 'threads', label: t('Threads에 공유', 'Share to Threads'), icon: <AtSign size={16} aria-hidden="true" />,
+        node: <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />{t('Threads에 공유', 'Share to Threads')}</a> },
+      { id: 'telegram', label: t('텔레그램으로 공유', 'Share to Telegram'), icon: <Send size={16} aria-hidden="true" />,
+        node: <button type="button" className={option} onClick={() => shareToTelegram(links, close)}><Send size={16} aria-hidden="true" />{t('텔레그램으로 공유', 'Share to Telegram')}</button> },
+      nativePlatform() !== 'mac' && { id: 'email', label: t('이메일로 공유', 'Share by email'), icon: <Mail size={16} aria-hidden="true" />,
+        node: <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />{t('이메일로 공유', 'Share by email')}</a> },
+    ] as (false | (ShareMenuItem & { node: React.ReactNode }))[]).filter((entry): entry is ShareMenuItem & { node: React.ReactNode } => Boolean(entry));
+    const ordered = orderShareItems(entries, shareMenu.order);
+    if (shareEditing) return <ShareMenuEditor items={ordered} hidden={shareMenu.hidden}
+      onChange={(order, hidden) => { const next = { order, hidden }; setShareMenu(next); saveShareMenu(next); }} onDone={() => setShareEditing(false)} />;
     return <>
-      {phoneShare && <button type="button" className={option} onClick={() => shareWithDevice(close)}><Share2 size={16} aria-hidden="true" />{t('다른 앱으로 공유', 'Share to another app')}</button>}
-      <button type="button" className={option} onClick={() => { onCopyLink(article); close(); }}><Link2 size={16} aria-hidden="true" />{t('링크 복사', 'Copy link')}</button>
-      <a className={option} href={links.slap} target="_blank" rel="noopener noreferrer" onClick={(event) => void shareToSlap(close, event)}><MessageSquare size={16} aria-hidden="true" />{t('Slap에 공유', 'Share to Slap')}</a>
-      {/* 기사 공유 메뉴의 버튼이 소셜 위젯을 숨기는 링크 선택자에 걸리지 않게 한다. */}
-      <button type="button" className={option} onClick={() => openShareLink(links.x, close)}><ExternalLink size={16} aria-hidden="true" />{t('X에 공유', 'Share to X')}</button>
-      <button type="button" className={option} onClick={() => askGrok(isMobile && window.matchMedia?.('(pointer: coarse)').matches === true, close)}><GrokLogo />{t('Grok에 묻기', 'Ask Grok')}</button>
-      <a className={option} href={links.threads} target="_blank" rel="noopener noreferrer" onClick={(event) => openShareLink(links.threads, close, event)}><AtSign size={16} aria-hidden="true" />{t('Threads에 공유', 'Share to Threads')}</a>
-      <button type="button" className={option} onClick={() => shareToTelegram(links, close)}><Send size={16} aria-hidden="true" />{t('텔레그램으로 공유', 'Share to Telegram')}</button>
-      {nativePlatform() !== 'mac' && <a className={option} href={links.email} onClick={(event) => openShareLink(links.email, close, event)}><Mail size={16} aria-hidden="true" />{t('이메일로 공유', 'Share by email')}</a>}
+      {ordered.filter((entry) => !shareMenu.hidden.includes(entry.id)).map((entry) => <React.Fragment key={entry.id}>{entry.node}</React.Fragment>)}
+      <button type="button" className={`${option} feedex-share-edit`} onClick={() => setShareEditing(true)}><Pencil size={16} aria-hidden="true" />{t('편집', 'Edit')}</button>
     </>;
   };
 

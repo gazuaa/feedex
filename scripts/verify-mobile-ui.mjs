@@ -47,6 +47,13 @@ try {
     // Grok: 홈 화면 앱은 피드엑스 페이지를 떠나지 않고 잠깐 뒤 grok.com으로 넘긴다(중간 페이지가 피드엑스를 대신하지 않게).
     const { openGrok, tookExternalTrip } = await vite.ssrLoadModule('/src/client/share.ts');
     const { askLink } = await vite.ssrLoadModule('/src/client/share.ts');
+    // 공유 메뉴 편집: 저장한 순서대로, 저장한 적 없는 항목은 원래 순서로 뒤에. 새 AI 항목은 처음엔 숨긴다.
+    const { orderShareItems, readShareMenu, saveShareMenu } = await vite.ssrLoadModule('/src/client/shareMenu.ts');
+    const shareItems = ['copy-link', 'slap', 'x', 'grok', 'chatgpt'].map((id) => ({ id }));
+    assert.deepEqual(orderShareItems(shareItems, ['x', 'copy-link']).map((item) => item.id), ['x', 'copy-link', 'slap', 'grok', 'chatgpt']);
+    const memoryStore = new Map(); const store = { getItem: (key) => memoryStore.get(key) ?? null, setItem: (key, value) => memoryStore.set(key, value) };
+    assert.deepEqual(readShareMenu(store).hidden, ['chatgpt', 'claude', 'gemini'], 'new AI shortcuts start hidden so the menu looks the same');
+    saveShareMenu({ order: ['grok', 'x'], hidden: ['slap'] }, store); assert.deepEqual(readShareMenu(store), { order: ['grok', 'x'], hidden: ['slap'] });
     assert.equal(new URL(askLink('chatgpt', shared.url, false)).origin, 'https://chatgpt.com', 'Ask ChatGPT opens chatgpt.com');
     const chatPhone = new URL(askLink('chatgpt', shared.url, true), 'https://feedex.example');
     assert.equal(new URL(askLink('claude', shared.url, false)).href.startsWith('https://claude.ai/new?q='), true, 'Ask Claude opens a new Claude chat');
@@ -119,8 +126,8 @@ try {
     const options = drawerSource.slice(drawerSource.indexOf('const shareOptions = (close: () => void) => {'), drawerSource.indexOf('return (\n    <div className="feedex-article-reader'));
     // 다른 앱으로 공유는 휴대폰(터치 화면)에서만 맨 위에 둔다. 컴퓨터의 시스템 공유는 이메일 정도만 떠서 쓸모가 없다.
     assert.match(options, /const phoneShare = isMobile && [^;]*navigator\.share === 'function'[^;]*\(pointer: coarse\)/, 'other apps appear only on touch phones');
-    assert.match(options, /\{phoneShare && <button[^\n]*shareWithDevice[^\n]*<\/button>\}\s*<button[^\n]*onCopyLink/, 'on phones other apps come first');
-    assert.equal(options.match(/다른 앱으로 공유/g).length, 1, 'desktops do not list other apps at the bottom');
+    assert.match(options, /phoneShare && \{ id: 'device'[^\n]*\n[^\n]*shareWithDevice[^\n]*\n\s*\{ id: 'copy-link'/, 'on phones other apps come first');
+    assert.equal(options.match(/다른 앱으로 공유/g).length, 2, 'other apps appear only in the phone-only entry (its label and its button)');
     for (const label of ['Copy link', 'Share to Slap', 'Share to X', 'Ask Grok', 'Share to Threads', 'Share to Telegram', 'Share by email']) assert.ok(options.includes(label), label);
     assert.match(options, /<button type="button"[^\n]+openShareLink\(links\.x, close\)[^\n]+<\/button>/, 'the X action survives social share link filters');
     assert.match(options, /<button type="button"[^\n]+shareToTelegram\(links, close\)[^\n]+<\/button>/, 'the Telegram action survives social share link filters');
@@ -131,7 +138,7 @@ try {
     const device = drawerSource.slice(drawerSource.indexOf('const shareWithDevice = (close: () => void) => {'), drawerSource.indexOf('const shareOptions = (close'));
     assert.ok(device.indexOf('navigator.share(') < device.indexOf('close();'), 'the system share opens before the menu closes');
     assert.match(device, /AbortError'\) return;\s*if \(shownArticleId\.current === article\.id\) onCopyLink\(article\);/, 'a share that cannot open copies the link instead');
-    assert.match(options, /\{nativePlatform\(\) !== 'mac' && <a className=\{option\} href=\{links\.email\}/, 'the Mac app, which cannot open mail links, hides e-mail sharing');
+    assert.match(options, /nativePlatform\(\) !== 'mac' && \{ id: 'email'[^\n]*\n[^\n]*href=\{links\.email\}/, 'the Mac app, which cannot open mail links, hides e-mail sharing');
     // Slap에 공유: 먼저 같은 이메일 앞으로 Slap에 맡기고, 기기에 맞게 연다.
     const slapFlow = drawerSource.slice(drawerSource.indexOf('const shareToSlap = async'), drawerSource.indexOf('const shareOptions = (close'));
     assert.match(slapFlow, /apiRequest<\{ ok: boolean \}>\(`\/api\/articles\/\$\{article\.id\}\/slap`/, 'the article is left in Slap first');
