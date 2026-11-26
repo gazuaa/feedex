@@ -48,6 +48,7 @@ export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | unde
     repostedBy: reposted && !own ? owner.name : null, replyTo: reply?.[1] || null,
     text: title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), media: [], card: null, quote: null,
   };
+  if (/^Untitled Article$/i.test(post.text.trim())) post.text = '';
   if (!article.content_html || !Parser) return post;
   // <hr/> 앞은 글과 사진, 뒤는 링크 카드나 인용 글이다. 두 부분을 따로 읽는다.
   const html = article.content_html, cut = html.search(/<hr\b/i);
@@ -78,7 +79,8 @@ export function parseXPost(article: ArticleItem, Parser: typeof DOMParser | unde
   });
   const paragraphs = [...main.querySelectorAll('p')].map(textOf).filter(Boolean);
   // 글 없이 그림·GIF만 올린 글은 미러가 제목을 'Gif'·'Media'·'Video'로 채운다. 그 낱말은 글로 보이지 않는다.
-  post.text = paragraphs.join('\n\n') || (/^(?:Gif|Media|Video|Image|Photo)$/i.test(post.text.trim()) && main.querySelector('img, video') ? '' : post.text);
+  // 미러가 글을 비워 보내면(X 아티클 링크만 있던 글 등) 피드 읽기가 제목을 'Untitled Article'로 채운다. 이것도 글로 보이지 않는다.
+  post.text = paragraphs.join('\n\n') || (/^Untitled Article$/i.test(post.text.trim()) || (/^(?:Gif|Media|Video|Image|Photo)$/i.test(post.text.trim()) && main.querySelector('img, video')) ? '' : post.text);
   post.media = mediaOf(main);
   // 미러는 인용 글을 <p> 안에 <p>로 감싸 보내서, 읽고 나면 빈 문단과 글 문단이 나란히 남는다.
   const quote = extra?.querySelector('blockquote');

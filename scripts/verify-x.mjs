@@ -410,6 +410,10 @@ try {
   assert.deepEqual(gifOnly.media, [{ src: 'https://pbs.twimg.com/tweet_video_thumb/HX2Rp6jWsAA2jAc.jpg', video: false, gif: 'https://video.twimg.com/tweet_video/HX2Rp6jWsAA2jAc.mp4' }], 'GIF는 목록에서 재생할 mp4와 미리보기로 읽는다.');
   assert.equal(gifOnly.text, '', "글 없이 GIF만 올린 글은 'Gif' 낱말을 글로 보이지 않는다.");
   assert.deepEqual(gifOnly.quote.media.map((item) => item.src), ['https://pbs.twimg.com/media/HX1j18QWoAAx65I.jpg']);
+  // 미러가 제목·본문을 비워 보낸 인용 글(원래 X 아티클 링크만 있던 글)은 기본 제목 'Untitled Article'을 글로 보이지 않는다.
+  const untitled = parse({ title: 'Untitled Article', url: 'https://x.com/2xdog/status/2125021470275645757', content_html: '<hr/>\n<blockquote>\n<b>2xdog (@2xdog)</b>\n<p>\n<p>Another day another EA ruining the world</p>\n</p>\n<footer>\n— <cite><a href="https://x.com/2xdog/status/2123604010594894282">x</a></cite>\n</footer>\n</blockquote>' });
+  assert.deepEqual([untitled.text, untitled.quote.text], ['', 'Another day another EA ruining the world']);
+  assert.equal(parse({ title: 'Untitled Article', content_html: '' }).text, '');
   const withText = parse({ title: 'Gold and Bitcoin having an awful year together.', url: 'https://x.com/LynAldenContact/status/2125000000000000002', content_html: '<p>Gold and Bitcoin having an awful year together.</p>\n<video poster="https://pbs.twimg.com/tweet_video_thumb/HX2QSubXIAAuE6Y.jpg"><source src="https://video.twimg.com/tweet_video/HX2QSubXIAAuE6Y.mp4" type="video/mp4"></video>' });
   assert.deepEqual([withText.text, withText.media.length, Boolean(withText.media[0].gif)], ['Gold and Bitcoin having an awful year together.', 1, true]);
   // 실제 미러 RSS 모양: 인용한 글에 동영상이 붙어 있다.
