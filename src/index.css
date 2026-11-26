@@ -942,9 +942,9 @@ html.dark .feedex-share-editor-head button { color: #34d399; }
 .feedex-share-edit > button:is(:hover, :active, :focus-visible) { opacity: 1; background: #10b9811a; color: #10b981; }
 
 @media (max-width: 1023px) {
-  /* 휴대폰 공유 메뉴: 메뉴 상자와 그 위의 편집 아이콘을 함께 아래쪽 막대 위에 띄운다. */
+  /* 휴대폰 공유 메뉴: 메뉴 상자와 편집 아이콘을 함께 아래쪽 막대 위에 띄운다. 편집 아이콘은 상자 오른쪽 아래 모서리에 걸친다. */
   .feedex-mobile-share-wrap { position: absolute; z-index: 63; right: 20px; bottom: calc(78px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
   .feedex-mobile-share-wrap > .feedex-mobile-reader-menu { position: static; }
-  .feedex-mobile-share-edit { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--feedex-mobile-line); border-radius: 999px; background: var(--feedex-mobile-surface); color: var(--feedex-mobile-muted); box-shadow: 0 4px 14px #0f172a1f; }
+  .feedex-mobile-share-edit { position: absolute; z-index: 70; right: -8px; bottom: -10px; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--feedex-mobile-line); border-radius: 999px; background: var(--feedex-mobile-surface); color: var(--feedex-mobile-muted); box-shadow: 0 4px 14px #0f172a1f; }
   .feedex-mobile-share-edit:active { color: #10b981; }
 }
