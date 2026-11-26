@@ -123,7 +123,7 @@ try {
       for (const [key, value] of Object.entries(saved)) if (value) Object.defineProperty(globalThis, key, value); else delete globalThis[key];
     }
     const drawerSource = readFileSync(new URL('../src/components/ArticleDrawer.tsx', import.meta.url), 'utf8');
-    const options = drawerSource.slice(drawerSource.indexOf('const shareOptions = (close: () => void) => {'), drawerSource.indexOf('return (\n    <div className="feedex-article-reader'));
+    const options = drawerSource.slice(drawerSource.indexOf('const shareOptions = (close: () => void'), drawerSource.indexOf('return (\n    <div className="feedex-article-reader'));
     // 다른 앱으로 공유는 휴대폰(터치 화면)에서만 맨 위에 둔다. 컴퓨터의 시스템 공유는 이메일 정도만 떠서 쓸모가 없다.
     assert.match(options, /const phoneShare = isMobile && [^;]*navigator\.share === 'function'[^;]*\(pointer: coarse\)/, 'other apps appear only on touch phones');
     assert.match(options, /phoneShare && \{ id: 'device'[^\n]*\n[^\n]*shareWithDevice[^\n]*\n\s*\{ id: 'copy-link'/, 'on phones other apps come first');
