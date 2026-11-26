@@ -929,7 +929,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
    * 컴퓨터의 시스템 공유는 이메일 정도만 떠서 쓸모가 없으므로 데스크톱과 데스크톱 앱에서는 보이지 않는다.
    * 맥 앱은 메일 주소(mailto)를 열지 않으므로 이메일 공유를 뺀다.
    */
-  const shareOptions = (close: () => void) => {
+  /** `editOutside`면 편집 아이콘을 목록 안에 두지 않는다(휴대폰 메뉴는 상자 바깥 위에 따로 띄운다). */
+  const shareOptions = (close: () => void, editOutside = false) => {
     const option = 'flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left hover:bg-emerald-500/10';
     // 리트윗 표시(RT by @…)는 빼고 공유한다. Slap 링크는 아이폰에서 그대로 열리므로 공유 창과 같은 제목을 쓴다.
     const links = shareLinks({ title: article.title.replace(/^(?:RT by|R to) @[a-z\d_]{1,15}:\s*/i, ''), url: article.url });
@@ -967,8 +968,8 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
       onChange={(order, hidden) => { const next = { order, hidden }; setShareMenu(next); saveShareMenu(next); }} onDone={() => setShareEditing(false)} />;
     return <>
       {ordered.filter((entry) => !shareMenu.hidden.includes(entry.id)).map((entry) => <React.Fragment key={entry.id}>{entry.node}</React.Fragment>)}
-      {/* 편집은 메뉴 항목처럼 보이지 않게 오른쪽 아래 작은 아이콘으로 둔다. 메뉴의 줄 스타일이 붙지 않게 한 겹 감싼다. */}
-      <div className="feedex-share-edit"><button type="button" aria-label={t('공유 메뉴 편집', 'Edit share menu')} title={t('공유 메뉴 편집', 'Edit share menu')} onClick={() => setShareEditing(true)}><Pencil size={14} aria-hidden="true" /></button></div>
+      {/* 편집은 메뉴 항목처럼 보이지 않게 작은 아이콘으로 둔다. 메뉴의 줄 스타일이 붙지 않게 한 겹 감싼다. */}
+      {!editOutside && <div className="feedex-share-edit"><button type="button" aria-label={t('공유 메뉴 편집', 'Edit share menu')} title={t('공유 메뉴 편집', 'Edit share menu')} onClick={() => setShareEditing(true)}><Pencil size={14} aria-hidden="true" /></button></div>}
     </>;
   };
 
@@ -1698,8 +1699,12 @@ export const ArticleDrawer: React.FC<ArticleDrawerProps> = ({
             <p className="feedex-mobile-menu-label">{siteShown ? t('사이트 확대·축소', 'Site zoom') : t('글자 크기', 'Text size')}</p>
             {sizeControl('feedex-mobile-zoom')}
             <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}><ExternalLink size={18} />{t('원문 사이트 열기', 'Open original site')}</a>
-          </div> : mobileMenu === 'share' ? <div role="group" className="feedex-mobile-reader-menu feedex-mobile-assist-menu feedex-mobile-share-menu" aria-label={t('공유 방법', 'Share options')}>
-            {shareOptions(closeMobileMenu)}
+          </div> : mobileMenu === 'share' ? <div className="feedex-mobile-share-wrap">
+            {/* 편집 아이콘은 메뉴 상자 바깥 위에 작게 띄워 항목 줄과 섞이지 않게 한다. */}
+            {!shareEditing && <button type="button" className="feedex-mobile-share-edit" aria-label={t('공유 메뉴 편집', 'Edit share menu')} title={t('공유 메뉴 편집', 'Edit share menu')} onClick={() => setShareEditing(true)}><Pencil size={14} aria-hidden="true" /></button>}
+            <div role="group" className="feedex-mobile-reader-menu feedex-mobile-assist-menu feedex-mobile-share-menu" aria-label={t('공유 방법', 'Share options')}>
+              {shareOptions(closeMobileMenu, true)}
+            </div>
           </div> : <div className="feedex-mobile-reader-menu feedex-mobile-assist-menu" aria-label={t('번역 및 AI 요약', 'Translation and AI summary')}>
             <button aria-pressed={showTranslation} onClick={() => { closeMobileMenu(); toggleTranslation(); }}>{translating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}{translateAction}</button>
             <button aria-pressed={aiOpen} onClick={() => { closeMobileMenu(); toggleAiSummary(); }}><Sparkles size={18} />{aiAction}</button>
